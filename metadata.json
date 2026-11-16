@@ -1,0 +1,6 @@
+{
+  "name": "EWI 777 - Premium Online Lottery & Entertainment Platform",
+  "description": "EWI 777 authentic online lottery, games, promotion agency, and wallet platform with referral tracking and instant bonuses.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

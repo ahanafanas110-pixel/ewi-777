@@ -1,0 +1,263 @@
+{
+  "entities": {
+    "BoundWallet": {
+      "title": "BoundWallet",
+      "description": "Globally unique bKash or Nagad wallet number bound to a single user account.",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "string",
+          "description": "Normalized 11-digit Bangladeshi mobile wallet number",
+          "minLength": 11,
+          "maxLength": 11,
+          "pattern": "^01[3-9][0-9]{8}$"
+        },
+        "type": {
+          "type": "string",
+          "description": "Mobile financial service provider",
+          "enum": ["bKash", "Nagad"]
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user account that bound this number",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "userPhone": {
+          "type": "string",
+          "description": "Account phone or email identifier",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when wallet was bound",
+          "maxLength": 64
+        }
+      },
+      "required": ["number", "type", "userId", "createdAt"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Global platform configuration, banners, WinGo engine modes, gift codes, payment channels, and admin settings.",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string", "maxLength": 120 },
+        "appLogoUrl": { "type": "string", "maxLength": 350000 },
+        "bkashNumber": { "type": "string", "maxLength": 64 },
+        "nagadNumber": { "type": "string", "maxLength": 64 },
+        "rocketNumber": { "type": "string", "maxLength": 64 },
+        "usdtAddress": { "type": "string", "maxLength": 160 },
+        "minWithdraw": { "type": "number" },
+        "referCommissionPercent": { "type": "number" },
+        "nextWingoOutcome": { "type": "string", "maxLength": 32 },
+        "siteEnabled": { "type": "boolean" },
+        "depositEnabled": { "type": "boolean" },
+        "withdrawEnabled": { "type": "boolean" },
+        "giftCodeEnabled": { "type": "boolean" },
+        "registrationEnabled": { "type": "boolean" },
+        "maintenanceMode": { "type": "boolean" },
+        "timezoneOffsetMinutes": { "type": "number" },
+        "binaryNextCandleBias": { "type": "string", "enum": ["AUTO", "BULL", "BEAR"] },
+        "updatedAt": { "type": "number" }
+      }
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Registered EWI 777 member account synced between devices and Admin Panel.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 64 },
+        "phone": { "type": "string", "maxLength": 64 },
+        "email": { "type": "string", "maxLength": 160 },
+        "nickname": { "type": "string", "maxLength": 80 },
+        "avatar": { "type": "string", "maxLength": 350000 },
+        "balance": { "type": "number" },
+        "safeBalance": { "type": "number" },
+        "vipLevel": { "type": "number" },
+        "totalDeposited": { "type": "number" },
+        "turnoverRequired": { "type": "number" },
+        "turnoverCompleted": { "type": "number" },
+        "isBanned": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["USER", "VIP", "ADMIN"] }
+      },
+      "required": ["id", "balance"]
+    },
+    "DepositRecord": {
+      "title": "DepositRecord",
+      "description": "Member deposit submission and Admin verification status.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userPhone": { "type": "string", "maxLength": 64 },
+        "method": { "type": "string", "maxLength": 32 },
+        "amount": { "type": "number" },
+        "trxId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["pending", "processing", "approved", "rejected"] }
+      },
+      "required": ["id", "userId", "amount", "status"]
+    },
+    "WithdrawRecord": {
+      "title": "WithdrawRecord",
+      "description": "Member withdrawal request and Admin payout status.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 128 },
+        "userPhone": { "type": "string", "maxLength": 64 },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "maxLength": 32 },
+        "number": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["pending", "processing", "completed", "rejected"] }
+      },
+      "required": ["id", "userId", "amount", "status"]
+    },
+    "SupportMessageDoc": {
+      "title": "SupportMessageDoc",
+      "description": "Real-time customer support chat message between member and Admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "sender": { "type": "string", "enum": ["user", "admin"] },
+        "text": { "type": "string", "maxLength": 4000 },
+        "imageUrl": { "type": "string", "maxLength": 350000 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "userId", "sender", "timestamp"]
+    },
+    "PasswordRecoveryTicket": {
+      "title": "PasswordRecoveryTicket",
+      "description": "Password reset support ticket reviewed by Admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["pending", "resolved"] }
+      },
+      "required": ["id", "phone", "status"]
+    },
+    "WinGoBetRecord": {
+      "title": "WinGoBetRecord",
+      "description": "Synchronized WinGo bet ticket for global Admin pool monitor.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "periodNumber": { "type": "string", "maxLength": 64 },
+        "mode": { "type": "string", "maxLength": 16 },
+        "status": { "type": "string", "enum": ["pending", "won", "lost"] }
+      },
+      "required": ["id", "userId", "periodNumber", "mode", "status"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Ledger transaction entry for a user wallet.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 64 },
+        "amount": { "type": "number" }
+      },
+      "required": ["id", "userId", "type", "amount"]
+    },
+    "SystemNotification": {
+      "title": "SystemNotification",
+      "description": "Personal or global admin notification message.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 300 },
+        "message": { "type": "string", "maxLength": 3000 }
+      },
+      "required": ["id", "userId", "title", "message"]
+    },
+    "AdminAccessLog": {
+      "title": "AdminAccessLog",
+      "description": "Visitor IP, entry timestamp, and stay duration log for Admin Panel route.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "sessionId": { "type": "string", "maxLength": 80 },
+        "ip": { "type": "string", "maxLength": 80 },
+        "enteredAt": { "type": "string", "maxLength": 80 },
+        "enteredAtMs": { "type": "number" },
+        "lastSeenAtMs": { "type": "number" },
+        "staySeconds": { "type": "number" },
+        "action": { "type": "string", "enum": ["visit", "login_step1", "login_success", "login_failed"] },
+        "phoneAttempt": { "type": "string", "maxLength": 64 },
+        "userAgent": { "type": "string", "maxLength": 240 },
+        "route": { "type": "string", "maxLength": 120 }
+      },
+      "required": ["id", "ip", "enteredAt", "enteredAtMs", "action", "route"]
+    },
+    "MarketPool": {
+      "title": "MarketPool",
+      "description": "Synchronized collective wager pools per game round for outcome control.",
+      "type": "object",
+      "properties": {
+        "poolId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "game": { "type": "string", "enum": ["k3", "d5", "mines", "binary"] },
+        "mode": { "type": "string", "maxLength": 64 },
+        "period": { "type": "string", "maxLength": 64 },
+        "totalAmount": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["poolId", "game", "totalAmount"]
+    }
+  },
+  "firestore": {
+    "/boundWallets/{walletNumber}": {
+      "schema": { "$ref": "#/entities/BoundWallet" },
+      "description": "Globally unique bound bKash/Nagad numbers."
+    },
+    "/appConfig/settings": {
+      "schema": { "$ref": "#/entities/AppSettings" },
+      "description": "Live Admin settings, banners, WinGo engine configuration, gift codes, and payment channels."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "All registered member accounts synchronized in real time."
+    },
+    "/deposits/{depositId}": {
+      "schema": { "$ref": "#/entities/DepositRecord" },
+      "description": "Real-time deposit requests."
+    },
+    "/withdraws/{withdrawId}": {
+      "schema": { "$ref": "#/entities/WithdrawRecord" },
+      "description": "Real-time withdrawal requests."
+    },
+    "/supportMessages/{messageId}": {
+      "schema": { "$ref": "#/entities/SupportMessageDoc" },
+      "description": "Customer Service real-time chat stream."
+    },
+    "/passwordRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/PasswordRecoveryTicket" },
+      "description": "Password reset requests."
+    },
+    "/wingoBets/{betId}": {
+      "schema": { "$ref": "#/entities/WinGoBetRecord" },
+      "description": "WinGo bets synchronized with Admin engine monitor."
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/WalletTransaction" },
+      "description": "Wallet ledger transactions."
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/SystemNotification" },
+      "description": "Admin broadcasts and personal notices."
+    },
+    "/adminAccessLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AdminAccessLog" },
+      "description": "IP addresses and entry times of Admin Panel visitors and login attempts."
+    },
+    "/marketPools/{poolId}": {
+      "schema": { "$ref": "#/entities/MarketPool" },
+      "description": "Live collective bet totals per round across devices."
+    }
+  }
+}

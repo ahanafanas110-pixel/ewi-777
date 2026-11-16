@@ -1,0 +1,168 @@
+import { BinaryMarketConfig } from '../types';
+
+export const BINARY_MARKETS: BinaryMarketConfig[] = [
+  // Crypto
+  {
+    symbol: 'BTC/USDT',
+    name: 'Bitcoin / Tether',
+    category: 'Crypto',
+    basePrice: 89450.0,
+    decimals: 2,
+    volatility: 8.5,
+    payoutRate: 0.90,
+  },
+  {
+    symbol: 'ETH/USDT',
+    name: 'Ethereum / Tether',
+    category: 'Crypto',
+    basePrice: 3180.5,
+    decimals: 2,
+    volatility: 1.65,
+    payoutRate: 0.90,
+  },
+  {
+    symbol: 'BNB/USDT',
+    name: 'BNB / Tether',
+    category: 'Crypto',
+    basePrice: 612.4,
+    decimals: 2,
+    volatility: 0.45,
+    payoutRate: 0.88,
+  },
+  {
+    symbol: 'SOL/USDT',
+    name: 'Solana / Tether',
+    category: 'Crypto',
+    basePrice: 192.35,
+    decimals: 2,
+    volatility: 0.24,
+    payoutRate: 0.89,
+  },
+  {
+    symbol: 'XRP/USDT',
+    name: 'Ripple / Tether',
+    category: 'Crypto',
+    basePrice: 2.482,
+    decimals: 4,
+    volatility: 0.0045,
+    payoutRate: 0.87,
+  },
+
+  // Forex
+  {
+    symbol: 'EUR/USD',
+    name: 'Euro / US Dollar',
+    category: 'Forex',
+    basePrice: 1.0845,
+    decimals: 5,
+    volatility: 0.00014,
+    payoutRate: 0.90,
+  },
+  {
+    symbol: 'GBP/USD',
+    name: 'British Pound / USD',
+    category: 'Forex',
+    basePrice: 1.2715,
+    decimals: 5,
+    volatility: 0.00016,
+    payoutRate: 0.90,
+  },
+  {
+    symbol: 'USD/JPY',
+    name: 'US Dollar / Yen',
+    category: 'Forex',
+    basePrice: 153.45,
+    decimals: 3,
+    volatility: 0.025,
+    payoutRate: 0.89,
+  },
+  {
+    symbol: 'AUD/USD',
+    name: 'Australian Dollar / USD',
+    category: 'Forex',
+    basePrice: 0.6582,
+    decimals: 5,
+    volatility: 0.00012,
+    payoutRate: 0.88,
+  },
+  {
+    symbol: 'USD/CHF',
+    name: 'US Dollar / Swiss Franc',
+    category: 'Forex',
+    basePrice: 0.8814,
+    decimals: 5,
+    volatility: 0.00012,
+    payoutRate: 0.88,
+  },
+  {
+    symbol: 'EUR/JPY',
+    name: 'Euro / Japanese Yen',
+    category: 'Forex',
+    basePrice: 166.42,
+    decimals: 3,
+    volatility: 0.028,
+    payoutRate: 0.89,
+  },
+
+  // Commodities
+  {
+    symbol: 'XAU/USD',
+    name: 'Gold Spot / USD',
+    category: 'Commodities',
+    basePrice: 2685.5,
+    decimals: 2,
+    volatility: 0.85,
+    payoutRate: 0.90,
+  },
+  {
+    symbol: 'XAG/USD',
+    name: 'Silver Spot / USD',
+    category: 'Commodities',
+    basePrice: 31.45,
+    decimals: 3,
+    volatility: 0.032,
+    payoutRate: 0.88,
+  },
+  {
+    symbol: 'WTI/USD',
+    name: 'Crude Oil WTI',
+    category: 'Commodities',
+    basePrice: 71.85,
+    decimals: 2,
+    volatility: 0.085,
+    payoutRate: 0.88,
+  },
+
+  // Indices
+  {
+    symbol: 'US30',
+    name: 'Dow Jones 30',
+    category: 'Indices',
+    basePrice: 43850.0,
+    decimals: 1,
+    volatility: 6.5,
+    payoutRate: 0.89,
+  },
+  {
+    symbol: 'NAS100',
+    name: 'Nasdaq 100 Index',
+    category: 'Indices',
+    basePrice: 20940.0,
+    decimals: 1,
+    volatility: 4.2,
+    payoutRate: 0.90,
+  },
+  {
+    symbol: 'SPX500',
+    name: 'S&P 500 Index',
+    category: 'Indices',
+    basePrice: 5985.5,
+    decimals: 2,
+    volatility: 1.2,
+    payoutRate: 0.89,
+  },
+];
+
+export const BINARY_MARKET_MAP: Record<string, BinaryMarketConfig> = Object.fromEntries(
+  BINARY_MARKETS.map((m) => [m.symbol, m])
+);

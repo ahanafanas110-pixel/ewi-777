@@ -1,0 +1,233 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidWalletId(walletId) {
+      return walletId is string && walletId.size() == 11 && walletId.matches('^01[3-9][0-9]{8}$');
+    }
+
+    function isValidBoundWallet(data, walletId) {
+      return data.keys().hasAll(['number', 'type', 'userId', 'createdAt'])
+        && data.keys().hasOnly(['number', 'type', 'userId', 'userPhone', 'createdAt'])
+        && data.number is string && data.number == walletId
+        && data.type is string && (data.type == 'bKash' || data.type == 'Nagad')
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && (!('userPhone' in data) || (data.userPhone is string && data.userPhone.size() <= 128))
+        && data.createdAt is string && data.createdAt.size() >= 1 && data.createdAt.size() <= 64;
+    }
+
+    function isValidAppSettings(data) {
+      return data is map
+        && data.keys().size() <= 70
+        && (!('appName' in data) || (data.appName is string && data.appName.size() <= 120))
+        && (!('appLogoUrl' in data) || (data.appLogoUrl is string && data.appLogoUrl.size() <= 350000))
+        && (!('marqueeText' in data) || (data.marqueeText is string && data.marqueeText.size() <= 2000))
+        && (!('popupMessage' in data) || (data.popupMessage is string && data.popupMessage.size() <= 4000))
+        && (!('banners' in data) || (data.banners is list && data.banners.size() <= 10))
+        && (!('minWithdraw' in data) || (data.minWithdraw is number && data.minWithdraw >= 0))
+        && (!('referCommissionPercent' in data) || (data.referCommissionPercent is number && data.referCommissionPercent >= 0));
+    }
+
+    function isValidUser(data, userId) {
+      return data is map
+        && data.keys().hasAll(['id', 'balance'])
+        && data.keys().size() <= 55
+        && data.id is string && data.id == userId
+        && data.balance is number && data.balance >= 0
+        && (!('nickname' in data) || (data.nickname is string && data.nickname.size() <= 80))
+        && (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 350000))
+        && (!('role' in data) || data.role in ['USER', 'VIP', 'ADMIN']);
+    }
+
+    function isValidDeposit(data, depositId) {
+      return data is map
+        && data.keys().hasAll(['id', 'userId', 'amount', 'status'])
+        && data.keys().size() <= 20
+        && data.id is string && data.id == depositId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.amount is number && data.amount > 0
+        && data.status in ['pending', 'processing', 'approved', 'rejected'];
+    }
+
+    function isValidWithdraw(data, withdrawId) {
+      return data is map
+        && data.keys().hasAll(['id', 'userId', 'amount', 'status'])
+        && data.keys().size() <= 20
+        && data.id is string && data.id == withdrawId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.amount is number && data.amount > 0
+        && data.status in ['pending', 'processing', 'completed', 'rejected'];
+    }
+
+    function isValidSupportMessage(data, messageId) {
+      return data is map
+        && data.keys().hasAll(['id', 'userId', 'sender', 'timestamp'])
+        && data.keys().size() <= 15
+        && data.id is string && data.id == messageId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.sender in ['user', 'admin']
+        && data.timestamp is number
+        && (!('text' in data) || (data.text is string && data.text.size() <= 4000))
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 350000));
+    }
+
+    function isValidPasswordRequest(data, reqId) {
+      return data is map
+        && data.keys().hasAll(['id', 'phone', 'status'])
+        && data.keys().size() <= 15
+        && data.id is string && data.id == reqId
+        && data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 64
+        && data.status in ['pending', 'resolved'];
+    }
+
+    function isValidWinGoBet(data, betId) {
+      return data is map
+        && data.keys().hasAll(['id', 'userId', 'periodNumber', 'mode', 'status'])
+        && data.keys().size() <= 20
+        && data.id is string && data.id == betId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.periodNumber is string && data.periodNumber.size() >= 1 && data.periodNumber.size() <= 64
+        && data.mode is string && data.mode.size() >= 1 && data.mode.size() <= 16
+        && data.status in ['pending', 'won', 'lost'];
+    }
+
+    function isValidTransaction(data, txId) {
+      return data is map
+        && data.keys().hasAll(['id', 'userId', 'type', 'amount'])
+        && data.keys().size() <= 20
+        && data.id is string && data.id == txId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.type is string && data.type.size() <= 64
+        && data.amount is number;
+    }
+
+    function isValidNotification(data, notifId) {
+      return data is map
+        && data.keys().hasAll(['id', 'userId', 'title', 'message'])
+        && data.keys().size() <= 15
+        && data.id is string && data.id == notifId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 300
+        && data.message is string && data.message.size() <= 3000;
+    }
+
+    function isValidAdminAccessLog(data, logId) {
+      return data is map
+        && data.keys().hasAll(['id', 'ip', 'enteredAt', 'enteredAtMs', 'action', 'route'])
+        && data.keys().hasOnly(['id', 'sessionId', 'ip', 'enteredAt', 'enteredAtMs', 'lastSeenAtMs', 'staySeconds', 'action', 'phoneAttempt', 'userAgent', 'route'])
+        && data.id is string && data.id == logId
+        && (!('sessionId' in data) || (data.sessionId is string && data.sessionId.size() <= 80))
+        && data.ip is string && data.ip.size() >= 1 && data.ip.size() <= 80
+        && data.enteredAt is string && data.enteredAt.size() >= 1 && data.enteredAt.size() <= 80
+        && data.enteredAtMs is number
+        && (!('lastSeenAtMs' in data) || data.lastSeenAtMs is number)
+        && (!('staySeconds' in data) || (data.staySeconds is number && data.staySeconds >= 0))
+        && data.action in ['visit', 'login_step1', 'login_success', 'login_failed']
+        && (!('phoneAttempt' in data) || (data.phoneAttempt is string && data.phoneAttempt.size() <= 64))
+        && (!('userAgent' in data) || (data.userAgent is string && data.userAgent.size() <= 240))
+        && data.route is string && data.route.size() >= 1 && data.route.size() <= 120;
+    }
+
+    // Health check document for connection verification
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // Globally unique bKash / Nagad wallet bindings
+    match /boundWallets/{walletNumber} {
+      allow get: if isValidWalletId(walletNumber);
+      allow list: if false;
+      allow create: if isValidWalletId(walletNumber) && isValidBoundWallet(request.resource.data, walletNumber);
+      allow update, delete: if false;
+    }
+
+    // Global Admin Settings & App Config (banners, logos, payment numbers, WinGo config, gift codes)
+    match /appConfig/{configId} {
+      allow get: if configId == 'settings';
+      allow list, delete: if false;
+      allow create, update: if configId == 'settings' && isValidAppSettings(request.resource.data);
+    }
+
+    // Registered User Accounts
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(userId) && isValidUser(request.resource.data, userId);
+      allow delete: if isValidId(userId);
+    }
+
+    // Deposit Requests
+    match /deposits/{depositId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(depositId) && isValidDeposit(request.resource.data, depositId);
+      allow delete: if false;
+    }
+
+    // Withdrawal Requests
+    match /withdraws/{withdrawId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(withdrawId) && isValidWithdraw(request.resource.data, withdrawId);
+      allow delete: if false;
+    }
+
+    // Customer Service Live Messages
+    match /supportMessages/{messageId} {
+      allow get, list: if true;
+      allow create: if isValidId(messageId) && isValidSupportMessage(request.resource.data, messageId);
+      allow update, delete: if false;
+    }
+
+    // Password Recovery Tickets
+    match /passwordRequests/{reqId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(reqId) && isValidPasswordRequest(request.resource.data, reqId);
+      allow delete: if false;
+    }
+
+    // Global WinGo Bet Pool
+    match /wingoBets/{betId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(betId) && isValidWinGoBet(request.resource.data, betId);
+      allow delete: if false;
+    }
+
+    // Wallet Transactions Ledger
+    match /transactions/{txId} {
+      allow get, list: if true;
+      allow create: if isValidId(txId) && isValidTransaction(request.resource.data, txId);
+      allow update, delete: if false;
+    }
+
+    // System & Personal Notifications
+    match /notifications/{notifId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(notifId) && isValidNotification(request.resource.data, notifId);
+      allow delete: if false;
+    }
+
+    // Admin Panel Visitor IP & Entry Time Logs
+    match /adminAccessLogs/{logId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(logId) && isValidAdminAccessLog(request.resource.data, logId);
+      allow delete: if false;
+    }
+
+    // Real-time Cross-Device Market Bet Pools (K3 / 5D / Mines / Binary)
+    match /marketPools/{poolId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(poolId)
+        && request.resource.data is map
+        && request.resource.data.keys().hasAll(['poolId', 'game', 'totalAmount'])
+        && request.resource.data.keys().size() <= 12;
+      allow delete: if false;
+    }
+  }
+}

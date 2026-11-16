@@ -1,0 +1,26 @@
+{
+  "name": "EWI 777 - Premium Lottery, Aviator & Binary Platform",
+  "short_name": "EWI 777",
+  "description": "EWI 777 authentic online lottery, Aviator Plane, Binary Market trading, and VIP rewards platform.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF8FA",
+  "theme_color": "#FF2A7A",
+  "categories": ["entertainment", "games", "finance"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,354 @@
+import React from 'react';
+
+/**
+ * 100% Vector Pink & Gold Luxury Illustrations for Activity Page
+ * Replaces external images completely with vibrant, crisp pink graphics.
+ * Never fails to load, zero network dependencies, 100% theme matching.
+ */
+
+export const PinkGiftIllustration: React.FC<{ className?: string }> = ({ className = 'w-full h-full' }) => {
+  return (
+    <svg
+      viewBox="0 0 260 140"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        {/* Background Pink Gradient */}
+        <linearGradient id="pg_bg_grad" x1="0" y1="0" x2="260" y2="140" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF4B8B" />
+          <stop offset="50%" stopColor="#FF2A7A" />
+          <stop offset="100%" stopColor="#FF6B95" />
+        </linearGradient>
+
+        {/* Radial Center Glow */}
+        <radialGradient id="pg_glow" cx="130" cy="70" r="75" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
+          <stop offset="45%" stopColor="#FFA6C9" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#FF2A7A" stopOpacity="0" />
+        </radialGradient>
+
+        {/* Gift Box Gradients */}
+        <linearGradient id="pg_box_front" x1="85" y1="58" x2="175" y2="125" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF3885" />
+          <stop offset="100%" stopColor="#C80050" />
+        </linearGradient>
+
+        <linearGradient id="pg_lid_grad" x1="75" y1="42" x2="185" y2="65" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF65A0" />
+          <stop offset="100%" stopColor="#E60064" />
+        </linearGradient>
+
+        {/* Shiny Gold Gradient */}
+        <linearGradient id="pg_gold_ribbon" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FFF8D1" />
+          <stop offset="35%" stopColor="#FFD700" />
+          <stop offset="70%" stopColor="#FFB800" />
+          <stop offset="100%" stopColor="#D99000" />
+        </linearGradient>
+
+        {/* Gold Coin Gradient */}
+        <linearGradient id="pg_gold_coin" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FFF9D2" />
+          <stop offset="50%" stopColor="#FFD000" />
+          <stop offset="100%" stopColor="#E09500" />
+        </linearGradient>
+
+        {/* Shadow */}
+        <filter id="pg_drop_shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#660026" floodOpacity="0.38" />
+        </filter>
+      </defs>
+
+      {/* Base Canvas Background */}
+      <rect width="260" height="140" fill="url(#pg_bg_grad)" />
+
+      {/* Ambient Glow */}
+      <circle cx="130" cy="70" r="75" fill="url(#pg_glow)" />
+
+      {/* Decorative Background Circles */}
+      <circle cx="35" cy="25" r="18" fill="#FFFFFF" fillOpacity="0.08" />
+      <circle cx="230" cy="115" r="28" fill="#FFFFFF" fillOpacity="0.07" />
+      <circle cx="215" cy="25" r="14" fill="#FFFFFF" fillOpacity="0.06" />
+
+      {/* Floating Gold Coin Left */}
+      <g transform="translate(42, 75) rotate(-18)" filter="url(#pg_drop_shadow)">
+        <ellipse cx="0" cy="0" rx="14" ry="12" fill="url(#pg_gold_coin)" />
+        <ellipse cx="0" cy="0" rx="10.5" ry="9" stroke="#FFF7B8" strokeWidth="1.2" fill="none" opacity="0.9" />
+        <text x="0" y="3.5" fill="#7A4E00" fontSize="10" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳</text>
+      </g>
+
+      {/* Floating Gold Coin Top-Left */}
+      <g transform="translate(68, 30) rotate(14)">
+        <ellipse cx="0" cy="0" rx="9" ry="8" fill="url(#pg_gold_coin)" />
+        <ellipse cx="0" cy="0" rx="6.5" ry="5.8" stroke="#FFF7B8" strokeWidth="0.8" fill="none" />
+      </g>
+
+      {/* Floating Gold Coin Right */}
+      <g transform="translate(210, 68) rotate(16)" filter="url(#pg_drop_shadow)">
+        <ellipse cx="0" cy="0" rx="16" ry="13.5" fill="url(#pg_gold_coin)" />
+        <ellipse cx="0" cy="0" rx="12" ry="10" stroke="#FFF7B8" strokeWidth="1.4" fill="none" opacity="0.9" />
+        <text x="0" y="4" fill="#7A4E00" fontSize="11" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳</text>
+      </g>
+
+      {/* Floating Small Coin Bottom Right */}
+      <g transform="translate(195, 112) rotate(-12)">
+        <ellipse cx="0" cy="0" rx="8" ry="7" fill="url(#pg_gold_coin)" />
+        <ellipse cx="0" cy="0" rx="5.8" ry="5" stroke="#FFF7B8" strokeWidth="0.8" fill="none" />
+      </g>
+
+      {/* Shadow under Gift Box */}
+      <ellipse cx="130" cy="122" rx="48" ry="8" fill="#52001F" fillOpacity="0.32" />
+
+      {/* MAIN GIFT BOX CONTAINER */}
+      <g filter="url(#pg_drop_shadow)">
+        {/* Main Box Body */}
+        <rect x="90" y="60" width="80" height="58" rx="8" fill="url(#pg_box_front)" />
+        {/* Box Inner Shading / Highlight */}
+        <rect x="91" y="61" width="78" height="56" rx="7" stroke="#FFA3C5" strokeWidth="1" fill="none" opacity="0.4" />
+
+        {/* Vertical Gold Ribbon */}
+        <rect x="122" y="60" width="16" height="58" fill="url(#pg_gold_ribbon)" />
+        <line x1="130" y1="60" x2="130" y2="118" stroke="#FFE978" strokeWidth="1" opacity="0.8" />
+
+        {/* Horizontal Gold Ribbon */}
+        <rect x="90" y="82" width="80" height="15" fill="url(#pg_gold_ribbon)" />
+        <line x1="90" y1="89.5" x2="170" y2="89.5" stroke="#FFE978" strokeWidth="1" opacity="0.8" />
+
+        {/* Box Lid */}
+        <rect x="83" y="44" width="94" height="20" rx="5" fill="url(#pg_lid_grad)" />
+        <rect x="84" y="45" width="92" height="18" rx="4" stroke="#FFB8D2" strokeWidth="1" fill="none" opacity="0.6" />
+        {/* Lid Vertical Ribbon */}
+        <rect x="122" y="44" width="16" height="20" fill="url(#pg_gold_ribbon)" />
+        <line x1="130" y1="44" x2="130" y2="64" stroke="#FFE978" strokeWidth="1" opacity="0.8" />
+
+        {/* GOLDEN SATIN BOW AT TOP */}
+        {/* Left Loop */}
+        <path
+          d="M130 46 C114 30 96 36 106 48 C114 56 126 50 130 46 Z"
+          fill="url(#pg_gold_ribbon)"
+          stroke="#FFE66B"
+          strokeWidth="0.8"
+        />
+        {/* Right Loop */}
+        <path
+          d="M130 46 C146 30 164 36 154 48 C146 56 134 50 130 46 Z"
+          fill="url(#pg_gold_ribbon)"
+          stroke="#FFE66B"
+          strokeWidth="0.8"
+        />
+        {/* Bow Center Knot */}
+        <circle cx="130" cy="46" r="6" fill="#FFE552" stroke="#B87700" strokeWidth="0.8" />
+        <circle cx="130" cy="46" r="3.5" fill="#FFAA00" />
+
+        {/* Ribbon tails */}
+        <path d="M127 49 Q118 62 112 68 Q118 64 125 51 Z" fill="url(#pg_gold_ribbon)" />
+        <path d="M133 49 Q142 62 148 68 Q142 64 135 51 Z" fill="url(#pg_gold_ribbon)" />
+      </g>
+
+      {/* Sparkles / Star Glints */}
+      <g transform="translate(74, 52)">
+        <path d="M0 -7 Q0 0 7 0 Q0 0 0 7 Q0 0 -7 0 Q0 0 0 -7 Z" fill="#FFFFFF" />
+      </g>
+      <g transform="translate(182, 38)">
+        <path d="M0 -6 Q0 0 6 0 Q0 0 0 6 Q0 0 -6 0 Q0 0 0 -6 Z" fill="#FFF6A3" />
+      </g>
+      <g transform="translate(130, 24)">
+        <path d="M0 -8 Q0 0 8 0 Q0 0 0 8 Q0 0 -8 0 Q0 0 0 -8 Z" fill="#FFFFFF" />
+      </g>
+      <g transform="translate(172, 108)">
+        <path d="M0 -5 Q0 0 5 0 Q0 0 0 5 Q0 0 -5 0 Q0 0 0 -5 Z" fill="#FFFFFF" opacity="0.8" />
+      </g>
+
+      {/* Tiny light dots */}
+      <circle cx="60" cy="110" r="1.5" fill="#FFFFFF" opacity="0.7" />
+      <circle cx="198" cy="42" r="1.5" fill="#FFE27A" opacity="0.8" />
+      <circle cx="102" cy="28" r="1.8" fill="#FFFFFF" opacity="0.8" />
+    </svg>
+  );
+};
+
+export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ className = 'w-full h-full' }) => {
+  return (
+    <svg
+      viewBox="0 0 260 140"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        {/* Background Pink Gradient */}
+        <linearGradient id="pa_bg_grad" x1="0" y1="0" x2="260" y2="140" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF4B8B" />
+          <stop offset="50%" stopColor="#FF2A7A" />
+          <stop offset="100%" stopColor="#FF6B95" />
+        </linearGradient>
+
+        {/* Ambient Center Glow */}
+        <radialGradient id="pa_glow" cx="130" cy="70" r="75" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
+          <stop offset="45%" stopColor="#FFA6C9" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#FF2A7A" stopOpacity="0" />
+        </radialGradient>
+
+        {/* Gold Gradients */}
+        <linearGradient id="pa_gold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FFF9D2" />
+          <stop offset="50%" stopColor="#FFD000" />
+          <stop offset="100%" stopColor="#E09500" />
+        </linearGradient>
+
+        <linearGradient id="pa_cal_header" x1="85" y1="36" x2="175" y2="58" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF2A7A" />
+          <stop offset="100%" stopColor="#D9005B" />
+        </linearGradient>
+
+        <filter id="pa_drop_shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#660026" floodOpacity="0.38" />
+        </filter>
+      </defs>
+
+      {/* Base Canvas Background */}
+      <rect width="260" height="140" fill="url(#pa_bg_grad)" />
+
+      {/* Ambient Glow */}
+      <circle cx="130" cy="70" r="75" fill="url(#pa_glow)" />
+
+      {/* Decorative Circles */}
+      <circle cx="30" cy="30" r="16" fill="#FFFFFF" fillOpacity="0.08" />
+      <circle cx="230" cy="115" r="26" fill="#FFFFFF" fillOpacity="0.07" />
+
+      {/* Floating Reward Voucher Ticket Left */}
+      <g transform="translate(46, 68) rotate(-14)" filter="url(#pa_drop_shadow)">
+        <rect x="-18" y="-12" width="36" height="24" rx="4" fill="url(#pa_gold)" />
+        {/* Ticket Cutouts */}
+        <circle cx="-18" cy="0" r="3.5" fill="#FF3E82" />
+        <circle cx="18" cy="0" r="3.5" fill="#FF3E82" />
+        <rect x="-15" y="-9" width="30" height="18" rx="2" stroke="#FFF7B8" strokeWidth="0.8" fill="none" opacity="0.7" />
+        <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳100</text>
+      </g>
+
+      {/* Floating Voucher Ticket Right */}
+      <g transform="translate(214, 76) rotate(16)" filter="url(#pa_drop_shadow)">
+        <rect x="-18" y="-12" width="36" height="24" rx="4" fill="url(#pa_gold)" />
+        <circle cx="-18" cy="0" r="3.5" fill="#FF3E82" />
+        <circle cx="18" cy="0" r="3.5" fill="#FF3E82" />
+        <rect x="-15" y="-9" width="30" height="18" rx="2" stroke="#FFF7B8" strokeWidth="0.8" fill="none" opacity="0.7" />
+        <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳500</text>
+      </g>
+
+      {/* Floating Coins */}
+      <g transform="translate(68, 28) rotate(12)">
+        <ellipse cx="0" cy="0" rx="9" ry="8" fill="url(#pa_gold)" />
+        <text x="0" y="3" fill="#7A4E00" fontSize="7" fontWeight="900" textAnchor="middle">৳</text>
+      </g>
+      <g transform="translate(202, 34) rotate(-10)">
+        <ellipse cx="0" cy="0" rx="10" ry="8.5" fill="url(#pa_gold)" />
+        <text x="0" y="3" fill="#7A4E00" fontSize="8" fontWeight="900" textAnchor="middle">৳</text>
+      </g>
+
+      {/* Shadow under Calendar */}
+      <ellipse cx="130" cy="122" rx="52" ry="8" fill="#52001F" fillOpacity="0.32" />
+
+      {/* MAIN ATTENDANCE CALENDAR PAD */}
+      <g filter="url(#pa_drop_shadow)">
+        {/* Calendar Backing / Page Stack */}
+        <rect x="88" y="40" width="84" height="78" rx="10" fill="#FFE8F1" />
+        {/* Main White Calendar Page */}
+        <rect x="88" y="36" width="84" height="80" rx="10" fill="#FFFFFF" />
+
+        {/* Top Header Bar in Hot Pink */}
+        <path d="M88 46 C88 40.477 92.477 36 98 36 L162 36 C167.523 36 172 40.477 172 46 L172 58 L88 58 Z" fill="url(#pa_cal_header)" />
+
+        {/* Header Text */}
+        <text x="130" y="49" fill="#FFFFFF" fontSize="9" fontWeight="900" letterSpacing="1" textAnchor="middle" fontFamily="sans-serif">
+          7 DAYS CHECK-IN
+        </text>
+
+        {/* Calendar Spiral Rings */}
+        {[98, 114, 130, 146, 162].map((x, i) => (
+          <g key={i}>
+            <rect x={x - 2.5} y="32" width="5" height="10" rx="2.5" fill="url(#pa_gold)" stroke="#D48800" strokeWidth="0.6" />
+            <circle cx={x} cy="42" r="1.5" fill="#4A0019" opacity="0.35" />
+          </g>
+        ))}
+
+        {/* Calendar Days Matrix (Grid of 7 Days) */}
+        {/* Day 1 - Checked */}
+        <g transform="translate(100, 68)">
+          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#E8F8F0" stroke="#10B981" strokeWidth="0.8" />
+          <path d="M-3.5 0 L-1 2.5 L3.5 -2" stroke="#10B981" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+
+        {/* Day 2 - Checked */}
+        <g transform="translate(120, 68)">
+          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#E8F8F0" stroke="#10B981" strokeWidth="0.8" />
+          <path d="M-3.5 0 L-1 2.5 L3.5 -2" stroke="#10B981" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+
+        {/* Day 3 - Checked */}
+        <g transform="translate(140, 68)">
+          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#E8F8F0" stroke="#10B981" strokeWidth="0.8" />
+          <path d="M-3.5 0 L-1 2.5 L3.5 -2" stroke="#10B981" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+
+        {/* Day 4 - Checked */}
+        <g transform="translate(160, 68)">
+          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#E8F8F0" stroke="#10B981" strokeWidth="0.8" />
+          <path d="M-3.5 0 L-1 2.5 L3.5 -2" stroke="#10B981" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+
+        {/* Day 5 - Active Target */}
+        <g transform="translate(100, 88)">
+          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#FFF0F5" stroke="#FF2A7A" strokeWidth="1" />
+          <text x="0" y="3.5" fill="#FF2A7A" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">5</text>
+        </g>
+
+        {/* Day 6 */}
+        <g transform="translate(120, 88)">
+          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="0.8" />
+          <text x="0" y="3.5" fill="#94A3B8" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">6</text>
+        </g>
+
+        {/* Day 7 - Big Reward Gold Box */}
+        <g transform="translate(148, 88)">
+          <rect x="-14" y="-7" width="28" height="14" rx="4" fill="url(#pa_gold)" />
+          <text x="0" y="3.5" fill="#7A4E00" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳1200</text>
+        </g>
+
+        {/* Bottom Status bar */}
+        <rect x="94" y="102" width="72" height="6" rx="3" fill="#FFE3EE" />
+        <rect x="94" y="102" width="46" height="6" rx="3" fill="#FF2A7A" />
+      </g>
+
+      {/* Decorative Pencil on Right */}
+      <g transform="translate(178, 86) rotate(32)" filter="url(#pa_drop_shadow)">
+        {/* Pencil body */}
+        <rect x="-3" y="-18" width="6" height="26" rx="1" fill="#FFD000" stroke="#D49000" strokeWidth="0.5" />
+        {/* Eraser at top */}
+        <rect x="-3" y="-22" width="6" height="4" rx="1" fill="#FF65A0" />
+        <rect x="-3" y="-19" width="6" height="2" fill="#CBD5E1" />
+        {/* Tip */}
+        <polygon points="-3,8 3,8 0,14" fill="#FDE68A" />
+        <polygon points="-1,12 1,12 0,14" fill="#334155" />
+      </g>
+
+      {/* Sparkles */}
+      <g transform="translate(80, 48)">
+        <path d="M0 -7 Q0 0 7 0 Q0 0 0 7 Q0 0 -7 0 Q0 0 0 -7 Z" fill="#FFFFFF" />
+      </g>
+      <g transform="translate(186, 32)">
+        <path d="M0 -6 Q0 0 6 0 Q0 0 0 6 Q0 0 -6 0 Q0 0 0 -6 Z" fill="#FFF6A3" />
+      </g>
+      <g transform="translate(130, 22)">
+        <path d="M0 -8 Q0 0 8 0 Q0 0 0 8 Q0 0 -8 0 Q0 0 0 -8 Z" fill="#FFFFFF" />
+      </g>
+
+      <circle cx="62" cy="112" r="1.5" fill="#FFFFFF" opacity="0.7" />
+      <circle cx="118" cy="24" r="1.6" fill="#FFF6A3" opacity="0.8" />
+    </svg>
+  );
+};
