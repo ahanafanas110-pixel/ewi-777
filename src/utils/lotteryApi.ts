@@ -151,20 +151,26 @@ export async function fetchLotteryHistory(
             if (list.length < 50) {
               try {
                 const seen = new Set(list.map((x: any) => String(x?.issueNumber || x?.issue || '')));
-                for (let p = 2; p <= 5 && list.length < 50; p++) {
-                  const pUrl = `https://draw.ar-lottery01.com/${gameDir}/${segment}/GetHistoryIssuePage.json?pageNo=${p}&pageSize=50&ts=${Date.now()}`;
-                  const pRes = await fetch(pUrl, { cache: 'no-store' });
-                  if (!pRes.ok) break;
-                  const pText = await pRes.text();
-                  if (!pText.trim().startsWith('{')) break;
-                  const pData = JSON.parse(pText);
+                const batchSize = list.length <= 12 ? 10 : 50;
+                const extraResponses = await Promise.allSettled(
+                  [2, 3, 4, 5].map((p) =>
+                    fetch(
+                      `https://draw.ar-lottery01.com/${gameDir}/${segment}/GetHistoryIssuePage.json?pageNo=${p}&pageSize=${batchSize}&ts=${Date.now()}`,
+                      { cache: 'no-store' }
+                    ).then((r) => (r.ok ? r.text() : ''))
+                  )
+                );
+                for (const resp of extraResponses) {
+                  if (resp.status !== 'fulfilled' || !resp.value || !resp.value.trim().startsWith('{')) continue;
+                  const pData = JSON.parse(resp.value);
                   const extra = pData?.data?.list || pData?.list || [];
-                  if (!Array.isArray(extra) || extra.length === 0) break;
-                  for (const item of extra) {
-                    const key = String(item?.issueNumber || item?.issue || '');
-                    if (key && !seen.has(key)) {
-                      seen.add(key);
-                      list.push(item);
+                  if (Array.isArray(extra)) {
+                    for (const item of extra) {
+                      const key = String(item?.issueNumber || item?.issue || '');
+                      if (key && !seen.has(key)) {
+                        seen.add(key);
+                        list.push(item);
+                      }
                     }
                   }
                 }

@@ -14,7 +14,7 @@ export const LanguagePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
       <Header
         title={getTranslation(language, 'language')}
         showBack
@@ -25,9 +25,9 @@ export const LanguagePage: React.FC = () => {
       />
 
       <div className="p-4 space-y-4">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100 space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-pink-50">
-            <div className="w-11 h-11 rounded-2xl bg-pink-50 text-[#FF2A7A] flex items-center justify-center">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200 space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-amber-100">
+            <div className="w-11 h-11 rounded-2xl bg-amber-50 text-[#B45309] flex items-center justify-center">
               <Globe className="w-5 h-5" />
             </div>
             <div>
@@ -41,7 +41,7 @@ export const LanguagePage: React.FC = () => {
               onClick={() => handleSelect('en')}
               className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
                 language === 'en'
-                  ? 'border-[#FF2A7A] bg-pink-50/70 text-[#FF2A7A] shadow-xs'
+                  ? 'border-[#D97706] bg-amber-50/70 text-[#B45309] shadow-xs'
                   : 'border-slate-100 hover:bg-slate-50 text-slate-700'
               }`}
             >
@@ -53,7 +53,7 @@ export const LanguagePage: React.FC = () => {
                 </div>
               </div>
               {language === 'en' && (
-                <span className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white flex items-center justify-center">
+                <span className="w-6 h-6 rounded-full bg-[#D97706] text-white flex items-center justify-center">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </span>
               )}
@@ -63,7 +63,7 @@ export const LanguagePage: React.FC = () => {
               onClick={() => handleSelect('bn')}
               className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
                 language === 'bn'
-                  ? 'border-[#FF2A7A] bg-pink-50/70 text-[#FF2A7A] shadow-xs'
+                  ? 'border-[#D97706] bg-amber-50/70 text-[#B45309] shadow-xs'
                   : 'border-slate-100 hover:bg-slate-50 text-slate-700'
               }`}
             >
@@ -75,7 +75,7 @@ export const LanguagePage: React.FC = () => {
                 </div>
               </div>
               {language === 'bn' && (
-                <span className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white flex items-center justify-center">
+                <span className="w-6 h-6 rounded-full bg-[#D97706] text-white flex items-center justify-center">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </span>
               )}

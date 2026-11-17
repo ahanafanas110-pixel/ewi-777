@@ -8,9 +8,15 @@ import {
   ChevronRight,
   ArrowRight,
   Gamepad2,
-  X
+  X,
+  Coins
 } from 'lucide-react';
-import { WingoBallsLogo, BinaryMarketLogo, AviatorPlaneLogo, MinesGameLogo } from '../components/BrandLogos';
+import {
+  WingoBallsLogo,
+  BinaryMarketLogo,
+  AviatorPlaneLogo,
+  MinesGameLogo
+} from '../components/BrandLogos';
 import { WinGoBall } from '../components/WinGoAssets';
 import { GameItem } from '../types';
 import heroBannerImg from '../assets/images/ewi777_hero_banner_1794683642451.jpg';
@@ -18,10 +24,34 @@ import asiaWelcomeBannerImg from '../assets/images/ewi777_banner_real_logo_17947
 import lotteryGameIconImg from '../assets/images/game_icon_lottery_3d_1794734298193.jpg';
 import aviatorGameIconImg from '../assets/images/game_icon_aviator_3d_1794734299543.jpg';
 import minesGameIconImg from '../assets/images/game_icon_mines_3d_1794734301052.jpg';
+import luckyJetPilotImg from '../assets/images/lucky_jet_pilot_1794905505516.jpg';
+import { EwiCoinBadgePair } from '../components/CoinFlipArtwork';
 
 interface HomeProps {
   onOpenLanguage: () => void;
 }
+
+const ALLOWED_TABS = [
+  'home',
+  'wingo',
+  'k3',
+  '5d',
+  'aviator',
+  'luckyjet',
+  'binary',
+  'mines',
+  'coinflip',
+  'activity',
+  'promotion',
+  'salary',
+  'gifts',
+  'attendence',
+  'wallet',
+  'deposit',
+  'vip',
+  'safe',
+  'account'
+];
 
 export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
   const {
@@ -36,6 +66,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     showToast
   } = useApp();
 
+  const [activeCategory, setActiveCategory] = useState<'all' | 'slots' | 'original' | 'lottery'>('all');
   const [activeMode, setActiveMode] = useState<'lottery' | 'aviator' | 'binary' | 'mines'>('lottery');
   const [bannerIdx, setBannerIdx] = useState<number>(0);
   const [activeCustomGame, setActiveCustomGame] = useState<GameItem | null>(null);
@@ -71,7 +102,6 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
       targetTab: 'activity'
     }));
 
-  // Official Bespoke EWI 777 Hero Banners (up to 10 active admin-managed banners)
   const fallbackOfficialBanners: BannerItem[] = [
     {
       id: 'hero_official_crown',
@@ -94,20 +124,16 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
   ];
 
   const allBanners: BannerItem[] =
-    adminActiveBanners.length > 0
-      ? adminActiveBanners.slice(0, 10)
-      : fallbackOfficialBanners;
+    adminActiveBanners.length > 0 ? adminActiveBanners.slice(0, 10) : fallbackOfficialBanners;
 
-  // Auto-cycle hero banner every 2 seconds when multiple banners exist (no manual controls)
   useEffect(() => {
     if (allBanners.length <= 1) return;
     const timer = setInterval(() => {
       setBannerIdx((prev) => (prev + 1) % allBanners.length);
-    }, 2000);
+    }, 2500);
     return () => clearInterval(timer);
   }, [allBanners.length]);
 
-  // Verified Top 10 Earners & Referral Champions (toggleable from Admin panel, hidden until launch)
   const topEarners = [
     { rank: 1, name: 'SUL***MAN', amount: '৳4,850,210.00', referrals: 482, tag: 'Grand Champion' },
     { rank: 2, name: 'AL***MIN', amount: '৳4,230,000.00', referrals: 419, tag: 'VIP 9 Master' },
@@ -118,7 +144,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     { rank: 7, name: 'HAS***AN', amount: '৳3,817,671.00', referrals: 270, tag: 'Agency Partner' },
     { rank: 8, name: 'TAH***MID', amount: '৳3,540,190.00', referrals: 245, tag: 'High Earner' },
     { rank: 9, name: 'NAD***EEM', amount: '৳3,210,850.00', referrals: 210, tag: 'Elite Agent' },
-    { rank: 10, name: 'ZAY***ED', amount: '৳2,980,400.00', referrals: 198, tag: 'Rising Star' },
+    { rank: 10, name: 'ZAY***ED', amount: '৳2,980,400.00', referrals: 198, tag: 'Rising Star' }
   ];
 
   const currentBanner = allBanners[bannerIdx % allBanners.length] || allBanners[0];
@@ -134,41 +160,51 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     .filter(
       (g) =>
         g.active &&
-        !['game_wingo_30s', 'game_wingo_1m', 'game_wingo_3m', 'game_wingo_5m', 'game_k3', 'game_5d', 'game_aviator', 'game_binary', 'game_mines'].includes(g.id)
+        ![
+          'game_wingo_30s',
+          'game_wingo_1m',
+          'game_wingo_3m',
+          'game_wingo_5m',
+          'game_k3',
+          'game_5d',
+          'game_aviator',
+          'game_luckyjet',
+          'game_binary',
+          'game_mines',
+          'game_coinflip'
+        ].includes(g.id)
     )
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  const goTab = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = `#/${tab === 'home' ? '' : tab}`;
+  };
 
   const handleBannerAction = () => {
     const link = currentBanner.link?.trim();
     if (link) {
       const cleanTab = link.replace(/^#?\//, '').trim();
-      if (['home', 'wingo', 'k3', '5d', 'aviator', 'binary', 'mines', 'activity', 'promotion', 'salary', 'gifts', 'attendence', 'wallet', 'deposit', 'vip', 'safe', 'account'].includes(cleanTab)) {
-        setActiveTab(cleanTab);
-        window.location.hash = `#/${cleanTab}`;
+      if (ALLOWED_TABS.includes(cleanTab)) {
+        goTab(cleanTab);
         return;
       }
     }
     if ('targetTab' in currentBanner && currentBanner.targetTab) {
-      setActiveTab(currentBanner.targetTab);
-      window.location.hash = `#/${currentBanner.targetTab}`;
+      goTab(currentBanner.targetTab);
     } else {
-      setActiveTab('wingo');
-      window.location.hash = '#/wingo';
+      goTab('wingo');
     }
   };
 
-  const handleGameClick = () => {
-    setActiveTab('wingo');
-    window.location.hash = '#/wingo';
-  };
+  const handleGameClick = () => goTab('wingo');
 
   const handleBinaryClick = () => {
     if (!isGameActive('game_binary')) {
-      showToast('Binary Market is currently offline for maintenance');
+      showToast('Binary & Gold Market is currently offline for maintenance');
       return;
     }
-    setActiveTab('binary');
-    window.location.hash = '#/binary';
+    goTab('binary');
   };
 
   const handleAviatorClick = () => {
@@ -176,8 +212,15 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
       showToast('Aviator Plane is currently offline for maintenance');
       return;
     }
-    setActiveTab('aviator');
-    window.location.hash = '#/aviator';
+    goTab('aviator');
+  };
+
+  const handleLuckyJetClick = () => {
+    if (!isGameActive('game_luckyjet')) {
+      showToast('Lucky Jet is currently offline for maintenance');
+      return;
+    }
+    goTab('luckyjet');
   };
 
   const handleMinesClick = () => {
@@ -185,14 +228,20 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
       showToast('Mines 777 is currently offline for maintenance');
       return;
     }
-    setActiveTab('mines');
-    window.location.hash = '#/mines';
+    goTab('mines');
+  };
+
+  const handleCoinFlipClick = () => {
+    if (!isGameActive('game_coinflip')) {
+      showToast('Coin Flip is currently offline for maintenance');
+      return;
+    }
+    goTab('coinflip');
   };
 
   const handleCustomGameClick = (g: GameItem) => {
     if (g.targetTab) {
-      setActiveTab(g.targetTab);
-      window.location.hash = `#/${g.targetTab}`;
+      goTab(g.targetTab);
       return;
     }
     if (g.htmlCode || g.url) {
@@ -202,14 +251,25 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     showToast(`${g.title} is ready`);
   };
 
+  const handleCategoryPress = (cat: 'slots' | 'original' | 'lottery') => {
+    setActiveCategory((prev) => (prev === cat ? 'all' : cat));
+    if (cat === 'lottery') setActiveMode('lottery');
+    if (cat === 'original') setActiveMode('aviator');
+    if (cat === 'slots') setActiveMode('mines');
+  };
+
+  const showLotterySection = activeCategory === 'all' || activeCategory === 'lottery';
+  const showOriginalSection = activeCategory === 'all' || activeCategory === 'original';
+  const showSlotsSection = activeCategory === 'all' || activeCategory === 'slots';
+
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
       {/* Top App Header */}
       <Header onLanguageClick={onOpenLanguage} />
 
       <div className="px-4 pt-3 space-y-4">
-        {/* Automatic Official Hero Banner Carousel (Auto-rotates every 2s, no manual switching) */}
-        <div className="relative rounded-3xl overflow-hidden shadow-md bg-[#120804] select-none">
+        {/* Official Hero Banner Carousel */}
+        <div className="relative rounded-3xl overflow-hidden shadow-md bg-[#161006] select-none border border-amber-200/40">
           <div
             className="flex transition-transform duration-500 ease-out"
             style={{
@@ -223,15 +283,13 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   const link = banner.link?.trim();
                   if (link) {
                     const cleanTab = link.replace(/^#?\//, '').trim();
-                    if (['home', 'wingo', 'k3', '5d', 'aviator', 'binary', 'mines', 'activity', 'promotion', 'salary', 'gifts', 'attendence', 'wallet', 'deposit', 'vip', 'safe', 'account'].includes(cleanTab)) {
-                      setActiveTab(cleanTab);
-                      window.location.hash = `#/${cleanTab}`;
+                    if (ALLOWED_TABS.includes(cleanTab)) {
+                      goTab(cleanTab);
                       return;
                     }
                   }
                   if (banner.targetTab) {
-                    setActiveTab(banner.targetTab);
-                    window.location.hash = `#/${banner.targetTab}`;
+                    goTab(banner.targetTab);
                   } else {
                     handleBannerAction();
                   }
@@ -249,36 +307,94 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         </div>
 
-        {/* Marquee Announcement Ticker (Pink Theme) */}
-        <div className="bg-white rounded-2xl px-3.5 py-2.5 border border-pink-100/80 shadow-xs flex items-center gap-2.5 overflow-hidden">
-          <div className="w-7 h-7 rounded-full bg-pink-50 text-[#FF2A7A] flex items-center justify-center flex-shrink-0">
+        {/* Marquee Announcement Ticker (Luxury Gold) */}
+        <div className="bg-white rounded-2xl px-3.5 py-2.5 border border-amber-100 shadow-xs flex items-center gap-2.5 overflow-hidden">
+          <div className="w-7 h-7 rounded-full bg-amber-50 text-[#B45309] flex items-center justify-center flex-shrink-0">
             <Volume2 className="w-4 h-4" />
           </div>
           <div className="flex-1 overflow-hidden whitespace-nowrap text-xs text-slate-600 font-medium">
             <div className="animate-marquee inline-block">
               {adminSettings.marqueeText ||
-                'Notice: Welcome to EWI 777 online entertainment. Instant referral commission, 24/7 fast deposits & withdrawals via Nagad & bKash. Live synchronized WinGo Lottery & Binary Trading!'}
+                'Notice: Welcome to EWI 777 online entertainment. Instant referral commission, 24/7 fast deposits & withdrawals via Nagad & bKash. Live synchronized WinGo, EWI K3, EWI 5D, Aviator, Lucky Jet, Coin Flip & XAU/USD Gold Trading!'}
             </div>
           </div>
           <button
-            onClick={() => {
-              setActiveTab('activity');
-              window.location.hash = '#/activity';
-            }}
-            className="flex-shrink-0 px-2.5 py-1 rounded-full bg-pink-50 text-[#FF2A7A] hover:bg-pink-100 font-bold text-[11px] active:scale-95 transition-all"
+            onClick={() => goTab('activity')}
+            className="flex-shrink-0 px-2.5 py-1 rounded-full bg-amber-50 text-[#B45309] hover:bg-amber-100 font-bold text-[11px] active:scale-95 transition-all"
           >
             Detail
           </button>
         </div>
 
-        {/* Quad-Mode Selector: WinGo, Aviator, Binary & Mines 777 */}
+        {/* 3-Icon Category Strip: Slots / Original / Lottery */}
+        <div className="bg-white rounded-3xl px-4 py-3 border border-amber-100 shadow-xs grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => handleCategoryPress('slots')}
+            className={`flex flex-col items-center gap-1.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
+              activeCategory === 'slots' ? 'bg-amber-50 ring-1 ring-amber-300' : 'hover:bg-amber-50/50'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-100 border border-amber-200/70 flex items-center justify-center overflow-hidden shadow-2xs">
+              <EwiCoinBadgePair size={26} />
+            </div>
+            <span className={`text-xs font-extrabold ${activeCategory === 'slots' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+              Slots
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleCategoryPress('original')}
+            className={`flex flex-col items-center gap-1.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
+              activeCategory === 'original' ? 'bg-amber-50 ring-1 ring-amber-300' : 'hover:bg-amber-50/50'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-amber-300/40 flex items-center justify-center overflow-hidden shadow-2xs">
+              <img
+                src={aviatorGameIconImg}
+                alt="Original"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <span className={`text-xs font-extrabold ${activeCategory === 'original' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+              Original
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleCategoryPress('lottery')}
+            className={`flex flex-col items-center gap-1.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
+              activeCategory === 'lottery' ? 'bg-amber-50 ring-1 ring-amber-300' : 'hover:bg-amber-50/50'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200/70 flex items-center justify-center overflow-hidden shadow-2xs">
+              <img
+                src={lotteryGameIconImg}
+                alt="Lottery"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <span className={`text-xs font-extrabold ${activeCategory === 'lottery' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+              Lottery
+            </span>
+          </button>
+        </div>
+
+        {/* Quad-Mode Quick Switcher: Win Go, Aviator, Binary & Gold, Mines 777 */}
         <div className="grid grid-cols-4 gap-2">
           <button
-            onClick={() => setActiveMode('lottery')}
+            onClick={() => {
+              setActiveCategory('all');
+              setActiveMode('lottery');
+            }}
             className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
               activeMode === 'lottery'
-                ? 'bg-gradient-to-b from-[#FF2A7A] to-[#D90452] text-white shadow-lg shadow-pink-500/25 ring-2 ring-[#FF2A7A]/35'
-                : 'bg-white border border-pink-100/90 text-slate-800 shadow-xs hover:border-pink-200'
+                ? 'bg-gradient-to-b from-[#D97706] to-[#92400E] text-white shadow-lg shadow-amber-600/25 ring-2 ring-amber-400/50'
+                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
             }`}
           >
             <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/10 bg-[#A855F7] flex items-center justify-center">
@@ -295,7 +411,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               </div>
               <div
                 className={`text-[9px] font-bold mt-0.5 whitespace-nowrap ${
-                  activeMode === 'lottery' ? 'text-pink-100' : 'text-slate-400'
+                  activeMode === 'lottery' ? 'text-amber-100' : 'text-slate-400'
                 }`}
               >
                 30s-5m
@@ -303,17 +419,20 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             </div>
             <div
               className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'lottery' ? 'bg-white/90' : 'bg-pink-100'
+                activeMode === 'lottery' ? 'bg-white/90' : 'bg-amber-100'
               }`}
             />
           </button>
 
           <button
-            onClick={() => setActiveMode('aviator')}
+            onClick={() => {
+              setActiveCategory('all');
+              setActiveMode('aviator');
+            }}
             className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
               activeMode === 'aviator'
                 ? 'bg-gradient-to-b from-[#E11D48] to-[#881337] text-white shadow-lg shadow-rose-500/25 ring-2 ring-rose-500/35'
-                : 'bg-white border border-pink-100/90 text-slate-800 shadow-xs hover:border-pink-200'
+                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
             }`}
           >
             <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/15 bg-[#1B1B1E] flex items-center justify-center">
@@ -338,17 +457,20 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             </div>
             <div
               className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'aviator' ? 'bg-white/90' : 'bg-pink-100'
+                activeMode === 'aviator' ? 'bg-white/90' : 'bg-amber-100'
               }`}
             />
           </button>
 
           <button
-            onClick={() => setActiveMode('binary')}
+            onClick={() => {
+              setActiveCategory('all');
+              setActiveMode('binary');
+            }}
             className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
               activeMode === 'binary'
-                ? 'bg-gradient-to-b from-[#7C3AED] to-[#4C1D95] text-white shadow-lg shadow-purple-500/25 ring-2 ring-purple-500/35'
-                : 'bg-white border border-pink-100/90 text-slate-800 shadow-xs hover:border-pink-200'
+                ? 'bg-gradient-to-b from-[#B45309] to-[#78350F] text-white shadow-lg shadow-amber-700/25 ring-2 ring-amber-400/50'
+                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
             }`}
           >
             <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/15 bg-[#0C0F1A] flex items-center justify-center">
@@ -360,25 +482,28 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               </div>
               <div
                 className={`text-[9px] font-bold mt-0.5 whitespace-nowrap ${
-                  activeMode === 'binary' ? 'text-purple-100' : 'text-slate-400'
+                  activeMode === 'binary' ? 'text-amber-100' : 'text-slate-400'
                 }`}
               >
-                90% Pay
+                Gold 90%
               </div>
             </div>
             <div
               className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'binary' ? 'bg-white/90' : 'bg-pink-100'
+                activeMode === 'binary' ? 'bg-white/90' : 'bg-amber-100'
               }`}
             />
           </button>
 
           <button
-            onClick={() => setActiveMode('mines')}
+            onClick={() => {
+              setActiveCategory('all');
+              setActiveMode('mines');
+            }}
             className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
               activeMode === 'mines'
                 ? 'bg-gradient-to-b from-[#059669] to-[#065F46] text-white shadow-lg shadow-emerald-500/25 ring-2 ring-emerald-500/35'
-                : 'bg-white border border-pink-100/90 text-slate-800 shadow-xs hover:border-pink-200'
+                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
             }`}
           >
             <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/10 bg-[#C24F3A] flex items-center justify-center">
@@ -403,21 +528,21 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             </div>
             <div
               className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'mines' ? 'bg-white/90' : 'bg-pink-100'
+                activeMode === 'mines' ? 'bg-white/90' : 'bg-amber-100'
               }`}
             />
           </button>
         </div>
 
-        {/* SECTION 1: Win Go Lottery Suite (All Pure Lottery Games) */}
-        {activeMode === 'lottery' && (
+        {/* SECTION 1: Win Go + EWI K3 + EWI 5D Lottery Suite */}
+        {showLotterySection && (activeCategory === 'lottery' || activeMode === 'lottery') && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
                 <WingoBallsLogo size={20} />
                 <span>Synchronized Lottery Markets</span>
               </h3>
-              <span className="text-[11px] font-bold text-[#FF2A7A] bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">
+              <span className="text-[11px] font-bold text-[#B45309] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                 Next: {timeRemaining}s
               </span>
             </div>
@@ -425,17 +550,17 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             {/* Featured Hero WinGo Card */}
             <div
               onClick={handleGameClick}
-              className="bg-white rounded-3xl p-4 border border-pink-100 shadow-xs cursor-pointer hover:border-pink-300 transition-all active:scale-99"
+              className="bg-white rounded-3xl p-4 border border-amber-100 shadow-xs cursor-pointer hover:border-amber-300 transition-all active:scale-99"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-11 h-11 rounded-2xl bg-pink-50 flex items-center justify-center shadow-xs">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center shadow-xs">
                     <WingoBallsLogo size={34} />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span className="font-black text-sm text-slate-800">Win Go 30s / 1m / 3m / 5m</span>
-                      <span className="px-2 py-0.2 rounded-full bg-pink-50 text-[#FF2A7A] text-[10px] font-black uppercase">
+                      <span className="px-2 py-0.2 rounded-full bg-amber-100 text-[#B45309] text-[10px] font-black uppercase">
                         HOT
                       </span>
                     </div>
@@ -447,40 +572,38 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
                 <div className="text-right">
                   <div className="text-[10px] font-bold text-slate-400">DRAW IN</div>
-                  <div className="text-xl font-mono font-black text-[#FF2A7A]">
+                  <div className="text-xl font-mono font-black text-[#B45309]">
                     {timeRemaining}s
                   </div>
                 </div>
               </div>
 
-              {/* Live Number and Color Balls Preview */}
-              <div className="flex items-center justify-between pt-2 border-t border-pink-50">
+              <div className="flex items-center justify-between pt-2 border-t border-amber-50">
                 <div className="flex items-center gap-1.5">
                   {historyResults.slice(0, 5).map((res) => (
                     <WinGoBall key={res.periodNumber} number={res.number} size="sm" />
                   ))}
                 </div>
 
-                <button className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-xs flex items-center gap-1">
+                <button className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-xs flex items-center gap-1">
                   <span>Bet Now</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Other Lottery Mode Cards */}
+            {/* Lottery Mode Cards */}
             <div className="grid grid-cols-2 gap-3">
-              {/* Win Go 30 Sec */}
               <div
                 onClick={() => {
                   setActiveWingoMode('30s');
                   handleGameClick();
                 }}
-                className="bg-white rounded-3xl p-3.5 border border-pink-100 shadow-xs cursor-pointer hover:border-pink-300 transition-all active:scale-98"
+                className="bg-white rounded-3xl p-3.5 border border-amber-100 shadow-xs cursor-pointer hover:border-amber-300 transition-all active:scale-98"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-extrabold text-xs text-slate-800">Win Go 30 Sec</span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-pink-100 text-[#FF2A7A] text-[9px] font-black uppercase">
+                  <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-[#B45309] text-[9px] font-black uppercase">
                     FAST
                   </span>
                 </div>
@@ -488,18 +611,17 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   Draw in {wingoMarkets['30s']?.timeRemaining ?? 0}s
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#FF2A7A]">30s Round</span>
+                  <span className="text-xs font-mono font-bold text-[#B45309]">30s Round</span>
                   <span className="text-[11px] font-bold text-slate-600">Enter →</span>
                 </div>
               </div>
 
-              {/* Win Go 1 Min */}
               <div
                 onClick={() => {
                   setActiveWingoMode('1m');
                   handleGameClick();
                 }}
-                className="bg-white rounded-3xl p-3.5 border border-pink-100 shadow-xs cursor-pointer hover:border-pink-300 transition-all active:scale-98"
+                className="bg-white rounded-3xl p-3.5 border border-amber-100 shadow-xs cursor-pointer hover:border-amber-300 transition-all active:scale-98"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-extrabold text-xs text-slate-800">Win Go 1 Min</span>
@@ -509,18 +631,17 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   Draw in {wingoMarkets['1m']?.timeRemaining ?? 0}s
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#FF2A7A]">1m Draw</span>
+                  <span className="text-xs font-mono font-bold text-[#B45309]">1m Draw</span>
                   <span className="text-[11px] font-bold text-slate-600">Enter →</span>
                 </div>
               </div>
 
-              {/* Win Go 3 Min */}
               <div
                 onClick={() => {
                   setActiveWingoMode('3m');
                   handleGameClick();
                 }}
-                className="bg-white rounded-3xl p-3.5 border border-pink-100 shadow-xs cursor-pointer hover:border-pink-300 transition-all active:scale-98"
+                className="bg-white rounded-3xl p-3.5 border border-amber-100 shadow-xs cursor-pointer hover:border-amber-300 transition-all active:scale-98"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-extrabold text-xs text-slate-800">Win Go 3 Min</span>
@@ -530,48 +651,44 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   Draw in {wingoMarkets['3m']?.timeRemaining ?? 0}s
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#FF2A7A]">3m Round</span>
+                  <span className="text-xs font-mono font-bold text-[#B45309]">3m Round</span>
                   <span className="text-[11px] font-bold text-slate-600">Enter →</span>
                 </div>
               </div>
 
-              {/* Win Go 5 Min */}
               <div
                 onClick={() => {
                   setActiveWingoMode('5m');
                   handleGameClick();
                 }}
-                className="bg-white rounded-3xl p-3.5 border border-pink-100 shadow-xs cursor-pointer hover:border-pink-300 transition-all active:scale-98"
+                className="bg-white rounded-3xl p-3.5 border border-amber-100 shadow-xs cursor-pointer hover:border-amber-300 transition-all active:scale-98"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-extrabold text-xs text-slate-800">Win Go 5 Min</span>
-                  <span className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
                 </div>
                 <div className="text-[11px] text-slate-400 mb-2">
                   Draw in {wingoMarkets['5m']?.timeRemaining ?? 0}s
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#FF2A7A]">5m Round</span>
+                  <span className="text-xs font-mono font-bold text-[#B45309]">5m Round</span>
                   <span className="text-[11px] font-bold text-slate-600">Enter →</span>
                 </div>
               </div>
 
-              {/* K3 Lottery Card */}
+              {/* EWI K3 Card */}
               <div
-                onClick={() => {
-                  setActiveTab('k3');
-                  window.location.hash = '#/k3';
-                }}
-                className="bg-gradient-to-br from-[#FFF0F6] to-white rounded-3xl p-3.5 border border-pink-200 shadow-xs cursor-pointer hover:border-[#FF2A7A] transition-all active:scale-98"
+                onClick={() => goTab('k3')}
+                className="bg-gradient-to-br from-amber-50 to-white rounded-3xl p-3.5 border border-amber-200 shadow-xs cursor-pointer hover:border-[#D97706] transition-all active:scale-98"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-[#FF2A7A] text-white text-[10px] font-black">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-[#B45309] text-white text-[10px] font-black">
                       K3
                     </span>
-                    <span>K3 Lottery</span>
+                    <span>EWI K3</span>
                   </span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-pink-100 text-[#FF2A7A] text-[9px] font-black uppercase">
+                  <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-[#B45309] text-[9px] font-black uppercase">
                     NEW
                   </span>
                 </div>
@@ -579,27 +696,24 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   1m / 3m / 5m / 10m • 3 Dice
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#FF2A7A]">Up to 207X</span>
+                  <span className="text-xs font-mono font-bold text-[#B45309]">Up to 207X</span>
                   <span className="text-[11px] font-bold text-slate-700">Enter →</span>
                 </div>
               </div>
 
-              {/* 5D Lottery Card */}
+              {/* EWI 5D Card */}
               <div
-                onClick={() => {
-                  setActiveTab('5d');
-                  window.location.hash = '#/5d';
-                }}
-                className="bg-gradient-to-br from-[#FFF0F6] to-white rounded-3xl p-3.5 border border-pink-200 shadow-xs cursor-pointer hover:border-[#FF2A7A] transition-all active:scale-98"
+                onClick={() => goTab('5d')}
+                className="bg-gradient-to-br from-amber-50 to-white rounded-3xl p-3.5 border border-amber-200 shadow-xs cursor-pointer hover:border-[#D97706] transition-all active:scale-98"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-gradient-to-br from-[#FF2A7A] to-[#FF5A92] text-white text-[10px] font-black">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-gradient-to-br from-[#B45309] to-[#D97706] text-white text-[10px] font-black">
                       5D
                     </span>
-                    <span>5D Lottery</span>
+                    <span>EWI 5D</span>
                   </span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-pink-100 text-[#FF2A7A] text-[9px] font-black uppercase">
+                  <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-[#B45309] text-[9px] font-black uppercase">
                     NEW
                   </span>
                 </div>
@@ -607,7 +721,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   1m / 3m / 5m / 10m • A-E Balls
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#FF2A7A]">Up to 9X</span>
+                  <span className="text-xs font-mono font-bold text-[#B45309]">Up to 9X</span>
                   <span className="text-[11px] font-bold text-slate-700">Enter →</span>
                 </div>
               </div>
@@ -615,24 +729,23 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         )}
 
-        {/* SECTION 2: Binary Market Live Trading Showcase */}
-        {activeMode === 'binary' && (
+        {/* SECTION 2: Binary & Gold Market (XAU/USD) Showcase */}
+        {showOriginalSection && activeMode === 'binary' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-[#7209B7] rounded-full inline-block" />
-                <span>Binary Options Trading</span>
+                <span className="w-1.5 h-4 bg-[#D97706] rounded-full inline-block" />
+                <span>Binary &amp; Gold Market (XAU/USD)</span>
               </h3>
-              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live Feed
               </span>
             </div>
 
-            {/* Binary Showcase Card */}
             <div
               onClick={handleBinaryClick}
-              className="bg-gradient-to-b from-[#1a0b16] to-[#0d050c] rounded-3xl p-5 text-white shadow-md border border-pink-900/40 cursor-pointer active:scale-99 transition-all"
+              className="bg-gradient-to-b from-[#1A1409] to-[#0D0A04] rounded-3xl p-5 text-white shadow-md border border-amber-500/35 cursor-pointer active:scale-99 transition-all"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
@@ -640,22 +753,19 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                     <BinaryMarketLogo size={36} />
                   </div>
                   <div>
-                    <div className="font-black text-sm text-white flex items-center gap-1.5">
-                      <span>17+ Global Markets Binary</span>
-                    </div>
-                    <div className="text-[10px] text-pink-300">Crypto • Forex • Gold • Indices</div>
+                    <div className="font-black text-sm text-white">XAU/USD Gold &amp; 17+ Markets</div>
+                    <div className="text-[10px] text-amber-300">Gold Market • Crypto • Forex • Indices</div>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-xl font-mono font-black text-[#FF4B91]">
+                  <div className="text-xl font-mono font-black text-amber-300">
                     ${binaryPrice.toFixed(2)}
                   </div>
                   <div className="text-[10px] text-emerald-400 font-bold">90% Payout Rate</div>
                 </div>
               </div>
 
-              {/* Supported Timeframes Badge Row */}
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {['15s', '30s', '1m', '3m', '5m', '15m', '30m'].map((tf) => (
                   <span
@@ -667,21 +777,20 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                 ))}
               </div>
 
-              {/* Visual UP / DOWN simulation buttons */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="py-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black text-xs text-center flex items-center justify-center gap-1">
-                  <span>▲ CALL / UP</span>
+                  <span>▲ BUY / UP</span>
                   <span className="text-[10px] text-emerald-300">+90%</span>
                 </div>
-                <div className="py-2.5 rounded-2xl bg-[#FF2A7A]/20 border border-[#FF2A7A]/40 text-[#FF4B91] font-black text-xs text-center flex items-center justify-center gap-1">
-                  <span>▼ PUT / DOWN</span>
-                  <span className="text-[10px] text-pink-300">+90%</span>
+                <div className="py-2.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 font-black text-xs text-center flex items-center justify-center gap-1">
+                  <span>▼ SELL / DOWN</span>
+                  <span className="text-[10px] text-rose-300">+90%</span>
                 </div>
               </div>
 
               <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Click to open Live Chart</span>
-                <span className="text-[#FF4B91] font-black flex items-center gap-1">
+                <span className="text-slate-300 font-medium">Min Trade ৳10 • Tap to open Live Chart</span>
+                <span className="text-amber-300 font-black flex items-center gap-1">
                   <span>Trade Now</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
@@ -690,31 +799,31 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         )}
 
-        {/* SECTION 3: Aviator Plane Crash Game Showcase */}
-        {activeMode === 'aviator' && (
+        {/* SECTION 3: Aviator Plane Showcase */}
+        {showOriginalSection && activeMode === 'aviator' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
                 <AviatorPlaneLogo size={20} />
                 <span>Aviator Plane Crash Game</span>
               </h3>
-              <span className="text-[11px] font-bold text-[#FF2A7A] bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">
+              <span className="text-[11px] font-bold text-[#B45309] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                 Up to 10,000X
               </span>
             </div>
 
             <div
               onClick={handleAviatorClick}
-              className="bg-gradient-to-b from-[#250819] to-[#12040D] rounded-3xl p-5 text-white shadow-md border border-pink-500/35 cursor-pointer active:scale-99 transition-all"
+              className="bg-gradient-to-b from-[#1F1215] to-[#0E0E10] rounded-3xl p-5 text-white shadow-md border border-rose-500/35 cursor-pointer active:scale-99 transition-all"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-pink-500/20 border border-pink-400/30 flex items-center justify-center flex-shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-400/30 flex items-center justify-center flex-shrink-0">
                     <AviatorPlaneLogo size={38} />
                   </div>
                   <div>
                     <div className="font-black text-base text-white">Aviator Plane</div>
-                    <div className="text-[11px] text-pink-200">Live Multiplier Flight • Cash Out Anytime</div>
+                    <div className="text-[11px] text-amber-200">Live Multiplier Flight • Cash Out Anytime</div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -723,20 +832,9 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-                {['1.85x', '3.42x', '12.10x', '2.15x', '6.80x'].map((m) => (
-                  <span
-                    key={m}
-                    className="px-2.5 py-1 rounded-full bg-white/10 text-pink-100 font-mono text-[10px] font-black border border-white/10"
-                  >
-                    {m}
-                  </span>
-                ))}
-              </div>
-
               <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                <span className="text-pink-200/80 font-medium">Min Bet ৳10 • Auto Cashout Supported</span>
-                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black flex items-center gap-1 shadow-xs">
+                <span className="text-slate-300 font-medium">Min Bet ৳10 • Auto Cashout Supported</span>
+                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#B91C1C] text-white font-black flex items-center gap-1 shadow-xs">
                   <span>Play Plane</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
@@ -745,8 +843,8 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         )}
 
-        {/* SECTION 4: Mines 777 Instant Gem Game Showcase */}
-        {activeMode === 'mines' && (
+        {/* SECTION 4: Mines 777 Showcase */}
+        {showSlotsSection && activeMode === 'mines' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
@@ -760,16 +858,16 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
             <div
               onClick={handleMinesClick}
-              className="bg-gradient-to-b from-[#08221D] to-[#04100E] rounded-3xl p-5 text-white shadow-md border border-emerald-500/35 cursor-pointer active:scale-99 transition-all"
+              className="bg-gradient-to-b from-[#1D1609] to-[#110D05] rounded-3xl p-5 text-white shadow-md border border-amber-500/35 cursor-pointer active:scale-99 transition-all"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center flex-shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
                     <MinesGameLogo size={38} />
                   </div>
                   <div>
                     <div className="font-black text-base text-white">Mines 777</div>
-                    <div className="text-[11px] text-emerald-200">5x5 Grid • Pick Gems &amp; Cash Out Anytime</div>
+                    <div className="text-[11px] text-amber-200">5x5 Grid • Pick Gems &amp; Cash Out Anytime</div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -778,20 +876,9 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5 mb-4">
-                {['1 Mine', '3 Mines', '5 Mines', '10 Mines'].map((m) => (
-                  <span
-                    key={m}
-                    className="py-1.5 rounded-xl bg-white/10 text-emerald-100 font-mono text-[10px] font-black text-center border border-white/10"
-                  >
-                    {m}
-                  </span>
-                ))}
-              </div>
-
               <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                <span className="text-emerald-200/80 font-medium">Instant Settlement • Min Bet ৳10</span>
-                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black flex items-center gap-1 shadow-xs">
+                <span className="text-amber-200/80 font-medium">Instant Settlement • Min Bet ৳10</span>
+                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white font-black flex items-center gap-1 shadow-xs">
                   <span>Play Mines</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
@@ -800,70 +887,178 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         )}
 
-        {/* Featured Aviator Plane & Mines Quick Cards */}
-        {activeMode !== 'aviator' && (
-          <div
-            onClick={handleAviatorClick}
-            className="bg-gradient-to-r from-[#230719] via-[#3A0C27] to-[#FF2A7A] rounded-3xl p-4 text-white shadow-md border border-pink-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-                <AviatorPlaneLogo size={34} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-sm text-white truncate">Aviator Plane</span>
-                  <span className="px-1.5 py-0.5 rounded bg-yellow-300 text-slate-900 text-[9px] font-black">
-                    HOT
-                  </span>
-                </div>
-                <div className="text-[11px] text-pink-100 truncate">
-                  Place bet &amp; cash out before the plane flies away!
-                </div>
-              </div>
-            </div>
-            <span className="px-3.5 py-2 rounded-full bg-white text-[#FF2A7A] font-black text-xs flex-shrink-0 shadow-sm">
-              Play →
-            </span>
+        {/* EWI 777 Originals & Trading Grid (All Games Accessible) */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+              <Coins className="w-4 h-4 text-[#B45309]" />
+              <span>EWI 777 Games &amp; Live Markets</span>
+            </h3>
+            {activeCategory !== 'all' && (
+              <button
+                onClick={() => setActiveCategory('all')}
+                className="text-[11px] font-bold text-[#B45309] underline"
+              >
+                Show All
+              </button>
+            )}
           </div>
-        )}
 
-        {activeMode !== 'mines' && (
-          <div
-            onClick={handleMinesClick}
-            className="bg-gradient-to-r from-[#06211B] via-[#0B3B2E] to-[#059669] rounded-3xl p-4 text-white shadow-md border border-emerald-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-                <MinesGameLogo size={34} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-sm text-white truncate">Mines 777</span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-300 text-slate-900 text-[9px] font-black">
-                    NEW
-                  </span>
+          {/* Lucky Jet Card */}
+          {showOriginalSection && (
+            <div
+              onClick={handleLuckyJetClick}
+              className="bg-gradient-to-r from-[#141029] via-[#1E1944] to-[#4C1D95] rounded-3xl p-4 text-white shadow-md border border-indigo-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-amber-300/30 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  <img
+                    src={luckyJetPilotImg}
+                    alt="Lucky Jet"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-                <div className="text-[11px] text-emerald-100 truncate">
-                  Reveal diamonds &amp; cash out instant multipliers!
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-white truncate">Lucky Jet</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-300 text-slate-900 text-[9px] font-black">
+                      HOT
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-indigo-100 truncate">
+                    Jetpack Multiplier Flight • Autobet &amp; Cashout!
+                  </div>
                 </div>
               </div>
+              <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-slate-950 font-black text-xs flex-shrink-0 shadow-sm">
+                Fly →
+              </span>
             </div>
-            <span className="px-3.5 py-2 rounded-full bg-white text-emerald-700 font-black text-xs flex-shrink-0 shadow-sm">
-              Play →
-            </span>
-          </div>
-        )}
+          )}
 
-        {/* Real-Time Top Earners & Referral Leaderboard (Toggled from Admin Panel; Hidden by default until official launch) */}
+          {/* Coin Flip Gold/Silver Card */}
+          {(showOriginalSection || showSlotsSection) && (
+            <div
+              onClick={handleCoinFlipClick}
+              className="bg-gradient-to-r from-[#1E1608] via-[#3A280B] to-[#B45309] rounded-3xl p-4 text-white shadow-md border border-amber-400/35 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-black/35 border border-amber-300/40 flex items-center justify-center flex-shrink-0 p-1">
+                  <EwiCoinBadgePair size={36} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-white truncate">Coin Flip (Gold / Silver)</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-300 text-slate-900 text-[9px] font-black">
+                      1.89X
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-amber-100 truncate">
+                    Flip Gold EWI777 vs Silver EWI777 • Min ৳10!
+                  </div>
+                </div>
+              </div>
+              <span className="px-3.5 py-2 rounded-full bg-white text-[#92400E] font-black text-xs flex-shrink-0 shadow-sm">
+                Flip →
+              </span>
+            </div>
+          )}
+
+          {/* Binary & Gold XAU/USD Card */}
+          {showOriginalSection && activeMode !== 'binary' && (
+            <div
+              onClick={handleBinaryClick}
+              className="bg-gradient-to-r from-[#111827] via-[#1E293B] to-[#B45309] rounded-3xl p-4 text-white shadow-md border border-amber-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-amber-300/30 flex items-center justify-center flex-shrink-0">
+                  <BinaryMarketLogo size={34} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-white truncate">Binary &amp; Gold Market (XAU/USD)</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-300 text-slate-900 text-[9px] font-black">
+                      GOLD
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-amber-100 truncate">
+                    Live Candlesticks • Up/Down Binary Trading (Min ৳10)
+                  </div>
+                </div>
+              </div>
+              <span className="px-3.5 py-2 rounded-full bg-white text-[#B45309] font-black text-xs flex-shrink-0 shadow-sm">
+                Trade →
+              </span>
+            </div>
+          )}
+
+          {/* Aviator Quick Card */}
+          {showOriginalSection && activeMode !== 'aviator' && (
+            <div
+              onClick={handleAviatorClick}
+              className="bg-gradient-to-r from-[#1B0B10] via-[#3A101B] to-[#E11D48] rounded-3xl p-4 text-white shadow-md border border-rose-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
+                  <AviatorPlaneLogo size={34} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-white truncate">Aviator Plane</span>
+                    <span className="px-1.5 py-0.5 rounded bg-yellow-300 text-slate-900 text-[9px] font-black">
+                      HOT
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-rose-100 truncate">
+                    Place bet &amp; cash out before the plane flies away!
+                  </div>
+                </div>
+              </div>
+              <span className="px-3.5 py-2 rounded-full bg-white text-[#B91C1C] font-black text-xs flex-shrink-0 shadow-sm">
+                Play →
+              </span>
+            </div>
+          )}
+
+          {/* Mines 777 Quick Card */}
+          {showSlotsSection && activeMode !== 'mines' && (
+            <div
+              onClick={handleMinesClick}
+              className="bg-gradient-to-r from-[#06211B] via-[#0B3B2E] to-[#059669] rounded-3xl p-4 text-white shadow-md border border-emerald-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
+                  <MinesGameLogo size={34} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-white truncate">Mines 777</span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-300 text-slate-900 text-[9px] font-black">
+                      NEW
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-emerald-100 truncate">
+                    Reveal diamonds &amp; cash out instant multipliers!
+                  </div>
+                </div>
+              </div>
+              <span className="px-3.5 py-2 rounded-full bg-white text-emerald-700 font-black text-xs flex-shrink-0 shadow-sm">
+                Play →
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Real-Time Top Earners & Referral Leaderboard */}
         {adminSettings.showTopEarners && (
-          <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-pink-50">
+          <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-amber-50">
               <div className="flex items-center gap-2 font-black text-xs text-slate-800">
                 <Trophy className="w-4 h-4 text-amber-500" />
-                <span>Top Earners & Referral Champions</span>
+                <span>Top Earners &amp; Referral Champions</span>
               </div>
-              <span className="text-[10px] text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[10px] text-[#B45309] bg-amber-50 px-2 py-0.5 rounded-full font-bold">
                 Live Referral Rankings
               </span>
             </div>
@@ -872,7 +1067,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               {topEarners.map((item) => (
                 <div
                   key={item.rank}
-                  className="flex items-center justify-between p-2 rounded-2xl hover:bg-pink-50/50 transition-colors border border-transparent hover:border-pink-100"
+                  className="flex items-center justify-between p-2 rounded-2xl hover:bg-amber-50/50 transition-colors border border-transparent hover:border-amber-100"
                 >
                   <div className="flex items-center gap-2.5">
                     <div
@@ -892,7 +1087,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-xs text-slate-800">{item.name}</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-pink-100 text-[#FF2A7A] font-bold">
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 text-[#B45309] font-bold">
                           {item.tag}
                         </span>
                       </div>
@@ -906,7 +1101,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                     <div className="text-xs font-black text-emerald-600 font-mono">
                       {item.amount}
                     </div>
-                    <div className="text-[10px] text-slate-400">Referral & Game Income</div>
+                    <div className="text-[10px] text-slate-400">Referral &amp; Game Income</div>
                   </div>
                 </div>
               ))}
@@ -919,10 +1114,10 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           <div className="space-y-2.5">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                <Gamepad2 className="w-4 h-4 text-[#FF2A7A]" />
+                <Gamepad2 className="w-4 h-4 text-[#B45309]" />
                 <span>Featured Games</span>
               </h3>
-              <span className="text-[10px] font-bold text-[#FF2A7A] bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">
+              <span className="text-[10px] font-bold text-[#B45309] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                 {customAdminGames.length} Live
               </span>
             </div>
@@ -931,16 +1126,16 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                 <div
                   key={g.id}
                   onClick={() => handleCustomGameClick(g)}
-                  className="bg-white rounded-3xl p-3 border border-pink-100 shadow-xs cursor-pointer hover:border-pink-300 transition-all active:scale-98 flex flex-col gap-2"
+                  className="bg-white rounded-3xl p-3 border border-amber-100 shadow-xs cursor-pointer hover:border-amber-300 transition-all active:scale-98 flex flex-col gap-2"
                 >
-                  <div className="relative h-24 rounded-2xl bg-gradient-to-br from-pink-50 to-pink-100 overflow-hidden flex items-center justify-center">
+                  <div className="relative h-24 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 overflow-hidden flex items-center justify-center">
                     {g.imageUrl ? (
                       <img src={g.imageUrl} alt={g.title} className="w-full h-full object-cover" />
                     ) : (
-                      <Gamepad2 className="w-8 h-8 text-[#FF2A7A]" />
+                      <Gamepad2 className="w-8 h-8 text-[#B45309]" />
                     )}
                     {g.badge && (
-                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-[#FF2A7A] text-white text-[9px] font-black uppercase">
+                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-[#B45309] text-white text-[9px] font-black uppercase">
                         {g.badge}
                       </span>
                     )}
@@ -950,7 +1145,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                       <div className="font-extrabold text-xs text-slate-800 truncate">{g.title}</div>
                       <div className="text-[10px] text-slate-400">{g.category}</div>
                     </div>
-                    <span className="text-[11px] font-black text-[#FF2A7A]">Play →</span>
+                    <span className="text-[11px] font-black text-[#B45309]">Play →</span>
                   </div>
                 </div>
               ))}
@@ -965,8 +1160,8 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
       {/* Custom Game Embedded Frame Modal */}
       {activeCustomGame && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3">
-          <div className="w-full max-w-md h-[85vh] bg-slate-950 rounded-3xl overflow-hidden border border-pink-500/30 flex flex-col shadow-2xl">
-            <div className="bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] px-4 py-3 text-white flex items-center justify-between">
+          <div className="w-full max-w-md h-[85vh] bg-slate-950 rounded-3xl overflow-hidden border border-amber-500/35 flex flex-col shadow-2xl">
+            <div className="bg-gradient-to-r from-[#B45309] to-[#D97706] px-4 py-3 text-white flex items-center justify-between">
               <div className="font-black text-sm truncate">{activeCustomGame.title}</div>
               <button
                 onClick={() => setActiveCustomGame(null)}

@@ -3,13 +3,14 @@ import { useApp } from '../context/AppContext';
 import { Header } from '../components/Header';
 import { Gift, ChevronRight } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
-import { PinkGiftIllustration, PinkAttendanceIllustration } from '../components/PinkActivityIllustrations';
+import { PinkGiftIllustration } from '../components/PinkActivityIllustrations';
 import {
   ActivityAwardSquircleIcon,
   BettingRebateSquircleIcon,
   SuperJackpotSquircleIcon,
   FirstGiftSquircleIcon
 } from '../components/AccountIcons';
+import checkinBanner from '../assets/images/ewi777_checkin_banner_1794826719310.jpg';
 
 export const Activity: React.FC = () => {
   const {
@@ -19,7 +20,6 @@ export const Activity: React.FC = () => {
     claimDepositBonus,
     setActiveTab,
     language,
-    showToast,
   } = useApp();
 
   const hasCompletedDeposit =
@@ -55,14 +55,14 @@ export const Activity: React.FC = () => {
   const lastGiftTime = user.lastGiftClaimTime || lastGiftTx?.time || '';
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
       <Header title={getTranslation(language, 'activity')} showBack={false} />
 
-      {/* Top Bonus Banner (Pink Luxury) */}
-      <div className="bg-gradient-to-br from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] text-white px-4 pt-4 pb-12 rounded-b-[2rem] shadow-md">
+      {/* Top Luxury Gold Banner */}
+      <div className="bg-gradient-to-br from-[#B45309] via-[#D97706] to-[#F59E0B] text-white px-4 pt-4 pb-12 rounded-b-[2rem] shadow-md">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-xs text-pink-100 font-medium">
+            <div className="text-xs text-amber-100 font-medium">
               {getTranslation(language, 'todaysBonus')}
             </div>
             <div className="text-2xl font-black tracking-tight mt-0.5 tabular-nums">
@@ -70,7 +70,7 @@ export const Activity: React.FC = () => {
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-pink-100 font-medium">
+            <div className="text-xs text-amber-100 font-medium">
               {getTranslation(language, 'totalBonus')}
             </div>
             <div className="text-2xl font-black tracking-tight mt-0.5 text-yellow-200 tabular-nums">
@@ -85,7 +85,7 @@ export const Activity: React.FC = () => {
               setActiveTab('transaction-history');
               window.location.hash = '#/transaction-history';
             }}
-            className="py-2 px-8 rounded-full bg-white text-[#FF2A7A] font-extrabold text-xs shadow-md active:scale-95 transition-transform"
+            className="py-2 px-8 rounded-full bg-white text-[#B45309] font-extrabold text-xs shadow-md active:scale-95 transition-transform"
           >
             {getTranslation(language, 'bonusDetails')}
           </button>
@@ -93,8 +93,8 @@ export const Activity: React.FC = () => {
       </div>
 
       <div className="px-4 -mt-6 space-y-4">
-        {/* First Deposit Bonus Claim Section (1-Time Only After Completed Deposit) */}
-        <div className="bg-gradient-to-r from-amber-500 via-rose-500 to-[#FF2A7A] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-2">
+        {/* Deposit Bonus Center */}
+        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-yellow-200">
               <Gift className="w-3.5 h-3.5" />
@@ -107,7 +107,7 @@ export const Activity: React.FC = () => {
                 ? 'Claim ৳50 Deposit Bonus (1-Time)!'
                 : 'Complete Deposit to Unlock ৳50 Bonus'}
             </div>
-            <div className="text-[10px] text-pink-100">
+            <div className="text-[10px] text-amber-100">
               {user.hasClaimedDepositBonus
                 ? '1-time deposit bonus already claimed.'
                 : hasCompletedDeposit
@@ -130,8 +130,8 @@ export const Activity: React.FC = () => {
           </button>
         </div>
 
-        {/* Quick 4 Category Buttons (Gradient Squircles -> Light Mode Subpages) */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 grid grid-cols-4 gap-2 text-center">
+        {/* Quick 4 Category Buttons */}
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-200 grid grid-cols-4 gap-2 text-center">
           <button
             onClick={() => {
               setActiveTab('activity-award');
@@ -185,73 +185,67 @@ export const Activity: React.FC = () => {
           </button>
         </div>
 
-        {/* Feature Cards Grid (Gifts & Attendance Bonus - Pure Pink Vector Theme) */}
+        {/* Gifts & Daily Check-In Feature Cards */}
         <div className="grid grid-cols-2 gap-3.5">
-          {/* Gifts Card */}
           <div
             onClick={() => {
               setActiveTab('gifts');
               window.location.hash = '#/gifts';
             }}
-            className="group bg-white rounded-3xl overflow-hidden border border-pink-200/90 shadow-xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
+            className="group bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
           >
-            {/* Top Pink Vector Illustration Banner */}
-            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center">
+            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center bg-amber-50">
               <PinkGiftIllustration className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-[#FF2A7A] shadow-xs">
+              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-[#D97706] shadow-xs">
                 HOT
               </span>
             </div>
 
-            {/* Content text */}
             <div className="p-3 bg-white flex flex-col justify-between flex-1">
               <div>
-                <h4 className="font-black text-sm text-slate-900 group-hover:text-[#FF2A7A] transition-colors">
+                <h4 className="font-black text-sm text-slate-900 group-hover:text-[#D97706] transition-colors">
                   {getTranslation(language, 'gifts')}
                 </h4>
                 <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
                   {lastGiftTime ? `Last claimed: ${lastGiftTime}` : 'Redeem exclusive gift codes'}
                 </p>
               </div>
-              <div className="mt-2 pt-2 border-t border-pink-50 flex items-center justify-between text-[#FF2A7A]">
-                <span className="text-[10px] font-black">
-                  Redeem Now
-                </span>
+              <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[#D97706]">
+                <span className="text-[10px] font-black">Redeem Now</span>
                 <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </div>
           </div>
 
-          {/* Attendance Bonus Card */}
           <div
             onClick={() => {
               setActiveTab('attendence');
-              window.location.hash = '#/attendence';
+              window.location.hash = '#/cheking';
             }}
-            className="group bg-white rounded-3xl overflow-hidden border border-pink-200/90 shadow-xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
+            className="group bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
           >
-            {/* Top Pink Vector Illustration Banner */}
-            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center">
-              <PinkAttendanceIllustration className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-[#FF2A7A] shadow-xs">
+            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center bg-amber-50">
+              <img
+                src={checkinBanner}
+                alt="EWI777 Daily Check-In"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-[#D97706] shadow-xs">
                 DAILY
               </span>
             </div>
 
-            {/* Content text */}
             <div className="p-3 bg-white flex flex-col justify-between flex-1">
               <div>
-                <h4 className="font-black text-sm text-slate-900 group-hover:text-[#FF2A7A] transition-colors">
-                  {getTranslation(language, 'attendanceBonus')}
+                <h4 className="font-black text-sm text-slate-900 group-hover:text-[#D97706] transition-colors">
+                  Daily Sign-In
                 </h4>
                 <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
-                  7-Day deposit rewards up to ৳1,200
+                  Day 1 ৳1 up to Day 7 ৳7 rewards
                 </p>
               </div>
-              <div className="mt-2 pt-2 border-t border-pink-50 flex items-center justify-between text-[#FF2A7A]">
-                <span className="text-[10px] font-black">
-                  Check-in
-                </span>
+              <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[#D97706]">
+                <span className="text-[10px] font-black">Check-in</span>
                 <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </div>

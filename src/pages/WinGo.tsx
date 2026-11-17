@@ -116,21 +116,19 @@ export const WinGo: React.FC = () => {
   const currentModeBets = bets.filter((b) => b.mode === activeWingoMode);
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
-      {/* Top Pink Gradient Header */}
-      <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
+      <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           <button
             onClick={() => {
               setActiveTab('home');
               window.location.hash = '#/';
             }}
-            className="relative z-10 p-1 -ml-1 text-white hover:opacity-80 active:scale-95"
+            className="relative z-10 p-1.5 -ml-1 text-white hover:opacity-80 active:scale-95"
           >
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
 
-          {/* Centered Transparent Official EWI 777 Logo */}
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
             <Ewi777Logo height={60} logoUrl={adminSettings.appLogoUrl} />
           </div>
@@ -146,7 +144,7 @@ export const WinGo: React.FC = () => {
             >
               <Bell className="w-5 h-5" />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full bg-yellow-300 text-[#800F2F] text-[9px] font-black flex items-center justify-center shadow-xs">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full bg-yellow-300 text-[#78350F] text-[9px] font-black flex items-center justify-center shadow-xs tabular-nums">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
@@ -170,15 +168,14 @@ export const WinGo: React.FC = () => {
           </div>
         </div>
 
-        {/* Top Wallet Balance Card */}
-        <div className="bg-white rounded-3xl p-5 text-slate-800 shadow-md border border-pink-100">
+        <div className="bg-white rounded-3xl p-5 text-slate-800 shadow-md border border-amber-100">
           <div className="flex items-center justify-center gap-2 mb-1">
-            <span className="text-3xl font-black tracking-tight text-slate-900">
+            <span className="text-3xl font-black tracking-tight text-slate-900 tabular-nums">
               ৳{user.balance.toFixed(2)}
             </span>
             <button
               onClick={() => showToast('Wallet balance refreshed')}
-              className="text-slate-400 hover:text-[#FF2A7A] active:rotate-180 transition-transform"
+              className="text-slate-400 hover:text-[#B45309] active:rotate-180 transition-transform"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -193,7 +190,7 @@ export const WinGo: React.FC = () => {
                 setActiveTab('wallet');
                 window.location.hash = '#/wallet';
               }}
-              className="py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-extrabold text-sm shadow-xs hover:brightness-105 active:scale-98 transition-all"
+              className="py-3 min-h-[44px] rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-extrabold text-sm shadow-xs hover:brightness-105 active:scale-98 transition-all"
             >
               {getTranslation(language, 'withdraw')}
             </button>
@@ -202,7 +199,7 @@ export const WinGo: React.FC = () => {
                 setActiveTab('deposit');
                 window.location.hash = '#/deposit';
               }}
-              className="py-3 rounded-full bg-[#00B977] text-white font-extrabold text-sm shadow-xs hover:brightness-105 active:scale-98 transition-all"
+              className="py-3 min-h-[44px] rounded-full bg-[#00B977] text-white font-extrabold text-sm shadow-xs hover:brightness-105 active:scale-98 transition-all"
             >
               {getTranslation(language, 'deposit')}
             </button>
@@ -211,16 +208,15 @@ export const WinGo: React.FC = () => {
       </div>
 
       <div className="px-4 -mt-3 space-y-4">
-        {/* 4 Separate Independent Market Mode Tabs (30s, 1m, 3m, 5m) */}
-        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-pink-100 grid grid-cols-4 gap-1.5">
+        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-amber-100 grid grid-cols-4 gap-1.5">
           {(['30s', '1m', '3m', '5m'] as WinGoMode[]).map((mode) => (
             <button
               key={mode}
               onClick={() => setActiveWingoMode(mode)}
-              className={`py-2 px-1 rounded-xl text-xs font-black text-center transition-all ${
+              className={`py-2 min-h-[40px] px-1 rounded-xl text-xs font-black text-center transition-all ${
                 activeWingoMode === mode
-                  ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs scale-102'
-                  : 'text-slate-600 hover:bg-pink-50/50'
+                  ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-xs scale-102'
+                  : 'text-slate-600 hover:bg-amber-50'
               }`}
             >
               {mode === '30s' ? '30 Sec' : mode === '1m' ? '1 Min' : mode === '3m' ? '3 Min' : '5 Min'}
@@ -228,8 +224,7 @@ export const WinGo: React.FC = () => {
           ))}
         </div>
 
-        {/* Live Lottery Ticket Box with Synchronized Countdown */}
-        <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
+        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
           <div className="flex items-center justify-between pb-3 border-b border-white/20">
             <div>
               <button
@@ -247,13 +242,12 @@ export const WinGo: React.FC = () => {
               </div>
             </div>
 
-            {/* Countdown Box */}
             <div className="text-right">
-              <div className="text-[10px] uppercase font-bold text-white/80 tracking-wider mb-1 flex items-center justify-end gap-1">
+              <div className="text-[10px] uppercase font-bold text-white/85 tracking-wider mb-1 flex items-center justify-end gap-1">
                 <Clock className="w-3 h-3" />
                 <span>Time remaining</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 tabular-nums">
                 <span className="w-7 h-8 rounded-lg bg-white text-slate-900 font-mono font-black text-lg flex items-center justify-center shadow-xs">
                   {minStr[0]}
                 </span>
@@ -261,26 +255,25 @@ export const WinGo: React.FC = () => {
                   {minStr[1]}
                 </span>
                 <span className="font-mono font-black text-xl px-0.5">:</span>
-                <span className={`w-7 h-8 rounded-lg bg-white font-mono font-black text-lg flex items-center justify-center shadow-xs ${isBetLocked ? 'text-[#FF2A7A] animate-pulse' : 'text-slate-900'}`}>
+                <span className={`w-7 h-8 rounded-lg bg-white font-mono font-black text-lg flex items-center justify-center shadow-xs ${isBetLocked ? 'text-rose-600 animate-pulse' : 'text-slate-900'}`}>
                   {secStr[0]}
                 </span>
-                <span className={`w-7 h-8 rounded-lg bg-white font-mono font-black text-lg flex items-center justify-center shadow-xs ${isBetLocked ? 'text-[#FF2A7A] animate-pulse' : 'text-slate-900'}`}>
+                <span className={`w-7 h-8 rounded-lg bg-white font-mono font-black text-lg flex items-center justify-center shadow-xs ${isBetLocked ? 'text-rose-600 animate-pulse' : 'text-slate-900'}`}>
                   {secStr[1]}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Current Period ID & Live Last-5 Balls */}
           <div className="pt-3 space-y-2.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-white/85 font-semibold">Period</span>
-              <span className="font-mono font-extrabold tracking-wider">{currentPeriod}</span>
+              <span className="font-mono font-extrabold tracking-wider tabular-nums">{currentPeriod}</span>
             </div>
 
             {historyResults.length > 0 && (
               <div className="flex items-center justify-between bg-white/15 rounded-2xl px-3 py-1.5 border border-white/15">
-                <span className="text-[10px] font-bold text-pink-100">Latest Results</span>
+                <span className="text-[10px] font-bold text-amber-100">Latest Results</span>
                 <div className="flex items-center gap-1.5">
                   {historyResults.slice(0, 5).map((r) => (
                     <div key={r.periodNumber} title={`Period ${r.periodNumber}`}>
@@ -292,11 +285,9 @@ export const WinGo: React.FC = () => {
             )}
           </div>
 
-          {/* Active Trades on this exact Period */}
           {bets.filter((b) => b.periodNumber === currentPeriod && b.mode === activeWingoMode && b.status === 'pending').length > 0 && (
             <div className="mt-2.5 p-2.5 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-between text-xs border border-white/30 animate-pulse">
               <span className="font-bold text-yellow-200 flex items-center gap-1.5 text-[11px]">
-                <span className="w-2 h-2 rounded-full bg-yellow-300" />
                 Active on Period {currentPeriod.slice(-5)}:
               </span>
               <span className="font-mono font-black text-white text-[11px]">
@@ -308,7 +299,6 @@ export const WinGo: React.FC = () => {
             </div>
           )}
 
-          {/* Bet Locking Notice during final 5 seconds */}
           {isBetLocked && (
             <div className="mt-3 p-2 rounded-xl bg-black/40 backdrop-blur-xs text-center text-xs font-black text-yellow-300 flex items-center justify-center gap-1.5 animate-pulse">
               <Lock className="w-3.5 h-3.5" />
@@ -317,7 +307,6 @@ export const WinGo: React.FC = () => {
           )}
         </div>
 
-        {/* Betting Area with Last 05-Second Countdown Overlay & Bet Successful Toast */}
         <div className="relative space-y-4">
           <WinGoCountdownOverlay seconds={timeRemaining} />
 
@@ -329,14 +318,13 @@ export const WinGo: React.FC = () => {
             </div>
           )}
 
-          {/* Color Bet Action Buttons */}
           <div className="grid grid-cols-3 gap-3">
             <button
               onClick={() => handleOpenBet('color', 'green')}
               disabled={isBetLocked}
               className="py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-black text-sm shadow-md active:scale-95 transition-all disabled:opacity-50"
             >
-              Green (2X)
+              Green (1.89X)
             </button>
             <button
               onClick={() => handleOpenBet('color', 'violet')}
@@ -350,12 +338,11 @@ export const WinGo: React.FC = () => {
               disabled={isBetLocked}
               className="py-3.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 text-white font-black text-sm shadow-md active:scale-95 transition-all disabled:opacity-50"
             >
-              Red (2X)
+              Red (1.89X)
             </button>
           </div>
 
-          {/* 0-9 Numbers Grid (9X Return) */}
-          <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 space-y-2.5">
+          <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-2.5">
             <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
               <span>Select Number (9X Payout)</span>
               <span className="text-[10px] text-slate-400">Max 2 numbers per round</span>
@@ -375,33 +362,31 @@ export const WinGo: React.FC = () => {
             </div>
           </div>
 
-          {/* Big / Small Choice */}
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => handleOpenBet('size', 'big')}
               disabled={isBetLocked}
-              className="py-3.5 rounded-2xl bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-sm shadow-md active:scale-95 transition-all disabled:opacity-50"
+              className="py-3.5 rounded-2xl bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-md active:scale-95 transition-all disabled:opacity-50"
             >
-              Big (5-9) 2X
+              Big (5-9) 1.89X
             </button>
             <button
               onClick={() => handleOpenBet('size', 'small')}
               disabled={isBetLocked}
               className="py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-black text-sm shadow-md active:scale-95 transition-all disabled:opacity-50"
             >
-              Small (0-4) 2X
+              Small (0-4) 1.89X
             </button>
           </div>
         </div>
 
-        {/* Game Records & My History Tabs */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100">
           <div className="flex border-b border-slate-100 mb-3">
             <button
               onClick={() => setActiveHistoryTab('game')}
               className={`flex-1 pb-2.5 text-xs font-bold text-center border-b-2 transition-all ${
                 activeHistoryTab === 'game'
-                  ? 'border-[#FF2A7A] text-[#FF2A7A]'
+                  ? 'border-[#D97706] text-[#B45309]'
                   : 'border-transparent text-slate-400'
               }`}
             >
@@ -411,7 +396,7 @@ export const WinGo: React.FC = () => {
               onClick={() => setActiveHistoryTab('my')}
               className={`flex-1 pb-2.5 text-xs font-bold text-center border-b-2 transition-all ${
                 activeHistoryTab === 'my'
-                  ? 'border-[#FF2A7A] text-[#FF2A7A]'
+                  ? 'border-[#D97706] text-[#B45309]'
                   : 'border-transparent text-slate-400'
               }`}
             >
@@ -423,15 +408,14 @@ export const WinGo: React.FC = () => {
             <div className="space-y-2.5">
               <div className="flex items-center justify-between text-[11px] px-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-pink-500" />
-                  <span className="font-bold text-slate-600">
+                  <span className="font-bold text-slate-600 tabular-nums">
                     Latest {Math.min(50, historyResults.length)} / 50 API Records
-                    {wingoLastSyncTime ? ` (${wingoLastSyncTime})` : ''}
+                    {wingoLastSyncTime ? ` · ${wingoLastSyncTime}` : ''}
                   </span>
                 </div>
                 <button
                   onClick={handleManualApiRefresh}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-pink-50 text-[#FF2A7A] font-bold text-[10px] hover:bg-pink-100 active:scale-95 transition-all"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-[#B45309] font-bold text-[10px] hover:bg-amber-100 active:scale-95 transition-all"
                 >
                   <RefreshCw className={`w-3 h-3 ${isRefreshingApi ? 'animate-spin' : ''}`} />
                   <span>Refresh</span>
@@ -448,9 +432,9 @@ export const WinGo: React.FC = () => {
                       <th className="pb-2 font-medium text-right">Color</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50 font-mono">
+                  <tbody className="divide-y divide-slate-50 font-mono tabular-nums">
                     {historyResults.slice(0, 50).map((res) => (
-                      <tr key={res.periodNumber} className="hover:bg-pink-50/40">
+                      <tr key={res.periodNumber} className="hover:bg-amber-50/40">
                         <td className="py-2 text-slate-700 font-semibold text-[11px]">
                           {res.periodNumber}
                         </td>
@@ -462,7 +446,7 @@ export const WinGo: React.FC = () => {
                         <td className="py-2 text-center">
                           <span
                             className={`font-black uppercase text-[11px] ${
-                              res.size === 'big' ? 'text-[#FF2A7A]' : 'text-blue-600'
+                              res.size === 'big' ? 'text-[#B45309]' : 'text-blue-600'
                             }`}
                           >
                             {res.size}
@@ -490,7 +474,7 @@ export const WinGo: React.FC = () => {
             <div className="space-y-2">
               {currentModeBets.length === 0 ? (
                 <div className="text-center py-7 text-xs text-slate-400">
-                  <div className="w-10 h-10 rounded-2xl bg-pink-50 text-[#FF2A7A] flex items-center justify-center mx-auto mb-2">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-[#D97706] flex items-center justify-center mx-auto mb-2">
                     <History className="w-5 h-5" />
                   </div>
                   <span>No bets placed in WinGo {activeWingoMode} yet. Place a bet above!</span>
@@ -509,13 +493,13 @@ export const WinGo: React.FC = () => {
                     >
                       <div>
                         <div className="flex items-center gap-1.5 font-black text-slate-800">
-                          <span className="px-2 py-0.5 rounded-md bg-pink-50 text-[#FF2A7A] text-[10px] uppercase">
+                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-[#B45309] text-[10px] uppercase">
                             {b.type}
                           </span>
                           <span className="uppercase text-slate-900">{b.value}</span>
-                          <span className="text-slate-500 font-bold">৳{b.totalAmount}</span>
+                          <span className="text-slate-500 font-bold tabular-nums">৳{b.totalAmount}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-1 font-mono">
+                        <div className="text-[10px] text-slate-400 mt-1 font-mono tabular-nums">
                           Period: <span className="font-bold text-slate-600">{b.periodNumber}</span> • {b.time}
                         </div>
                       </div>
@@ -545,23 +529,21 @@ export const WinGo: React.FC = () => {
         </div>
       </div>
 
-      {/* Bet Order Modal */}
       {betModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-t-[2.5rem] p-5 w-full max-w-md shadow-2xl space-y-4 animate-slide-up">
-            <div className="flex items-center justify-between border-b border-pink-100 pb-3">
+            <div className="flex items-center justify-between border-b border-amber-100 pb-3">
               <div>
                 <h3 className="font-black text-base text-slate-800">
                   WinGo {activeWingoMode}
                 </h3>
                 <span className="text-xs text-slate-500">
-                  Select: <span className="font-bold text-[#FF2A7A] uppercase">{selectedBetType} {selectedBetValue}</span>
+                  Select: <span className="font-bold text-[#B45309] uppercase">{selectedBetType} {selectedBetValue}</span>
                 </span>
               </div>
               <span className="text-xs text-slate-400 font-mono">Period: {currentPeriod.slice(-5)}</span>
             </div>
 
-            {/* Base Unit */}
             <div>
               <span className="text-xs font-bold text-slate-700 block mb-2">Base Unit (৳)</span>
               <div className="grid grid-cols-4 gap-2">
@@ -569,10 +551,10 @@ export const WinGo: React.FC = () => {
                   <button
                     key={unit}
                     onClick={() => setBaseUnit(unit)}
-                    className={`py-2 rounded-xl text-xs font-black border transition-all ${
+                    className={`py-2 rounded-xl text-xs font-black border transition-all tabular-nums ${
                       baseUnit === unit
-                        ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] border-[#FF2A7A] text-white shadow-xs'
-                        : 'border-slate-200 text-slate-700 hover:bg-pink-50/50'
+                        ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] border-[#D97706] text-white shadow-xs'
+                        : 'border-slate-200 text-slate-700 hover:bg-amber-50'
                     }`}
                   >
                     ৳{unit}
@@ -581,7 +563,6 @@ export const WinGo: React.FC = () => {
               </div>
             </div>
 
-            {/* Quantity */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700">Quantity</span>
               <div className="flex items-center gap-3">
@@ -591,19 +572,18 @@ export const WinGo: React.FC = () => {
                 >
                   -
                 </button>
-                <span className="w-12 text-center font-bold text-sm text-slate-900">
+                <span className="w-12 text-center font-bold text-sm text-slate-900 tabular-nums">
                   {quantity}
                 </span>
                 <button
                   onClick={() => setQuantity((q) => q + 1)}
-                  className="w-8 h-8 rounded-lg bg-[#FF2A7A] text-white font-black text-base flex items-center justify-center active:scale-95"
+                  className="w-8 h-8 rounded-lg bg-[#D97706] text-white font-black text-base flex items-center justify-center active:scale-95"
                 >
                   +
                 </button>
               </div>
             </div>
 
-            {/* Multipliers */}
             <div className="flex gap-1.5 overflow-x-auto py-1">
               {[1, 5, 10, 20, 50, 100].map((mul) => (
                 <button
@@ -611,7 +591,7 @@ export const WinGo: React.FC = () => {
                   onClick={() => setMultiplier(mul)}
                   className={`flex-1 min-w-[45px] py-1.5 rounded-lg text-xs font-bold border ${
                     multiplier === mul
-                      ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] border-[#FF2A7A] text-white'
+                      ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] border-[#D97706] text-white'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -620,7 +600,6 @@ export const WinGo: React.FC = () => {
               ))}
             </div>
 
-            {/* Total Cost & Action */}
             <div className="grid grid-cols-3 gap-2 pt-2">
               <button
                 onClick={() => setBetModalOpen(false)}
@@ -630,7 +609,7 @@ export const WinGo: React.FC = () => {
               </button>
               <button
                 onClick={handleConfirmBet}
-                className="col-span-2 py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-extrabold text-sm shadow-md active:scale-98 transition-all hover:brightness-105"
+                className="col-span-2 py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-extrabold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tabular-nums"
               >
                 Total Amount ৳{totalBetCost.toFixed(2)}
               </button>
@@ -639,22 +618,21 @@ export const WinGo: React.FC = () => {
         </div>
       )}
 
-      {/* Rules Modal */}
       {showRulesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl border border-pink-100">
+          <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl border border-amber-100">
             <h3 className="font-extrabold text-base text-slate-800">WinGo Game Rules</h3>
             <div className="text-xs text-slate-600 space-y-2 leading-relaxed max-h-60 overflow-y-auto">
-              <p>• <strong>Green:</strong> If the result is 1, 3, 7, 9, you win 2X. If the result is 5, you win 1.5X.</p>
-              <p>• <strong>Red:</strong> If the result is 2, 4, 6, 8, you win 2X. If the result is 0, you win 1.5X.</p>
+              <p>• <strong>Green:</strong> If the result is 1, 3, 7, 9, you win 1.89X. If the result is 5, you win 1.5X.</p>
+              <p>• <strong>Red:</strong> If the result is 2, 4, 6, 8, you win 1.89X. If the result is 0, you win 1.5X.</p>
               <p>• <strong>Violet:</strong> If the result is 0 or 5, you win 4.5X.</p>
               <p>• <strong>Numbers (0-9):</strong> Guess the exact winning digit for 9X payout.</p>
-              <p>• <strong>Big (5-9) / Small (0-4):</strong> 2X payout.</p>
+              <p>• <strong>Big (5-9) / Small (0-4):</strong> 1.89X payout.</p>
               <p>• <strong>Fair Play Policy:</strong> Opposing bets (Big+Small, Red+Green, or 3+ numbers in one round) automatically apply a 3X turnover requirement (details sent to Notifications).</p>
             </div>
             <button
               onClick={() => setShowRulesModal(false)}
-              className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-bold text-xs"
+              className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-bold text-xs"
             >
               Understood
             </button>
@@ -662,7 +640,6 @@ export const WinGo: React.FC = () => {
         </div>
       )}
 
-      {/* Congratulations / Sorry WinGo Result Popup Modal (3s auto-close) */}
       <WinGoResultPopupModal popup={wingoResultPopup} onClose={clearWingoResultPopup} />
     </div>
   );

@@ -72,9 +72,9 @@ export const Account: React.FC<AccountProps> = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
-      {/* Top Profile Header (matching pink luxury) */}
-      <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] px-4 pt-4 pb-12 rounded-b-[2rem] text-white shadow-md">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
+      {/* Top Profile Header (Luxury Gold) */}
+      <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] px-4 pt-4 pb-12 rounded-b-[2rem] text-white shadow-md">
         <div className="flex items-center gap-3.5 mb-2">
           {/* Avatar with custom upload system - no predefined photo */}
           <div
@@ -101,7 +101,7 @@ export const Account: React.FC<AccountProps> = () => {
               </div>
             )}
             {/* Camera badge overlay */}
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white text-[#FF2A7A] flex items-center justify-center shadow-md border border-pink-100 hover:scale-110 active:scale-95 transition-transform">
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white text-[#B45309] flex items-center justify-center shadow-md border border-amber-200 hover:scale-110 active:scale-95 transition-transform">
               <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
             </div>
           </div>
@@ -146,12 +146,12 @@ export const Account: React.FC<AccountProps> = () => {
 
       {/* Main Account White Card */}
       <div className="px-4 -mt-8 space-y-4">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-1">
             <span>{getTranslation(language, 'totalBalance')}</span>
             <button
               onClick={() => showToast('Balance refreshed')}
-              className="text-slate-400 hover:text-[#FF2A7A] active:rotate-180 transition-transform"
+              className="text-slate-400 hover:text-[#D97706] active:rotate-180 transition-transform"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -162,13 +162,13 @@ export const Account: React.FC<AccountProps> = () => {
           </div>
 
           {/* Quick 4 icons (Wallet, Deposit, Withdraw, VIP) */}
-          <div className="grid grid-cols-4 gap-2 pt-2 border-t border-pink-50">
+          <div className="grid grid-cols-4 gap-2 pt-2 border-t border-amber-100">
             <button
               onClick={() => {
                 setActiveTab('wallet');
                 window.location.hash = '#/wallet';
               }}
-              className="flex flex-col items-center gap-1.5 py-2 hover:bg-pink-50/50 rounded-2xl active:scale-95 transition-all"
+              className="flex flex-col items-center gap-1.5 py-2 hover:bg-amber-50/60 rounded-2xl active:scale-95 transition-all"
             >
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
                 <WalletPastelIcon size={44} />
@@ -234,7 +234,7 @@ export const Account: React.FC<AccountProps> = () => {
           className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
         >
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-pink-50 flex items-center justify-center shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shadow-xs">
               <PinkSafePlateLogo size={36} />
             </div>
             <div>
@@ -259,7 +259,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('wingo');
               window.location.hash = '#/wingo';
             }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-pink-100/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
           >
             <GameHistoryGridIcon size={38} />
             <div className="min-w-0">
@@ -276,7 +276,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('transaction-history');
               window.location.hash = '#/transaction-history';
             }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-pink-100/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
           >
             <TransactionGridIcon size={38} />
             <div className="min-w-0">
@@ -293,7 +293,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('transaction-history');
               window.location.hash = '#/transaction-history';
             }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-pink-100/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
           >
             <DepositHistoryGridIcon size={38} />
             <div className="min-w-0">
@@ -310,7 +310,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('transaction-history');
               window.location.hash = '#/transaction-history';
             }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-pink-100/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
           >
             <WithdrawHistoryGridIcon size={38} />
             <div className="min-w-0">
@@ -323,14 +323,14 @@ export const Account: React.FC<AccountProps> = () => {
         </div>
 
         {/* Settings Center & Account Security */}
-        <div className="bg-white rounded-3xl p-2 shadow-xs border border-pink-100/80 divide-y divide-pink-50">
+        <div className="bg-white rounded-3xl p-2 shadow-xs border border-amber-200/80 divide-y divide-amber-50">
           {/* Notification */}
           <button
             onClick={() => {
               markNotificationsRead();
               setIsNotificationOpen(true);
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <NotificationRowIcon size={32} />
@@ -352,7 +352,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('gifts');
               window.location.hash = '#/gifts';
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <GiftsRowIcon size={32} />
@@ -367,7 +367,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('wingo');
               window.location.hash = '#/wingo';
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <StatsRowIcon size={32} />
@@ -382,7 +382,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('language');
               window.location.hash = '#/language';
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <LanguageRowIcon size={32} />
@@ -404,14 +404,14 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('salary');
               window.location.hash = '#/salary';
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <SalaryRowIcon size={32} />
               <span className="text-xs font-bold text-slate-700">Agent Daily Salary</span>
             </div>
             <div className="flex items-center gap-1 text-slate-400">
-              <span className="text-[11px] font-bold text-[#FF2A7A]">Up to ৳100,000</span>
+              <span className="text-[11px] font-bold text-[#D97706]">Up to ৳100,000</span>
               <ChevronRight className="w-4 h-4" />
             </div>
           </button>
@@ -422,7 +422,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('change-nickname');
               window.location.hash = '#/change-nickname';
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <NicknameRowIcon size={32} />
@@ -442,7 +442,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('change-login-password');
               window.location.hash = '#/change-login-password';
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <PasswordRowIcon size={32} />
@@ -459,7 +459,7 @@ export const Account: React.FC<AccountProps> = () => {
               setActiveTab('customer-service');
               window.location.hash = '#/customer-service';
             }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 rounded-2xl active:scale-99 transition-colors"
+            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >
             <div className="flex items-center gap-3">
               <CustomerServiceLogo size={32} />
@@ -474,7 +474,7 @@ export const Account: React.FC<AccountProps> = () => {
         {/* Log Out Button */}
         <button
           onClick={logout}
-          className="w-full py-3.5 rounded-full border border-pink-200 text-[#FF2A7A] bg-white font-extrabold text-xs shadow-xs hover:bg-pink-50 active:scale-98 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-full border border-amber-300 text-[#B45309] bg-white font-extrabold text-xs shadow-xs hover:bg-amber-50 active:scale-98 transition-all flex items-center justify-center gap-2"
         >
           <LogOut className="w-4 h-4" />
           <span>{getTranslation(language, 'logout')}</span>

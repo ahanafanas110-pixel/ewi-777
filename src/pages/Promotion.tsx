@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Header } from '../components/Header';
 import {
@@ -8,16 +8,15 @@ import {
   Share2,
   QrCode,
   Award,
-  ChevronRight,
-  ShieldCheck,
-  Clock,
-  Check
+  ChevronRight
 } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
+import { ReferralMember } from '../types';
 
 export const Promotion: React.FC = () => {
   const {
     user,
+    allUsers,
     referrals,
     language,
     setActiveTab,
@@ -29,73 +28,120 @@ export const Promotion: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'members' | 'tiers' | 'rules'>('members');
   const [showQrModal, setShowQrModal] = useState(false);
 
-  // Calculate dynamic stats
-  const userReferrals = referrals.filter(
-    (r) => r.referrerCode === user.inviteCode || r.referrerCode === user.uid
-  );
-  const directSubordinates = userReferrals.filter((r) => r.level === 1);
-  const teamSubordinates = userReferrals;
-  const totalCommission = userReferrals.reduce((sum, r) => sum + r.commission, 0) + 1250.00;
-  const yesterdayCommission = (totalCommission * 0.15).toFixed(2);
+  const myCodeUpper = String(user.inviteCode || '').trim().toUpperCase();
+  const myUidUpper = String(user.uid || '').trim().toUpperCase();
+
+  // Merge stored referrals + live registered users whose referredBy matches this user's invite code or UID
+  const teamSubordinates = useMemo<ReferralMember[]>(() => {
+    const map = new Map<string, ReferralMember>();
+
+    referrals.forEach((r) => {
+      const refUpper = String(r.referrerCode || '').trim().toUpperCase();
+      if ((myCodeUpper && refUpper === myCodeUpper) || (myUidUpper && refUpper === myUidUpper)) {
+        const key = String(r.uid || r.phone || r.id).toUpperCase();
+        map.set(key, r);
+      }
+    });
+
+    allUsers.forEach((u) => {
+      const uRefUpper = String(u.referredBy || '').trim().toUpperCase();
+      if (!uRefUpper) return;
+      if ((myCodeUpper && uRefUpper === myCodeUpper) || (myUidUpper && uRefUpper === myUidUpper)) {
+        const key = String(u.uid || u.phone || u.id).toUpperCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            id: `u_${u.id}`,
+            referrerCode: user.inviteCode || user.uid,
+            phone: u.phone || u.email || 'Member',
+            uid: u.uid || u.id,
+            nickname: u.nickname || 'Member',
+            registrationDate: new Date().toISOString().slice(0, 10),
+            commission: 0,
+            depositAmount: Number(u.totalDeposited || 0),
+            level: 1,
+            status: 'active'
+          });
+        } else {
+          const existing = map.get(key)!;
+          map.set(key, {
+            ...existing,
+            depositAmount: Math.max(existing.depositAmount || 0, Number(u.totalDeposited || 0)),
+            nickname: u.nickname || existing.nickname
+          });
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [referrals, allUsers, myCodeUpper, myUidUpper, user.inviteCode, user.uid]);
+
+  const directSubordinates = teamSubordinates.filter((r) => r.level === 1);
+  const totalCommission = teamSubordinates.reduce((sum, r) => sum + Number(r.commission || 0), 0);
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const yesterdayCommission = teamSubordinates
+    .filter((r) => r.registrationDate === yesterdayStr)
+    .reduce((sum, r) => sum + Number(r.commission || 0), 0);
 
   const inviteLink = getInviteLink();
   const shareText = encodeURIComponent(
-    `Join EWI 777 Premium Lottery & Games! Register with my invite code: ${user.inviteCode} and get ৳50 welcome bonus: ${inviteLink}`
+    `Join EWI 777 Premium Lottery & Trading! Register with my invite code: ${user.inviteCode} and start playing: ${inviteLink}`
   );
   const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}`;
   const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${shareText}`;
   const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(inviteLink)}`;
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
       <Header title={getTranslation(language, 'promotion')} showBack={false} />
 
-      {/* Top Banner with Commission Stats (Pink Luxury) */}
-      <div className="bg-gradient-to-br from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] text-white px-4 pt-4 pb-12 rounded-b-[2rem] shadow-md">
+      {/* Top Banner with Real Commission Stats (Luxury Gold) */}
+      <div className="bg-gradient-to-br from-[#B45309] via-[#D97706] to-[#F59E0B] text-white px-4 pt-4 pb-12 rounded-b-[2rem] shadow-md">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-xs text-pink-100 font-medium">
+            <div className="text-xs text-amber-100 font-medium">
               {getTranslation(language, 'yesterdayCommission')}
             </div>
-            <div className="text-3xl font-black tracking-tight mt-1">
-              ৳{yesterdayCommission}
+            <div className="text-3xl font-black tracking-tight mt-1 tabular-nums">
+              ৳{yesterdayCommission.toFixed(2)}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-pink-100 font-medium">
+            <div className="text-xs text-amber-100 font-medium">
               {getTranslation(language, 'totalCommission')}
             </div>
-            <div className="text-2xl font-black tracking-tight mt-1 text-yellow-200">
+            <div className="text-2xl font-black tracking-tight mt-1 text-yellow-200 tabular-nums">
               ৳{totalCommission.toFixed(2)}
             </div>
           </div>
         </div>
 
         {/* Level Rebate Progress bar */}
-        <div className="bg-black/15 backdrop-blur-xs rounded-2xl p-3 border border-white/10">
+        <div className="bg-black/15 backdrop-blur-xs rounded-2xl p-3 border border-white/15">
           <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
             <span className="flex items-center gap-1.5">
-              <Award className="w-4 h-4 text-yellow-300" />
+              <Award className="w-4 h-4 text-yellow-200" />
               <span>Agency Level: VIP{user.vipLevel} Agent</span>
             </span>
             <span className="text-yellow-200">Rebate 0.60%</span>
           </div>
           <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
-            <div className="bg-gradient-to-r from-yellow-300 to-amber-400 h-full w-[68%] rounded-full shadow-xs" />
+            <div
+              className="bg-gradient-to-r from-yellow-200 to-amber-300 h-full rounded-full shadow-xs transition-all"
+              style={{ width: `${Math.min(100, Math.max(12, directSubordinates.length * 10))}%` }}
+            />
           </div>
-          <div className="flex justify-between text-[10px] text-pink-100 mt-1">
+          <div className="flex justify-between text-[10px] text-amber-100 mt-1">
             <span>Direct Team: {directSubordinates.length} members</span>
-            <span>Next Level VIP5: 0.70%</span>
+            <span>Active Rebate Rate: {adminInfoRate(user.vipLevel)}</span>
           </div>
         </div>
       </div>
 
       {/* Summary Cards */}
       <div className="px-4 -mt-7 mb-4">
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 grid grid-cols-2 gap-3">
-          {/* Direct Subordinates */}
-          <div className="bg-[#FFF5F8] rounded-2xl p-3 border border-pink-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FF2A7A] text-white flex items-center justify-center shadow-xs">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-200 grid grid-cols-2 gap-3">
+          <div className="bg-amber-50/70 rounded-2xl p-3 border border-amber-200 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#D97706] text-white flex items-center justify-center shadow-xs">
               <Users className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
@@ -108,9 +154,8 @@ export const Promotion: React.FC = () => {
             </div>
           </div>
 
-          {/* Team Subordinates */}
-          <div className="bg-[#F0FDF4] rounded-2xl p-3 border border-green-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-500 text-white flex items-center justify-center shadow-xs">
+          <div className="bg-[#F0FDF4] rounded-2xl p-3 border border-emerald-200 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
               <TrendingUp className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
@@ -127,13 +172,12 @@ export const Promotion: React.FC = () => {
 
       {/* INVITATION LINK & CODE SECTION */}
       <div className="px-4 space-y-4">
-        {/* Agent Daily Salary Entry Card */}
         <button
           onClick={() => {
             setActiveTab('salary');
             window.location.hash = '#/salary';
           }}
-          className="w-full bg-gradient-to-r from-[#1A1405] via-[#2A1E08] to-[#1A1405] border border-amber-400/50 rounded-3xl p-4 text-left text-white shadow-md flex items-center justify-between gap-3 active:scale-98 transition-all"
+          className="w-full bg-gradient-to-r from-[#1A1405] via-[#2A1E08] to-[#1A1405] border border-amber-400/60 rounded-3xl p-4 text-left text-white shadow-md flex items-center justify-between gap-3 active:scale-98 transition-all"
         >
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-2xl bg-[#D4A017] text-slate-950 flex items-center justify-center shadow-sm flex-shrink-0">
@@ -154,56 +198,52 @@ export const Promotion: React.FC = () => {
           <ChevronRight className="w-5 h-5 text-[#FBBF24] flex-shrink-0" />
         </button>
 
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100 space-y-4">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-              <Share2 className="w-4 h-4 text-[#FF2A7A]" />
-              <span>Invite Friends & Earn Commission</span>
+              <Share2 className="w-4 h-4 text-[#D97706]" />
+              <span>Invite Friends &amp; Earn Commission</span>
             </h3>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-50 text-[#FF2A7A] border border-pink-100">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-[#B45309] border border-amber-200">
               100% Tracking
             </span>
           </div>
 
-          {/* Invitation Code */}
-          <div className="bg-[#FFF8FA] rounded-2xl p-3 border border-pink-100 flex items-center justify-between">
+          <div className="bg-[#FFFDF7] rounded-2xl p-3 border border-amber-200 flex items-center justify-between">
             <div>
               <div className="text-[11px] font-semibold text-slate-400">
                 {getTranslation(language, 'inviteCode')}
               </div>
-              <div className="text-lg font-black tracking-widest text-[#FF2A7A]">
+              <div className="text-lg font-black tracking-widest text-[#B45309]">
                 {user.inviteCode}
               </div>
             </div>
             <button
               onClick={copyInviteCode}
-              className="px-4 py-2 rounded-xl bg-pink-100/70 hover:bg-pink-100 text-[#FF2A7A] font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all"
+              className="px-4 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-[#B45309] font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all"
             >
               <Copy className="w-3.5 h-3.5" />
               <span>{getTranslation(language, 'copyCode')}</span>
             </button>
           </div>
 
-          {/* Invitation Link Box */}
-          <div className="bg-[#FFF8FA] rounded-2xl p-3 border border-pink-100 space-y-2">
+          <div className="bg-[#FFFDF7] rounded-2xl p-3 border border-amber-200 space-y-2">
             <div className="text-[11px] font-semibold text-slate-400">
               {getTranslation(language, 'invitationLink')}
             </div>
-            <div className="text-xs text-slate-700 font-mono break-all bg-white p-2.5 rounded-xl border border-pink-100 select-all">
+            <div className="text-xs text-slate-700 font-mono break-all bg-white p-2.5 rounded-xl border border-amber-200 select-all">
               {inviteLink}
             </div>
           </div>
 
-          {/* Prominent Copy Button */}
           <button
             onClick={copyInviteLink}
-            className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-extrabold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-extrabold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 flex items-center justify-center gap-2"
           >
             <Copy className="w-4 h-4" />
             <span>{getTranslation(language, 'copyInvitationLink')}</span>
           </button>
 
-          {/* Quick Social Shares & QR with Official Brand Logos */}
           <div className="grid grid-cols-4 gap-2 pt-1">
             <a
               href={whatsappUrl}
@@ -211,10 +251,10 @@ export const Promotion: React.FC = () => {
               rel="noopener noreferrer"
               className="py-2.5 px-1 rounded-2xl bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 font-bold text-[11px] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-all"
             >
-              <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
                 <circle cx="16" cy="16" r="16" fill="#25D366" />
                 <path
-                  d="M23.1 8.85C21.2 6.95 18.68 5.9 15.98 5.9C10.42 5.9 5.9 10.42 5.9 15.98C5.9 17.76 6.36 19.5 7.25 21.02L5.82 26.25L11.17 24.85C12.64 25.65 14.3 26.07 15.98 26.07C21.54 26.07 26.06 21.55 26.06 15.99C26.06 13.3 25.01 10.76 23.1 8.85ZM15.98 24.37C14.48 24.37 13.01 23.97 11.72 23.21L11.42 23.03L8.24 23.86L9.09 20.76L8.89 20.44C8.05 19.1 7.6 17.56 7.6 15.98C7.6 11.36 11.36 7.6 15.98 7.6C18.22 7.6 20.32 8.47 21.9 10.05C23.48 11.63 24.35 13.74 24.35 15.98C24.36 20.61 20.6 24.37 15.98 24.37ZM20.57 18.1C20.32 17.97 19.08 17.36 18.85 17.28C18.62 17.19 18.45 17.15 18.29 17.4C18.12 17.65 17.64 18.22 17.49 18.39C17.35 18.56 17.2 18.58 16.95 18.45C16.7 18.32 15.89 18.06 14.93 17.2C14.18 16.53 13.68 15.71 13.53 15.46C13.39 15.21 13.51 15.07 13.64 14.95C13.75 14.84 13.89 14.66 14.01 14.51C14.14 14.37 14.18 14.26 14.26 14.1C14.35 13.93 14.3 13.78 14.24 13.66C14.18 13.53 13.68 12.3 13.47 11.8C13.27 11.31 13.06 11.38 12.91 11.37C12.76 11.36 12.6 11.36 12.43 11.36C12.26 11.36 11.99 11.42 11.76 11.67C11.53 11.92 10.89 12.53 10.89 13.76C10.89 15 11.79 16.19 11.91 16.36C12.04 16.53 13.67 19.05 16.18 20.13C16.78 20.39 17.25 20.54 17.61 20.66C18.21 20.85 18.76 20.82 19.19 20.76C19.67 20.69 20.68 20.15 20.89 19.56C21.1 18.97 21.1 18.47 21.03 18.36C20.97 18.26 20.82 18.22 20.57 18.1Z"
+                  d="M23.1 8.85C21.2 6.95 18.68 5.9 15.98 5.9C10.42 5.9 5.9 10.42 5.9 15.98C5.9 17.76 6.36 19.5 7.25 21.02L5.82 26.25L11.17 24.85C12.64 25.65 14.3 26.07 15.98 26.07C21.54 26.07 26.06 21.55 26.06 15.99C26.06 13.3 25.01 10.76 23.1 8.85ZM15.98 24.37C14.48 24.37 13.01 23.97 11.72 23.21L11.42 23.03L8.24 23.86L9.09 20.76L8.89 20.44C8.05 19.1 7.6 17.56 7.6 15.98C7.6 11.36 11.36 7.6 15.98 7.6C18.22 7.6 20.32 8.47 21.9 10.05C23.48 11.63 24.35 13.74 24.35 15.98C24.36 20.61 20.6 24.37 15.98 24.37Z"
                   fill="white"
                 />
               </svg>
@@ -226,7 +266,7 @@ export const Promotion: React.FC = () => {
               rel="noopener noreferrer"
               className="py-2.5 px-1 rounded-2xl bg-[#229ED9]/10 text-[#007AB8] hover:bg-[#229ED9]/20 font-bold text-[11px] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-all"
             >
-              <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
                 <circle cx="16" cy="16" r="16" fill="#229ED9" />
                 <path
                   d="M23.38 9.64L20.66 22.46C20.45 23.36 19.91 23.58 19.15 23.16L15 20.1L13 22.02C12.78 22.24 12.59 22.43 12.16 22.43L12.46 18.2L20.16 11.24C20.49 10.94 20.09 10.78 19.64 11.08L10.12 17.07L6.03 15.79C5.14 15.51 5.12 14.9 6.22 14.47L22.22 8.31C22.96 8.04 23.61 8.49 23.38 9.64Z"
@@ -241,7 +281,7 @@ export const Promotion: React.FC = () => {
               rel="noopener noreferrer"
               className="py-2.5 px-1 rounded-2xl bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2]/20 font-bold text-[11px] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-all"
             >
-              <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
                 <circle cx="16" cy="16" r="16" fill="#1877F2" />
                 <path
                   d="M21.05 20.62L21.75 16.02H17.34V13.03C17.34 11.77 17.96 10.54 19.93 10.54H21.94V6.62C21.94 6.62 20.12 6.31 18.37 6.31C14.73 6.31 12.35 8.52 12.35 12.51V16.02H8.31V20.62H12.35V31.74C13.16 31.87 13.99 31.94 14.84 31.94C15.7 31.94 16.53 31.87 17.34 31.74V20.62H21.05Z"
@@ -252,9 +292,9 @@ export const Promotion: React.FC = () => {
             </a>
             <button
               onClick={() => setShowQrModal(true)}
-              className="py-2.5 px-1 rounded-2xl bg-purple-50 text-purple-600 hover:bg-purple-100 font-bold text-[11px] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-all"
+              className="py-2.5 px-1 rounded-2xl bg-amber-50 text-[#B45309] hover:bg-amber-100 font-bold text-[11px] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-all"
             >
-              <div className="w-[26px] h-[26px] rounded-full bg-purple-600 text-white flex items-center justify-center">
+              <div className="w-[26px] h-[26px] rounded-full bg-[#D97706] text-white flex items-center justify-center">
                 <QrCode className="w-3.5 h-3.5 stroke-[2.4]" />
               </div>
               <span>QR Code</span>
@@ -262,14 +302,14 @@ export const Promotion: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabs for Subordinates Data, Commission Tiers, and Rules */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100">
-          <div className="flex border-b border-pink-50 mb-4">
+        {/* Tabs for Invited Members, Tiers, and Rules */}
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-200">
+          <div className="flex border-b border-amber-100 mb-4">
             <button
               onClick={() => setActiveSubTab('members')}
               className={`flex-1 pb-3 text-xs font-bold text-center border-b-2 transition-all ${
                 activeSubTab === 'members'
-                  ? 'border-[#FF2A7A] text-[#FF2A7A]'
+                  ? 'border-[#D97706] text-[#B45309]'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -279,7 +319,7 @@ export const Promotion: React.FC = () => {
               onClick={() => setActiveSubTab('tiers')}
               className={`flex-1 pb-3 text-xs font-bold text-center border-b-2 transition-all ${
                 activeSubTab === 'tiers'
-                  ? 'border-[#FF2A7A] text-[#FF2A7A]'
+                  ? 'border-[#D97706] text-[#B45309]'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -289,7 +329,7 @@ export const Promotion: React.FC = () => {
               onClick={() => setActiveSubTab('rules')}
               className={`flex-1 pb-3 text-xs font-bold text-center border-b-2 transition-all ${
                 activeSubTab === 'rules'
-                  ? 'border-[#FF2A7A] text-[#FF2A7A]'
+                  ? 'border-[#D97706] text-[#B45309]'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -297,36 +337,35 @@ export const Promotion: React.FC = () => {
             </button>
           </div>
 
-          {/* Members List */}
           {activeSubTab === 'members' && (
             <div className="space-y-3">
               {teamSubordinates.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-xs">
-                  No subordinates yet. Share your link to start earning!
+                  No invited members yet. Share your link or code ({user.inviteCode}) to start earning!
                 </div>
               ) : (
                 teamSubordinates.map((member) => (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100"
+                    className="flex items-center justify-between p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200"
                   >
                     <div>
                       <div className="font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
                         <span>{member.nickname}</span>
-                        <span className="px-1.5 py-0.5 rounded-full bg-pink-100 text-[#FF2A7A] text-[9px] font-bold">
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-[#B45309] text-[9px] font-bold">
                           Tier {member.level}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
+                      <div className="text-[10px] text-slate-500 mt-0.5">
                         UID: {member.uid} • {member.phone}
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        Joined: {member.registrationDate}
+                        Joined: {member.registrationDate} • Deposited: ৳{(member.depositAmount || 0).toFixed(2)}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs font-black text-emerald-600 font-mono">
-                        +৳{member.commission.toFixed(2)}
+                        +৳{Number(member.commission || 0).toFixed(2)}
                       </div>
                       <div className="text-[10px] text-slate-400">Total Rebate</div>
                     </div>
@@ -336,21 +375,20 @@ export const Promotion: React.FC = () => {
             </div>
           )}
 
-          {/* Multi-Tier Commission Details */}
           {activeSubTab === 'tiers' && (
             <div className="space-y-2.5">
-              <div className="p-3.5 rounded-2xl bg-pink-50/70 border border-pink-100 flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
                 <div>
                   <div className="font-bold text-xs text-slate-800">Tier 1 Direct Referrals</div>
                   <div className="text-[11px] text-slate-500">Friends who register via your link</div>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-extrabold text-[#FF2A7A]">0.60%</span>
+                  <span className="text-base font-extrabold text-[#D97706]">0.60%</span>
                   <div className="text-[10px] text-slate-400">Recurring rebate</div>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-100 flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-yellow-50/70 border border-yellow-200 flex items-center justify-between">
                 <div>
                   <div className="font-bold text-xs text-slate-800">Tier 2 Sub-Referrals</div>
                   <div className="text-[11px] text-slate-500">Subordinates invited by your Tier 1 friends</div>
@@ -374,52 +412,50 @@ export const Promotion: React.FC = () => {
             </div>
           )}
 
-          {/* Promotion Rules */}
           {activeSubTab === 'rules' && (
             <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
               <div className="flex gap-2">
-                <span className="text-[#FF2A7A] font-bold">1.</span>
-                <p>When you invite friends through your invitation link or code, they automatically become your direct subordinates.</p>
+                <span className="text-[#D97706] font-bold">1.</span>
+                <p>When you invite friends through your invitation link or code, they automatically appear in Invited Members.</p>
               </div>
               <div className="flex gap-2">
-                <span className="text-[#FF2A7A] font-bold">2.</span>
-                <p>For every valid user who registers and places bets, you receive multi-tier commission rebates settled automatically every day at 01:00 AM.</p>
+                <span className="text-[#D97706] font-bold">2.</span>
+                <p>For every valid user who registers and deposits/bets, you earn real commission directly reflected here.</p>
               </div>
               <div className="flex gap-2">
-                <span className="text-[#FF2A7A] font-bold">3.</span>
-                <p>Commission can be directly withdrawn to your mobile wallet or used in games at any time with 0 fees.</p>
+                <span className="text-[#D97706] font-bold">3.</span>
+                <p>Commission can be directly withdrawn to your mobile wallet or used in games at any time.</p>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* QR Code Modal */}
       {showQrModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl border border-pink-100 space-y-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl border border-amber-200 space-y-4">
             <h3 className="font-bold text-base text-slate-800">Scan to Register</h3>
-            <div className="bg-pink-50 p-4 rounded-2xl border border-pink-100 inline-block mx-auto">
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 inline-block mx-auto">
               <div className="w-44 h-44 bg-white p-2 rounded-xl border border-slate-300 flex flex-col items-center justify-center relative">
                 <div className="grid grid-cols-6 gap-1 w-full h-full p-2">
                   {Array.from({ length: 36 }).map((_, i) => (
                     <div
                       key={i}
                       className={`rounded-xs ${
-                        i % 2 === 0 || i % 7 === 0 ? 'bg-[#FF2A7A]' : 'bg-pink-100'
+                        i % 2 === 0 || i % 7 === 0 ? 'bg-[#D97706]' : 'bg-amber-100'
                       }`}
                     />
                   ))}
                 </div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#FF2A7A] to-[#FF758F] text-white flex items-center justify-center font-black text-xs border-2 border-white shadow-md">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#B45309] to-[#F59E0B] text-white flex items-center justify-center font-black text-xs border-2 border-white shadow-md">
                     EWI
                   </div>
                 </div>
               </div>
             </div>
             <div className="text-xs font-semibold text-slate-500">
-              Invite Code: <span className="text-[#FF2A7A] font-bold">{user.inviteCode}</span>
+              Invite Code: <span className="text-[#B45309] font-bold">{user.inviteCode}</span>
             </div>
             <button
               onClick={() => setShowQrModal(false)}
@@ -433,3 +469,8 @@ export const Promotion: React.FC = () => {
     </div>
   );
 };
+
+function adminInfoRate(vipLevel: number): string {
+  const pct = (0.5 + vipLevel * 0.05).toFixed(2);
+  return `${pct}%`;
+}

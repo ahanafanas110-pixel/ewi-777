@@ -22,6 +22,8 @@ import { CustomerService } from './pages/CustomerService';
 import { Admin } from './pages/Admin';
 import { BinaryMarket } from './pages/BinaryMarket';
 import { AviatorPlane } from './pages/AviatorPlane';
+import { LuckyJetGame } from './pages/LuckyJetGame';
+import { CoinFlipGame } from './pages/CoinFlipGame';
 import { Salary } from './pages/Salary';
 import { Gifts } from './pages/Gifts';
 import { Attendance } from './pages/Attendance';
@@ -37,7 +39,7 @@ import { K3Game } from './pages/K3Game';
 import { D5Game } from './pages/D5Game';
 import { ExtraFirstDepositModal } from './components/AccountIcons';
 import { CustomerServiceLogo } from './components/BrandLogos';
-import { Megaphone, Wrench, ShieldCheck, X } from 'lucide-react';
+import { Megaphone, Wrench, ShieldCheck, Ban, PowerOff, LogOut, X } from 'lucide-react';
 
 export const ADMIN_ACCESS_ROUTE = '/admin-ewi777-panel-009';
 
@@ -56,7 +58,7 @@ export const isAuthorizedAdminRoute = (): boolean => {
 };
 
 const MainApp: React.FC = () => {
-  const { user, activeTab, setActiveTab, isNavigating, adminSettings } = useApp();
+  const { user, logout, activeTab, setActiveTab, isNavigating, adminSettings } = useApp();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [dismissedPopupKey, setDismissedPopupKey] = useState<string>('');
   const [showSplash, setShowSplash] = useState<boolean>(true);
@@ -194,6 +196,10 @@ const MainApp: React.FC = () => {
       case 'aviator':
       case 'aviator-plane':
         return <AviatorPlane />;
+      case 'luckyjet':
+        return <LuckyJetGame />;
+      case 'coinflip':
+        return <CoinFlipGame />;
       case 'salary':
         return <Salary />;
       case 'gifts':
@@ -228,7 +234,7 @@ const MainApp: React.FC = () => {
 
   if (activeTab === 'admin' && isAuthorizedAdminRoute()) {
     return (
-      <div className="min-h-screen w-full bg-[#070E1B] text-white selection:bg-[#FF2A7A] selection:text-white">
+      <div className="min-h-screen w-full bg-[#070E1B] text-white selection:bg-[#D97706] selection:text-white">
         {isNavigating ? <PageSkeleton /> : <Admin />}
         <Toast />
       </div>
@@ -243,29 +249,32 @@ const MainApp: React.FC = () => {
     Boolean(adminSettings.popupMessage?.trim()) &&
     dismissedPopupKey !== popupKey;
 
+  const isSiteOff = adminSettings.siteEnabled === false && !isAuthorizedAdminRoute();
+  const isUserBanned = Boolean(user.isLoggedIn && user.isBanned);
+
   return (
-    <div className="min-h-screen bg-slate-900 flex justify-center selection:bg-[#FF2A7A] selection:text-white">
+    <div className="min-h-screen bg-slate-900 flex justify-center selection:bg-[#D97706] selection:text-white">
       {/* 2-Second Official EWI 777 Crown Entry Splash Screen */}
       {showSplash && (
         <div
-          className={`fixed inset-0 z-[100] bg-gradient-to-b from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
+          className={`fixed inset-0 z-[100] bg-gradient-to-b from-[#78350F] via-[#B45309] to-[#D97706] flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
             splashFading ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         >
           <div className="w-full max-w-sm flex flex-col items-center space-y-5">
             <img
-              src="/ewi777-logo-transparent.png"
+              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
               alt={adminSettings.appName || 'EWI 777'}
               referrerPolicy="no-referrer"
-              className="w-80 max-w-[85vw] object-contain drop-shadow-[0_14px_30px_rgba(0,0,0,0.3)]"
+              className="w-80 max-w-[85vw] object-contain drop-shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
             />
             <div className="w-44 h-1.5 rounded-full bg-white/30 overflow-hidden shadow-inner">
               <div
-                className="h-full bg-white rounded-full transition-all duration-[1800ms] ease-out"
+                className="h-full bg-amber-200 rounded-full transition-all duration-[1800ms] ease-out"
                 style={{ width: splashFading ? '100%' : '88%' }}
               />
             </div>
-            <div className="text-xs font-black tracking-widest uppercase text-white/90">
+            <div className="text-xs font-black tracking-widest uppercase text-amber-100">
               {adminSettings.appName || 'EWI 777'} Official
             </div>
           </div>
@@ -273,10 +282,40 @@ const MainApp: React.FC = () => {
       )}
 
       {/* Mobile Frame Container */}
-      <div className="w-full max-w-md min-h-screen bg-[#FFF8FA] flex flex-col relative shadow-2xl overflow-x-hidden">
-        {adminSettings.maintenanceMode ? (
-          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFF8FA] to-pink-50">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#FF2A7A] to-[#FF5A92] text-white flex items-center justify-center shadow-lg mb-5">
+      <div className="w-full max-w-md min-h-screen bg-[#FFFDF7] flex flex-col relative shadow-2xl overflow-x-hidden">
+        {isSiteOff ? (
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDF7] to-amber-50">
+            <img
+              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
+              alt={adminSettings.appName || 'EWI 777'}
+              referrerPolicy="no-referrer"
+              className="h-24 w-auto object-contain mb-5 drop-shadow-md"
+            />
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#B45309] to-[#D97706] text-white flex items-center justify-center shadow-lg mb-4">
+              <PowerOff className="w-8 h-8" />
+            </div>
+            <h1 className="text-xl font-black text-slate-900 tracking-wide uppercase mb-2">
+              SITE IS NOT COMING
+            </h1>
+            <p className="text-xs text-slate-600 leading-relaxed max-w-xs mb-6">
+              {adminSettings.appName || 'EWI 777'} platform access is currently paused by the administrator. Please check back later.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md active:scale-95"
+            >
+              Refresh Status
+            </button>
+          </div>
+        ) : adminSettings.maintenanceMode ? (
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDF7] to-amber-50">
+            <img
+              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
+              alt={adminSettings.appName || 'EWI 777'}
+              referrerPolicy="no-referrer"
+              className="h-24 w-auto object-contain mb-5 drop-shadow-md"
+            />
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#B45309] to-[#F59E0B] text-white flex items-center justify-center shadow-lg mb-5">
               <Wrench className="w-10 h-10" />
             </div>
             <h1 className="text-xl font-black text-slate-900 mb-2">
@@ -289,11 +328,48 @@ const MainApp: React.FC = () => {
               onClick={() => {
                 window.location.reload();
               }}
-              className="px-4 py-2 rounded-full bg-white border border-pink-200 text-[#FF2A7A] font-bold text-xs flex items-center gap-1.5 shadow-xs hover:bg-pink-50"
+              className="px-4 py-2 rounded-full bg-white border border-amber-300 text-[#B45309] font-bold text-xs flex items-center gap-1.5 shadow-xs hover:bg-amber-50"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Check Status</span>
             </button>
+          </div>
+        ) : isUserBanned && activeTab !== 'customer-service' ? (
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDF7] to-rose-50">
+            <img
+              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
+              alt={adminSettings.appName || 'EWI 777'}
+              referrerPolicy="no-referrer"
+              className="h-20 w-auto object-contain mb-5 drop-shadow-md"
+            />
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-600 to-red-700 text-white flex items-center justify-center shadow-lg mb-5">
+              <Ban className="w-10 h-10" />
+            </div>
+            <h1 className="text-xl font-black text-slate-900 mb-1.5">Account Suspended</h1>
+            <p className="text-xs font-bold text-rose-600 bg-rose-100/80 border border-rose-200 px-3 py-1.5 rounded-xl mb-4 max-w-xs">
+              Reason: {user.banReason || 'Restricted by Administrator'}
+            </p>
+            <p className="text-xs text-slate-600 leading-relaxed max-w-xs mb-6">
+              Your account access is currently locked. Contact 24/7 Customer Support for verification assistance.
+            </p>
+            <div className="flex flex-col gap-2.5 w-full max-w-xs">
+              <button
+                onClick={() => {
+                  setActiveTab('customer-service');
+                  window.location.hash = '#/customer-service';
+                }}
+                className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md"
+              >
+                Contact Customer Support
+              </button>
+              <button
+                onClick={() => logout()}
+                className="w-full py-2.5 rounded-full bg-white border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -301,28 +377,31 @@ const MainApp: React.FC = () => {
 
             {showBottomNav && !isNavigating && <BottomNav />}
 
-            {activeTab !== 'customer-service' && activeTab !== 'login' && activeTab !== 'register' && activeTab !== 'registration' && (
-              <button
-                type="button"
-                onPointerDown={handleCsPointerDown}
-                onPointerMove={handleCsPointerMove}
-                onPointerUp={handleCsPointerUp}
-                style={{ left: csPos.x, top: csPos.y, touchAction: 'none' }}
-                aria-label="Customer Service"
-                title="24/7 Customer Service (Drag to move)"
-                className="fixed z-30 w-13 h-13 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing active:scale-95 transition-transform select-none"
-              >
-                <CustomerServiceLogo size={50} />
-              </button>
-            )}
+            {activeTab !== 'customer-service' &&
+              activeTab !== 'login' &&
+              activeTab !== 'register' &&
+              activeTab !== 'registration' && (
+                <button
+                  type="button"
+                  onPointerDown={handleCsPointerDown}
+                  onPointerMove={handleCsPointerMove}
+                  onPointerUp={handleCsPointerUp}
+                  style={{ left: csPos.x, top: csPos.y, touchAction: 'none' }}
+                  aria-label="Customer Service"
+                  title="24/7 Customer Service (Drag to move)"
+                  className="fixed z-30 w-13 h-13 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing active:scale-95 transition-transform select-none"
+                >
+                  <CustomerServiceLogo size={50} />
+                </button>
+              )}
           </>
         )}
 
-        {/* System Announcement Popup (Controlled from Admin Broadcast Tab) */}
-        {!adminSettings.maintenanceMode && showSystemPopup && (
+        {/* System Announcement Popup */}
+        {!isSiteOff && !adminSettings.maintenanceMode && !isUserBanned && showSystemPopup && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-            <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-pink-100">
-              <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] p-4 text-white flex items-center justify-between">
+            <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-amber-100">
+              <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] p-4 text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                     <Megaphone className="w-4 h-4" />
@@ -344,7 +423,7 @@ const MainApp: React.FC = () => {
                 </p>
                 <button
                   onClick={() => setDismissedPopupKey(popupKey)}
-                  className="w-full py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md active:scale-98 transition-all"
+                  className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md active:scale-98 transition-all"
                 >
                   I Know
                 </button>

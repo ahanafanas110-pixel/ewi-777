@@ -152,7 +152,7 @@ export const ActivityAward: React.FC = () => {
             onClick={() => setTab('daily')}
             className={`px-5 py-2 rounded-full text-xs font-black transition-all ${
               tab === 'daily'
-                ? 'bg-gradient-to-r from-[#FF6B6B] to-[#FF8E72] text-white shadow-md shadow-rose-500/20'
+                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md shadow-amber-500/20'
                 : 'bg-white text-slate-600 border border-slate-200'
             }`}
           >
@@ -162,7 +162,7 @@ export const ActivityAward: React.FC = () => {
             onClick={() => setTab('weekly')}
             className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${
               tab === 'weekly'
-                ? 'bg-gradient-to-r from-[#FF6B6B] to-[#FF8E72] text-white shadow-md shadow-rose-500/20'
+                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md shadow-amber-500/20'
                 : 'bg-white text-slate-600 border border-slate-200'
             }`}
           >
@@ -183,7 +183,7 @@ export const ActivityAward: React.FC = () => {
             return (
               <div
                 key={mission.key}
-                className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden"
+                className="bg-white rounded-2xl border border-amber-200 shadow-xs overflow-hidden"
               >
                 {/* Top Green Banner Tag + Status */}
                 <div className="flex items-center justify-between pr-4 border-b border-slate-100">
@@ -195,7 +195,7 @@ export const ActivityAward: React.FC = () => {
                       claimed
                         ? 'text-emerald-600'
                         : completed
-                        ? 'text-[#FF5A3C]'
+                        ? 'text-[#B45309]'
                         : 'text-slate-400'
                     }`}
                   >
@@ -207,20 +207,20 @@ export const ActivityAward: React.FC = () => {
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-rose-50 border border-rose-200 text-[#FF5A67] flex items-center justify-center font-black text-[11px]">
+                      <div className="w-7 h-7 rounded-full bg-amber-50 border border-amber-200 text-[#B45309] flex items-center justify-center font-black text-[11px]">
                         ৳
                       </div>
                       <span className="text-xs font-bold text-slate-700">
                         {tab === 'daily' ? 'Daily betting bonus' : 'Weekly betting bonus'}
                       </span>
-                      <span className="text-xs font-black text-[#FF5A67] tabular-nums">
+                      <span className="text-xs font-black text-[#B45309] tabular-nums">
                         {progress.toLocaleString()}/{mission.target.toLocaleString()}
                       </span>
                     </div>
                   </div>
 
                   {/* Progress Strip */}
-                  <div className="bg-[#F4F5F8] rounded-xl px-3 py-2 space-y-1.5">
+                  <div className="bg-[#FFFDF7] rounded-xl px-3 py-2 space-y-1.5 border border-amber-100">
                     <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
                       <span>
                         {tab === 'daily'
@@ -229,9 +229,9 @@ export const ActivityAward: React.FC = () => {
                       </span>
                       <span className="font-bold text-slate-700">{pct}%</span>
                     </div>
-                    <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                    <div className="w-full h-1.5 rounded-full bg-amber-100 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-[#FF6B6B] to-[#FF9A3C] rounded-full transition-all"
+                        className="h-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] rounded-full transition-all"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -240,7 +240,7 @@ export const ActivityAward: React.FC = () => {
                   {/* Award Amount Row */}
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                     <span className="text-xs font-semibold text-slate-500">Award amount</span>
-                    <div className="flex items-center gap-1.5 text-amber-500 font-black text-sm tabular-nums">
+                    <div className="flex items-center gap-1.5 text-amber-600 font-black text-sm tabular-nums">
                       <Wallet className="w-4 h-4 fill-amber-400 text-amber-600" />
                       <span>৳{mission.reward.toFixed(2)}</span>
                     </div>
@@ -254,8 +254,8 @@ export const ActivityAward: React.FC = () => {
                       claimed
                         ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-not-allowed'
                         : completed
-                        ? 'bg-gradient-to-r from-[#FF5A67] to-[#FF8A5B] text-white shadow-md'
-                        : 'bg-white border border-[#FF6B6B] text-[#FF5A67] hover:bg-rose-50'
+                        ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md'
+                        : 'bg-white border border-[#D97706] text-[#B45309] hover:bg-amber-50'
                     }`}
                   >
                     {claimed ? (

@@ -8,6 +8,7 @@ import type {
   K3Mode,
   K3Result,
   MarketControlMode,
+  MinesPatternMode,
   WinGoMode
 } from '../types';
 
@@ -198,9 +199,21 @@ function aviatorFlyDurationMs(crashPoint: number): number {
 }
 
 export function getSyncedAviatorState(nowMs = Date.now()): AviatorServerState {
+  return getSyncedCrashEngineState('aviator', nowMs);
+}
+
+export function getSyncedLuckyJetState(nowMs = Date.now()): AviatorServerState {
+  return getSyncedCrashEngineState('luckyjet', nowMs);
+}
+
+export function getSyncedCrashEngineState(
+  game: 'aviator' | 'luckyjet',
+  nowMs = Date.now()
+): AviatorServerState {
   const hourMs = 3600000;
   const hourBucket = Math.floor(nowMs / hourMs);
   const hourStart = hourBucket * hourMs;
+  const saltPrefix = game === 'luckyjet' ? 'luckyjet' : 'aviator';
 
   let cursor = hourStart;
   let seq = 0;
@@ -209,9 +222,16 @@ export function getSyncedAviatorState(nowMs = Date.now()): AviatorServerState {
   let currentFlyMs = 4500;
   const completedCrashes: number[] = [];
 
-  // Walk hour deterministically (<250 steps, <0.05ms) so every round flies full duration
   while (seq < 600) {
-    const crashPt = getSyncedAviatorCrashPoint(hourBucket, seq);
+    const rng = createSeededRng(`${saltPrefix}:${hourBucket}:${seq}`);
+    const r = rng();
+    let crashPt: number;
+    if (r < 0.04) crashPt = +(1.02 + rng() * 0.09).toFixed(2);
+    else if (r > 0.9985) {
+      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, 120 + rng() * (AVIATOR_MAX_MULTIPLIER - 120)).toFixed(2);
+    } else {
+      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.06, 0.97 / (1 - Math.min(r, 0.9999)))).toFixed(2);
+    }
     const flyMs = aviatorFlyDurationMs(crashPt);
     const roundTotalMs = AVIATOR_WAIT_MS + flyMs + AVIATOR_CRASH_HOLD_MS;
 
@@ -228,7 +248,6 @@ export function getSyncedAviatorState(nowMs = Date.now()): AviatorServerState {
     seq += 1;
   }
 
-  // Backfill remaining crash history from previous hour if near top of hour
   let prevIdx = -1;
   while (completedCrashes.length < 16) {
     completedCrashes.push(getSyncedAviatorCrashPoint(hourBucket - 1, 500 + prevIdx));
@@ -258,9 +277,8 @@ export function getSyncedAviatorState(nowMs = Date.now()): AviatorServerState {
   }
 
   const roundSuffix = `${String(hourBucket).slice(-3)}${String(seq).padStart(3, '0')}`;
-
   return {
-    roundId: `AV${roundSuffix}`,
+    roundId: `${game === 'luckyjet' ? 'LJ' : 'AV'}${roundSuffix}`,
     phase,
     phaseStartedAt,
     serverNow: nowMs,
@@ -271,6 +289,63 @@ export function getSyncedAviatorState(nowMs = Date.now()): AviatorServerState {
     crashHistory: completedCrashes.slice(0, 16),
     maxMultiplier: AVIATOR_MAX_MULTIPLIER
   };
+}
+
+/**
+ * Evaluates the 30% Pool Payout Cap Rule across Aviator & Lucky Jet.
+ * Rule:
+ * - maxPayoutCap = totalPool * 0.30
+ * - Solo high-bet (>=1000 or dominant solo stake) waiting for >=30% profit crashes before cashout.
+ * - Group bets: once cumulative payouts reach 30% of totalPool (or requested cashout exceeds cap),
+ *   the server forces an immediate crash across all clients.
+ */
+export function evaluateCrash30Cap(params: {
+  totalPool: number;
+  totalPaidOut: number;
+  activeBetAmount: number;
+  currentMultiplier: number;
+  activePlayerCount: number;
+}): {
+  shouldForceCrash: boolean;
+  reason?: string;
+  potentialPayout: number;
+  payoutCap: number;
+} {
+  const totalPool = Math.max(0, Number(params.totalPool) || 0);
+  const totalPaidOut = Math.max(0, Number(params.totalPaidOut) || 0);
+  const activeBetAmount = Math.max(0, Number(params.activeBetAmount) || 0);
+  const mult = Math.max(1, Number(params.currentMultiplier) || 1);
+  const payoutCap = +(totalPool * 0.30).toFixed(2);
+  const potentialPayout = +(activeBetAmount * mult).toFixed(2);
+  const profit = +(potentialPayout - activeBetAmount).toFixed(2);
+
+  if (totalPool <= 0) {
+    return { shouldForceCrash: false, potentialPayout, payoutCap };
+  }
+
+  // Solo player check: if a single bet makes up >60% of the pool (or high bet >= 1000 alone),
+  // waiting for >=30% profit (1.30x+) or trying to cash out >=30% profit forces instant crash.
+  const isDominantSolo = params.activePlayerCount <= 1 || activeBetAmount >= totalPool * 0.65;
+  if (isDominantSolo && (mult >= 1.30 || profit >= activeBetAmount * 0.30)) {
+    return {
+      shouldForceCrash: true,
+      reason: '30% solo payout threshold reached — instant round termination',
+      potentialPayout,
+      payoutCap
+    };
+  }
+
+  // Group pool cap check: collective cashouts cannot push totalPaidOut past 30% of round pool
+  if (totalPaidOut + potentialPayout > payoutCap) {
+    return {
+      shouldForceCrash: true,
+      reason: '30% collective pool cap reached — instant round termination',
+      potentialPayout,
+      payoutCap
+    };
+  }
+
+  return { shouldForceCrash: false, potentialPayout, payoutCap };
 }
 
 // ================= BINARY 17-MARKET GLOBAL DETERMINISTIC ENGINE =================
@@ -439,8 +514,13 @@ export function getSyncedMinesEpochInfo(nowMs = Date.now()): {
   };
 }
 
-export function generateSyncedMinesBoard(roundId: string, minesCount: number, gridSize = 25): Set<number> {
-  const rng = createSeededRng(`mines:${roundId}:${minesCount}`);
+export function generateSyncedMinesBoard(
+  roundId: string,
+  minesCount: number,
+  gridSize = 25,
+  nonce?: string | number
+): Set<number> {
+  const rng = createSeededRng(`mines:${roundId}:${minesCount}:${nonce ?? Date.now()}`);
   const indices = Array.from({ length: gridSize }, (_, i) => i);
   for (let i = indices.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -615,8 +695,26 @@ export function resolveMinesTileControl(
   controlMode: MarketControlMode | undefined,
   activeBetAmt: number,
   poolAvgBet: number,
-  revealStep: number
+  revealStep: number,
+  minesPattern: MinesPatternMode = 'RANDOM',
+  userRoundSeq = 0
 ): 'AUTO' | 'FORCE_BOMB' | 'FORCE_SAFE' {
+  // Specific pattern overrides requested by Admin
+  if (minesPattern === 'FIRST_WIN_SECOND_LOSS') {
+    if (revealStep === 1) return 'FORCE_SAFE';
+    if (revealStep >= 2) return 'FORCE_BOMB';
+  }
+  if (minesPattern === 'THREE_WIN_TEN_LOSS') {
+    const cyclePos = ((Math.max(0, userRoundSeq) % 13) + 13) % 13;
+    const isWinRound = cyclePos < 3;
+    if (isWinRound) {
+      return revealStep <= 6 ? 'FORCE_SAFE' : 'AUTO';
+    }
+    // 10 Loss rounds: 1st tile lures safely, 2nd click triggers mine
+    if (revealStep === 1) return 'FORCE_SAFE';
+    return 'FORCE_BOMB';
+  }
+
   if (!controlMode || controlMode === 'AUTO') return 'AUTO';
   const threshold = Math.max(100, poolAvgBet);
   const isHighBet = activeBetAmt >= threshold;
@@ -642,3 +740,34 @@ export function resolveMinesTileControl(
   }
   return 'AUTO';
 }
+
+// ================= COIN FLIP SYNCHRONIZED POOL RESOLVER =================
+export function resolveCoinFlipOutcome(
+  roundId: string,
+  goldTotal: number,
+  silverTotal: number,
+  controlMode: MarketControlMode = 'HIGH_BET_LOSS'
+): 'GOLD' | 'SILVER' {
+  const rng = createSeededRng(`coinflip:${roundId}`);
+  const randomSide: 'GOLD' | 'SILVER' = rng() >= 0.5 ? 'GOLD' : 'SILVER';
+
+  if (controlMode === 'AUTO' || (goldTotal <= 0 && silverTotal <= 0)) {
+    return randomSide;
+  }
+
+  if (goldTotal === silverTotal) {
+    return randomSide;
+  }
+
+  const highSide: 'GOLD' | 'SILVER' = goldTotal > silverTotal ? 'GOLD' : 'SILVER';
+  const lowSide: 'GOLD' | 'SILVER' = highSide === 'GOLD' ? 'SILVER' : 'GOLD';
+
+  if (controlMode === 'HIGH_BET_LOSS' || controlMode === 'LOW_BET_WIN') {
+    return lowSide;
+  }
+  if (controlMode === 'HIGH_BET_WIN' || controlMode === 'LOW_BET_LOSS') {
+    return highSide;
+  }
+  return randomSide;
+}
+

@@ -71,15 +71,15 @@ export const TransactionHistory: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
       {/* Top Navbar */}
-      <div className="bg-white px-4 py-3 border-b border-pink-100 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+      <div className="bg-white px-4 py-3 border-b border-amber-200 flex items-center justify-between sticky top-0 z-30 shadow-xs">
         <button
           onClick={() => {
             setActiveTab('account');
             window.location.hash = '#/account';
           }}
-          className="p-1 -ml-1 text-slate-700 hover:text-[#FF2A7A] active:scale-95"
+          className="p-1 -ml-1 text-slate-700 hover:text-[#B45309] active:scale-95"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
@@ -103,7 +103,7 @@ export const TransactionHistory: React.FC = () => {
                 setFilterType(e.target.value);
                 setHistoryFilterTab(e.target.value as any);
               }}
-              className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-700 shadow-2xs appearance-none focus:outline-none focus:ring-1 focus:ring-[#FF2A7A]"
+              className="w-full bg-white border border-amber-200 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-700 shadow-2xs appearance-none focus:outline-none focus:ring-1 focus:ring-[#D97706]"
             >
               <option value="all">All</option>
               <option value="deposit">Deposit</option>
@@ -122,7 +122,7 @@ export const TransactionHistory: React.FC = () => {
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs focus:outline-none focus:ring-1 focus:ring-[#FF2A7A]"
+              className="w-full bg-white border border-amber-200 rounded-2xl px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs focus:outline-none focus:ring-1 focus:ring-[#D97706]"
             />
           </div>
         </div>
@@ -130,17 +130,17 @@ export const TransactionHistory: React.FC = () => {
         {/* Transactions List */}
         <div className="space-y-3">
           {filtered.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-3xl p-6 border border-pink-100">
+            <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-3xl p-6 border border-amber-200">
               No records found.
             </div>
           ) : (
             filtered.map((tx) => (
               <div
                 key={tx.id}
-                className="bg-white rounded-3xl overflow-hidden border border-pink-100 shadow-xs"
+                className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs"
               >
-                {/* Header banner with EWI 777 gradient pink */}
-                <div className="bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] px-4 py-2 text-white font-black text-xs flex items-center justify-between">
+                {/* Header banner with EWI 777 gradient gold */}
+                <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] px-4 py-2 text-white font-black text-xs flex items-center justify-between">
                   <span>{tx.title}</span>
                   <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">
                     {tx.statusBadge}
@@ -160,11 +160,11 @@ export const TransactionHistory: React.FC = () => {
                     <span className="font-mono text-slate-600">{tx.time}</span>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-pink-50 font-bold">
+                  <div className="flex items-center justify-between pt-1 border-t border-amber-100 font-bold">
                     <span className="text-slate-600">Amount</span>
                     <span
                       className={`text-sm font-black ${
-                        tx.amount >= 0 ? 'text-[#00B977]' : 'text-[#FF2A7A]'
+                        tx.amount >= 0 ? 'text-[#00B977]' : 'text-rose-600'
                       }`}
                     >
                       {tx.amount >= 0 ? `+৳${tx.amount.toFixed(2)}` : `-৳${Math.abs(tx.amount).toFixed(2)}`}

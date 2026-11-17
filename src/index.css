@@ -21,7 +21,7 @@
   }
 }
 
-/* Custom scrollbars in pink accent */
+/* Custom scrollbars in luxury gold accent */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -30,11 +30,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 42, 122, 0.25);
+  background: rgba(212, 175, 55, 0.35);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 42, 122, 0.45);
+  background: rgba(212, 175, 55, 0.65);
 }
 
 /* Ticker Marquee Animation */
@@ -53,18 +53,18 @@
   animation-play-state: paused;
 }
 
-/* Pink pulse glow for center buttons and highlights */
-@keyframes pinkPulseGlow {
+/* Gold pulse glow for center buttons and highlights */
+@keyframes goldPulseGlow {
   0%, 100% {
-    box-shadow: 0 0 14px rgba(255, 42, 122, 0.45);
+    box-shadow: 0 0 14px rgba(217, 119, 6, 0.45);
   }
   50% {
-    box-shadow: 0 0 26px rgba(255, 42, 122, 0.75);
+    box-shadow: 0 0 26px rgba(245, 158, 11, 0.78);
   }
 }
 
-.pink-pulse-glow {
-  animation: pinkPulseGlow 2.5s infinite;
+.gold-pulse-glow {
+  animation: goldPulseGlow 2.5s infinite;
 }
 
 /* Skeleton Loading Shimmer */
@@ -78,7 +78,7 @@
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(90deg, #fce7f3 25%, #fdf2f8 50%, #fce7f3 75%);
+  background: linear-gradient(90deg, #fef3c7 25%, #fffbeb 50%, #fef3c7 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }

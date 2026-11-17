@@ -3,10 +3,7 @@ import aviatorGameIconImg from '../assets/images/game_icon_aviator_3d_1794734299
 import minesGameIconImg from '../assets/images/game_icon_mines_3d_1794734301052.jpg';
 
 /**
- * Pink Safe Plate Logo
- * Matches user reference image (image_97de5120.png / image_9f9ad84d.png):
- * Rounded square plate with 4 corner rivet screws and a center sunken circle,
- * rendered in a luxury hot-pink / rose-gold metallic gradient instead of yellow.
+ * Luxury Gold Safe Plate Logo (keeps PinkSafePlateLogo export name for compatibility)
  */
 export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 28,
@@ -22,48 +19,43 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
       className={`inline-block flex-shrink-0 select-none ${className}`}
     >
       <defs>
-        {/* Outer Pink Plate Gradient */}
-        <linearGradient id="pinkPlateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFA6C4" />
-          <stop offset="35%" stopColor="#FF4B91" />
-          <stop offset="70%" stopColor="#FF2A7A" />
-          <stop offset="100%" stopColor="#D90452" />
+        <linearGradient id="goldPlateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FDE68A" />
+          <stop offset="35%" stopColor="#F59E0B" />
+          <stop offset="70%" stopColor="#D97706" />
+          <stop offset="100%" stopColor="#92400E" />
         </linearGradient>
 
-        {/* Center Sunken Circle Gradient (Depression/Indentation) */}
-        <radialGradient id="pinkSunkenHole" cx="48%" cy="46%" r="52%">
-          <stop offset="0%" stopColor="#FF758F" />
-          <stop offset="45%" stopColor="#E6004C" />
-          <stop offset="85%" stopColor="#9E0033" />
-          <stop offset="100%" stopColor="#730024" />
+        <radialGradient id="goldSunkenHole" cx="48%" cy="46%" r="52%">
+          <stop offset="0%" stopColor="#FBBF24" />
+          <stop offset="45%" stopColor="#D97706" />
+          <stop offset="85%" stopColor="#92400E" />
+          <stop offset="100%" stopColor="#451A03" />
         </radialGradient>
 
-        {/* Rivet Screws Radial */}
-        <radialGradient id="pinkRivet" cx="40%" cy="40%" r="60%">
-          <stop offset="0%" stopColor="#FFE0EB" />
-          <stop offset="50%" stopColor="#FF4B91" />
-          <stop offset="100%" stopColor="#A80038" />
+        <radialGradient id="goldRivet" cx="40%" cy="40%" r="60%">
+          <stop offset="0%" stopColor="#FEF3C7" />
+          <stop offset="50%" stopColor="#F59E0B" />
+          <stop offset="100%" stopColor="#78350F" />
         </radialGradient>
 
-        <filter id="pinkPlateShadow" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" floodColor="#B3003B" floodOpacity="0.35" />
+        <filter id="goldPlateShadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" floodColor="#78350F" floodOpacity="0.35" />
         </filter>
       </defs>
 
-      {/* Main Rounded Square Beveled Plate */}
       <rect
         x="6"
         y="6"
         width="88"
         height="88"
         rx="22"
-        fill="url(#pinkPlateGrad)"
-        filter="url(#pinkPlateShadow)"
-        stroke="#FFBBD0"
+        fill="url(#goldPlateGrad)"
+        filter="url(#goldPlateShadow)"
+        stroke="#FDE68A"
         strokeWidth="2.5"
       />
 
-      {/* Subtle Inner Bevel Line */}
       <rect
         x="10"
         y="10"
@@ -71,36 +63,33 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
         height="80"
         rx="18"
         fill="none"
-        stroke="rgba(255, 255, 255, 0.45)"
+        stroke="rgba(255, 255, 255, 0.5)"
         strokeWidth="1.2"
       />
 
-      {/* 4 Corner Rivet Screws / Dots */}
       <g>
-        <circle cx="25" cy="25" r="5.5" fill="url(#pinkRivet)" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
-        <circle cx="75" cy="25" r="5.5" fill="url(#pinkRivet)" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
-        <circle cx="25" cy="75" r="5.5" fill="url(#pinkRivet)" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
-        <circle cx="75" cy="75" r="5.5" fill="url(#pinkRivet)" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+        <circle cx="25" cy="25" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
+        <circle cx="75" cy="25" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
+        <circle cx="25" cy="75" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
+        <circle cx="75" cy="75" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
       </g>
 
-      {/* Center Sunken Circle Well */}
       <circle
         cx="50"
         cy="50"
         r="23"
-        fill="url(#pinkSunkenHole)"
-        stroke="#FFA0BE"
+        fill="url(#goldSunkenHole)"
+        stroke="#FDE68A"
         strokeWidth="2.5"
       />
-      {/* Sunken Circle Inner Shadow Ring */}
       <circle
         cx="50"
         cy="50"
         r="18"
         fill="none"
-        stroke="#59001C"
+        stroke="#451A03"
         strokeWidth="2"
-        opacity="0.5"
+        opacity="0.45"
       />
     </svg>
   );
@@ -108,8 +97,6 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
 
 /**
  * 3 Glossy Lottery Balls Emblem (Red 9, Violet 0, Green 4)
- * Matches user reference image (image_dbd0fbf2.png / image_0d4d255a.png):
- * Re-imagined into a sharp, responsive SVG for EWI 777 brand identity.
  */
 export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 32,
@@ -125,7 +112,6 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
       className={`inline-block flex-shrink-0 select-none ${className}`}
     >
       <defs>
-        {/* Ball 1: Red Sphere (Number 9) */}
         <radialGradient id="ballRed" cx="38%" cy="32%" r="65%">
           <stop offset="0%" stopColor="#FFA6A6" />
           <stop offset="25%" stopColor="#FF385C" />
@@ -133,7 +119,6 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
           <stop offset="100%" stopColor="#7A0012" />
         </radialGradient>
 
-        {/* Ball 2: Violet Sphere (Number 0) */}
         <radialGradient id="ballViolet" cx="38%" cy="32%" r="65%">
           <stop offset="0%" stopColor="#DFC2FF" />
           <stop offset="30%" stopColor="#8A4FFF" />
@@ -141,7 +126,6 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
           <stop offset="100%" stopColor="#2E0880" />
         </radialGradient>
 
-        {/* Ball 3: Green Sphere (Number 4) */}
         <radialGradient id="ballGreen" cx="38%" cy="32%" r="65%">
           <stop offset="0%" stopColor="#C4FFE4" />
           <stop offset="30%" stopColor="#00D287" />
@@ -149,7 +133,6 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
           <stop offset="100%" stopColor="#005230" />
         </radialGradient>
 
-        {/* Ball Specular Highlights */}
         <radialGradient id="ballHighlight" cx="30%" cy="25%" r="45%">
           <stop offset="0%" stopColor="rgba(255,255,255,0.85)" />
           <stop offset="50%" stopColor="rgba(255,255,255,0.15)" />
@@ -161,11 +144,9 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
         </filter>
       </defs>
 
-      {/* Green Ball 4 (bottom left) */}
       <g filter="url(#ballDropShadow)">
         <circle cx="34" cy="70" r="19" fill="url(#ballGreen)" />
         <circle cx="34" cy="70" r="19" fill="url(#ballHighlight)" />
-        {/* White circle patch for number */}
         <circle cx="34" cy="70" r="10.5" fill="#FFFFFF" opacity="0.95" />
         <text
           x="34"
@@ -180,7 +161,6 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
         </text>
       </g>
 
-      {/* Violet Ball 0 (bottom right) */}
       <g filter="url(#ballDropShadow)">
         <circle cx="72" cy="66" r="21" fill="url(#ballViolet)" />
         <circle cx="72" cy="66" r="21" fill="url(#ballHighlight)" />
@@ -198,7 +178,6 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
         </text>
       </g>
 
-      {/* Red Ball 9 (top center / main ball) */}
       <g filter="url(#ballDropShadow)">
         <circle cx="62" cy="30" r="24" fill="url(#ballRed)" />
         <circle cx="62" cy="30" r="24" fill="url(#ballHighlight)" />
@@ -249,7 +228,7 @@ export const Ewi777Logo: React.FC<{
 };
 
 /**
- * Transparent Luxury Metallic Wordmark for Colored Headers (Pink/Dark)
+ * Transparent Luxury Metallic Wordmark for Colored Headers (Gold/Dark)
  */
 export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: string }> = ({
   height = 24,
@@ -275,7 +254,7 @@ export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: 
           <stop offset="100%" stopColor="#CBD5E1" />
         </linearGradient>
         <filter id="ewiWordShadow" x="-8%" y="-12%" width="116%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#5C0023" floodOpacity="0.45" />
+          <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#451A03" floodOpacity="0.45" />
         </filter>
       </defs>
       <g filter="url(#ewiWordShadow)">
@@ -312,7 +291,7 @@ export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: 
 };
 
 /**
- * Pure Transparent-Background 3D Lottery Balls Logo (No white box!)
+ * Pure Transparent-Background 3D Lottery Balls Logo
  */
 export const WingoBallsLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 28,
@@ -352,7 +331,7 @@ export const BinaryMarketLogo: React.FC<{ size?: number; className?: string }> =
 };
 
 /**
- * Crisp Transparent-Background Real Aviator Stunt Plane Logo (No dark box, no cut-off edges)
+ * Crisp Transparent-Background Real Aviator Stunt Plane Logo
  */
 export const AviatorPlaneLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 32,
@@ -370,7 +349,7 @@ export const AviatorPlaneLogo: React.FC<{ size?: number; className?: string }> =
 };
 
 /**
- * Mines 777 Game 3D Emblem (matches Home card icon everywhere)
+ * Mines 777 Game 3D Emblem
  */
 export const MinesGameLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 32,
@@ -388,7 +367,7 @@ export const MinesGameLogo: React.FC<{ size?: number; className?: string }> = ({
 };
 
 /**
- * Pink Customer Service Mascot (Transparent background — zero black circle, zero yellow)
+ * Luxury Gold Customer Service Mascot
  */
 export const CustomerServiceLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 44,
@@ -401,42 +380,32 @@ export const CustomerServiceLogo: React.FC<{ size?: number; className?: string }
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`inline-block flex-shrink-0 select-none drop-shadow-[0_4px_10px_rgba(255,42,122,0.38)] ${className}`}
+      className={`inline-block flex-shrink-0 select-none drop-shadow-[0_4px_10px_rgba(217,119,6,0.38)] ${className}`}
     >
       <defs>
-        <linearGradient id="csPinkOuter" x1="15%" y1="10%" x2="85%" y2="90%">
-          <stop offset="0%" stopColor="#FF75A8" />
-          <stop offset="50%" stopColor="#FF2A7A" />
-          <stop offset="100%" stopColor="#D80054" />
+        <linearGradient id="csGoldOuter" x1="15%" y1="10%" x2="85%" y2="90%">
+          <stop offset="0%" stopColor="#FBBF24" />
+          <stop offset="50%" stopColor="#D97706" />
+          <stop offset="100%" stopColor="#92400E" />
         </linearGradient>
-        <linearGradient id="csPinkInner" x1="25%" y1="20%" x2="75%" y2="85%">
-          <stop offset="0%" stopColor="#FF8FB8" />
-          <stop offset="100%" stopColor="#FF2A7A" />
+        <linearGradient id="csGoldInner" x1="25%" y1="20%" x2="75%" y2="85%">
+          <stop offset="0%" stopColor="#FCD34D" />
+          <stop offset="100%" stopColor="#D97706" />
         </linearGradient>
       </defs>
-      {/* Crisp white outer aura halo for visibility over any background */}
-      <circle cx="50" cy="50" r="44" fill="#FFFFFF" fillOpacity="0.95" />
-      {/* Pink Outer Ring */}
-      <circle cx="50" cy="50" r="39" stroke="url(#csPinkOuter)" strokeWidth="5.5" fill="none" />
-      {/* Pink Speech-Bubble Mascot Silhouette */}
+      <circle cx="50" cy="50" r="44" fill="#FFFFFF" fillOpacity="0.96" />
+      <circle cx="50" cy="50" r="39" stroke="url(#csGoldOuter)" strokeWidth="5.5" fill="none" />
       <path
         d="M50 18C32.3 18 18 31.7 18 48.7C18 57.6 22 65.6 28.4 71.1L21 81.5L36.5 76.7C40.7 78.4 45.2 79.3 50 79.3C67.7 79.3 82 65.6 82 48.7C82 31.7 67.7 18 50 18Z"
-        fill="url(#csPinkOuter)"
+        fill="url(#csGoldOuter)"
       />
-      {/* Cute Cowlick Accent */}
-      <path
-        d="M44 26C48 16 58 14 63 20C57 21 54 25 54 30Z"
-        fill="#FFFFFF"
-      />
-      {/* Inner Mascot Face Cutout */}
-      <circle cx="50" cy="49" r="22" fill="#FFF0F5" />
-      {/* Mascot Pink Ring Frame */}
-      <circle cx="50" cy="49" r="19" fill="url(#csPinkInner)" />
-      {/* Expressive Glowing White Eyes */}
+      <path d="M44 26C48 16 58 14 63 20C57 21 54 25 54 30Z" fill="#FFFFFF" />
+      <circle cx="50" cy="49" r="22" fill="#FFFBEB" />
+      <circle cx="50" cy="49" r="19" fill="url(#csGoldInner)" />
       <rect x="39" y="42" width="6.5" height="13" rx="3.25" fill="#FFFFFF" />
       <rect x="54.5" y="42" width="6.5" height="13" rx="3.25" fill="#FFFFFF" />
-      <circle cx="42.2" cy="46" r="1.4" fill="#FF2A7A" />
-      <circle cx="57.7" cy="46" r="1.4" fill="#FF2A7A" />
+      <circle cx="42.2" cy="46" r="1.4" fill="#92400E" />
+      <circle cx="57.7" cy="46" r="1.4" fill="#92400E" />
     </svg>
   );
 };

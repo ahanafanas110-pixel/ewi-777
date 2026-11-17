@@ -28,6 +28,9 @@ export interface User {
   lastGiftClaimTime?: string;
   lastGiftCode?: string;
   lastGiftAmount?: number;
+  lastGiftReason?: string;
+  pendingDepositBonusCode?: string;
+  creditedDepositBonusCodes?: string[];
   illegalBetCount?: number;
   isBanned?: boolean;
   banReason?: string;
@@ -39,12 +42,14 @@ export interface User {
   lastSalaryClaimDate?: string;
   claimedActivityRewards?: Record<string, string>;
   claimedFirstDepositTiers?: Record<string, boolean>;
+  minesRoundSeq?: number;
   attendanceState?: {
     claimedDays: number[];
     lastClaimDate?: string;
     lastDepositDate?: string;
     streak: number;
   };
+  updatedAt?: number;
 }
 
 export interface SupportMessage {
@@ -157,6 +162,10 @@ export interface Transaction {
     | 'k3_win'
     | 'd5_bet'
     | 'd5_win'
+    | 'luckyjet_bet'
+    | 'luckyjet_win'
+    | 'coinflip_bet'
+    | 'coinflip_win'
     | 'turnover_penalty';
   title: string;
   detail?: string;
@@ -261,19 +270,27 @@ export type MarketControlMode =
   | 'LOW_BET_WIN'
   | 'LOW_BET_LOSS';
 
+export type MinesPatternMode =
+  | 'RANDOM'
+  | 'FIRST_WIN_SECOND_LOSS'
+  | 'THREE_WIN_TEN_LOSS';
+
 export interface MarketPoolEntry {
   poolId: string;
-  game: 'k3' | 'd5' | 'mines' | 'binary';
+  game: 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip';
   mode: string;
   period: string;
   selections: Record<string, number>;
   totalAmount: number;
+  betCount?: number;
   updatedAt: number;
 }
 
 export interface GiftCodeItem {
   code: string;
+  rewardType?: 'fixed' | 'deposit_percent';
   amount: number;
+  depositBonusPercent?: number;
   maxClaims: number;
   claimedCount: number;
   turnoverAmount?: number;
@@ -284,12 +301,16 @@ export interface GiftCodeItem {
   active?: boolean;
   minRequiredBalance?: number;
   targetUid?: string;
+  reason?: string;
   note?: string;
   claimRecords?: Array<{
     userId: string;
+    uid?: string;
     nickname: string;
     contact: string;
     amount: number;
+    depositAmount?: number;
+    reason?: string;
     time: string;
   }>;
 }
@@ -308,6 +329,7 @@ export interface AviatorBet {
   id: string;
   roundId: string;
   userId: string;
+  game?: 'aviator' | 'luckyjet';
   amount: number;
   status: 'active' | 'cashed_out' | 'lost';
   cashoutMultiplier?: number;
@@ -394,7 +416,9 @@ export interface AdminSettings {
     d5: MarketControlMode;
     mines: MarketControlMode;
     binary: MarketControlMode;
+    coinflip?: MarketControlMode;
   };
+  minesPattern?: MinesPatternMode;
   binaryNextCandleBias?: 'AUTO' | 'BULL' | 'BEAR';
   updatedAt?: number;
   marqueeText?: string;
@@ -462,6 +486,50 @@ export interface AviatorServerState {
   currentMultiplier: number;
   crashHistory: number[];
   maxMultiplier: number;
+  forcedCrashAt?: number;
+  forcedReason?: string;
+  totalPool?: number;
+  totalPaidOut?: number;
+  payoutCapRemaining?: number;
 }
+
+export interface CrashRoundBetEntry {
+  id: string;
+  betId?: string;
+  game: 'aviator' | 'luckyjet';
+  roundId: string;
+  userId: string;
+  nickname: string;
+  amount: number;
+  status: 'active' | 'cashed_out' | 'lost';
+  cashoutMultiplier?: number;
+  payoutAmount?: number;
+  placedAt: number;
+}
+
+export interface CrashPoolState {
+  game: 'aviator' | 'luckyjet';
+  roundId: string;
+  totalPool: number;
+  totalPaidOut: number;
+  maxPayoutCap: number;
+  forcedCrashMultiplier: number;
+  forcedCrashedAtMs: number;
+  bets: CrashRoundBetEntry[];
+  updatedAt: number;
+}
+
+export interface CoinFlipBet {
+  id: string;
+  userId: string;
+  periodNumber: string;
+  side: 'GOLD' | 'SILVER';
+  amount: number;
+  resultSide?: 'GOLD' | 'SILVER';
+  winAmount?: number;
+  status: 'pending' | 'won' | 'lost';
+  time: string;
+}
+
 
 

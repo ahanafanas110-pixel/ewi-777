@@ -15,7 +15,8 @@ import {
   Check,
   Wallet,
   Timer,
-  Receipt
+  Receipt,
+  ExternalLink
 } from 'lucide-react';
 import { BkashLogo, NagadLogo } from '../components/PaymentLogos';
 import { getTranslation } from '../utils/i18n';
@@ -36,17 +37,17 @@ const EWALLET_CHANNELS: PaymentChannelOption[] = [
     id: 'Send Money',
     label: 'Send Money',
     sublabel: 'Instant Personal',
-    min: 200,
+    min: 100,
     max: 50000,
-    limitTag: '৳200 - ৳50K'
+    limitTag: '৳100 - ৳50K'
   },
   {
     id: 'Cash Out',
     label: 'Cash Out',
     sublabel: 'Agent Gateway',
-    min: 200,
+    min: 100,
     max: 50000,
-    limitTag: '৳200 - ৳50K'
+    limitTag: '৳100 - ৳50K'
   },
   {
     id: 'P2P Fast',
@@ -63,9 +64,9 @@ const USDT_CHANNELS: PaymentChannelOption[] = [
     id: 'TRC20 Instant',
     label: 'TRC20 Network',
     sublabel: 'Zero Gas Fee',
-    min: 1000,
+    min: 500,
     max: 500000,
-    limitTag: '৳1K - ৳500K'
+    limitTag: '৳500 - ৳500K'
   }
 ];
 
@@ -109,18 +110,25 @@ export const Deposit: React.FC = () => {
     adminSettings,
     depositRequests,
     submitDepositRequest,
+    initiateEwiPayDeposit,
     claimDepositBonus,
     setActiveTab,
     language,
     showToast
   } = useApp();
 
+  const isDepositEnabled = adminSettings.depositEnabled !== false;
+
   const [category, setCategory] = useState<GatewayCategory>('ewallet');
   const [selectedEWallet, setSelectedEWallet] = useState<EWalletMethod>('bKash');
   const [selectedChannel, setSelectedChannel] = useState<string>('Send Money');
   const [amount, setAmount] = useState<number>(500);
 
-  // Checkout Modal State
+  // EWI-Pay live checkout state
+  const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
+  const [ewiPayCheckoutUrl, setEwiPayCheckoutUrl] = useState<string | null>(null);
+
+  // Manual TrxID Fallback Modal State
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [countdownSec, setCountdownSec] = useState(599);
@@ -138,8 +146,8 @@ export const Deposit: React.FC = () => {
 
   const presets =
     category === 'ewallet'
-      ? [200, 500, 700, 1000, 2000, 3000, 5000, 10000, 20000]
-      : [1000, 2000, 5000, 10000, 20000, 50000];
+      ? [100, 200, 500, 1000, 2000, 3000, 5000, 10000, 20000]
+      : [500, 1000, 2000, 5000, 10000, 50000];
 
   const channels = category === 'ewallet' ? EWALLET_CHANNELS : USDT_CHANNELS;
   const activeChannelObj = useMemo(
@@ -169,6 +177,22 @@ export const Deposit: React.FC = () => {
     [depositRequests, user.id]
   );
 
+  const activePendingGift = useMemo(() => {
+    const code = String(user.pendingDepositBonusCode || '').trim().toUpperCase();
+    if (!code) return null;
+    const item = (adminSettings.activeGiftCodes || []).find(
+      (c) => c.code.toUpperCase() === code && c.active !== false && c.rewardType === 'deposit_percent'
+    );
+    if (!item) return null;
+    const pct = Number(item.depositBonusPercent || item.amount || 200);
+    return {
+      code: item.code,
+      pct,
+      reason: item.reason || item.note || `${pct}% Deposit Gift Bonus`,
+      bonusAmt: +((amount * pct) / 100).toFixed(2)
+    };
+  }, [user.pendingDepositBonusCode, adminSettings.activeGiftCodes, amount]);
+
   useEffect(() => {
     if (!showCheckoutModal) return;
     const timer = setInterval(() => {
@@ -194,16 +218,55 @@ export const Deposit: React.FC = () => {
     setCategory(nextCat);
     if (nextCat === 'usdt') {
       setSelectedChannel('TRC20 Instant');
-      if (amount < 1000) setAmount(1000);
+      if (amount < 500) setAmount(500);
     } else {
       setSelectedChannel('Send Money');
-      if (amount < 200) setAmount(500);
+      if (amount < 100) setAmount(500);
     }
   };
 
-  const handleOpenCheckout = () => {
-    showToast('Deposit is NOW NOT AVAILABLE. Please check back later.');
-    return;
+  const handleProceedEwiPay = async () => {
+    if (!isDepositEnabled) {
+      showToast('SITE IS NOT COMING — Deposits are paused by Admin.');
+      return;
+    }
+    if (amount < activeChannelObj.min || amount > activeChannelObj.max) {
+      showToast(`Amount must be between ৳${activeChannelObj.min} and ৳${activeChannelObj.max.toLocaleString()}`);
+      return;
+    }
+    if (isCreatingCheckout) return;
+
+    setIsCreatingCheckout(true);
+    setEwiPayCheckoutUrl(null);
+    try {
+      const res = await initiateEwiPayDeposit(amount, selectedMethod, selectedChannel, senderNumber);
+      if (res.success && res.checkoutUrl) {
+        setEwiPayCheckoutUrl(res.checkoutUrl);
+        showToast('Checkout created! Redirecting to EWI-Pay...');
+        setTimeout(() => {
+          window.location.href = res.checkoutUrl!;
+        }, 450);
+      } else {
+        showToast(res.message || 'Unable to start EWI-Pay checkout');
+      }
+    } finally {
+      setIsCreatingCheckout(false);
+    }
+  };
+
+  const handleOpenManualModal = () => {
+    if (!isDepositEnabled) {
+      showToast('SITE IS NOT COMING — Deposits are paused by Admin.');
+      return;
+    }
+    if (amount < activeChannelObj.min || amount > activeChannelObj.max) {
+      showToast(`Amount must be between ৳${activeChannelObj.min} and ৳${activeChannelObj.max.toLocaleString()}`);
+      return;
+    }
+    setOrderId(`EWI${Date.now().toString().slice(-8)}`);
+    setCountdownSec(599);
+    setTrxError(null);
+    setShowCheckoutModal(true);
   };
 
   const handleSubmitCheckout = (e: React.FormEvent) => {
@@ -259,15 +322,14 @@ export const Deposit: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
-      {/* Top Bar */}
-      <div className="bg-white px-4 py-3 border-b border-pink-100 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
+      <div className="bg-white px-4 py-3 border-b border-amber-100 flex items-center justify-between sticky top-0 z-30 shadow-xs">
         <button
           onClick={() => {
             setActiveTab('wallet');
             window.location.hash = '#/wallet';
           }}
-          className="p-1 -ml-1 text-slate-700 hover:text-[#FF2A7A] active:scale-95"
+          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-700 hover:text-[#B45309] active:scale-95"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
@@ -279,60 +341,83 @@ export const Deposit: React.FC = () => {
             setActiveTab('transaction-history');
             window.location.hash = '#/transaction-history';
           }}
-          className="text-xs font-bold text-[#FF2A7A] hover:underline"
+          className="text-xs font-bold text-[#B45309] hover:underline whitespace-nowrap"
         >
           Deposit History
         </button>
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Pink Gradient Balance Card */}
-        <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs text-pink-100 font-semibold mb-1">
+        {/* Luxury Gold Balance Card */}
+        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs text-amber-100 font-semibold mb-1">
             <span>Available Balance</span>
             <button
               onClick={() => showToast('Balance synced')}
-              className="p-1 rounded-full bg-white/20 hover:bg-white/30 active:rotate-180 transition-transform"
+              className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 active:rotate-180 transition-transform"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="text-3xl font-black tracking-tight">
+          <div className="text-3xl font-black tracking-tight tabular-nums">
             ৳{user.balance.toFixed(2)}
           </div>
-          <div className="text-[11px] text-pink-100 mt-2 flex items-center gap-1 font-medium">
+          <div className="text-[11px] text-amber-100 mt-2 flex items-center gap-1 font-medium">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>24/7 Verified Official Gateway</span>
+            <span>24/7 Verified EWI-Pay Gateway</span>
           </div>
         </div>
 
-        {/* Deposit Gateway Unavailable Notice */}
-        <div className="bg-gradient-to-br from-rose-600 via-rose-500 to-pink-600 rounded-3xl p-5 text-white shadow-md border border-rose-300/40 text-center space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-[10px] font-black uppercase tracking-widest">
-            <AlertCircle className="w-3.5 h-3.5 text-yellow-200" />
-            <span>Gateway Status</span>
+        {/* Admin Deposit Off Notice */}
+        {!isDepositEnabled && (
+          <div className="bg-gradient-to-br from-[#1F160A] via-[#78350F] to-[#B45309] rounded-3xl p-5 text-white shadow-md border border-amber-400/50 text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-[10px] font-black uppercase tracking-widest">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-200" />
+              <span>Gateway Paused</span>
+            </div>
+            <h3 className="text-2xl font-black tracking-wide uppercase drop-shadow-xs">
+              SITE IS NOT COMING
+            </h3>
+            <p className="text-xs text-amber-100 font-medium leading-relaxed max-w-sm mx-auto">
+              NOW NOT AVAILABLE — Deposit service is temporarily paused by the administrator. Please try again shortly or contact Customer Service.
+            </p>
           </div>
-          <h3 className="text-2xl font-black tracking-wide uppercase drop-shadow-xs">
-            NOW NOT AVAILABLE
-          </h3>
-          <p className="text-xs text-rose-100 font-medium leading-relaxed max-w-sm mx-auto">
-            Deposit service is currently unavailable for maintenance and upgrade. Please check back shortly or contact Customer Service.
-          </p>
-        </div>
+        )}
 
-        {/* One-Time Deposit Bonus Card (Strict: unlocked ONLY after completed deposit) */}
+        {/* Active 200% Deposit Gift Bonus Notice */}
+        {activePendingGift && (
+          <div className="bg-gradient-to-r from-[#78350F] via-[#B45309] to-[#D97706] rounded-3xl p-4 text-white shadow-md border border-amber-300/45 space-y-1">
+            <div className="flex items-center justify-between text-xs font-black">
+              <span className="flex items-center gap-1.5 text-yellow-200">
+                <Gift className="w-4 h-4" />
+                <span>GIFT BONUS ARMED ({activePendingGift.code})</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-white text-[#92400E] text-[10px] font-black">
+                +{activePendingGift.pct}%
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-100 font-semibold">
+              Reason: {activePendingGift.reason}
+            </p>
+            <p className="text-[11px] text-white/95">
+              Depositing ৳{amount.toLocaleString()} unlocks <strong className="text-yellow-200">+৳{activePendingGift.bonusAmt.toLocaleString()}</strong> extra gift bonus automatically upon approval!
+            </p>
+          </div>
+        )}
+
+        {/* One-Time Deposit Bonus Card */}
         {!user.hasClaimedDepositBonus && (
           <div
             className={`rounded-3xl p-4 shadow-sm flex items-center justify-between border ${
               hasCompletedDeposit
-                ? 'bg-gradient-to-r from-amber-500 to-pink-500 text-white border-transparent'
-                : 'bg-white text-slate-700 border-pink-100'
+                ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white border-transparent'
+                : 'bg-white text-slate-700 border-amber-100'
             }`}
           >
             <div>
               <div
                 className={`flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider ${
-                  hasCompletedDeposit ? 'text-yellow-200' : 'text-[#FF2A7A]'
+                  hasCompletedDeposit ? 'text-yellow-200' : 'text-[#B45309]'
                 }`}
               >
                 <Gift className="w-3.5 h-3.5" />
@@ -343,7 +428,7 @@ export const Deposit: React.FC = () => {
               </div>
               <div
                 className={`text-[10px] ${
-                  hasCompletedDeposit ? 'text-pink-100' : 'text-slate-500'
+                  hasCompletedDeposit ? 'text-amber-100' : 'text-slate-500'
                 }`}
               >
                 {hasCompletedDeposit
@@ -354,7 +439,7 @@ export const Deposit: React.FC = () => {
             {hasCompletedDeposit ? (
               <button
                 onClick={() => claimDepositBonus()}
-                className="px-4 py-2 rounded-full bg-white text-slate-900 font-black text-xs shadow-md active:scale-95 transition-all hover:bg-yellow-50 flex-shrink-0"
+                className="px-4 py-2 rounded-full bg-white text-slate-900 font-black text-xs shadow-md active:scale-95 transition-all hover:bg-amber-50 flex-shrink-0"
               >
                 Claim ৳50
               </button>
@@ -368,14 +453,14 @@ export const Deposit: React.FC = () => {
         )}
 
         {/* Gateway Category Switcher: E-Wallet vs USDT */}
-        <div className="bg-white rounded-2xl p-1.5 border border-pink-100 shadow-2xs grid grid-cols-2 gap-1.5">
+        <div className="bg-white rounded-2xl p-1.5 border border-amber-100 shadow-2xs grid grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={() => handleCategorySwitch('ewallet')}
-            className={`py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
               category === 'ewallet'
-                ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-sm'
-                : 'text-slate-600 hover:bg-pink-50/60'
+                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-sm'
+                : 'text-slate-600 hover:bg-amber-50'
             }`}
           >
             <Wallet className="w-3.5 h-3.5" />
@@ -384,9 +469,9 @@ export const Deposit: React.FC = () => {
           <button
             type="button"
             onClick={() => handleCategorySwitch('usdt')}
-            className={`py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
               category === 'usdt'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-emerald-50/50'
             }`}
           >
@@ -395,7 +480,7 @@ export const Deposit: React.FC = () => {
           </button>
         </div>
 
-        {/* Method Selector Cards */}
+        {/* Method Selector Cards (Keep official bKash pink logo & Nagad orange logo) */}
         {category === 'ewallet' ? (
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -404,7 +489,7 @@ export const Deposit: React.FC = () => {
               className={`p-3 rounded-2xl flex items-center justify-between border-2 transition-all active:scale-95 ${
                 selectedEWallet === 'bKash'
                   ? 'bg-pink-50/90 border-[#E2136E] shadow-sm ring-2 ring-[#E2136E]/20'
-                  : 'bg-white border-pink-100/80 hover:border-pink-200'
+                  : 'bg-white border-amber-100 hover:border-amber-200'
               }`}
             >
               <BkashLogo size="md" showText={true} />
@@ -425,7 +510,7 @@ export const Deposit: React.FC = () => {
               className={`p-3 rounded-2xl flex items-center justify-between border-2 transition-all active:scale-95 ${
                 selectedEWallet === 'Nagad'
                   ? 'bg-orange-50/90 border-[#F7931E] shadow-sm ring-2 ring-[#F7931E]/20'
-                  : 'bg-white border-pink-100/80 hover:border-pink-200'
+                  : 'bg-white border-amber-100 hover:border-amber-200'
               }`}
             >
               <NagadLogo size="md" showText={true} />
@@ -460,12 +545,12 @@ export const Deposit: React.FC = () => {
         )}
 
         {/* SELECT CHANNEL */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 space-y-2.5">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
               Select Channel
             </span>
-            <span className="text-[10px] font-bold text-[#FF2A7A] bg-pink-50 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold text-[#B45309]">
               {selectedMethod} Verified
             </span>
           </div>
@@ -479,19 +564,19 @@ export const Deposit: React.FC = () => {
                   onClick={() => setSelectedChannel(ch.id)}
                   className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 ${
                     isSelected
-                      ? 'bg-pink-50/90 border-[#FF2A7A] ring-1 ring-[#FF2A7A]/30 shadow-2xs'
-                      : 'bg-[#FFF8FA] border-pink-100/70 hover:border-pink-200'
+                      ? 'bg-amber-50 border-[#D97706] ring-1 ring-[#D97706]/30 shadow-2xs'
+                      : 'bg-[#FFFDF7] border-amber-100 hover:border-amber-200'
                   }`}
                 >
                   <div
                     className={`text-xs font-extrabold truncate ${
-                      isSelected ? 'text-[#FF2A7A]' : 'text-slate-800'
+                      isSelected ? 'text-[#B45309]' : 'text-slate-800'
                     }`}
                   >
                     {ch.label}
                   </div>
                   <div className="text-[10px] text-slate-500 truncate mt-0.5">{ch.sublabel}</div>
-                  <div className="mt-1.5 text-[10px] font-black text-slate-700 bg-white px-1.5 py-0.5 rounded-md inline-block border border-pink-100">
+                  <div className="mt-1.5 text-[10px] font-black text-slate-700 tabular-nums">
                     {ch.limitTag}
                   </div>
                 </button>
@@ -501,12 +586,12 @@ export const Deposit: React.FC = () => {
         </div>
 
         {/* DEPOSIT AMOUNT */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 space-y-3">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
               {getTranslation(language, 'depositAmount')}
             </span>
-            <span className="text-[11px] font-extrabold text-[#FF2A7A]">
+            <span className="text-[11px] font-extrabold text-[#B45309] tabular-nums">
               ৳{activeChannelObj.min.toLocaleString()} - ৳{activeChannelObj.max.toLocaleString()}
             </span>
           </div>
@@ -517,10 +602,10 @@ export const Deposit: React.FC = () => {
                 key={p}
                 type="button"
                 onClick={() => setAmount(p)}
-                className={`py-2.5 rounded-xl font-extrabold text-xs border transition-all active:scale-95 ${
+                className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs border transition-all active:scale-95 tabular-nums ${
                   amount === p
-                    ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] border-transparent text-white shadow-sm'
-                    : 'bg-[#FFF8FA] border-pink-100 text-slate-700 hover:border-pink-300'
+                    ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] border-transparent text-white shadow-sm'
+                    : 'bg-[#FFFDF7] border-amber-100 text-slate-700 hover:border-amber-300'
                 }`}
               >
                 ৳{p.toLocaleString()}
@@ -529,7 +614,7 @@ export const Deposit: React.FC = () => {
           </div>
 
           <div className="relative pt-1">
-            <span className="absolute inset-y-0 left-3.5 top-1 flex items-center text-[#FF2A7A] font-black text-base">
+            <span className="absolute inset-y-0 left-3.5 top-1 flex items-center text-[#B45309] font-black text-base">
               ৳
             </span>
             <input
@@ -538,44 +623,78 @@ export const Deposit: React.FC = () => {
               max={activeChannelObj.max}
               value={amount || ''}
               onChange={(e) => setAmount(Number(e.target.value) || 0)}
-              className="w-full bg-[#FFF8FA] border border-pink-200 rounded-2xl pl-9 pr-4 py-3 text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-pink-300"
+              className="w-full bg-[#FFFDF7] border border-amber-200 rounded-2xl pl-9 pr-4 py-3 text-sm font-black text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-400"
               placeholder={`Min ৳${activeChannelObj.min}`}
             />
           </div>
 
           {/* Breakdown Box */}
-          <div className="bg-[#FFF8FA] rounded-2xl p-3 border border-pink-100/80 space-y-1.5 text-[11px]">
+          <div className="bg-[#FFFDF7] rounded-2xl p-3 border border-amber-100 space-y-1.5 text-[11px]">
             <div className="flex justify-between text-slate-500 font-semibold">
               <span>Gateway Processing Fee</span>
               <span className="text-emerald-600 font-extrabold">৳0.00 (Free)</span>
             </div>
             <div className="flex justify-between text-slate-500 font-semibold">
               <span>Turnover Requirement (2x)</span>
-              <span className="text-slate-700 font-bold">৳{(amount * 2).toLocaleString()}</span>
+              <span className="text-slate-700 font-bold tabular-nums">৳{(amount * 2).toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-slate-800 font-black pt-1 border-t border-pink-100">
+            {activePendingGift && (
+              <div className="flex justify-between text-emerald-700 font-extrabold">
+                <span>Gift Code ({activePendingGift.code} · +{activePendingGift.pct}%)</span>
+                <span className="tabular-nums">+৳{activePendingGift.bonusAmt.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-slate-800 font-black pt-1 border-t border-amber-100">
               <span>Total Deposit Credit</span>
-              <span className="text-[#FF2A7A]">৳{amount.toFixed(2)}</span>
+              <span className="text-[#B45309] tabular-nums">
+                ৳{(amount + (activePendingGift?.bonusAmt || 0)).toFixed(2)}
+              </span>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-center space-y-1">
-            <div className="text-sm font-black tracking-wide uppercase text-rose-600">
+          {isDepositEnabled ? (
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleProceedEwiPay}
+                disabled={isCreatingCheckout}
+                className="w-full py-3.5 min-h-[48px] rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-md active:scale-98 transition-all hover:brightness-105 disabled:opacity-60 uppercase tracking-wider"
+              >
+                {isCreatingCheckout
+                  ? 'Connecting EWI-Pay...'
+                  : `Pay ৳${amount.toLocaleString()} via EWI-Pay`}
+              </button>
+
+              {ewiPayCheckoutUrl && (
+                <a
+                  href={ewiPayCheckoutUrl}
+                  target="_top"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold text-xs flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Continue to EWI-Pay Checkout →</span>
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOpenManualModal}
+                className="w-full py-2.5 rounded-full bg-amber-50 border border-amber-200 text-[#92400E] font-bold text-xs hover:bg-amber-100 transition-colors"
+              >
+                Already Sent? Submit Manual TrxID
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleProceedEwiPay}
+              disabled
+              className="w-full py-3.5 rounded-full bg-slate-300 text-slate-600 font-black text-sm shadow-xs cursor-not-allowed uppercase tracking-wider"
+            >
               NOW NOT AVAILABLE
-            </div>
-            <div className="text-[11px] font-semibold text-rose-500">
-              New deposits cannot be submitted at this moment.
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleOpenCheckout}
-            disabled
-            className="w-full py-3.5 rounded-full bg-slate-300 text-slate-600 font-black text-sm shadow-xs cursor-not-allowed uppercase tracking-wider"
-          >
-            NOW NOT AVAILABLE
-          </button>
+            </button>
+          )}
         </div>
 
         {/* Success Receipt Card */}
@@ -587,7 +706,7 @@ export const Deposit: React.FC = () => {
                 <h4 className="font-extrabold text-sm text-emerald-900">
                   Payment Submitted ({lastSubmittedOrder.orderId})
                 </h4>
-                <p className="text-[11px] text-emerald-700 font-medium">
+                <p className="text-[11px] text-emerald-700 font-medium tabular-nums">
                   ৳{lastSubmittedOrder.amount.toFixed(2)} via {lastSubmittedOrder.method} • TrxID:{' '}
                   <span className="font-mono font-black">{lastSubmittedOrder.trxId}</span>
                 </p>
@@ -602,10 +721,10 @@ export const Deposit: React.FC = () => {
 
         {/* Recent Deposit Status Tracker */}
         {myRecentDeposits.length > 0 && (
-          <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 space-y-3">
+          <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <Receipt className="w-4 h-4 text-[#FF2A7A]" />
+                <Receipt className="w-4 h-4 text-[#D97706]" />
                 <span>Recent Deposit Orders</span>
               </h3>
               <button
@@ -614,7 +733,7 @@ export const Deposit: React.FC = () => {
                   setActiveTab('transaction-history');
                   window.location.hash = '#/transaction-history';
                 }}
-                className="text-[11px] font-bold text-[#FF2A7A]"
+                className="text-[11px] font-bold text-[#B45309]"
               >
                 View All
               </button>
@@ -623,10 +742,10 @@ export const Deposit: React.FC = () => {
               {myRecentDeposits.map((dep) => (
                 <div
                   key={dep.id}
-                  className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-center justify-between gap-2 text-xs"
+                  className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-100 flex items-center justify-between gap-2 text-xs"
                 >
                   <div className="min-w-0">
-                    <div className="font-extrabold text-slate-800 truncate">
+                    <div className="font-extrabold text-slate-800 truncate tabular-nums">
                       {dep.method} • ৳{dep.amount.toFixed(2)}
                     </div>
                     <div className="text-[10px] font-mono text-slate-500 truncate">
@@ -655,12 +774,11 @@ export const Deposit: React.FC = () => {
         )}
       </div>
 
-      {/* OFFICIAL CHECKOUT PAYMENT GATEWAY MODAL */}
+      {/* MANUAL TRXID VERIFICATION MODAL */}
       {showCheckoutModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl max-h-[94vh] flex flex-col animate-scale-up">
-            {/* Pink Luxury Gateway Header */}
-            <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] text-white p-4 relative">
+            <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] text-white p-4 relative">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-yellow-200" />
@@ -671,7 +789,7 @@ export const Deposit: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCheckoutModal(false)}
-                  className="p-1 rounded-full bg-white/20 hover:bg-white/30"
+                  className="p-1.5 rounded-full bg-white/20 hover:bg-white/30"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -679,9 +797,9 @@ export const Deposit: React.FC = () => {
 
               <div className="mt-3 flex items-end justify-between gap-2">
                 <div>
-                  <div className="text-[11px] text-pink-100 font-semibold">Payment Amount</div>
+                  <div className="text-[11px] text-amber-100 font-semibold">Payment Amount</div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-2xl font-black tracking-tight">
+                    <span className="text-2xl font-black tracking-tight tabular-nums">
                       BDT {amount.toFixed(2)}
                     </span>
                     <button
@@ -696,21 +814,19 @@ export const Deposit: React.FC = () => {
                 </div>
 
                 <div className="text-right">
-                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/25 text-xs font-mono font-black">
+                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/25 text-xs font-mono font-black tabular-nums">
                     <Timer className="w-3.5 h-3.5 text-yellow-200" />
                     <span>{formattedTimer}</span>
                   </div>
-                  <div className="text-[10px] text-pink-100 font-mono mt-1">
+                  <div className="text-[10px] text-amber-100 font-mono mt-1">
                     Order: {orderId}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Scrollable Body */}
             <form onSubmit={handleSubmitCheckout} className="p-4 space-y-3.5 overflow-y-auto">
-              {/* Official Wallet Account Box */}
-              <div className="bg-[#FFF8FA] rounded-2xl p-3.5 border border-pink-200 space-y-2">
+              <div className="bg-[#FFFDF7] rounded-2xl p-3.5 border border-amber-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-extrabold text-slate-600">
                     Step 1: Copy Official {selectedMethod} Number
@@ -718,8 +834,8 @@ export const Deposit: React.FC = () => {
                   {selectedMethod === 'bKash' && <BkashLogo size="sm" showText={false} />}
                   {selectedMethod === 'Nagad' && <NagadLogo size="sm" showText={false} />}
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-pink-100 flex items-center justify-between gap-2">
-                  <span className="font-mono text-sm font-black text-[#FF2A7A] tracking-wider truncate">
+                <div className="bg-white p-2.5 rounded-xl border border-amber-100 flex items-center justify-between gap-2">
+                  <span className="font-mono text-sm font-black text-[#B45309] tracking-wider truncate">
                     {currentOfficialAccount}
                   </span>
                   <button
@@ -727,7 +843,7 @@ export const Deposit: React.FC = () => {
                     onClick={() =>
                       copyValue(currentOfficialAccount, 'wallet', `${selectedMethod} Account`)
                     }
-                    className="px-3 py-1.5 rounded-xl bg-pink-100 hover:bg-pink-200 text-[#FF2A7A] font-extrabold text-xs flex items-center gap-1 flex-shrink-0 active:scale-95"
+                    className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-[#92400E] font-extrabold text-xs flex items-center gap-1 flex-shrink-0 active:scale-95"
                   >
                     <Copy className="w-3.5 h-3.5" />
                     <span>{copiedField === 'wallet' ? 'Copied!' : 'Copy'}</span>
@@ -738,7 +854,6 @@ export const Deposit: React.FC = () => {
                 </p>
               </div>
 
-              {/* Payment Method Selector inside Checkout (E-Wallet) */}
               {category === 'ewallet' && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-extrabold text-slate-700 block">
@@ -752,7 +867,7 @@ export const Deposit: React.FC = () => {
                         onClick={() => setGatewayMode(mode)}
                         className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold border transition-all ${
                           gatewayMode === mode
-                            ? 'bg-pink-50 border-[#FF2A7A] text-[#FF2A7A]'
+                            ? 'bg-amber-50 border-[#D97706] text-[#B45309]'
                             : 'bg-slate-50 border-slate-200 text-slate-600'
                         }`}
                       >
@@ -760,15 +875,9 @@ export const Deposit: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                  {gatewayMode === 'Add Money' && (
-                    <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5 font-semibold">
-                      Note: Please use Send Money or Cash Out from your {selectedMethod} app to the number above for instant approval.
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* Sender Number */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-700 block mb-1">
                   {category === 'ewallet'
@@ -780,12 +889,11 @@ export const Deposit: React.FC = () => {
                   value={senderNumber}
                   onChange={(e) => setSenderNumber(e.target.value)}
                   placeholder={category === 'ewallet' ? '01XXXXXXXXX' : 'T...'}
-                  className="w-full bg-[#FFF8FA] border border-pink-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
                   required
                 />
               </div>
 
-              {/* Transaction ID (TrxID) */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-700 block mb-1">
                   Step 3: Enter Transaction ID (TrxID)
@@ -799,10 +907,10 @@ export const Deposit: React.FC = () => {
                   }}
                   placeholder="e.g. BL78K9M2P1"
                   maxLength={20}
-                  className={`w-full bg-[#FFF8FA] border rounded-xl px-3.5 py-2.5 text-xs font-mono font-black uppercase text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 tracking-wider ${
+                  className={`w-full bg-[#FFFDF7] border rounded-xl px-3.5 py-2.5 text-xs font-mono font-black uppercase text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 tracking-wider ${
                     trxError
                       ? 'border-red-400 focus:ring-red-200'
-                      : 'border-pink-200 focus:ring-pink-300'
+                      : 'border-amber-200 focus:ring-amber-300'
                   }`}
                   required
                 />
@@ -815,8 +923,7 @@ export const Deposit: React.FC = () => {
                 </div>
               )}
 
-              {/* Warning Note matching video */}
-              <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-800 text-[10px] leading-relaxed flex items-start gap-2">
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[10px] leading-relaxed flex items-start gap-2">
                 <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <strong>Important:</strong> Wrong or fake TrxID is not accepted. Send exact{' '}
@@ -835,7 +942,7 @@ export const Deposit: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md active:scale-98 transition-all hover:brightness-105"
+                  className="flex-1 py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md active:scale-98 transition-all hover:brightness-105"
                 >
                   Confirm & Submit Payment
                 </button>
@@ -847,4 +954,3 @@ export const Deposit: React.FC = () => {
     </div>
   );
 };
-

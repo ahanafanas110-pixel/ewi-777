@@ -20,8 +20,10 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import type {
   AdminAccessLog,
   AdminSettings,
+  CrashPoolState,
   DepositRequest,
   MarketPoolEntry,
+  ReferralMember,
   SupportMessage,
   Transaction,
   User,
@@ -718,3 +720,79 @@ export async function saveMarketPoolInFirebase(pool: MarketPoolEntry): Promise<v
     logFirestoreNonFatal(error, OperationType.WRITE, path);
   }
 }
+
+// ================= REFERRALS (Cross-Device Team Sync) =================
+export function subscribeReferralsInFirebase(
+  onUpdate: (referrals: ReferralMember[]) => void
+): Unsubscribe {
+  const path = 'referrals';
+  const q = query(collection(db, 'referrals'), limit(400));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: ReferralMember[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as ReferralMember;
+        if (data && data.id) list.push(data);
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export async function saveReferralToFirebase(refMember: ReferralMember): Promise<void> {
+  if (!refMember?.id) return;
+  const id = sanitizeFirestoreId(refMember.id);
+  const path = `referrals/${id}`;
+  try {
+    await setDoc(
+      doc(db, 'referrals', id),
+      stripUndefinedDeep({ ...refMember, id }),
+      { merge: true }
+    );
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.WRITE, path);
+  }
+}
+
+// ================= SHARED CRASH POOL STATE (AVIATOR & LUCKY JET) =================
+export function subscribeCrashStateInFirebase(
+  game: 'aviator' | 'luckyjet',
+  onUpdate: (state: CrashPoolState) => void
+): Unsubscribe {
+  const path = `crashState/${game}`;
+  return onSnapshot(
+    doc(db, 'crashState', game),
+    (snap) => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as CrashPoolState);
+      }
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.GET, path);
+    }
+  );
+}
+
+export async function saveCrashStateToFirebase(state: CrashPoolState): Promise<void> {
+  if (!state?.game) return;
+  const gameId = state.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+  const path = `crashState/${gameId}`;
+  try {
+    await setDoc(
+      doc(db, 'crashState', gameId),
+      stripUndefinedDeep({
+        ...state,
+        game: gameId,
+        bets: Array.isArray(state.bets) ? state.bets.slice(0, 60) : []
+      }),
+      { merge: true }
+    );
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.WRITE, path);
+  }
+}
+

@@ -4,6 +4,7 @@ import { ArrowLeft, Smartphone, Mail, Lock, Eye, EyeOff, Check, ShieldCheck } fr
 import { getTranslation } from '../utils/i18n';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { EventRewardsModal } from '../components/AccountIcons';
+import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
 
 interface LoginProps {
   onOpenLanguage?: () => void;
@@ -20,33 +21,46 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
   const [countryCode, setCountryCode] = useState('+880');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captchaOpen, setCaptchaOpen] = useState(false);
+  const [pendingTarget, setPendingTarget] = useState<string | null>(null);
   const [showEventRewards, setShowEventRewards] = useState<boolean>(!user.isLoggedIn);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    const target =
+      authMode === 'phone'
+        ? phoneNumber.trim().startsWith('+') || phoneNumber.trim().startsWith('0')
+          ? phoneNumber.trim()
+          : `${countryCode}${phoneNumber.trim()}`
+        : email.trim();
+    if (!target || !password) {
+      showToast('Please enter phone/email and password');
+      return;
+    }
+    setPendingTarget(target);
+    setCaptchaOpen(true);
+  };
+
+  const handleCaptchaVerified = async () => {
+    setCaptchaOpen(false);
+    if (!pendingTarget || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const target =
-        authMode === 'phone'
-          ? phoneNumber.trim().startsWith('+') || phoneNumber.trim().startsWith('0')
-            ? phoneNumber.trim()
-            : `${countryCode}${phoneNumber.trim()}`
-          : email.trim();
-      const res = await login(target, password, rememberPassword);
+      const res = await login(pendingTarget, password, rememberPassword);
       if (!res.success) {
         showToast(res.message);
       }
     } finally {
       setIsSubmitting(false);
+      setPendingTarget(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] flex flex-col pb-10">
-      {/* Pink Gradient Top Section */}
-      <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
-        {/* Top Navbar */}
+    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-10">
+      {/* Luxury Gold Gradient Header */}
+      <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           {user.isLoggedIn ? (
             <button
@@ -60,16 +74,14 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
             </button>
           ) : (
             <div className="relative z-10 w-7 h-7 rounded-full bg-white/15 flex items-center justify-center">
-              <ShieldCheck className="w-4 h-4 text-yellow-200" />
+              <ShieldCheck className="w-4 h-4 text-amber-200" />
             </div>
           )}
 
-          {/* Centered Official EWI 777 Logo */}
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
             <Ewi777Logo height={62} logoUrl={adminSettings.appLogoUrl} />
           </div>
 
-          {/* Language Selector */}
           <button
             onClick={onOpenLanguage}
             className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-bold text-white hover:bg-white/30 active:scale-95 transition-all"
@@ -79,12 +91,11 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
           </button>
         </div>
 
-        {/* Title & Subtitle */}
         <div className="px-1 mt-2">
           <h2 className="text-2xl font-black tracking-tight mb-2">
             {getTranslation(language, 'login')}
           </h2>
-          <p className="text-xs text-pink-100 leading-relaxed font-normal">
+          <p className="text-xs text-amber-100 leading-relaxed font-normal">
             Please log in with your phone number or email
             <br />
             If you forget your password, please contact customer service
@@ -94,30 +105,31 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
 
       {/* Main Card Content */}
       <div className="px-4 -mt-3">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100">
-          <div className="mb-4 px-3 py-2 rounded-2xl bg-pink-50 border border-pink-100 text-[11px] font-bold text-[#FF2A7A] flex items-center gap-2">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200">
+          <div className="mb-4 px-3 py-2 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-[#B45309] flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-            <span>Account login or registration is required to enter WinGo, Aviator &amp; Binary Markets.</span>
+            <span>Account login or registration is required to enter WinGo, Aviator &amp; Gold Markets.</span>
           </div>
+
           {/* Tabs: Phone Number vs Email */}
-          <div className="grid grid-cols-2 border-b border-pink-50 mb-6">
+          <div className="grid grid-cols-2 border-b border-amber-100 mb-6">
             <button
               type="button"
               onClick={() => setAuthMode('phone')}
               className={`pb-3 flex flex-col items-center gap-1 text-sm font-bold relative transition-colors ${
-                authMode === 'phone' ? 'text-[#FF2A7A]' : 'text-slate-400 hover:text-slate-600'
+                authMode === 'phone' ? 'text-[#D97706]' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <div
                 className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                  authMode === 'phone' ? 'bg-pink-50 text-[#FF2A7A]' : 'text-slate-400'
+                  authMode === 'phone' ? 'bg-amber-50 text-[#D97706]' : 'text-slate-400'
                 }`}
               >
                 <Smartphone className="w-4 h-4 stroke-[2.5]" />
               </div>
               <span>{getTranslation(language, 'phoneNumber')}</span>
               {authMode === 'phone' && (
-                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#FF2A7A] rounded-full" />
+                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#D97706] rounded-full" />
               )}
             </button>
 
@@ -125,40 +137,38 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
               type="button"
               onClick={() => setAuthMode('email')}
               className={`pb-3 flex flex-col items-center gap-1 text-sm font-bold relative transition-colors ${
-                authMode === 'email' ? 'text-[#F84545]' : 'text-slate-400 hover:text-slate-600'
+                authMode === 'email' ? 'text-[#B45309]' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <div
                 className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                  authMode === 'email' ? 'bg-red-50 text-[#F84545]' : 'text-slate-400'
+                  authMode === 'email' ? 'bg-amber-50 text-[#B45309]' : 'text-slate-400'
                 }`}
               >
                 <Mail className="w-4 h-4 stroke-[2.5]" />
               </div>
               <span>{getTranslation(language, 'email')}</span>
               {authMode === 'email' && (
-                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#F84545] rounded-full" />
+                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#B45309] rounded-full" />
               )}
             </button>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {authMode === 'phone' ? (
               <div>
                 <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                  <div className="w-5 h-5 rounded bg-red-50 text-[#F84545] flex items-center justify-center">
+                  <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
                     <Smartphone className="w-3.5 h-3.5 stroke-[2.5]" />
                   </div>
                   <span>{getTranslation(language, 'phoneNumber')}</span>
                 </label>
                 <div className="flex gap-2">
-                  {/* Country Code Picker */}
                   <div className="relative min-w-[85px]">
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className="w-full bg-[#F7F9FC] border border-slate-100 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-red-400 appearance-none"
+                      className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 appearance-none"
                     >
                       <option value="+880">+880</option>
                       <option value="+91">+91</option>
@@ -170,13 +180,12 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                     </div>
                   </div>
 
-                  {/* Phone Input */}
                   <input
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     placeholder={getTranslation(language, 'pleaseEnterPhone')}
-                    className="flex-1 bg-[#F7F9FC] border border-slate-100 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+                    className="flex-1 bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     required
                   />
                 </div>
@@ -184,7 +193,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
             ) : (
               <div>
                 <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                  <div className="w-5 h-5 rounded bg-red-50 text-[#F84545] flex items-center justify-center">
+                  <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
                     <Mail className="w-3.5 h-3.5 stroke-[2.5]" />
                   </div>
                   <span>{getTranslation(language, 'email')}</span>
@@ -194,16 +203,15 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={getTranslation(language, 'pleaseEnterEmail')}
-                  className="w-full bg-[#F7F9FC] border border-slate-100 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   required
                 />
               </div>
             )}
 
-            {/* Password */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-pink-50 text-[#FF2A7A] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
                   <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'password')}</span>
@@ -214,7 +222,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={getTranslation(language, 'pleaseEnterPassword')}
-                  className="w-full bg-[#FFF8FA] border border-pink-100 rounded-xl px-3 py-3 pr-10 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
+                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 pr-10 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   required
                 />
                 <button
@@ -227,13 +235,12 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
               </div>
             </div>
 
-            {/* Remember password & Forgot password */}
             <div className="flex items-center justify-between text-xs pt-1">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <div
                   onClick={() => setRememberPassword(!rememberPassword)}
                   className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors ${
-                    rememberPassword ? 'bg-[#FF2A7A] text-white' : 'border border-slate-300'
+                    rememberPassword ? 'bg-[#D97706] text-white' : 'border border-slate-300'
                   }`}
                 >
                   {rememberPassword && <Check className="w-3 h-3 stroke-[3]" />}
@@ -249,19 +256,19 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   setActiveTab('customer-service');
                   window.location.hash = '#/customer-service';
                 }}
-                className="text-[#FF2A7A] font-semibold hover:underline"
+                className="text-[#D97706] font-semibold hover:underline"
               >
                 {getTranslation(language, 'forgotPassword')}
               </button>
             </div>
 
-            {/* Submit Button */}
             <div className="pt-4 space-y-3">
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide"
+                disabled={isSubmitting}
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-60"
               >
-                {getTranslation(language, 'login')}
+                {isSubmitting ? 'Logging in...' : getTranslation(language, 'login')}
               </button>
 
               <button
@@ -270,7 +277,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   setActiveTab('register');
                   window.location.hash = '#/registration';
                 }}
-                className="w-full py-3.5 rounded-full border border-pink-200 text-[#FF2A7A] font-bold text-sm hover:bg-pink-50 active:scale-98 transition-all"
+                className="w-full py-3.5 rounded-full border border-amber-300 text-[#B45309] font-bold text-sm hover:bg-amber-50 active:scale-98 transition-all"
               >
                 {getTranslation(language, 'register')}
               </button>
@@ -281,7 +288,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   setActiveTab('customer-service');
                   window.location.hash = '#/customer-service';
                 }}
-                className="w-full py-2.5 rounded-full bg-slate-50 hover:bg-pink-50/70 border border-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+                className="w-full py-2.5 rounded-full bg-slate-50 hover:bg-amber-50/70 border border-slate-200 text-slate-600 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
               >
                 <CustomerServiceLogo size={24} />
                 <span>24/7 Customer Service</span>
@@ -290,6 +297,15 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
           </form>
         </div>
       </div>
+
+      <SliderCaptchaModal
+        isOpen={captchaOpen}
+        onSuccess={handleCaptchaVerified}
+        onClose={() => {
+          setCaptchaOpen(false);
+          setPendingTarget(null);
+        }}
+      />
 
       <EventRewardsModal
         isOpen={showEventRewards && !user.isLoggedIn}

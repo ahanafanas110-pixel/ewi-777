@@ -212,15 +212,15 @@ export const CustomerService: React.FC = () => {
   const activeTopicMeta = supportItems.find((s) => s.id === selectedTopic);
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] text-slate-900 pb-10">
+    <div className="min-h-screen bg-[#FFFDF7] text-slate-900 pb-10">
       {/* Light-Mode Clean Top Navbar */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-pink-100 px-4 py-3 flex items-center justify-between shadow-2xs">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-amber-200 px-4 py-3 flex items-center justify-between shadow-2xs">
         <button
           onClick={() => {
             setActiveTab(user.isLoggedIn ? 'account' : 'home');
             window.location.hash = user.isLoggedIn ? '#/account' : '#/';
           }}
-          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-pink-50 active:scale-95"
+          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-amber-50 active:scale-95"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
@@ -240,13 +240,13 @@ export const CustomerService: React.FC = () => {
 
       {/* Mode Switcher */}
       <div className="px-4 pt-3">
-        <div className="bg-white rounded-2xl p-1 border border-pink-100 shadow-2xs grid grid-cols-2 gap-1">
+        <div className="bg-white rounded-2xl p-1 border border-amber-200 shadow-2xs grid grid-cols-2 gap-1">
           <button
             onClick={() => setViewMode('menu')}
             className={`py-2.5 rounded-xl text-xs font-black transition-all ${
               viewMode === 'menu'
-                ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-pink-50/50'
+                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-amber-50/50'
             }`}
           >
             Self-Service Center
@@ -255,8 +255,8 @@ export const CustomerService: React.FC = () => {
             onClick={() => setViewMode('chat')}
             className={`py-2.5 rounded-xl text-xs font-black transition-all ${
               viewMode === 'chat'
-                ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-pink-50/50'
+                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-amber-50/50'
             }`}
           >
             Live Chat Support
@@ -273,7 +273,7 @@ export const CustomerService: React.FC = () => {
                 key={item.id}
                 type="button"
                 onClick={() => setSelectedTopic(item.id)}
-                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-pink-50/40 active:bg-pink-50 transition-colors"
+                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 active:bg-amber-50 transition-colors"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FDE68A] via-[#FBBF24] to-[#D97706] text-slate-900 flex items-center justify-center flex-shrink-0 shadow-xs">
@@ -294,10 +294,10 @@ export const CustomerService: React.FC = () => {
           </div>
 
           {/* Quick Account Diagnostics Card (Light Mode) */}
-          <div className="bg-white rounded-3xl p-4 border border-pink-100 shadow-xs space-y-2">
+          <div className="bg-white rounded-3xl p-4 border border-amber-200 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#FF2A7A]" />
+                <ShieldCheck className="w-4 h-4 text-[#D97706]" />
                 <span>Quick Account Status</span>
               </span>
               <span className="text-[11px] font-mono font-bold text-slate-500">
@@ -305,21 +305,21 @@ export const CustomerService: React.FC = () => {
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-1 text-center tabular-nums">
-              <div className="bg-[#FFF8FA] rounded-2xl p-2 border border-pink-100">
+              <div className="bg-[#FFFDF7] rounded-2xl p-2 border border-amber-200">
                 <div className="text-[10px] text-slate-500 font-semibold">Pending Dep</div>
                 <div className="text-sm font-black text-slate-900">
                   {myDeposits.filter((d) => d.status === 'pending').length}
                 </div>
               </div>
-              <div className="bg-[#FFF8FA] rounded-2xl p-2 border border-pink-100">
+              <div className="bg-[#FFFDF7] rounded-2xl p-2 border border-amber-200">
                 <div className="text-[10px] text-slate-500 font-semibold">Pending WD</div>
                 <div className="text-sm font-black text-slate-900">
                   {myWithdraws.filter((w) => w.status === 'pending' || w.status === 'processing').length}
                 </div>
               </div>
-              <div className="bg-[#FFF8FA] rounded-2xl p-2 border border-pink-100">
+              <div className="bg-[#FFFDF7] rounded-2xl p-2 border border-amber-200">
                 <div className="text-[10px] text-slate-500 font-semibold">Turnover Left</div>
-                <div className="text-sm font-black text-[#FF2A7A]">
+                <div className="text-sm font-black text-[#B45309]">
                   ৳{remainingTurnover.toFixed(0)}
                 </div>
               </div>
@@ -328,8 +328,8 @@ export const CustomerService: React.FC = () => {
         </div>
       ) : (
         <div className="p-4">
-          <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 space-y-3 min-h-[430px] flex flex-col">
-            <div className="text-center text-[11px] text-slate-500 font-bold pb-2 border-b border-pink-50 flex items-center justify-between">
+          <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-200 space-y-3 min-h-[430px] flex flex-col">
+            <div className="text-center text-[11px] text-slate-500 font-bold pb-2 border-b border-amber-100 flex items-center justify-between">
               <span>EWI 777 Official Live Agent Chat</span>
               <span className="text-[10px] text-emerald-600 font-black">Human Support</span>
             </div>
@@ -337,7 +337,7 @@ export const CustomerService: React.FC = () => {
             <div className="flex-1 space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
               {myMessages.length === 0 ? (
                 <div className="text-center py-12 px-4 text-xs text-slate-400 space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-pink-50 flex items-center justify-center mx-auto">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto">
                     <CustomerServiceLogo size={32} />
                   </div>
                   <p className="font-semibold text-slate-500">
@@ -351,14 +351,14 @@ export const CustomerService: React.FC = () => {
                     className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
                   >
                     {m.sender === 'admin' && (
-                      <span className="text-[10px] font-black text-[#FF2A7A] mb-0.5 px-1">
+                      <span className="text-[10px] font-black text-[#B45309] mb-0.5 px-1">
                         EWI 777 Agent
                       </span>
                     )}
                     <div
                       className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs font-semibold leading-relaxed shadow-2xs space-y-2 ${
                         m.sender === 'user'
-                          ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white rounded-tr-xs'
+                          ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white rounded-tr-xs'
                           : 'bg-slate-50 text-slate-800 border border-slate-200 rounded-tl-xs'
                       }`}
                     >
@@ -392,11 +392,11 @@ export const CustomerService: React.FC = () => {
                 e.preventDefault();
                 handleSendChat();
               }}
-              className="flex items-center gap-2 pt-2 border-t border-pink-50"
+              className="flex items-center gap-2 pt-2 border-t border-amber-100"
             >
               <label
                 title="Send photo from gallery"
-                className={`w-10 h-10 rounded-2xl bg-pink-50 border border-pink-200 text-[#FF2A7A] flex items-center justify-center cursor-pointer hover:bg-pink-100 active:scale-95 flex-shrink-0 ${
+                className={`w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 text-[#B45309] flex items-center justify-center cursor-pointer hover:bg-amber-100 active:scale-95 flex-shrink-0 ${
                   isSendingPhoto ? 'opacity-50 pointer-events-none' : ''
                 }`}
               >
@@ -414,11 +414,11 @@ export const CustomerService: React.FC = () => {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 placeholder="Write a message to support agent..."
-                className="flex-1 bg-[#FFF8FA] border border-pink-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#FF2A7A]"
+                className="flex-1 bg-[#FFFDF7] border border-amber-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#D97706]"
               />
               <button
                 type="submit"
-                className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white flex items-center justify-center shadow-xs active:scale-95 flex-shrink-0"
+                className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white flex items-center justify-center shadow-xs active:scale-95 flex-shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -450,8 +450,8 @@ export const CustomerService: React.FC = () => {
       {/* Light-Mode Problem Resolution Drawer / Modal */}
       {selectedTopic && activeTopicMeta && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl border border-pink-100 max-h-[88vh] flex flex-col overflow-hidden text-slate-900">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-[#FFF8FA]">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl border border-amber-200 max-h-[88vh] flex flex-col overflow-hidden text-slate-900">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-[#FFFDF7]">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FDE68A] via-[#FBBF24] to-[#D97706] text-slate-900 flex items-center justify-center">
                   {activeTopicMeta.icon}
@@ -515,7 +515,7 @@ export const CustomerService: React.FC = () => {
                     />
                     <button
                       onClick={() => handleSubmitUrgentTicket('Deposit Verification Request')}
-                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md"
+                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
                     >
                       Submit Deposit Priority Check
                     </button>
@@ -527,7 +527,7 @@ export const CustomerService: React.FC = () => {
                 <>
                   <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 space-y-1.5 text-slate-700 leading-relaxed">
                     <div className="font-black text-blue-900">Why Withdrawal might be delayed or blocked:</div>
-                    <p>1. <strong>Turnover Requirement:</strong> Your remaining turnover must be ৳0. Current remaining: <strong className="text-[#FF2A7A]">৳{remainingTurnover.toFixed(2)}</strong>.</p>
+                    <p>1. <strong>Turnover Requirement:</strong> Your remaining turnover must be ৳0. Current remaining: <strong className="text-[#B45309]">৳{remainingTurnover.toFixed(2)}</strong>.</p>
                     <p>2. <strong>Wallet Mismatch:</strong> Ensure your bound bKash/Nagad number is active for Cash-In / Personal.</p>
                     <p>3. <strong>Processing Window:</strong> Payouts settle in 5–15 minutes (up to 2 hours during banking maintenance).</p>
                   </div>
@@ -556,7 +556,7 @@ export const CustomerService: React.FC = () => {
                   />
                   <button
                     onClick={() => handleSubmitUrgentTicket('Withdrawal Issue Escalation')}
-                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md"
+                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
                   >
                     Escalate Withdrawal to Live Support
                   </button>
@@ -566,7 +566,7 @@ export const CustomerService: React.FC = () => {
               {selectedTopic === 'change_login_password' && (
                 <>
                   {user.isLoggedIn && (
-                    <div className="p-3.5 rounded-2xl bg-pink-50 border border-pink-200 flex items-center justify-between gap-2">
+                    <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
                       <div>
                         <div className="font-black text-slate-900">Know your current password?</div>
                         <div className="text-[11px] text-slate-500">Update it instantly inside security settings</div>
@@ -577,7 +577,7 @@ export const CustomerService: React.FC = () => {
                           setActiveTab('change-login-password');
                           window.location.hash = '#/change-login-password';
                         }}
-                        className="px-3.5 py-2 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] whitespace-nowrap"
+                        className="px-3.5 py-2 rounded-full bg-[#D97706] text-white font-black text-[11px] whitespace-nowrap"
                       >
                         Change Now
                       </button>
@@ -586,7 +586,7 @@ export const CustomerService: React.FC = () => {
 
                   <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
                     <div className="font-black text-slate-900 flex items-center gap-1.5">
-                      <KeyRound className="w-4 h-4 text-[#FF2A7A]" />
+                      <KeyRound className="w-4 h-4 text-[#D97706]" />
                       <span>Forgot Password Instant Recovery</span>
                     </div>
                     <form onSubmit={handlePasswordRecoverySubmit} className="flex gap-2">
@@ -640,7 +640,7 @@ export const CustomerService: React.FC = () => {
                       setActiveTab('wallet');
                       window.location.hash = '#/wallet';
                     }}
-                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md"
+                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
                   >
                     Open E-Wallet Bind Manager →
                   </button>
@@ -671,7 +671,7 @@ export const CustomerService: React.FC = () => {
                       handleSubmitUrgentTicket(`Bind USDT TRC20 Address: ${usdtDraft.trim()}`);
                       setUsdtDraft('');
                     }}
-                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md"
+                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
                   >
                     Submit USDT Address Verification
                   </button>
@@ -703,7 +703,7 @@ export const CustomerService: React.FC = () => {
                         setViewMode('chat');
                         handleSendChat('I need EWI 777 Agent Consultation with a Teacher');
                       }}
-                      className="py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs"
+                      className="py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs"
                     >
                       Ask Teacher Live
                     </button>
@@ -759,8 +759,8 @@ export const CustomerService: React.FC = () => {
 
               {selectedTopic === 'apply_77_bonus' && (
                 <>
-                  <div className="p-3.5 rounded-2xl bg-pink-50 border border-pink-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-[#FF2A7A]">How to Claim 77 Taka Welcome Bonus:</div>
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-slate-700 leading-relaxed">
+                    <div className="font-black text-[#B45309]">How to Claim 77 Taka Welcome Bonus:</div>
                     <p>1. Your account must be registered and logged in.</p>
                     <p>2. Bind a unique bKash or Nagad wallet in your Wallet settings.</p>
                     <p>3. Submit your application below or enter an active promo code in <strong>/gifts</strong>.</p>
@@ -778,7 +778,7 @@ export const CustomerService: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleSubmitUrgentTicket(`Apply 77 Taka Bonus (UID: ${user.uid || 'N/A'})`)}
-                      className="py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md flex items-center justify-center gap-1"
+                      className="py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md flex items-center justify-center gap-1"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Apply Now</span>

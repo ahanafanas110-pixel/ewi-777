@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
-import { ArrowLeft, Smartphone, Lock, Eye, EyeOff, Gift, Check } from 'lucide-react';
+import { useApp, PASSWORD_REGEX, PASSWORD_RULE_MSG } from '../context/AppContext';
+import { ArrowLeft, Smartphone, Lock, Eye, EyeOff, Gift, Check, AlertCircle } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
 import { Ewi777Logo } from '../components/BrandLogos';
+import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
 
 interface RegisterProps {
   onOpenLanguage?: () => void;
@@ -20,8 +21,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
   const [agreePrivacy, setAgreePrivacy] = useState(true);
   const [countryCode, setCountryCode] = useState('+880');
 
+  const [passwordError, setPasswordError] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  const [captchaOpen, setCaptchaOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
-    // Check if referral code is in context or URL or sessionStorage
     const urlCode =
       invitationParam ||
       sessionStorage.getItem('win777_invite_code') ||
@@ -31,18 +36,19 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
     }
   }, [invitationParam]);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    setPasswordError('');
+    setInviteError('');
 
     if (!phoneNumber.trim()) {
       showToast('Please enter your phone number');
       return;
     }
-    if (password.length < 6) {
-      showToast('Password must be at least 6 characters');
+    if (!PASSWORD_REGEX.test(password)) {
+      setPasswordError(PASSWORD_RULE_MSG);
+      showToast(PASSWORD_RULE_MSG);
       return;
     }
     if (password !== confirmPassword) {
@@ -54,12 +60,21 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
       return;
     }
 
+    setCaptchaOpen(true);
+  };
+
+  const handleCaptchaVerified = async () => {
+    setCaptchaOpen(false);
+    if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       const cleaned = phoneNumber.trim();
       const fullPhone = cleaned.startsWith('+') ? cleaned : `${countryCode}${cleaned.replace(/^0+/, '')}`;
-      const res = await register(fullPhone, password, inviteCode);
+      const res = await register(fullPhone, password, inviteCode.trim());
       if (!res.success) {
+        if (res.message.toUpperCase().includes('INVITE CODE')) {
+          setInviteError('INVITE CODE IS NOT VALID');
+        }
         showToast(res.message);
       }
     } finally {
@@ -67,11 +82,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
     }
   };
 
+  const showPwLiveError = password.length > 0 && !PASSWORD_REGEX.test(password);
+
   return (
-    <div className="min-h-screen bg-[#FFF8FA] flex flex-col pb-10">
-      {/* Pink Gradient Top Section */}
-      <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
-        {/* Top Navbar */}
+    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-10">
+      {/* Luxury Gold Header */}
+      <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           <button
             onClick={() => {
@@ -88,12 +104,10 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
 
-          {/* Centered Official EWI 777 Logo */}
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
             <Ewi777Logo height={62} logoUrl={adminSettings.appLogoUrl} />
           </div>
 
-          {/* Language Selector */}
           <button
             onClick={onOpenLanguage}
             className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-bold text-white hover:bg-white/30 active:scale-95 transition-all"
@@ -103,48 +117,44 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
           </button>
         </div>
 
-        {/* Title & Subtitle */}
         <div className="px-1 mt-2">
           <h2 className="text-2xl font-black tracking-tight mb-2">
             {getTranslation(language, 'register')}
           </h2>
-          <p className="text-xs text-pink-100 leading-relaxed font-normal">
-            Please register by phone number or email
+          <p className="text-xs text-amber-100 leading-relaxed font-normal">
+            Please register by phone number
           </p>
         </div>
       </div>
 
       {/* Main Card Content */}
       <div className="px-4 -mt-3">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100">
-          {/* Tab: Register your phone */}
-          <div className="border-b border-pink-50 mb-6 flex justify-center">
-            <div className="pb-3 flex flex-col items-center gap-1 text-sm font-bold relative text-[#FF2A7A]">
-              <div className="w-7 h-7 rounded-lg bg-pink-50 text-[#FF2A7A] flex items-center justify-center">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200">
+          <div className="border-b border-amber-100 mb-6 flex justify-center">
+            <div className="pb-3 flex flex-col items-center gap-1 text-sm font-bold relative text-[#D97706]">
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center">
                 <Smartphone className="w-4 h-4 stroke-[2.5]" />
               </div>
               <span>Register your phone</span>
-              <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#FF2A7A] rounded-full" />
+              <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#D97706] rounded-full" />
             </div>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Phone Number */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-pink-50 text-[#FF2A7A] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
                   <Smartphone className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'phoneNumber')}</span>
               </label>
               <div className="flex gap-2">
-                {/* Country Code Picker */}
                 <div className="relative min-w-[85px]">
                   <select
                     value={countryCode}
                     onChange={(e) => setCountryCode(e.target.value)}
-                    className="w-full bg-[#FFF8FA] border border-pink-100 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-400 appearance-none"
+                    className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 appearance-none"
                   >
                     <option value="+880">+880</option>
                     <option value="+91">+91</option>
@@ -159,7 +169,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     placeholder={getTranslation(language, 'pleaseEnterPhone')}
-                    className="w-full bg-[#FFF8FA] border border-pink-100 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
+                    className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     required
                   />
                 </div>
@@ -169,7 +179,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             {/* Set Password */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-pink-50 text-[#FF2A7A] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
                   <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'password')}</span>
@@ -178,9 +188,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (passwordError) setPasswordError('');
+                  }}
                   placeholder={getTranslation(language, 'password')}
-                  className="w-full bg-[#FFF8FA] border border-pink-100 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
+                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   required
                 />
                 <button
@@ -191,12 +204,18 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {(showPwLiveError || passwordError) && (
+                <div className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold text-rose-500 leading-snug">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                  <span>{passwordError || PASSWORD_RULE_MSG}</span>
+                </div>
+              )}
             </div>
 
             {/* Confirm Password */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-pink-50 text-[#FF2A7A] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
                   <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'confirmPassword')}</span>
@@ -207,7 +226,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder={getTranslation(language, 'confirmPassword')}
-                  className="w-full bg-[#FFF8FA] border border-pink-100 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
+                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   required
                 />
                 <button
@@ -223,7 +242,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             {/* Invite code */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-pink-50 text-[#FF2A7A] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
                   <Gift className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'inviteCode')}</span>
@@ -231,32 +250,43 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
               <input
                 type="text"
                 value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
+                onChange={(e) => {
+                  setInviteCode(e.target.value);
+                  if (inviteError) setInviteError('');
+                }}
                 placeholder={getTranslation(language, 'pleaseEnterInvite')}
-                className="w-full bg-[#FFF8FA] border border-pink-100 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
+                className={`w-full bg-[#FFFDF7] border rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 ${
+                  inviteError ? 'border-rose-400 focus:ring-rose-500' : 'border-amber-200 focus:ring-amber-500'
+                }`}
               />
-              {inviteCode && (
-                <div className="mt-1 text-[11px] text-green-600 font-medium flex items-center gap-1">
+              {inviteError && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-black text-rose-600">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{inviteError}</span>
+                </div>
+              )}
+              {inviteCode && !inviteError && (
+                <div className="mt-1 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
                   <Check className="w-3 h-3 stroke-[3]" />
-                  <span>Referral Invitation Code Applied ({inviteCode})</span>
+                  <span>Referral Invitation Code Entered ({inviteCode})</span>
                 </div>
               )}
             </div>
 
-            {/* Privacy Agreement Checkbox */}
+            {/* Privacy Agreement */}
             <div className="pt-2">
               <label className="flex items-start gap-2.5 cursor-pointer select-none">
                 <div
                   onClick={() => setAgreePrivacy(!agreePrivacy)}
                   className={`w-4 h-4 rounded-full mt-0.5 flex items-center justify-center transition-colors flex-shrink-0 ${
-                    agreePrivacy ? 'bg-[#FF2A7A] text-white' : 'border border-slate-300'
+                    agreePrivacy ? 'bg-[#D97706] text-white' : 'border border-slate-300'
                   }`}
                 >
                   {agreePrivacy && <Check className="w-3 h-3 stroke-[3]" />}
                 </div>
                 <span className="text-xs text-slate-600 leading-tight">
                   I have read and agree{' '}
-                  <span className="text-[#FF2A7A] font-semibold">【Privacy Agreement】</span>
+                  <span className="text-[#D97706] font-semibold">【Privacy Agreement】</span>
                 </span>
               </label>
             </div>
@@ -267,12 +297,11 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
               </div>
             )}
 
-            {/* Buttons */}
             <div className="pt-4 space-y-3">
               <button
                 type="submit"
                 disabled={registrationDisabled || isSubmitting}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-50"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-50"
               >
                 {registrationDisabled ? 'Registration Paused' : getTranslation(language, 'register')}
               </button>
@@ -283,7 +312,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   setActiveTab('login');
                   window.location.hash = '#/login';
                 }}
-                className="w-full py-3.5 rounded-full border border-pink-200 text-[#FF2A7A] font-bold text-sm hover:bg-pink-50 active:scale-98 transition-all flex items-center justify-center gap-1"
+                className="w-full py-3.5 rounded-full border border-amber-300 text-[#B45309] font-bold text-sm hover:bg-amber-50 active:scale-98 transition-all flex items-center justify-center gap-1"
               >
                 <span>I have an account</span>
                 <span className="font-extrabold underline">Login</span>
@@ -292,6 +321,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
           </form>
         </div>
       </div>
+
+      <SliderCaptchaModal
+        isOpen={captchaOpen}
+        onSuccess={handleCaptchaVerified}
+        onClose={() => setCaptchaOpen(false)}
+      />
     </div>
   );
 };

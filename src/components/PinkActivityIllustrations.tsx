@@ -16,29 +16,29 @@ export const PinkGiftIllustration: React.FC<{ className?: string }> = ({ classNa
       preserveAspectRatio="xMidYMid slice"
     >
       <defs>
-        {/* Background Pink Gradient */}
+        {/* Background Luxury Gold Gradient */}
         <linearGradient id="pg_bg_grad" x1="0" y1="0" x2="260" y2="140" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FF4B8B" />
-          <stop offset="50%" stopColor="#FF2A7A" />
-          <stop offset="100%" stopColor="#FF6B95" />
+          <stop offset="0%" stopColor="#B45309" />
+          <stop offset="50%" stopColor="#D97706" />
+          <stop offset="100%" stopColor="#F59E0B" />
         </linearGradient>
 
         {/* Radial Center Glow */}
         <radialGradient id="pg_glow" cx="130" cy="70" r="75" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
-          <stop offset="45%" stopColor="#FFA6C9" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#FF2A7A" stopOpacity="0" />
+          <stop offset="45%" stopColor="#FDE68A" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#D97706" stopOpacity="0" />
         </radialGradient>
 
         {/* Gift Box Gradients */}
         <linearGradient id="pg_box_front" x1="85" y1="58" x2="175" y2="125" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FF3885" />
-          <stop offset="100%" stopColor="#C80050" />
+          <stop offset="0%" stopColor="#B45309" />
+          <stop offset="100%" stopColor="#78350F" />
         </linearGradient>
 
         <linearGradient id="pg_lid_grad" x1="75" y1="42" x2="185" y2="65" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FF65A0" />
-          <stop offset="100%" stopColor="#E60064" />
+          <stop offset="0%" stopColor="#D97706" />
+          <stop offset="100%" stopColor="#92400E" />
         </linearGradient>
 
         {/* Shiny Gold Gradient */}
@@ -107,7 +107,7 @@ export const PinkGiftIllustration: React.FC<{ className?: string }> = ({ classNa
         {/* Main Box Body */}
         <rect x="90" y="60" width="80" height="58" rx="8" fill="url(#pg_box_front)" />
         {/* Box Inner Shading / Highlight */}
-        <rect x="91" y="61" width="78" height="56" rx="7" stroke="#FFA3C5" strokeWidth="1" fill="none" opacity="0.4" />
+        <rect x="91" y="61" width="78" height="56" rx="7" stroke="#FDE68A" strokeWidth="1" fill="none" opacity="0.45" />
 
         {/* Vertical Gold Ribbon */}
         <rect x="122" y="60" width="16" height="58" fill="url(#pg_gold_ribbon)" />
@@ -119,7 +119,7 @@ export const PinkGiftIllustration: React.FC<{ className?: string }> = ({ classNa
 
         {/* Box Lid */}
         <rect x="83" y="44" width="94" height="20" rx="5" fill="url(#pg_lid_grad)" />
-        <rect x="84" y="45" width="92" height="18" rx="4" stroke="#FFB8D2" strokeWidth="1" fill="none" opacity="0.6" />
+        <rect x="84" y="45" width="92" height="18" rx="4" stroke="#FDE68A" strokeWidth="1" fill="none" opacity="0.6" />
         {/* Lid Vertical Ribbon */}
         <rect x="122" y="44" width="16" height="20" fill="url(#pg_gold_ribbon)" />
         <line x1="130" y1="44" x2="130" y2="64" stroke="#FFE978" strokeWidth="1" opacity="0.8" />
@@ -180,18 +180,18 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
       preserveAspectRatio="xMidYMid slice"
     >
       <defs>
-        {/* Background Pink Gradient */}
+        {/* Background Luxury Gold Gradient */}
         <linearGradient id="pa_bg_grad" x1="0" y1="0" x2="260" y2="140" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FF4B8B" />
-          <stop offset="50%" stopColor="#FF2A7A" />
-          <stop offset="100%" stopColor="#FF6B95" />
+          <stop offset="0%" stopColor="#B45309" />
+          <stop offset="50%" stopColor="#D97706" />
+          <stop offset="100%" stopColor="#F59E0B" />
         </linearGradient>
 
         {/* Ambient Center Glow */}
         <radialGradient id="pa_glow" cx="130" cy="70" r="75" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
-          <stop offset="45%" stopColor="#FFA6C9" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#FF2A7A" stopOpacity="0" />
+          <stop offset="45%" stopColor="#FDE68A" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#D97706" stopOpacity="0" />
         </radialGradient>
 
         {/* Gold Gradients */}
@@ -202,12 +202,12 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
         </linearGradient>
 
         <linearGradient id="pa_cal_header" x1="85" y1="36" x2="175" y2="58" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FF2A7A" />
-          <stop offset="100%" stopColor="#D9005B" />
+          <stop offset="0%" stopColor="#D97706" />
+          <stop offset="100%" stopColor="#92400E" />
         </linearGradient>
 
         <filter id="pa_drop_shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#660026" floodOpacity="0.38" />
+          <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#78350F" floodOpacity="0.38" />
         </filter>
       </defs>
 
@@ -225,8 +225,8 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
       <g transform="translate(46, 68) rotate(-14)" filter="url(#pa_drop_shadow)">
         <rect x="-18" y="-12" width="36" height="24" rx="4" fill="url(#pa_gold)" />
         {/* Ticket Cutouts */}
-        <circle cx="-18" cy="0" r="3.5" fill="#FF3E82" />
-        <circle cx="18" cy="0" r="3.5" fill="#FF3E82" />
+        <circle cx="-18" cy="0" r="3.5" fill="#B45309" />
+        <circle cx="18" cy="0" r="3.5" fill="#B45309" />
         <rect x="-15" y="-9" width="30" height="18" rx="2" stroke="#FFF7B8" strokeWidth="0.8" fill="none" opacity="0.7" />
         <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳100</text>
       </g>
@@ -234,8 +234,8 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
       {/* Floating Voucher Ticket Right */}
       <g transform="translate(214, 76) rotate(16)" filter="url(#pa_drop_shadow)">
         <rect x="-18" y="-12" width="36" height="24" rx="4" fill="url(#pa_gold)" />
-        <circle cx="-18" cy="0" r="3.5" fill="#FF3E82" />
-        <circle cx="18" cy="0" r="3.5" fill="#FF3E82" />
+        <circle cx="-18" cy="0" r="3.5" fill="#B45309" />
+        <circle cx="18" cy="0" r="3.5" fill="#B45309" />
         <rect x="-15" y="-9" width="30" height="18" rx="2" stroke="#FFF7B8" strokeWidth="0.8" fill="none" opacity="0.7" />
         <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳500</text>
       </g>
@@ -303,8 +303,8 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
 
         {/* Day 5 - Active Target */}
         <g transform="translate(100, 88)">
-          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#FFF0F5" stroke="#FF2A7A" strokeWidth="1" />
-          <text x="0" y="3.5" fill="#FF2A7A" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">5</text>
+          <rect x="-8" y="-7" width="16" height="14" rx="3.5" fill="#FFFBEB" stroke="#D97706" strokeWidth="1" />
+          <text x="0" y="3.5" fill="#B45309" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">5</text>
         </g>
 
         {/* Day 6 */}
@@ -320,8 +320,8 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
         </g>
 
         {/* Bottom Status bar */}
-        <rect x="94" y="102" width="72" height="6" rx="3" fill="#FFE3EE" />
-        <rect x="94" y="102" width="46" height="6" rx="3" fill="#FF2A7A" />
+        <rect x="94" y="102" width="72" height="6" rx="3" fill="#FEF3C7" />
+        <rect x="94" y="102" width="46" height="6" rx="3" fill="#D97706" />
       </g>
 
       {/* Decorative Pencil on Right */}
@@ -329,7 +329,7 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
         {/* Pencil body */}
         <rect x="-3" y="-18" width="6" height="26" rx="1" fill="#FFD000" stroke="#D49000" strokeWidth="0.5" />
         {/* Eraser at top */}
-        <rect x="-3" y="-22" width="6" height="4" rx="1" fill="#FF65A0" />
+        <rect x="-3" y="-22" width="6" height="4" rx="1" fill="#D97706" />
         <rect x="-3" y="-19" width="6" height="2" fill="#CBD5E1" />
         {/* Tip */}
         <polygon points="-3,8 3,8 0,14" fill="#FDE68A" />

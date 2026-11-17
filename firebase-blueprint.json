@@ -57,6 +57,7 @@
         "registrationEnabled": { "type": "boolean" },
         "maintenanceMode": { "type": "boolean" },
         "timezoneOffsetMinutes": { "type": "number" },
+        "minesPattern": { "type": "string", "enum": ["RANDOM", "FIRST_WIN_SECOND_LOSS", "THREE_WIN_TEN_LOSS"] },
         "binaryNextCandleBias": { "type": "string", "enum": ["AUTO", "BULL", "BEAR"] },
         "updatedAt": { "type": "number" }
       }
@@ -201,13 +202,45 @@
       "type": "object",
       "properties": {
         "poolId": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "game": { "type": "string", "enum": ["k3", "d5", "mines", "binary"] },
+        "game": { "type": "string", "enum": ["k3", "d5", "mines", "binary", "coinflip"] },
         "mode": { "type": "string", "maxLength": 64 },
         "period": { "type": "string", "maxLength": 64 },
         "totalAmount": { "type": "number" },
         "updatedAt": { "type": "number" }
       },
       "required": ["poolId", "game", "totalAmount"]
+    },
+    "ReferralMember": {
+      "title": "ReferralMember",
+      "description": "Invited subordinate team member tied to a referrer's invite code or UID.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "referrerCode": { "type": "string", "maxLength": 64 },
+        "uid": { "type": "string", "maxLength": 64 },
+        "nickname": { "type": "string", "maxLength": 80 },
+        "phone": { "type": "string", "maxLength": 64 },
+        "commission": { "type": "number" },
+        "depositAmount": { "type": "number" },
+        "level": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "pending"] }
+      },
+      "required": ["id", "referrerCode", "uid"]
+    },
+    "CrashPoolState": {
+      "title": "CrashPoolState",
+      "description": "Synchronized round pool and 30% payout threshold state for Aviator and Lucky Jet.",
+      "type": "object",
+      "properties": {
+        "game": { "type": "string", "enum": ["aviator", "luckyjet"] },
+        "roundId": { "type": "string", "maxLength": 64 },
+        "totalPool": { "type": "number" },
+        "totalPaidOut": { "type": "number" },
+        "maxPayoutCap": { "type": "number" },
+        "forcedCrashMultiplier": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["game", "roundId", "totalPool", "totalPaidOut"]
     }
   },
   "firestore": {
@@ -258,6 +291,14 @@
     "/marketPools/{poolId}": {
       "schema": { "$ref": "#/entities/MarketPool" },
       "description": "Live collective bet totals per round across devices."
+    },
+    "/referrals/{referralId}": {
+      "schema": { "$ref": "#/entities/ReferralMember" },
+      "description": "Invited subordinate records synced across devices."
+    },
+    "/crashState/{gameId}": {
+      "schema": { "$ref": "#/entities/CrashPoolState" },
+      "description": "Shared Aviator and Lucky Jet 30% pool payout cap state."
     }
   }
 }

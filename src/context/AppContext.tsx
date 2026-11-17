@@ -27,7 +27,10 @@ import {
   K3Bet,
   D5Result,
   D5Bet,
-  AdminAccessLog
+  AdminAccessLog,
+  MarketPoolEntry,
+  CrashPoolState,
+  CoinFlipBet
 } from '../types';
 import confetti from 'canvas-confetti';
 import {
@@ -57,7 +60,13 @@ import {
   subscribeNotificationsInFirebase,
   saveNotificationToFirebase,
   subscribeAdminAccessLogsInFirebase,
-  saveAdminAccessLogToFirebase
+  saveAdminAccessLogToFirebase,
+  subscribeMarketPoolsInFirebase,
+  saveMarketPoolInFirebase,
+  subscribeReferralsInFirebase,
+  saveReferralToFirebase,
+  subscribeCrashStateInFirebase,
+  saveCrashStateToFirebase
 } from '../lib/firebase';
 import { BINARY_MARKETS, BINARY_MARKET_MAP } from '../constants/markets';
 import { VIP_TIERS } from '../constants/vipTiers';
@@ -67,22 +76,31 @@ import {
   nextIssueFromLatest
 } from '../utils/lotteryApi';
 import {
+  evaluateCrash30Cap,
+  evaluatePoolControl,
+  getDateKeyWithOffset,
   getSyncedBinarySnapshot,
   getSyncedWinGoNumber,
   subtractPeriodString
 } from '../utils/syncedMarkets';
 
+export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+export const PASSWORD_RULE_MSG = 'The password must be at least 8 digits and must contain letters + numbers';
+
 export const ATTENDANCE_TIERS = [
-  { day: 1, requiredDeposit: 1000, amount: 20 },
-  { day: 2, requiredDeposit: 2000, amount: 40 },
-  { day: 3, requiredDeposit: 4000, amount: 80 },
-  { day: 4, requiredDeposit: 6000, amount: 150 },
-  { day: 5, requiredDeposit: 10000, amount: 300 },
-  { day: 6, requiredDeposit: 18000, amount: 600 },
-  { day: 7, requiredDeposit: 30000, amount: 1200 },
+  { day: 1, requiredDeposit: 0, amount: 1 },
+  { day: 2, requiredDeposit: 0, amount: 2 },
+  { day: 3, requiredDeposit: 0, amount: 3 },
+  { day: 4, requiredDeposit: 0, amount: 4 },
+  { day: 5, requiredDeposit: 0, amount: 5 },
+  { day: 6, requiredDeposit: 0, amount: 6 },
+  { day: 7, requiredDeposit: 0, amount: 7 },
 ];
 
-export const getLocalDateStr = (d: Date = new Date()): string => {
+export const getLocalDateStr = (d: Date = new Date(), offsetMinutes?: number): string => {
+  if (typeof offsetMinutes === 'number') {
+    return getDateKeyWithOffset(d.getTime(), offsetMinutes);
+  }
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
 };
@@ -190,21 +208,32 @@ interface AppContextType {
   updateUserAvatar: (avatarDataUrl: string) => void;
   bindWallet: (type: 'bKash' | 'Nagad', number: string, loginPassword: string) => Promise<{ success: boolean; message: string }>;
   submitDepositRequest: (amount: number, method: 'bKash' | 'Nagad' | 'USDT', channel: string, senderNumber: string, trxId: string) => { success: boolean; message: string };
+  initiateEwiPayDeposit: (amount: number, method: 'bKash' | 'Nagad' | 'USDT', channel: string, senderNumber?: string) => Promise<{ success: boolean; message: string; checkoutUrl?: string; depositId?: string }>;
+  syncEwiPayTransactions: () => Promise<any[]>;
   approveDeposit: (requestId: string) => void;
   rejectDeposit: (requestId: string, note?: string) => void;
   claimDepositBonus: () => { success: boolean; message: string };
   withdraw: (amount: number, method: 'bKash' | 'Nagad', loginPass: string) => { success: boolean; message: string };
   transferSafe: (amount: number, direction: 'in' | 'out') => { success: boolean; message: string };
-  claimGiftCode: (code: string) => Promise<{ success: boolean; message: string }>;
+  claimGiftCode: (code: string) => Promise<{ success: boolean; message: string; pendingDeposit?: boolean }>;
   claimAttendanceReward: (day: number) => { success: boolean; message: string };
   claimVipReward: (level: number, type: 'levelUp' | 'monthly', amount: number) => { success: boolean; message: string };
   placeBet: (mode: WinGoMode, type: 'color' | 'number' | 'size', value: string | number, amount: number, multiplier: number) => { success: boolean; message: string };
-  placeBinaryTrade: (asset: string, direction: 'UP' | 'DOWN', amount: number, durationSeconds: number) => { success: boolean; message: string };
+  placeBinaryTrade: (asset: string, direction: 'UP' | 'DOWN', amount: number, durationSeconds: number, entryPriceOverride?: number) => { success: boolean; message: string };
   placeAviatorBet: (roundId: string, amount: number, autoCashout?: number) => { success: boolean; message: string; betId?: string };
   cashOutAviatorBet: (betId: string, multiplier: number) => { success: boolean; winAmount: number };
   loseAviatorBet: (betId: string) => void;
+  crashPoolStates: Record<'aviator' | 'luckyjet', CrashPoolState | null>;
+  placeCrashBet: (game: 'aviator' | 'luckyjet', roundId: string, amount: number, autoCashout?: number) => Promise<{ success: boolean; message: string; betId?: string; crashed?: boolean; crashPoint?: number }>;
+  cashOutCrashBet: (game: 'aviator' | 'luckyjet', betId: string, multiplier: number) => Promise<{ success: boolean; winAmount: number; crashed?: boolean; crashPoint?: number }>;
   placeMinesBet: (amount: number, minesCount: number) => { success: boolean; message: string };
   cashOutMinesWin: (betAmount: number, winAmount: number, multiplier: number, minesCount: number) => { success: boolean; winAmount: number };
+  incrementMinesRoundSeq: () => void;
+  coinFlipBets: CoinFlipBet[];
+  placeCoinFlipBet: (periodNumber: string, side: 'GOLD' | 'SILVER', amount: number) => { success: boolean; message: string; betId?: string };
+  settleCoinFlipRound: (periodNumber: string, resultSide: 'GOLD' | 'SILVER') => void;
+  marketPools: Record<string, MarketPoolEntry>;
+  recordMarketPoolBet: (game: 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip', mode: string, period: string, selection: string, amount: number) => void;
   claimAgentSalary: (tierMembers: number, salaryAmount: number) => { success: boolean; message: string };
   claimActivityAward: (missionKey: string, targetBet: number, rewardAmount: number, isDaily: boolean) => { success: boolean; message: string };
   getInviteLink: () => string;
@@ -351,7 +380,7 @@ export const DEFAULT_GAMES: GameItem[] = [
   {
     id: 'game_k3',
     slug: 'k3-lottery',
-    title: 'K3 Lottery',
+    title: 'EWI K3',
     imageUrl: '',
     category: 'Lottery',
     badge: '207X',
@@ -360,12 +389,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'k3',
-    htmlCode: '<!-- EWI 777 K3 Dice Lottery Engine -->\n<div class="ewi-game" data-game="k3">K3 Dice Live</div>'
+    htmlCode: '<!-- EWI 777 EWI K3 Dice Lottery Engine -->\n<div class="ewi-game" data-game="k3">EWI K3 Dice Live</div>'
   },
   {
     id: 'game_5d',
     slug: '5d-lottery',
-    title: '5D Lottery',
+    title: 'EWI 5D',
     imageUrl: '',
     category: 'Lottery',
     badge: '9X',
@@ -374,7 +403,49 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: '5d',
-    htmlCode: '<!-- EWI 777 5D Number Lottery Engine -->\n<div class="ewi-game" data-game="5d">5D Lottery Live</div>'
+    htmlCode: '<!-- EWI 777 EWI 5D Number Lottery Engine -->\n<div class="ewi-game" data-game="5d">EWI 5D Lottery Live</div>'
+  },
+  {
+    id: 'game_luckyjet',
+    slug: 'lucky-jet',
+    title: 'Lucky Jet',
+    imageUrl: '',
+    category: 'Crash',
+    badge: '10000X',
+    price: '10000X',
+    sortOrder: 10,
+    active: true,
+    featured: true,
+    targetTab: 'luckyjet',
+    htmlCode: '<!-- EWI 777 Lucky Jet Crash Engine -->\n<div class="ewi-game" data-game="luckyjet">Lucky Jet Live</div>'
+  },
+  {
+    id: 'game_coinflip',
+    slug: 'coin-flip',
+    title: 'Coin Flip',
+    imageUrl: '',
+    category: 'Casino',
+    badge: '1.89X',
+    price: '1.89X',
+    sortOrder: 11,
+    active: true,
+    featured: true,
+    targetTab: 'coinflip',
+    htmlCode: '<!-- EWI 777 Coin Flip Engine -->\n<div class="ewi-game" data-game="coinflip">Coin Flip Gold/Silver</div>'
+  },
+  {
+    id: 'game_gold_market',
+    slug: 'gold-market',
+    title: 'Gold Market',
+    imageUrl: '',
+    category: 'Trading',
+    badge: 'XAU/USD',
+    price: '90%',
+    sortOrder: 12,
+    active: true,
+    featured: true,
+    targetTab: 'binary',
+    htmlCode: '<!-- EWI 777 Gold Spot XAU/USD Trading -->\n<div class="ewi-game" data-game="binary" data-asset="XAU/USD">Gold Market Live</div>'
   }
 ];
 
@@ -447,6 +518,13 @@ function sanitizeGatewayNumber(val: unknown): string {
   return sha256HexSync(norm) === DEFAULT_ADMIN_PHONE_HASH ? '' : str;
 }
 
+function sanitizeAppLogoUrl(val: unknown): string {
+  const s = String(val || '').trim();
+  if (!s) return '';
+  if (s.includes('image_0435eabf') || s.includes('pink') && s.includes('ewi')) return '';
+  return s;
+}
+
 function sanitizeBannerListClient(list: any): AdminSettings['banners'] {
   if (!Array.isArray(list)) return DEFAULT_BANNERS;
   return list
@@ -454,6 +532,9 @@ function sanitizeBannerListClient(list: any): AdminSettings['banners'] {
       const url = String(b?.url || '');
       if (url.includes('image_06ccef65.png')) {
         return { ...b, url: '/assets/brand/welcome-200-banner.png' };
+      }
+      if (url.includes('image_8c5384f7')) {
+        return { ...b, url: '/ewi777-banner.jpg' };
       }
       return b;
     })
@@ -502,7 +583,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   usdtAddress: '',
   minWithdraw: 100,
   referCommissionPercent: 10,
-  depositInstructions: 'Deposits are currently disabled by Administration (NOW NOT AVAILABLE). Please contact Customer Service for updates.',
+  depositInstructions: 'Complete instant deposit cleanly via EWI-Pay Gateway (bKash / Nagad / Rocket / USDT).',
   nextWingoOutcome: 'AUTO',
   nextWingoOutcomes: {
     '30s': 'AUTO',
@@ -518,12 +599,23 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   appLogoUrl: '',
   supportLink: '',
   supportPhone: '',
-  depositEnabled: false,
+  siteEnabled: true,
+  depositEnabled: true,
   withdrawEnabled: true,
   giftCodeEnabled: true,
   registrationEnabled: true,
   maintenanceMode: false,
-  marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Instant referral commission, 24/7 fast withdrawals via Nagad & bKash. Live synchronized WinGo, K3, 5D, Aviator, Mines & Binary Trading!',
+  timezoneOffsetMinutes: 360,
+  gameControlModes: {
+    k3: 'HIGH_BET_LOSS',
+    d5: 'HIGH_BET_LOSS',
+    mines: 'AUTO',
+    binary: 'HIGH_BET_LOSS',
+    coinflip: 'HIGH_BET_LOSS'
+  },
+  minesPattern: 'RANDOM',
+  binaryNextCandleBias: 'AUTO',
+  marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Instant referral commission, 24/7 fast withdrawals via Nagad & bKash. Live synchronized WinGo, EWI K3, EWI 5D, Aviator, Lucky Jet, Coin Flip, Mines & Gold Market!',
   popupTitle: 'Welcome to EWI 777',
   popupMessage: '',
   enableSystemPopup: false,
@@ -536,44 +628,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   adminPasswordHash: DEFAULT_ADMIN_PASS_HASH
 };
 
-const INITIAL_REFERRALS: ReferralMember[] = [
-  {
-    id: 'ref_1',
-    referrerCode: '1623059',
-    phone: '017***9481',
-    uid: '1849102',
-    nickname: 'Rahim***88',
-    registrationDate: '2026-10-19 14:22:10',
-    commission: 420.50,
-    depositAmount: 5000,
-    level: 1,
-    status: 'active'
-  },
-  {
-    id: 'ref_2',
-    referrerCode: '1623059',
-    phone: '018***3320',
-    uid: '1904128',
-    nickname: 'Karim***07',
-    registrationDate: '2026-10-18 19:40:15',
-    commission: 850.00,
-    depositAmount: 10000,
-    level: 1,
-    status: 'active'
-  },
-  {
-    id: 'ref_3',
-    referrerCode: '1623059',
-    phone: '019***1294',
-    uid: '2019483',
-    nickname: 'Hasan***99',
-    registrationDate: '2026-10-17 11:15:32',
-    commission: 120.00,
-    depositAmount: 2000,
-    level: 1,
-    status: 'active'
-  }
-];
+const INITIAL_REFERRALS: ReferralMember[] = [];
 
 const INITIAL_TRANSACTIONS: Transaction[] = [];
 
@@ -747,6 +802,8 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'vip' || cleanHash === 'vip' || full.includes('/vip') || full.includes('#/vip')) resolved = 'vip';
     else if (target === 'wingo' || cleanHash === 'wingo' || full.includes('/wingo') || full.includes('#/wingo')) resolved = 'wingo';
     else if (target === 'aviator' || target === 'aviator-plane' || cleanHash === 'aviator' || full.includes('/aviator') || full.includes('#/aviator')) resolved = 'aviator';
+    else if (target === 'luckyjet' || target === 'lucky-jet' || cleanHash === 'luckyjet' || full.includes('/luckyjet') || full.includes('#/luckyjet')) resolved = 'luckyjet';
+    else if (target === 'coinflip' || target === 'coin-flip' || cleanHash === 'coinflip' || full.includes('/coinflip') || full.includes('#/coinflip')) resolved = 'coinflip';
     else if (target === 'binary' || target === 'binary-market' || cleanHash === 'binary' || full.includes('/binary') || full.includes('#/binary')) resolved = 'binary';
     else if (target === 'activity' || cleanHash === 'activity' || full.includes('/activity') || full.includes('#/activity')) resolved = 'activity';
     else if (target === 'promotion' || cleanHash === 'promotion' || full.includes('/promotion') || full.includes('invite')) resolved = 'promotion';
@@ -757,7 +814,20 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'customer-service' || cleanHash === 'customer-service' || full.includes('/customer-service') || full.includes('#/customer-service')) resolved = 'customer-service';
     else if (target === 'salary' || cleanHash === 'salary' || full.includes('/salary') || full.includes('#/salary')) resolved = 'salary';
     else if (target === 'gifts' || cleanHash === 'gifts' || full.includes('/gifts') || full.includes('#/gifts')) resolved = 'gifts';
-    else if (target === 'attendence' || target === 'attendance' || cleanHash === 'attendence' || cleanHash === 'attendance' || full.includes('/attendence') || full.includes('/attendance')) resolved = 'attendence';
+    else if (
+      target === 'cheking' ||
+      target === 'checking' ||
+      target === 'attendence' ||
+      target === 'attendance' ||
+      cleanHash === 'cheking' ||
+      cleanHash === 'checking' ||
+      cleanHash === 'attendence' ||
+      cleanHash === 'attendance' ||
+      full.includes('/cheking') ||
+      full.includes('/checking') ||
+      full.includes('/attendence') ||
+      full.includes('/attendance')
+    ) resolved = 'attendence';
     else if (target === 'change-nickname' || cleanHash === 'change-nickname' || full.includes('/change-nickname') || full.includes('#/change-nickname')) resolved = 'change-nickname';
     else if (target === 'change-login-password' || cleanHash === 'change-login-password' || full.includes('/change-login-password') || full.includes('#/change-login-password')) resolved = 'change-login-password';
     else if (target === 'language' || cleanHash === 'language' || full.includes('/language') || full.includes('#/language')) resolved = 'language';
@@ -802,14 +872,14 @@ export const calculateWinGoPayoutForNumber = (candidate: number, periodBets: Win
       }
     } else if (bet.type === 'size') {
       if (bet.value === size) {
-        payout += bet.totalAmount * 2;
+        payout += bet.totalAmount * 1.89;
       }
     } else if (bet.type === 'color') {
       if (bet.value === 'green') {
-        if ([1, 3, 7, 9].includes(candidate)) payout += bet.totalAmount * 2;
+        if ([1, 3, 7, 9].includes(candidate)) payout += bet.totalAmount * 1.89;
         else if (candidate === 5) payout += bet.totalAmount * 1.5;
       } else if (bet.value === 'red') {
-        if ([2, 4, 6, 8].includes(candidate)) payout += bet.totalAmount * 2;
+        if ([2, 4, 6, 8].includes(candidate)) payout += bet.totalAmount * 1.89;
         else if (candidate === 0) payout += bet.totalAmount * 1.5;
       } else if (bet.value === 'violet') {
         if ([0, 5].includes(candidate)) payout += bet.totalAmount * 4.5;
@@ -925,7 +995,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [referrals, setReferrals] = useState<ReferralMember[]>(() => {
     try {
       const saved = localStorage.getItem('win777_referrals');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const fakeUids = new Set(['1849102', '1904128', '2019483']);
+          return parsed.filter((r: ReferralMember) => r && !fakeUids.has(String(r.uid)));
+        }
+      }
     } catch {}
     return INITIAL_REFERRALS;
   });
@@ -971,9 +1047,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             withNewGames.push(dg);
           }
         }
-        const loadedGames = withNewGames.map((g: GameItem) =>
-          g.id === 'game_aviator' ? { ...g, badge: '10000X', price: '10000X' } : g
-        );
+        const loadedGames = withNewGames.map((g: GameItem) => {
+          if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
+          if (g.id === 'game_coinflip') return { ...g, badge: '1.89X', price: '1.89X' };
+          if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
+          if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
+          return g;
+        });
         const hasLegacyRetiredBanner =
           Array.isArray(parsed.banners) &&
           parsed.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14'));
@@ -991,6 +1071,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanParsed,
+          appLogoUrl: sanitizeAppLogoUrl(cleanParsed.appLogoUrl),
+          gameControlModes: {
+            ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
+            ...(cleanParsed.gameControlModes || {})
+          },
           bkashNumber: sanitizeGatewayNumber(cleanParsed.bkashNumber),
           nagadNumber: sanitizeGatewayNumber(cleanParsed.nagadNumber),
           supportPhone: sanitizeGatewayNumber(cleanParsed.supportPhone),
@@ -1068,6 +1153,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     return [];
   });
+  const [coinFlipBets, setCoinFlipBets] = useState<CoinFlipBet[]>(() => {
+    try {
+      const saved = localStorage.getItem('ewi777_coinflip_bets');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+  const [marketPools, setMarketPools] = useState<Record<string, MarketPoolEntry>>({});
+  const marketPoolsRef = useRef<Record<string, MarketPoolEntry>>({});
+  marketPoolsRef.current = marketPools;
+  const [crashPoolStates, setCrashPoolStates] = useState<Record<'aviator' | 'luckyjet', CrashPoolState | null>>({
+    aviator: null,
+    luckyjet: null
+  });
+  const crashPoolStatesRef = useRef(crashPoolStates);
+  crashPoolStatesRef.current = crashPoolStates;
 
   // 4 Independent WinGo Markets state (30s, 1m, 3m, 5m)
   const [activeWingoMode, setActiveWingoMode] = useState<WinGoMode>('30s');
@@ -1144,28 +1245,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   });
 
-  // Compute Daily Attendance days dynamically from user's deposit & consecutive check-in state
+  // Compute Daily Sign-In Bonus days (Day 1 ৳1 up to Day 7 ৳7, unlocks at 12:00 AM, resets to Day 1 after Day 7 or missed day)
   const attendance: AttendanceDay[] = React.useMemo(() => {
-    const today = getLocalDateStr();
-    const yesterday = getLocalDateStr(new Date(Date.now() - 86400000));
+    const tzOffset =
+      typeof adminSettings.timezoneOffsetMinutes === 'number' ? adminSettings.timezoneOffsetMinutes : 360;
+    const today = getDateKeyWithOffset(Date.now(), tzOffset);
+    const yesterday = getDateKeyWithOffset(Date.now() - 86400000, tzOffset);
     const attState = user.attendanceState || { claimedDays: [], streak: 0 };
-    const claimedDays = Array.isArray(attState.claimedDays) ? attState.claimedDays : [];
+    const rawClaimedDays = Array.isArray(attState.claimedDays) ? attState.claimedDays : [];
     const lastClaimDate = attState.lastClaimDate;
     const claimedToday = lastClaimDate === today;
     const missedDay = Boolean(lastClaimDate && lastClaimDate !== today && lastClaimDate !== yesterday);
-    const totalDep = Number(user.totalDeposited) || 0;
+    const cycleCompletedEarlier = rawClaimedDays.length >= 7 && !claimedToday;
+    const effectiveClaimed = missedDay || cycleCompletedEarlier ? [] : rawClaimedDays;
 
-    // Next eligible day in [1..7] that hasn't been claimed yet (each day 1-time claim per user)
-    // If streak was broken (missedDay) and Day 1 was not claimed, Day 1 is next;
-    // If Day 1 was already claimed earlier, the next unclaimed day opens after today's deposit or consecutive sequence.
-    const nextUnclaimed = ATTENDANCE_TIERS.find((t) => !claimedDays.includes(t.day))?.day ?? null;
+    const nextUnclaimed = ATTENDANCE_TIERS.find((t) => !effectiveClaimed.includes(t.day))?.day ?? null;
 
     return ATTENDANCE_TIERS.map((tier) => {
-      const isClaimed = claimedDays.includes(tier.day);
+      const isClaimed = effectiveClaimed.includes(tier.day);
       if (isClaimed) {
         return {
           day: tier.day,
-          requiredDeposit: tier.requiredDeposit,
+          requiredDeposit: 0,
           amount: tier.amount,
           claimed: true,
           status: 'claimed' as const,
@@ -1176,7 +1277,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!user.isLoggedIn) {
         return {
           day: tier.day,
-          requiredDeposit: tier.requiredDeposit,
+          requiredDeposit: 0,
           amount: tier.amount,
           claimed: false,
           status: 'locked' as const,
@@ -1184,32 +1285,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      if (totalDep <= 0) {
-        return {
-          day: tier.day,
-          requiredDeposit: tier.requiredDeposit,
-          amount: tier.amount,
-          claimed: false,
-          status: 'locked' as const,
-          lockReason: 'No deposit history'
-        };
-      }
-
       if (claimedToday) {
         return {
           day: tier.day,
-          requiredDeposit: tier.requiredDeposit,
+          requiredDeposit: 0,
           amount: tier.amount,
           claimed: false,
           status: 'locked' as const,
-          lockReason: 'Unlocks tomorrow'
+          lockReason: 'Come back tomorrow (12:00 AM)'
         };
       }
 
       if (tier.day !== nextUnclaimed) {
         return {
           day: tier.day,
-          requiredDeposit: tier.requiredDeposit,
+          requiredDeposit: 0,
           amount: tier.amount,
           claimed: false,
           status: 'locked' as const,
@@ -1217,37 +1307,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      if (missedDay && attState.lastDepositDate !== today && totalDep < tier.requiredDeposit) {
-        return {
-          day: tier.day,
-          requiredDeposit: tier.requiredDeposit,
-          amount: tier.amount,
-          claimed: false,
-          status: 'locked' as const,
-          lockReason: `Need ৳${tier.requiredDeposit.toLocaleString()}+ deposit`
-        };
-      }
-
-      if (totalDep < tier.requiredDeposit) {
-        return {
-          day: tier.day,
-          requiredDeposit: tier.requiredDeposit,
-          amount: tier.amount,
-          claimed: false,
-          status: 'locked' as const,
-          lockReason: `Deposit ৳${tier.requiredDeposit.toLocaleString()}+ required`
-        };
-      }
-
       return {
         day: tier.day,
-        requiredDeposit: tier.requiredDeposit,
+        requiredDeposit: 0,
         amount: tier.amount,
         claimed: false,
         status: 'available' as const
       };
     });
-  }, [user.isLoggedIn, user.totalDeposited, user.attendanceState]);
+  }, [user.isLoggedIn, user.attendanceState, adminSettings.timezoneOffsetMinutes]);
 
   // Persist states
   useEffect(() => {
@@ -1322,6 +1390,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [d5Bets]);
 
   useEffect(() => {
+    localStorage.setItem('ewi777_coinflip_bets', JSON.stringify(coinFlipBets.slice(0, 150)));
+  }, [coinFlipBets]);
+
+  useEffect(() => {
     localStorage.setItem('ewi777_admin_access_logs', JSON.stringify(adminAccessLogs.slice(0, 200)));
   }, [adminAccessLogs]);
 
@@ -1370,18 +1442,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const syncUserEverywhere = (nextUser: User, explicitUpdatedAt?: number): User => {
+    const ts = explicitUpdatedAt || Math.max(Date.now(), Number(nextUser.updatedAt || 0));
+    const stamped: User = { ...nextUser, updatedAt: ts };
+    lastUsersMutationAtRef.current = Date.now();
+    if (stamped.id) {
+      saveUserToFirebase(stamped).catch(() => {});
+      fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: stamped })
+      }).catch(() => {});
+    }
+    return stamped;
+  };
+
+  const matchesTargetUser = (candidate: User, targetId: string, targetPhone?: string): boolean => {
+    if (candidate.id === targetId || (candidate.uid && candidate.uid === targetId)) return true;
+    const normT = normalizePhone(targetPhone || '');
+    if (normT && candidate.phone && normalizePhone(candidate.phone) === normT) return true;
+    return false;
+  };
+
   useEffect(() => {
     const syncServerData = async () => {
       const pollStartedAt = Date.now();
       try {
-        const [depRes, wdRes, setRes, usrRes, wBetRes, csRes] = await Promise.all([
+        const [depRes, wdRes, setRes, usrRes, wBetRes, csRes, refRes, poolRes] = await Promise.all([
           fetch('/api/deposits', { cache: 'no-store' }).catch(() => null),
           fetch('/api/withdraws', { cache: 'no-store' }).catch(() => null),
           fetch('/api/settings', { cache: 'no-store' }).catch(() => null),
           fetch('/api/users', { cache: 'no-store' }).catch(() => null),
           fetch('/api/wingo/bets', { cache: 'no-store' }).catch(() => null),
           fetch('/api/support/messages', { cache: 'no-store' }).catch(() => null),
+          fetch('/api/referrals', { cache: 'no-store' }).catch(() => null),
+          fetch('/api/market-pools', { cache: 'no-store' }).catch(() => null),
         ]);
+
+        const refCt = refRes?.headers.get('content-type') || '';
+        if (refRes && refRes.ok && refCt.includes('application/json')) {
+          const refData = await refRes.json().catch(() => null);
+          if (refData && Array.isArray(refData.referrals)) {
+            setReferrals((prev) => {
+              const map = new Map(prev.map((r) => [r.id, r]));
+              let changed = false;
+              for (const sr of refData.referrals) {
+                if (sr?.id && (!map.has(sr.id) || JSON.stringify(map.get(sr.id)) !== JSON.stringify(sr))) {
+                  map.set(sr.id, sr);
+                  changed = true;
+                }
+              }
+              return changed ? Array.from(map.values()) : prev;
+            });
+          }
+        }
+
+        const poolCt = poolRes?.headers.get('content-type') || '';
+        if (poolRes && poolRes.ok && poolCt.includes('application/json')) {
+          const poolData = await poolRes.json().catch(() => null);
+          if (poolData && poolData.pools && typeof poolData.pools === 'object') {
+            setMarketPools((prev) => ({ ...prev, ...poolData.pools }));
+          }
+        }
 
         const csCt = csRes?.headers.get('content-type') || '';
         if (csRes && csRes.ok && csCt.includes('application/json')) {
@@ -1463,9 +1585,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   mergedGamesList.push(dg);
                 }
               }
-              const normalizedGames = mergedGamesList.map((g: GameItem) =>
-                g.id === 'game_aviator' ? { ...g, badge: '10000X', price: '10000X' } : g
-              );
+              const normalizedGames = mergedGamesList.map((g: GameItem) => {
+                if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
+                if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
+                if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
+                return g;
+              });
               const serverHasLegacyBanner =
                 Array.isArray(sData.settings.banners) &&
                 sData.settings.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14'));
@@ -1478,6 +1603,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const merged: AdminSettings = {
                 ...INITIAL_ADMIN_SETTINGS,
                 ...cleanRemote,
+                gameControlModes: {
+                  ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
+                  ...(cleanRemote.gameControlModes || {})
+                },
                 bkashNumber: sanitizeGatewayNumber(cleanRemote.bkashNumber),
                 nagadNumber: sanitizeGatewayNumber(cleanRemote.nagadNumber),
                 supportPhone: sanitizeGatewayNumber(cleanRemote.supportPhone),
@@ -1530,6 +1659,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               for (const su of uData.users) {
                 if (deletedUserIdsRef.current.has(su.id)) continue;
                 const cur = map.get(su.id);
+                const curTs = Number(cur?.updatedAt || 0);
+                const suTs = Number(su?.updatedAt || 0);
+                if (cur && curTs > 0 && suTs > 0 && suTs < curTs) continue;
                 if (!cur || JSON.stringify(cur) !== JSON.stringify(su)) {
                   map.set(su.id, su);
                   changed = true;
@@ -1539,8 +1671,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
 
             if (userRef.current.isLoggedIn && userRef.current.id) {
-              const matched = uData.users.find((su: User) => su.id === userRef.current.id);
-              if (matched) {
+              const normCurPhone = normalizePhone(userRef.current.phone || '');
+              const matched = uData.users.find(
+                (su: User) =>
+                  su.id === userRef.current.id ||
+                  (userRef.current.uid && su.uid === userRef.current.uid) ||
+                  (normCurPhone && su.phone && normalizePhone(su.phone) === normCurPhone)
+              );
+              const curLocalTs = Number(userRef.current.updatedAt || 0);
+              const matchedTs = Number(matched?.updatedAt || 0);
+              const isMatchedStale = Boolean(matched && curLocalTs > 0 && matchedTs > 0 && matchedTs < curLocalTs);
+              if (matched && !isMatchedStale) {
                 const needsAvatarPush = Boolean(userRef.current.avatar && !matched.avatar);
                 if (needsAvatarPush) {
                   fetch('/api/users/update', {
@@ -1557,8 +1698,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   matched.balance !== userRef.current.balance ||
                   matched.totalDeposited !== userRef.current.totalDeposited ||
                   matched.isBanned !== userRef.current.isBanned ||
+                  matched.banReason !== userRef.current.banReason ||
                   matched.turnoverRequired !== userRef.current.turnoverRequired ||
                   matched.role !== userRef.current.role ||
+                  (matched.pendingDepositBonusCode || '') !== (userRef.current.pendingDepositBonusCode || '') ||
+                  (matched.lastGiftReason || '') !== (userRef.current.lastGiftReason || '') ||
                   resolvedAvatar !== (userRef.current.avatar || '') ||
                   JSON.stringify(resolvedClaimedFd || {}) !==
                     JSON.stringify(userRef.current.claimedFirstDepositTiers || {});
@@ -1574,8 +1718,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       turnoverRequired: Number(matched.turnoverRequired) || 0,
                       isBanned: matched.isBanned,
                       banReason: matched.banReason,
+                      pendingDepositBonusCode: matched.pendingDepositBonusCode,
+                      creditedDepositBonusCodes: matched.creditedDepositBonusCodes,
+                      lastGiftReason: matched.lastGiftReason,
+                      lastGiftCode: matched.lastGiftCode ?? userRef.current.lastGiftCode,
+                      lastGiftAmount: matched.lastGiftAmount ?? userRef.current.lastGiftAmount,
+                      lastGiftClaimTime: matched.lastGiftClaimTime ?? userRef.current.lastGiftClaimTime,
                       avatar: resolvedAvatar,
-                      claimedFirstDepositTiers: resolvedClaimedFd
+                      claimedFirstDepositTiers: resolvedClaimedFd,
+                      updatedAt: Math.max(curLocalTs, matchedTs)
                     }
                   : userRef.current;
 
@@ -1591,12 +1742,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     autoVip.newNotifs.forEach((nf) => saveNotificationToFirebase(nf).catch(() => {}));
                   }
                   if (autoVip.totalCredited > 0) {
-                    fetch('/api/users/sync', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ user: autoVip.updatedUser })
-                    }).catch(() => {});
-                    saveUserToFirebase(autoVip.updatedUser).catch(() => {});
+                    syncUserEverywhere(autoVip.updatedUser);
                   }
                 }
               }
@@ -1633,7 +1779,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .catch(() => {});
 
     const unsubSettings = subscribeAppSettingsInFirebase((remoteSettings) => {
-      if (Date.now() - lastSettingsPushAtRef.current < 2200) return;
+      if (Date.now() - lastSettingsPushAtRef.current < 900) return;
       setAdminSettings((prev) => {
         const rawGames =
           Array.isArray(remoteSettings.games) && remoteSettings.games.length > 0
@@ -1645,9 +1791,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             mergedGamesList.push(dg);
           }
         }
-        const normalizedGames = mergedGamesList.map((g: GameItem) =>
-          g.id === 'game_aviator' ? { ...g, badge: '10000X', price: '10000X' } : g
-        );
+        const normalizedGames = mergedGamesList.map((g: GameItem) => {
+          if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
+          if (g.id === 'game_coinflip') return { ...g, badge: '1.89X', price: '1.89X' };
+          if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
+          if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
+          return g;
+        });
         const remoteHasLegacyBanner =
           Array.isArray(remoteSettings.banners) &&
           remoteSettings.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14'));
@@ -1660,6 +1810,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const merged: AdminSettings = {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanRemote,
+          appLogoUrl: sanitizeAppLogoUrl(cleanRemote.appLogoUrl),
+          gameControlModes: {
+            ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
+            ...(cleanRemote.gameControlModes || {})
+          },
           bkashNumber: sanitizeGatewayNumber(cleanRemote.bkashNumber),
           nagadNumber: sanitizeGatewayNumber(cleanRemote.nagadNumber),
           supportPhone: sanitizeGatewayNumber(cleanRemote.supportPhone),
@@ -1680,7 +1835,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const unsubUsers = subscribeUsersInFirebase((fbUsers) => {
-      if (Date.now() - lastUsersMutationAtRef.current < 2200) return;
+      if (Date.now() - lastUsersMutationAtRef.current < 900) return;
       if (!Array.isArray(fbUsers)) return;
 
       setAllUsers((prev) => {
@@ -1689,6 +1844,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         for (const fu of fbUsers) {
           if (!fu?.id || deletedUserIdsRef.current.has(fu.id)) continue;
           const cur = map.get(fu.id);
+          const curTs = Number(cur?.updatedAt || 0);
+          const fuTs = Number(fu?.updatedAt || 0);
+          if (cur && curTs > 0 && fuTs > 0 && fuTs < curTs) continue;
           if (!cur || JSON.stringify(cur) !== JSON.stringify(fu)) {
             map.set(fu.id, fu);
             changed = true;
@@ -1698,8 +1856,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (userRef.current.isLoggedIn && userRef.current.id) {
-        const matched = fbUsers.find((fu) => fu.id === userRef.current.id);
-        if (matched) {
+        const normCurPhone = normalizePhone(userRef.current.phone || '');
+        const matched = fbUsers.find(
+          (fu) =>
+            fu.id === userRef.current.id ||
+            (userRef.current.uid && fu.uid === userRef.current.uid) ||
+            (normCurPhone && fu.phone && normalizePhone(fu.phone) === normCurPhone)
+        );
+        const curLocalTs = Number(userRef.current.updatedAt || 0);
+        const matchedTs = Number(matched?.updatedAt || 0);
+        const isMatchedStale = Boolean(matched && curLocalTs > 0 && matchedTs > 0 && matchedTs < curLocalTs);
+        if (matched && !isMatchedStale) {
           const resolvedAvatar = matched.avatar || userRef.current.avatar || '';
           const resolvedClaimedFd =
             matched.claimedFirstDepositTiers || userRef.current.claimedFirstDepositTiers;
@@ -1707,8 +1874,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             matched.balance !== userRef.current.balance ||
             matched.totalDeposited !== userRef.current.totalDeposited ||
             matched.isBanned !== userRef.current.isBanned ||
+            matched.banReason !== userRef.current.banReason ||
             matched.turnoverRequired !== userRef.current.turnoverRequired ||
             matched.role !== userRef.current.role ||
+            (matched.pendingDepositBonusCode || '') !== (userRef.current.pendingDepositBonusCode || '') ||
+            (matched.lastGiftReason || '') !== (userRef.current.lastGiftReason || '') ||
             (matched.loginPassword && matched.loginPassword !== userRef.current.loginPassword) ||
             resolvedAvatar !== (userRef.current.avatar || '') ||
             JSON.stringify(resolvedClaimedFd || {}) !==
@@ -1725,9 +1895,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 turnoverRequired: Number(matched.turnoverRequired) || 0,
                 isBanned: matched.isBanned,
                 banReason: matched.banReason,
+                pendingDepositBonusCode: matched.pendingDepositBonusCode,
+                creditedDepositBonusCodes: matched.creditedDepositBonusCodes,
+                lastGiftReason: matched.lastGiftReason,
+                lastGiftCode: matched.lastGiftCode ?? userRef.current.lastGiftCode,
+                lastGiftAmount: matched.lastGiftAmount ?? userRef.current.lastGiftAmount,
+                lastGiftClaimTime: matched.lastGiftClaimTime ?? userRef.current.lastGiftClaimTime,
                 loginPassword: matched.loginPassword || userRef.current.loginPassword,
                 avatar: resolvedAvatar,
-                claimedFirstDepositTiers: resolvedClaimedFd
+                claimedFirstDepositTiers: resolvedClaimedFd,
+                updatedAt: Math.max(curLocalTs, matchedTs)
               }
             : userRef.current;
 
@@ -1743,7 +1920,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               autoVip.newNotifs.forEach((nf) => saveNotificationToFirebase(nf).catch(() => {}));
             }
             if (autoVip.totalCredited > 0) {
-              saveUserToFirebase(autoVip.updatedUser).catch(() => {});
+              syncUserEverywhere(autoVip.updatedUser);
             }
           }
         }
@@ -1861,6 +2038,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
+    const unsubMarketPools = subscribeMarketPoolsInFirebase((fbPools) => {
+      setMarketPools((prev) => ({ ...prev, ...fbPools }));
+    });
+
+    const unsubReferrals = subscribeReferralsInFirebase((fbRefs) => {
+      setReferrals((prev) => {
+        const map = new Map(prev.map((r) => [r.id, r]));
+        let changed = false;
+        for (const fr of fbRefs) {
+          if (fr?.id && (!map.has(fr.id) || JSON.stringify(map.get(fr.id)) !== JSON.stringify(fr))) {
+            map.set(fr.id, fr);
+            changed = true;
+          }
+        }
+        return changed ? Array.from(map.values()) : prev;
+      });
+    });
+
+    const unsubCrashAv = subscribeCrashStateInFirebase('aviator', (st) => {
+      setCrashPoolStates((prev) => ({ ...prev, aviator: st }));
+    });
+    const unsubCrashLj = subscribeCrashStateInFirebase('luckyjet', (st) => {
+      setCrashPoolStates((prev) => ({ ...prev, luckyjet: st }));
+    });
+
     return () => {
       unsubSettings();
       unsubUsers();
@@ -1871,6 +2073,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubTransactions();
       unsubNotifications();
       unsubAccessLogs();
+      unsubMarketPools();
+      unsubReferrals();
+      unsubCrashAv();
+      unsubCrashLj();
     };
   }, []);
 
@@ -1958,18 +2164,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const evalBetOutcome = (b: WinGoBet): { won: boolean; winAmount: number } => {
       let won = false;
-      let odds = 2;
+      let odds = 1.89;
       if (b.type === 'number') {
         won = Number(b.value) === safeNum;
         odds = 9;
       } else if (b.type === 'size') {
         won = b.value === size;
-        odds = 2;
+        odds = 1.89;
       } else if (b.type === 'color') {
         if (b.value === 'green') {
           if ([1, 3, 7, 9].includes(safeNum)) {
             won = true;
-            odds = 2;
+            odds = 1.89;
           } else if (safeNum === 5) {
             won = true;
             odds = 1.5;
@@ -1977,7 +2183,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (b.value === 'red') {
           if ([2, 4, 6, 8].includes(safeNum)) {
             won = true;
-            odds = 2;
+            odds = 1.89;
           } else if (safeNum === 0) {
             won = true;
             odds = 1.5;
@@ -2245,7 +2451,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let active = true;
     const stepLocalBinaryTick = () => {
       if (!active) return;
-      const snap = getSyncedBinarySnapshot(BINARY_MARKETS, Date.now());
+      const bias = (adminSettingsRef.current.binaryNextCandleBias as 'AUTO' | 'BULL' | 'BEAR') || 'AUTO';
+      const tzOffset =
+        typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
+          ? adminSettingsRef.current.timezoneOffsetMinutes
+          : 360;
+      const snap = getSyncedBinarySnapshot(BINARY_MARKETS, Date.now(), bias, tzOffset);
       setBinaryCandleSecRemaining(snap.candleSecRemaining);
       setBinaryMarkets(snap.markets);
     };
@@ -2322,6 +2533,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let balanceDelta = 0;
         const activeBets = prevBets.filter((b) => b.status === 'active');
 
+        const controlMode = adminSettingsRef.current.gameControlModes?.binary || 'HIGH_BET_LOSS';
+
         const updated = prevBets.map((bet) => {
           if (bet.status === 'active' && now >= bet.endTime) {
             const spec = BINARY_MARKET_MAP[bet.asset];
@@ -2330,18 +2543,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const liveAssetPrice = binaryMarketsRef.current[bet.asset]?.price ?? bet.entryPrice;
 
             const assetPool = activeBets.filter((b) => b.asset === bet.asset);
-            const totalUp = assetPool.filter((b) => b.direction === 'UP').reduce((s, b) => s + b.amount, 0);
-            const totalDown = assetPool.filter((b) => b.direction === 'DOWN').reduce((s, b) => s + b.amount, 0);
+            const cleanAssetId = `binary_${bet.asset.replace(/[^a-zA-Z0-9_-]/g, '_')}_live`;
+            const remotePool = marketPoolsRef.current[cleanAssetId];
+            const localUp = assetPool.filter((b) => b.direction === 'UP').reduce((s, b) => s + b.amount, 0);
+            const localDown = assetPool.filter((b) => b.direction === 'DOWN').reduce((s, b) => s + b.amount, 0);
+            const totalUp = Math.max(localUp, Number(remotePool?.selections?.UP || 0));
+            const totalDown = Math.max(localDown, Number(remotePool?.selections?.DOWN || 0));
 
             let strikePrice = liveAssetPrice;
             let isWin = false;
 
-            if (totalUp < totalDown) {
-              isWin = bet.direction === 'UP';
-              strikePrice = +(Math.max(liveAssetPrice, bet.entryPrice + step * (1.2 + Math.random()))).toFixed(decimals);
-            } else if (totalDown < totalUp) {
-              isWin = bet.direction === 'DOWN';
-              strikePrice = +(Math.min(liveAssetPrice, bet.entryPrice - step * (1.2 + Math.random()))).toFixed(decimals);
+            const ctrl = evaluatePoolControl(controlMode, [
+              { key: 'UP', total: totalUp },
+              { key: 'DOWN', total: totalDown }
+            ]);
+
+            if (ctrl.winningKey && totalUp !== totalDown) {
+              const winDir = ctrl.winningKey as 'UP' | 'DOWN';
+              isWin = bet.direction === winDir;
+              if (winDir === 'UP') {
+                strikePrice = +(Math.max(liveAssetPrice, bet.entryPrice + step * (1.2 + Math.random()))).toFixed(decimals);
+              } else {
+                strikePrice = +(Math.min(liveAssetPrice, bet.entryPrice - step * (1.2 + Math.random()))).toFixed(decimals);
+              }
             } else {
               isWin =
                 (bet.direction === 'UP' && strikePrice > bet.entryPrice) ||
@@ -2363,21 +2587,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const nextBal = +(userRef.current.balance + balanceDelta).toFixed(2);
           const nextTurnoverComp = (userRef.current.turnoverCompleted || 0) + balanceDelta;
           setUser((u) => {
-            const updated = {
+            const updated = syncUserEverywhere({
               ...u,
               balance: +(u.balance + balanceDelta).toFixed(2),
               turnoverCompleted: (u.turnoverCompleted || 0) + balanceDelta
-            };
-            if (updated.id) saveUserToFirebase(updated).catch(() => {});
+            });
             return updated;
           });
-          if (userRef.current.id) {
-            updateUserInFirebase(
-              userRef.current.id,
-              { balance: nextBal, turnoverCompleted: nextTurnoverComp },
-              userRef.current
-            ).catch(() => {});
-          }
           const winTx: Transaction = {
             id: `tx_${Date.now()}`,
             userId: userRef.current.id,
@@ -2519,31 +2735,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 history: dedupedHistory
               };
             } else {
-              // 100% API-driven: advance timer & poll API rapidly until official result publishes
+              // Instant real-time resolution: quick 380ms API check then immediate synced settlement
+              const fastFallbackNum = getSyncedWinGoNumber(mode, resolvingPeriod);
+              const { color: fbColor, size: fbSize } = deriveWingoMeta(fastFallbackNum);
+              const fastTimeStr = new Date(now).toTimeString().slice(0, 8);
+
               updatedMarkets[mode] = {
                 ...current,
                 period: nextPeriodAfterResolve,
                 timeRemaining: rem
               };
 
-              const pollForOfficial = async (attempt: number) => {
-                await syncWingoFromApi(mode);
-                const exactNum = apiLatestResultsRef.current[mode]?.get(resolvingPeriod);
-                if (exactNum !== undefined) {
-                  applyResolvedWingoOutcome(mode, resolvingPeriod, exactNum);
-                  return;
+              setTimeout(async () => {
+                let finalNum: number | undefined = apiLatestResultsRef.current[mode]?.get(resolvingPeriod);
+                let finalTime: string | undefined = fastTimeStr;
+                if (finalNum === undefined) {
+                  try {
+                    const freshList = await Promise.race([
+                      fetchWingoModeFromApi(mode),
+                      new Promise<null>((resolve) => setTimeout(() => resolve(null), 380))
+                    ]);
+                    if (freshList && freshList.length > 0) {
+                      const matched = freshList.find((x) => x.periodNumber === resolvingPeriod);
+                      if (matched) {
+                        finalNum = matched.number;
+                        finalTime = matched.time;
+                      }
+                    }
+                  } catch {}
                 }
-                if (attempt < 4) {
-                  setTimeout(() => pollForOfficial(attempt + 1), attempt === 1 ? 550 : 900);
-                } else {
-                  // Fallback to the newest record returned by API if issue ID offset differs slightly
-                  const freshList = await fetchWingoModeFromApi(mode);
-                  if (freshList && freshList.length > 0) {
-                    applyResolvedWingoOutcome(mode, resolvingPeriod, freshList[0].number, freshList[0].time);
-                  }
-                }
-              };
-              setTimeout(() => pollForOfficial(1), 300);
+                const chosenNum = finalNum !== undefined ? finalNum : fastFallbackNum;
+                const meta = finalNum !== undefined ? deriveWingoMeta(chosenNum) : { color: fbColor, size: fbSize };
+                applyResolvedWingoOutcome(mode, resolvingPeriod, chosenNum, finalTime);
+                setWingoMarkets((prevM) => {
+                  const cm = prevM[mode];
+                  if (!cm) return prevM;
+                  const row: WinGoResult = {
+                    periodNumber: resolvingPeriod,
+                    number: chosenNum,
+                    color: meta.color,
+                    size: meta.size,
+                    time: finalTime || fastTimeStr,
+                    mode
+                  };
+                  return {
+                    ...prevM,
+                    [mode]: {
+                      ...cm,
+                      history: [row, ...cm.history.filter((h) => h.periodNumber !== resolvingPeriod)].slice(0, 50)
+                    }
+                  };
+                });
+              }, 0);
             }
           } else {
             updatedMarkets[mode] = {
@@ -2688,13 +2931,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Success' };
   };
 
-  // Auth: Register (Strict 1 account per phone number; new accounts start with 00 across all balances)
+  // Auth: Register (Strict 1 account per phone number; real invite code validation; password letters+numbers >=8)
   const register = async (phoneOrEmail: string, pass: string, inviteCode?: string) => {
     if (adminSettings.registrationEnabled === false) {
       return { success: false, message: 'New user registration is currently disabled by Administrator' };
     }
     if (!phoneOrEmail || !pass) {
       return { success: false, message: 'Phone number and password are required' };
+    }
+    if (!PASSWORD_REGEX.test(pass.trim())) {
+      return { success: false, message: PASSWORD_RULE_MSG };
     }
 
     const trimmed = phoneOrEmail.trim();
@@ -2705,22 +2951,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Please enter a valid mobile number' };
     }
 
-    let existing = allUsers.find((u) => {
+    let fbUsersList: User[] = [];
+    try {
+      fbUsersList = await fetchAllUsersFromFirebase();
+    } catch {}
+
+    const combinedUsers = [...allUsers, ...fbUsersList];
+
+    const existing = combinedUsers.find((u) => {
       const uPhoneNorm = normalizePhone(u.phone || '');
       const uEmailNorm = (u.email || '').toLowerCase();
       return (normInput && uPhoneNorm === normInput) || (isEmail && uEmailNorm === normInput);
     });
-
-    if (!existing) {
-      try {
-        const fbUsers = await fetchAllUsersFromFirebase();
-        existing = fbUsers.find((u) => {
-          const uPhoneNorm = normalizePhone(u.phone || '');
-          const uEmailNorm = (u.email || '').toLowerCase();
-          return (normInput && uPhoneNorm === normInput) || (isEmail && uEmailNorm === normInput);
-        });
-      } catch {}
-    }
 
     if (existing) {
       return {
@@ -2729,12 +2971,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    const newUid = Math.floor(1000000 + Math.random() * 9000000).toString();
-    const resolvedInviteCode =
+    const resolvedInviteCode = (
       inviteCode?.trim() ||
       invitationParam ||
       sessionStorage.getItem('win777_invite_code') ||
-      '';
+      ''
+    ).trim();
+
+    let matchedReferrer: User | undefined;
+    if (resolvedInviteCode) {
+      const codeUpper = resolvedInviteCode.toUpperCase();
+      matchedReferrer = combinedUsers.find(
+        (u) =>
+          (u.inviteCode && u.inviteCode.toUpperCase() === codeUpper) ||
+          (u.uid && u.uid.toUpperCase() === codeUpper)
+      );
+      if (!matchedReferrer) {
+        return { success: false, message: 'INVITE CODE IS NOT VALID' };
+      }
+    }
+
+    const newUid = Math.floor(1000000 + Math.random() * 9000000).toString();
+    const tzOffset =
+      typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
+        ? adminSettingsRef.current.timezoneOffsetMinutes
+        : 360;
+    const nowTimeStr = new Date(Date.now() + tzOffset * 60000).toISOString().replace('T', ' ').slice(0, 19);
 
     const newUser: User = {
       id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -2749,14 +3011,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       exp: 0,
       totalDeposited: 0.00,
       inviteCode: newUid,
-      referredBy: resolvedInviteCode || undefined,
-      lastLogin: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      referredBy: matchedReferrer ? (matchedReferrer.inviteCode || resolvedInviteCode) : undefined,
+      lastLogin: nowTimeStr,
       isLoggedIn: true,
       loginPassword: pass,
       turnoverRequired: 0.00,
       turnoverCompleted: 0.00,
       hasClaimedDepositBonus: false,
       illegalBetCount: 0,
+      minesRoundSeq: 0,
       boundWallets: [],
       attendanceState: {
         claimedDays: [],
@@ -2784,27 +3047,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Static deploy fallback
     }
 
-    if (resolvedInviteCode) {
+    if (matchedReferrer) {
+      const refCode = matchedReferrer.inviteCode || matchedReferrer.uid;
       const maskedPhone = normInput.length >= 7 ? normInput.slice(0, 3) + '***' + normInput.slice(-4) : normInput;
       const newReferral: ReferralMember = {
-        id: `ref_${Date.now()}`,
-        referrerCode: resolvedInviteCode,
+        id: `ref_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+        referrerCode: refCode,
         phone: maskedPhone,
         uid: newUid,
         nickname: newUser.nickname,
-        registrationDate: new Date().toISOString().replace('T', ' ').slice(0, 19),
-        commission: 50.00,
+        registrationDate: nowTimeStr,
+        commission: 0,
         depositAmount: 0,
         level: 1,
         status: 'active'
       };
 
       setReferrals((prev) => [newReferral, ...prev]);
+      saveReferralToFirebase(newReferral).catch(() => {});
+      fetch('/api/referrals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referral: newReferral })
+      }).catch(() => {});
 
       setAllUsers((prevUsers) =>
         prevUsers.map((u) => {
-          if (u.inviteCode === resolvedInviteCode || u.uid === resolvedInviteCode) {
-            const nextExp = u.exp + 100;
+          if (u.id === matchedReferrer!.id) {
+            const nextExp = (u.exp || 0) + 100;
             updateUserInFirebase(u.id, { exp: nextExp }, u).catch(() => {});
             return { ...u, exp: nextExp };
           }
@@ -3113,8 +3383,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user.loginPassword && user.loginPassword !== currentPassword.trim()) {
       return { success: false, message: 'Current login password is incorrect' };
     }
-    if (!newPassword || newPassword.trim().length < 6) {
-      return { success: false, message: 'New password must be at least 6 characters' };
+    if (!newPassword || !PASSWORD_REGEX.test(newPassword.trim())) {
+      return { success: false, message: PASSWORD_RULE_MSG };
     }
     const nextPass = newPassword.trim();
     const updatedUser: User = { ...userRef.current, loginPassword: nextPass };
@@ -3299,8 +3569,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     trxId: string
   ) => {
     if (adminSettings.depositEnabled === false) {
-      showToast('Deposit system is currently disabled by Administrator!');
-      return { success: false, message: 'Deposit system is currently disabled' };
+      showToast('NOW NOT AVAILABLE');
+      return { success: false, message: 'NOW NOT AVAILABLE' };
     }
     if (user.isBanned) {
       showToast('Your account is banned by Administrator! Deposits disabled.');
@@ -3324,41 +3594,194 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       time: new Date().toLocaleString()
     };
 
+    lastDepositsMutationAtRef.current = Date.now();
     setDepositRequests((prev) => [newReq, ...prev]);
+    saveDepositToFirebase(newReq).catch(() => {});
 
-    // Send to central server so ANY mobile worldwide syncs with the Admin Panel in real time
-    // "ar keo zodi deposit kore obossoi admin panel e show korbe prithibir ze keo ze kono mobile theke korle"
     fetch('/api/deposits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newReq)
     }).catch(() => {});
 
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}`,
-        userId: user.id,
-        type: 'deposit',
-        title: `Deposit ${method} (Pending)`,
-        detail: `TRX ID: ${trxId.trim().toUpperCase()} • Sent from: ${senderNumber}`,
-        amount: amount,
-        balanceAfter: user.balance,
-        time: new Date().toLocaleString(),
-        status: 'pending',
-        method,
-        trxId: trxId.trim().toUpperCase(),
-        senderNumber: senderNumber.trim()
-      },
-      ...prev
-    ]);
+    const pendingTx: Transaction = {
+      id: `tx_${Date.now()}`,
+      userId: user.id,
+      type: 'deposit',
+      title: `Deposit ${method} (Pending)`,
+      detail: `TRX ID: ${trxId.trim().toUpperCase()} • Sent from: ${senderNumber}`,
+      amount: amount,
+      balanceAfter: user.balance,
+      time: new Date().toLocaleString(),
+      status: 'pending',
+      method,
+      trxId: trxId.trim().toUpperCase(),
+      senderNumber: senderNumber.trim()
+    };
+    setTransactions((prev) => [pendingTx, ...prev]);
+    saveTransactionToFirebase(pendingTx).catch(() => {});
 
     showToast('Deposit submitted! Funds will be verified by Administrator and credited.');
     return { success: true, message: 'Submitted' };
   };
 
-  // Admin Approve Deposit:
-  // "Bonus ze kono deposit e 50 Taka pabe turnover 150 Taka ar deposit korle 2x turnover diba"
-  // "ar Bonus auto wallet e add hoye zabe sundor kore"
+  // EWI-Pay Live Checkout Creator
+  const initiateEwiPayDeposit = async (
+    amount: number,
+    method: 'bKash' | 'Nagad' | 'USDT',
+    channel: string,
+    senderNumber?: string
+  ) => {
+    if (adminSettings.depositEnabled === false) {
+      showToast('NOW NOT AVAILABLE');
+      return { success: false, message: 'NOW NOT AVAILABLE' };
+    }
+    if (!user.isLoggedIn || !user.id) {
+      return { success: false, message: 'Please log in first to deposit!' };
+    }
+    if (user.isBanned) {
+      return { success: false, message: 'Account is banned by Administrator' };
+    }
+    if (amount < 100) {
+      return { success: false, message: 'Minimum deposit is ৳100' };
+    }
+
+    const userIdTag = user.uid || user.id || 'USER_1';
+    const fallbackUrl = `https://ewi-pay.vercel.app/payment/ewi777?amount=${encodeURIComponent(String(amount))}&user_id=${encodeURIComponent(userIdTag)}`;
+
+    try {
+      const res = await fetch('/api/ewi-pay/checkout-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          user_id: userIdTag,
+          method,
+          channel: channel || 'EWI-Pay Gateway',
+          senderNumber: senderNumber || user.phone || userIdTag
+        })
+      });
+      const data = await res.json().catch(() => null);
+      const dep: DepositRequest = {
+        id: String(data?.depositId || `ewipay_${Date.now()}`),
+        userId: user.id,
+        userPhone: senderNumber || user.phone || userIdTag,
+        method,
+        channel: channel || 'EWI-Pay Gateway',
+        amount,
+        senderNumber: senderNumber || user.phone || userIdTag,
+        trxId: String(data?.deposit?.trxId || data?.depositId || `EWI${Date.now()}`).toUpperCase(),
+        status: 'pending',
+        time: new Date().toLocaleString()
+      };
+      lastDepositsMutationAtRef.current = Date.now();
+      setDepositRequests((prev) => [dep, ...prev.filter((d) => d.id !== dep.id)]);
+      saveDepositToFirebase(dep).catch(() => {});
+
+      const pendingTx: Transaction = {
+        id: `tx_${Date.now()}_ewp`,
+        userId: user.id,
+        type: 'deposit',
+        title: `EWI-Pay Deposit (${method})`,
+        detail: `ID: ${dep.id} • Gateway Checkout`,
+        amount,
+        balanceAfter: user.balance,
+        time: new Date().toLocaleString(),
+        status: 'pending',
+        method,
+        trxId: dep.trxId,
+        senderNumber: dep.senderNumber
+      };
+      setTransactions((prev) => [pendingTx, ...prev]);
+      saveTransactionToFirebase(pendingTx).catch(() => {});
+
+      return {
+        success: true,
+        message: 'Checkout created',
+        checkoutUrl: data?.checkoutUrl || fallbackUrl,
+        depositId: dep.id
+      };
+    } catch {
+      const dep: DepositRequest = {
+        id: `ewipay_${Date.now()}`,
+        userId: user.id,
+        userPhone: senderNumber || user.phone || userIdTag,
+        method,
+        channel: channel || 'EWI-Pay Gateway',
+        amount,
+        senderNumber: senderNumber || user.phone || userIdTag,
+        trxId: `EWI${Date.now()}`,
+        status: 'pending',
+        time: new Date().toLocaleString()
+      };
+      setDepositRequests((prev) => [dep, ...prev]);
+      saveDepositToFirebase(dep).catch(() => {});
+      return {
+        success: true,
+        message: 'Checkout link generated',
+        checkoutUrl: fallbackUrl,
+        depositId: dep.id
+      };
+    }
+  };
+
+  const syncEwiPayTransactions = async () => {
+    try {
+      const res = await fetch('/api/ewi-pay/transactions', { cache: 'no-store' });
+      const data = await res.json().catch(() => null);
+      const list = Array.isArray(data?.transactions) ? data.transactions : [];
+      const newlyApprovedIds: string[] = [];
+      if (list.length > 0) {
+        setDepositRequests((prev) => {
+          const map = new Map(prev.map((d) => [d.id, d]));
+          let changed = false;
+          for (const item of list) {
+            const id = String(item?.id || item?.depositId || item?.deposit_id || '');
+            if (!id) continue;
+            const rawStatus = String(item?.status || 'pending').toLowerCase();
+            const mappedStatus: DepositRequest['status'] =
+              rawStatus === 'approved' || rawStatus === 'completed' || rawStatus === 'success'
+                ? 'approved'
+                : rawStatus === 'rejected' || rawStatus === 'failed'
+                ? 'rejected'
+                : 'pending';
+            const existing = map.get(id);
+            if (existing) {
+              if ((existing.status === 'pending' || existing.status === 'processing') && mappedStatus === 'approved') {
+                newlyApprovedIds.push(id);
+              }
+              continue;
+            }
+            const mapped: DepositRequest = {
+              id,
+              userId: String(item?.user_id || item?.userId || ''),
+              userPhone: String(item?.sender_number || item?.user_id || ''),
+              method: (item?.method as any) || 'bKash',
+              channel: 'EWI-Pay Gateway',
+              amount: Number(item?.amount) || 0,
+              senderNumber: String(item?.sender_number || item?.user_id || ''),
+              trxId: String(item?.trx_id || item?.trxId || id).toUpperCase(),
+              status: mappedStatus,
+              time: String(item?.created_at || new Date().toLocaleString())
+            };
+            map.set(id, mapped);
+            changed = true;
+          }
+          return changed ? Array.from(map.values()).sort((a, b) => (b.id > a.id ? 1 : -1)) : prev;
+        });
+      }
+      if (newlyApprovedIds.length > 0) {
+        setTimeout(() => {
+          newlyApprovedIds.forEach((id) => approveDeposit(id));
+        }, 50);
+      }
+      return list;
+    } catch {
+      return [];
+    }
+  };
+
+  // Admin Approve Deposit (Firebase + Server + EWI-Pay + Referral Commission + Pending Deposit Gift Bonus)
   const approveDeposit = (requestId: string) => {
     const req = depositRequests.find((r) => r.id === requestId);
     if (!req || (req.status !== 'pending' && req.status !== 'processing')) return;
@@ -3366,9 +3789,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     lastDepositsMutationAtRef.current = Date.now();
     lastUsersMutationAtRef.current = Date.now();
 
+    const approvedReq: DepositRequest = { ...req, status: 'approved' };
     setDepositRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r))
+      prev.map((r) => (r.id === requestId ? approvedReq : r))
     );
+    updateDepositInFirebase(requestId, { status: 'approved' }, approvedReq).catch(() => {});
 
     const depositAmt = req.amount;
     let bonusAmt = 50.00;
@@ -3388,40 +3813,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bonusTurnover = 150.00;
     }
 
-    const depositTurnover = depositAmt * 2; // 2x turnover on deposit
+    const depositTurnover = depositAmt * 2;
     const totalTurnoverAdded = depositTurnover + bonusTurnover;
     const totalCredit = +(depositAmt + bonusAmt).toFixed(2);
 
-    const todayStr = getLocalDateStr();
+    const tzOffset =
+      typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
+        ? adminSettingsRef.current.timezoneOffsetMinutes
+        : 360;
+    const todayStr = getLocalDateStr(new Date(), tzOffset);
     const vipTxs: Transaction[] = [];
     const vipNotifs: AppNotification[] = [];
     let vipCreditedTotal = 0;
 
     const normReqPhone = normalizePhone(req.userPhone || req.senderNumber || '');
     const isReqUser = (u: User) =>
-      u.id === req.userId || (normReqPhone !== '' && normalizePhone(u.phone || '') === normReqPhone);
+      u.id === req.userId ||
+      u.uid === req.userId ||
+      (normReqPhone !== '' && normalizePhone(u.phone || '') === normReqPhone);
 
-    // Update user balance, turnover, totalDeposited, and auto-unlock & auto-credit VIP bonuses
+    // Check if target user has an active Pending Deposit Bonus Gift Code (e.g. 200% Deposit Bonus)
+    const preMatchedUser = allUsers.find(isReqUser) || (isReqUser(user) ? user : undefined);
+    const pendingGiftCodeStr = String(preMatchedUser?.pendingDepositBonusCode || '').trim().toUpperCase();
+    let pendingGiftItem = pendingGiftCodeStr
+      ? (adminSettingsRef.current.activeGiftCodes || []).find(
+          (c) => c.code.toUpperCase() === pendingGiftCodeStr && c.active !== false && c.rewardType === 'deposit_percent'
+        )
+      : undefined;
+    if (pendingGiftItem && pendingGiftItem.expiresAt && pendingGiftItem.expiresAt > 0 && Date.now() > pendingGiftItem.expiresAt) {
+      pendingGiftItem = undefined;
+    }
+    if (pendingGiftItem && (pendingGiftItem.claimedCount || 0) >= (pendingGiftItem.maxClaims || 1)) {
+      pendingGiftItem = undefined;
+    }
+    const giftBonusPct = pendingGiftItem ? Number(pendingGiftItem.depositBonusPercent || pendingGiftItem.amount || 200) : 0;
+    const giftBonusCredit = pendingGiftItem ? +((depositAmt * giftBonusPct) / 100).toFixed(2) : 0;
+    const giftBonusTurnover = pendingGiftItem
+      ? Number(pendingGiftItem.turnoverAmount && pendingGiftItem.turnoverAmount > 0 ? pendingGiftItem.turnoverAmount : giftBonusCredit)
+      : 0;
+    const giftBonusReason = pendingGiftItem
+      ? String(pendingGiftItem.reason || pendingGiftItem.note || `${giftBonusPct}% Deposit Bonus`).trim()
+      : '';
+
+    let creditedTargetUser: User | undefined;
+
+    const applyDepositBonusFields = (u: User): User => {
+      const nextCreditedCodes = pendingGiftItem
+        ? [...(u.creditedDepositBonusCodes || []), `${pendingGiftItem.code}:${requestId}`]
+        : u.creditedDepositBonusCodes;
+      return {
+        ...u,
+        balance: +(u.balance + totalCredit + giftBonusCredit).toFixed(2),
+        exp: u.exp + depositAmt,
+        totalDeposited: (u.totalDeposited || 0) + depositAmt,
+        turnoverRequired: (u.turnoverRequired || 0) + totalTurnoverAdded + giftBonusTurnover,
+        ...(pendingGiftItem
+          ? {
+              pendingDepositBonusCode: '',
+              creditedDepositBonusCodes: nextCreditedCodes,
+              lastGiftClaimTime: new Date().toLocaleString(),
+              lastGiftCode: pendingGiftItem.code,
+              lastGiftAmount: giftBonusCredit,
+              lastGiftReason: giftBonusReason
+            }
+          : {}),
+        attendanceState: {
+          claimedDays: u.attendanceState?.claimedDays || [],
+          lastClaimDate: u.attendanceState?.lastClaimDate,
+          streak: u.attendanceState?.streak || 0,
+          lastDepositDate: todayStr
+        }
+      };
+    };
+
     setAllUsers((prevUsers) =>
       prevUsers.map((u) => {
         if (isReqUser(u)) {
-          const baseUser: User = {
-            ...u,
-            balance: +(u.balance + totalCredit).toFixed(2),
-            exp: u.exp + depositAmt,
-            totalDeposited: (u.totalDeposited || 0) + depositAmt,
-            turnoverRequired: (u.turnoverRequired || 0) + totalTurnoverAdded,
-            attendanceState: {
-              claimedDays: u.attendanceState?.claimedDays || [],
-              lastClaimDate: u.attendanceState?.lastClaimDate,
-              streak: u.attendanceState?.streak || 0,
-              lastDepositDate: todayStr
-            }
-          };
+          const baseUser = applyDepositBonusFields(u);
           const autoVip = applyAutoVipRewards(baseUser);
           vipTxs.push(...autoVip.newTxs);
           vipNotifs.push(...autoVip.newNotifs);
           vipCreditedTotal = autoVip.totalCredited;
+          creditedTargetUser = autoVip.updatedUser;
+          saveUserToFirebase(autoVip.updatedUser).catch(() => {});
           fetch('/api/users/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3433,61 +3907,157 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    // Record Gift Code claimant entry if pending deposit bonus gift code just triggered
+    if (pendingGiftItem && giftBonusCredit > 0) {
+      const targetRefUser = creditedTargetUser || preMatchedUser;
+      const claimerKey = normalizePhone(targetRefUser?.phone || req.userPhone || '') || req.userId;
+      const claimRec = {
+        userId: targetRefUser?.id || req.userId,
+        uid: targetRefUser?.uid,
+        nickname: targetRefUser?.nickname || 'Member',
+        contact: targetRefUser?.phone || targetRefUser?.email || req.userPhone || '',
+        amount: giftBonusCredit,
+        depositAmount: depositAmt,
+        reason: giftBonusReason,
+        time: new Date().toLocaleString()
+      };
+      const nextGiftCodes = (adminSettingsRef.current.activeGiftCodes || []).map((gc) => {
+        if (gc.code !== pendingGiftItem!.code) return gc;
+        const prevBy = Array.isArray(gc.claimedBy) ? gc.claimedBy : [];
+        return {
+          ...gc,
+          claimedCount: (gc.claimedCount || 0) + 1,
+          claimedBy: claimerKey && !prevBy.includes(claimerKey) ? [...prevBy, claimerKey] : prevBy,
+          claimRecords: [claimRec, ...(gc.claimRecords || [])]
+        };
+      });
+      updateAdminSettings({ activeGiftCodes: nextGiftCodes });
+    }
+
+    // Credit referral deposit commission if this user was invited
+    const matchedDepUser = creditedTargetUser || allUsers.find(isReqUser);
+    if (matchedDepUser?.referredBy) {
+      const refPct = Number(adminSettingsRef.current.referCommissionPercent ?? 10) / 100;
+      const refCommissionAmt = +(depositAmt * refPct).toFixed(2);
+      setReferrals((prev) =>
+        prev.map((r) => {
+          if (r.uid === matchedDepUser.uid || r.referrerCode === matchedDepUser.referredBy) {
+            const updatedRef: ReferralMember = {
+              ...r,
+              depositAmount: +(Number(r.depositAmount || 0) + depositAmt).toFixed(2),
+              commission: +(Number(r.commission || 0) + refCommissionAmt).toFixed(2)
+            };
+            saveReferralToFirebase(updatedRef).catch(() => {});
+            fetch('/api/referrals', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ referral: updatedRef })
+            }).catch(() => {});
+            return updatedRef;
+          }
+          return r;
+        })
+      );
+      if (refCommissionAmt > 0) {
+        const refOwner = allUsers.find(
+          (u) => u.inviteCode === matchedDepUser.referredBy || u.uid === matchedDepUser.referredBy
+        );
+        if (refOwner) {
+          const ownerNextBal = +(Number(refOwner.balance || 0) + refCommissionAmt).toFixed(2);
+          updateUserInFirebase(refOwner.id, { balance: ownerNextBal }, { ...refOwner, balance: ownerNextBal }).catch(() => {});
+          setAllUsers((prev) =>
+            prev.map((u) => (u.id === refOwner.id ? { ...u, balance: ownerNextBal } : u))
+          );
+        }
+      }
+    }
+
     if (isReqUser(user)) {
       setUser((u) => {
-        const baseUser: User = {
-          ...u,
-          balance: +(u.balance + totalCredit).toFixed(2),
-          exp: u.exp + depositAmt,
-          totalDeposited: (u.totalDeposited || 0) + depositAmt,
-          turnoverRequired: (u.turnoverRequired || 0) + totalTurnoverAdded,
-          attendanceState: {
-            claimedDays: u.attendanceState?.claimedDays || [],
-            lastClaimDate: u.attendanceState?.lastClaimDate,
-            streak: u.attendanceState?.streak || 0,
-            lastDepositDate: todayStr
-          }
-        };
+        const baseUser = applyDepositBonusFields(u);
         const autoVip = applyAutoVipRewards(baseUser);
         if (vipTxs.length === 0) vipTxs.push(...autoVip.newTxs);
         if (vipNotifs.length === 0) vipNotifs.push(...autoVip.newNotifs);
         if (vipCreditedTotal === 0) vipCreditedTotal = autoVip.totalCredited;
+        saveUserToFirebase(autoVip.updatedUser).catch(() => {});
         return autoVip.updatedUser;
       });
     }
 
-    // Record deposit bonus + any auto-unlocked VIP transactions
     const timeNow = new Date().toLocaleString();
-    setTransactions((prev) => [
-      ...vipTxs,
-      {
-        id: `tx_${Date.now()}_bonus`,
+    const bonusTx: Transaction = {
+      id: `tx_${Date.now()}_bonus`,
+      userId: req.userId,
+      type: 'deposit_bonus',
+      title: 'Auto Deposit Bonus (Graduated Tier)',
+      detail: `৳${bonusAmt} Bonus Unlocked for ৳${depositAmt} Deposit (+৳${bonusTurnover} Turnover Required)`,
+      amount: bonusAmt,
+      balanceAfter: +(user.balance + totalCredit + giftBonusCredit).toFixed(2),
+      time: timeNow,
+      status: 'success'
+    };
+    saveTransactionToFirebase(bonusTx).catch(() => {});
+
+    const extraGiftTxs: Transaction[] = [];
+    if (pendingGiftItem && giftBonusCredit > 0) {
+      const gTx: Transaction = {
+        id: `tx_${Date.now()}_depgift`,
         userId: req.userId,
-        type: 'deposit_bonus',
-        title: 'Auto Deposit Bonus (Graduated Tier)',
-        detail: `৳${bonusAmt} Bonus Unlocked for ৳${depositAmt} Deposit (+৳${bonusTurnover} Turnover Required)`,
-        amount: bonusAmt,
-        balanceAfter: +(user.balance + totalCredit).toFixed(2),
+        type: 'gift',
+        title: `${giftBonusPct}% Deposit Gift Bonus (${pendingGiftItem.code})`,
+        detail: `${giftBonusReason} • ৳${depositAmt} Deposit × ${giftBonusPct}% (+৳${giftBonusTurnover} Turnover)`,
+        amount: giftBonusCredit,
+        balanceAfter: +(user.balance + totalCredit + giftBonusCredit).toFixed(2),
         time: timeNow,
         status: 'success'
-      },
+      };
+      extraGiftTxs.push(gTx);
+      saveTransactionToFirebase(gTx).catch(() => {});
+      const gNotif: AppNotification = {
+        id: `notif_${Date.now()}_depgift`,
+        userId: req.userId,
+        title: `${giftBonusPct}% Deposit Gift Credited!`,
+        message: `Code ${pendingGiftItem.code} credited +৳${giftBonusCredit.toFixed(2)} for your ৳${depositAmt} deposit. Reason: ${giftBonusReason}`,
+        time: timeNow,
+        read: false,
+        type: 'bonus'
+      };
+      vipNotifs.push(gNotif);
+    }
+
+    vipTxs.forEach((vt) => saveTransactionToFirebase(vt).catch(() => {}));
+
+    setTransactions((prev) => [
+      ...extraGiftTxs,
+      ...vipTxs,
+      bonusTx,
       ...prev.map((t) => (t.trxId === req.trxId ? { ...t, status: 'success' as const } : t))
     ]);
 
     if (vipNotifs.length > 0) {
       setNotifications((prev) => [...vipNotifs, ...prev].slice(0, 50));
+      vipNotifs.forEach((nf) => saveNotificationToFirebase(nf).catch(() => {}));
     }
 
-    // Notify central server
     fetch('/api/deposits/approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: requestId })
     }).catch(() => {});
 
+    if (req.channel?.includes('EWI-Pay') || requestId.startsWith('ewipay_')) {
+      fetch('/api/ewi-pay/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ depositId: requestId })
+      }).catch(() => {});
+    }
+
     confetti({ particleCount: 70, spread: 60 });
     showToast(
-      vipCreditedTotal > 0
+      giftBonusCredit > 0
+        ? `Deposit ৳${depositAmt} approved! +৳${giftBonusCredit.toFixed(0)} (${giftBonusPct}% Gift Bonus) credited!`
+        : vipCreditedTotal > 0
         ? `Deposit ৳${depositAmt} approved! +৳${bonusAmt} Deposit Bonus & +৳${vipCreditedTotal} VIP Bonus auto-credited!`
         : `Deposit ৳${depositAmt} approved! ৳${bonusAmt} Bonus auto-credited to wallet.`
     );
@@ -3499,16 +4069,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!req) return;
 
     lastDepositsMutationAtRef.current = Date.now();
+    const rejectedReq: DepositRequest = { ...req, status: 'rejected', adminNote: note };
     setDepositRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status: 'rejected', adminNote: note } : r))
+      prev.map((r) => (r.id === requestId ? rejectedReq : r))
     );
+    updateDepositInFirebase(requestId, { status: 'rejected', adminNote: note || '' }, rejectedReq).catch(() => {});
 
-    // Notify central server
     fetch('/api/deposits/reject', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: requestId, note })
     }).catch(() => {});
+
+    if (req.channel?.includes('EWI-Pay') || requestId.startsWith('ewipay_')) {
+      fetch('/api/ewi-pay/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ depositId: requestId, note })
+      }).catch(() => {});
+    }
 
     setTransactions((prev) =>
       prev.map((t) => (t.trxId === req.trxId ? { ...t, status: 'rejected' as const } : t))
@@ -3716,7 +4295,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const newBal = +(user.balance - amount).toFixed(2);
-    setUser((u) => ({ ...u, balance: newBal }));
+    const updatedUser = { ...user, balance: newBal };
+    setUser(updatedUser);
+    saveUserToFirebase(updatedUser).catch(() => {});
 
     const newWd: WithdrawRequest = {
       id: `wd_${Date.now()}`,
@@ -3729,12 +4310,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'pending',
       time: new Date().toLocaleString()
     };
+    lastWithdrawsMutationAtRef.current = Date.now();
     setWithdrawRequests((prev) => [newWd, ...prev]);
+    saveWithdrawToFirebase(newWd).catch(() => {});
 
     fetch('/api/withdraws', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newWd)
+    }).catch(() => {});
+
+    fetch('/api/ewi-pay/withdraw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: user.uid || user.id,
+        userId: user.id,
+        amount,
+        method,
+        accountNumber: targetBound
+      })
     }).catch(() => {});
 
     const newTx: Transaction = {
@@ -3751,6 +4346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setTransactions((prev) => [newTx, ...prev]);
+    saveTransactionToFirebase(newTx).catch(() => {});
     showToast(`Withdrawal of ৳${amount} submitted! Processing to ${targetBound}`);
     return { success: true, message: 'Success' };
   };
@@ -3761,26 +4357,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (direction === 'in') {
       if (user.balance < amount) return { success: false, message: 'Insufficient balance' };
-      setUser((u) => ({
-        ...u,
-        balance: +(u.balance - amount).toFixed(2),
-        safeBalance: +((u.safeBalance || 0) + amount).toFixed(2)
-      }));
+      const updatedUser = {
+        ...user,
+        balance: +(user.balance - amount).toFixed(2),
+        safeBalance: +((user.safeBalance || 0) + amount).toFixed(2)
+      };
+      setUser(updatedUser);
+      saveUserToFirebase(updatedUser).catch(() => {});
       showToast(`Transferred ৳${amount} into Safe Vault`);
       return { success: true, message: 'Transferred' };
     } else {
       if ((user.safeBalance || 0) < amount) return { success: false, message: 'Insufficient Safe balance' };
-      setUser((u) => ({
-        ...u,
-        balance: +(u.balance + amount).toFixed(2),
-        safeBalance: +((u.safeBalance || 0) - amount).toFixed(2)
-      }));
+      const updatedUser = {
+        ...user,
+        balance: +(user.balance + amount).toFixed(2),
+        safeBalance: +((user.safeBalance || 0) - amount).toFixed(2)
+      };
+      setUser(updatedUser);
+      saveUserToFirebase(updatedUser).catch(() => {});
       showToast(`Transferred ৳${amount} out of Safe Vault`);
       return { success: true, message: 'Transferred' };
     }
   };
 
-  // Claim Gift Code (Global Admin-controlled, respects maxClaims, expiry, 1-per-user, & turnover)
+  // Claim Gift Code (Global Admin-controlled, supports Fixed & 200% Deposit Bonus, Reason display, targetUid, maxClaims, expiry, 1-per-user)
   const claimGiftCode = async (code: string) => {
     if (adminSettings.giftCodeEnabled === false) {
       return { success: false, message: 'Gift Code claims are currently disabled by Administrator!' };
@@ -3799,8 +4399,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let bonus = 0;
     let turnoverReq = 0;
+    let reasonText = '';
+    let rewardTypeResolved: 'fixed' | 'deposit_percent' = 'fixed';
+    let depositPctResolved = 0;
+    let pendingDeposit = false;
+    let qualifyingDepId: string | undefined;
 
-    // 1. Try authoritative central server redemption first
     let handledByServer = false;
     try {
       const res = await fetch('/api/gift-codes/redeem', {
@@ -3809,6 +4413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         body: JSON.stringify({
           code: trimmed,
           userId: user.id,
+          userUid: user.uid,
           phone: user.phone || user.email || user.id,
           nickname: user.nickname
         })
@@ -3820,10 +4425,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { success: false, message: data.message || 'Invalid or expired gift code' };
         }
         handledByServer = true;
+        pendingDeposit = Boolean(data.pendingDeposit);
         bonus = Number(data.amount) || 0;
         turnoverReq = Number(data.turnoverAmount ?? data.amount) || 0;
+        reasonText = String(data.reason || '');
+        rewardTypeResolved = data.rewardType === 'deposit_percent' ? 'deposit_percent' : 'fixed';
+        depositPctResolved = Number(data.depositBonusPercent || 0);
         if (data.settings) {
           setAdminSettings((prev) => ({ ...prev, ...data.settings }));
+          saveAppSettingsToFirebase({ ...adminSettingsRef.current, ...data.settings }).catch(() => {});
         }
       }
     } catch {
@@ -3849,6 +4459,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if ((active.claimedCount || 0) >= (active.maxClaims || 1)) {
         return { success: false, message: 'Gift code claim limit has been reached!' };
       }
+      const targetUidRaw = String(active.targetUid || '').trim().toUpperCase();
+      if (targetUidRaw && targetUidRaw !== 'ALL') {
+        const allowedUids = targetUidRaw.split(/[\s,;]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+        const myUid = String(user.uid || '').trim().toUpperCase();
+        if (!myUid || !allowedUids.includes(myUid)) {
+          return {
+            success: false,
+            message: 'This gift code is reserved for a specific UID and is not valid for your account.'
+          };
+        }
+      }
       if (active.minRequiredBalance && user.balance < active.minRequiredBalance) {
         return { success: false, message: `Minimum ৳${active.minRequiredBalance} balance required to claim this code!` };
       }
@@ -3858,73 +4479,155 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: 'You have already claimed this gift code!' };
       }
 
-      bonus = Number(active.amount) || 0;
-      turnoverReq =
-        active.turnoverAmount !== undefined && active.turnoverAmount !== null
-          ? Number(active.turnoverAmount)
-          : bonus;
+      rewardTypeResolved = active.rewardType === 'deposit_percent' ? 'deposit_percent' : 'fixed';
+      depositPctResolved = Number(active.depositBonusPercent || active.amount || 200);
+      reasonText = String(active.reason || active.note || (rewardTypeResolved === 'deposit_percent' ? `${depositPctResolved}% Deposit Bonus` : 'Admin Gift Bonus')).trim();
 
-      const claimRecord = {
-        userId: user.id,
-        nickname: user.nickname || 'User',
-        contact: user.phone || user.email || '',
-        amount: bonus,
-        time: new Date().toLocaleString()
-      };
+      if (rewardTypeResolved === 'deposit_percent') {
+        const normMyPhone = normalizePhone(user.phone || '');
+        const recentCutoff = Number(active.createdAt || 0) - 24 * 60 * 60 * 1000;
+        const creditedList = Array.isArray(user.creditedDepositBonusCodes) ? user.creditedDepositBonusCodes : [];
+        const approvedDeps = depositRequests.filter((d) => {
+          if (d.status !== 'approved') return false;
+          const depPhone = normalizePhone(d.userPhone || d.senderNumber || '');
+          const belongs =
+            d.userId === user.id ||
+            (user.uid && d.userId === user.uid) ||
+            (normMyPhone !== '' && depPhone === normMyPhone);
+          if (!belongs) return false;
+          if (creditedList.includes(`${trimmed}:${d.id}`)) return false;
+          const parsedTs = Date.parse(d.time || '');
+          if (Number.isFinite(parsedTs) && recentCutoff > 0 && parsedTs < recentCutoff) return false;
+          return d.amount > 0;
+        });
 
-      const updatedCodes = adminSettings.activeGiftCodes.map((c, idx) =>
-        idx === activeIdx
-          ? {
-              ...c,
-              claimedCount: (c.claimedCount || 0) + 1,
-              claimedBy: claimerKey ? [...claimedBy, claimerKey] : claimedBy,
-              claimRecords: [claimRecord, ...(c.claimRecords || [])]
-            }
-          : c
-      );
-      setAdminSettings((prev) => ({ ...prev, activeGiftCodes: updatedCodes }));
+        const qualifyingDep = approvedDeps[0];
+        if (!qualifyingDep) {
+          pendingDeposit = true;
+          const activatedUser = syncUserEverywhere({
+            ...user,
+            pendingDepositBonusCode: trimmed
+          });
+          setUser(activatedUser);
+          const msg = `${depositPctResolved}% Deposit Bonus (${trimmed}) activated! Make a deposit & bonus will auto-credit on approval.`;
+          showToast(msg);
+          return { success: true, pendingDeposit: true, message: msg };
+        }
+
+        qualifyingDepId = qualifyingDep.id;
+        bonus = +((qualifyingDep.amount * depositPctResolved) / 100).toFixed(2);
+        turnoverReq =
+          active.turnoverAmount && Number(active.turnoverAmount) > 0
+            ? Number(active.turnoverAmount)
+            : bonus;
+
+        const claimRecord = {
+          userId: user.id,
+          uid: user.uid,
+          nickname: user.nickname || 'User',
+          contact: user.phone || user.email || '',
+          amount: bonus,
+          depositAmount: qualifyingDep.amount,
+          reason: reasonText,
+          time: new Date().toLocaleString()
+        };
+
+        const updatedCodes = adminSettings.activeGiftCodes.map((c, idx) =>
+          idx === activeIdx
+            ? {
+                ...c,
+                claimedCount: (c.claimedCount || 0) + 1,
+                claimedBy: claimerKey ? [...claimedBy, claimerKey] : claimedBy,
+                claimRecords: [claimRecord, ...(c.claimRecords || [])]
+              }
+            : c
+        );
+        const nextSettings = { ...adminSettingsRef.current, activeGiftCodes: updatedCodes };
+        setAdminSettings(nextSettings);
+        saveAppSettingsToFirebase(nextSettings).catch(() => {});
+      } else {
+        bonus = Number(active.amount) || 0;
+        turnoverReq =
+          active.turnoverAmount !== undefined && active.turnoverAmount !== null
+            ? Number(active.turnoverAmount)
+            : bonus;
+
+        const claimRecord = {
+          userId: user.id,
+          uid: user.uid,
+          nickname: user.nickname || 'User',
+          contact: user.phone || user.email || '',
+          amount: bonus,
+          reason: reasonText,
+          time: new Date().toLocaleString()
+        };
+
+        const updatedCodes = adminSettings.activeGiftCodes.map((c, idx) =>
+          idx === activeIdx
+            ? {
+                ...c,
+                claimedCount: (c.claimedCount || 0) + 1,
+                claimedBy: claimerKey ? [...claimedBy, claimerKey] : claimedBy,
+                claimRecords: [claimRecord, ...(c.claimRecords || [])]
+              }
+            : c
+        );
+        const nextSettings = { ...adminSettingsRef.current, activeGiftCodes: updatedCodes };
+        setAdminSettings(nextSettings);
+        saveAppSettingsToFirebase(nextSettings).catch(() => {});
+      }
+    }
+
+    if (pendingDeposit) {
+      const activatedUser = syncUserEverywhere({
+        ...user,
+        pendingDepositBonusCode: trimmed
+      });
+      setUser(activatedUser);
+      const msg = `${depositPctResolved || 200}% Deposit Bonus (${trimmed}) activated! Make a deposit & bonus will auto-credit on approval.`;
+      showToast(msg);
+      return { success: true, pendingDeposit: true, message: msg };
     }
 
     const newBal = +(user.balance + bonus).toFixed(2);
     const newTurnover = +((user.turnoverRequired || 0) + turnoverReq).toFixed(2);
     const claimTimeStr = new Date().toLocaleString();
-    const updatedUser: User = {
+    const nextCredited = qualifyingDepId
+      ? [...(user.creditedDepositBonusCodes || []), `${trimmed}:${qualifyingDepId}`]
+      : user.creditedDepositBonusCodes;
+    const updatedUser = syncUserEverywhere({
       ...user,
       balance: newBal,
       turnoverRequired: newTurnover,
       lastGiftClaimTime: claimTimeStr,
       lastGiftCode: trimmed,
-      lastGiftAmount: bonus
-    };
-
+      lastGiftAmount: bonus,
+      lastGiftReason: reasonText || user.lastGiftReason,
+      pendingDepositBonusCode: user.pendingDepositBonusCode === trimmed ? '' : user.pendingDepositBonusCode,
+      ...(nextCredited ? { creditedDepositBonusCodes: nextCredited } : {})
+    });
     setUser(updatedUser);
-    fetch('/api/users/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: updatedUser })
-    }).catch(() => {});
 
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}`,
-        userId: user.id,
-        type: 'gift',
-        title: 'Gift Code Claimed',
-        detail: `Code: ${trimmed} • +৳${turnoverReq.toFixed(0)} Turnover Required`,
-        amount: bonus,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const giftTx: Transaction = {
+      id: `tx_${Date.now()}`,
+      userId: user.id,
+      type: 'gift',
+      title: rewardTypeResolved === 'deposit_percent' ? `${depositPctResolved}% Deposit Gift Bonus` : 'Gift Code Claimed',
+      detail: `${reasonText ? `${reasonText} • ` : ''}Code: ${trimmed} • +৳${turnoverReq.toFixed(0)} Turnover`,
+      amount: bonus,
+      balanceAfter: newBal,
+      time: claimTimeStr,
+      status: 'success'
+    };
+    setTransactions((prev) => [giftTx, ...prev]);
+    saveTransactionToFirebase(giftTx).catch(() => {});
 
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.5 } });
-    showToast(`Received ৳${bonus.toFixed(2)}! (৳${turnoverReq.toFixed(0)} turnover added)`);
+    showToast(`Received ৳${bonus.toFixed(2)}!${reasonText ? ` (${reasonText})` : ''}`);
     return { success: true, message: 'Success' };
   };
 
-  // Daily Attendance Check-in (Enforces deposit history, 1-time claim per day tier, 1 claim per calendar day, and streak reset on skip)
+  // Daily Sign-In Bonus (Day 1 ৳1 -> Day 7 ৳7, unlocks at 12:00 AM, 1x turnover, resets after Day 7 or missed day)
   const claimAttendanceReward = (day: number) => {
     const target = attendance.find((a) => a.day === day);
     if (!target) return { success: false, message: 'Day not found' };
@@ -3932,51 +4635,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: `Day ${day} bonus has already been claimed!` };
     }
     if (target.status === 'locked') {
-      const reason = target.lockReason || 'Deposit requirements not met yet';
+      const reason = target.lockReason || 'Come back tomorrow';
       showToast(reason);
       return { success: false, message: reason };
     }
 
-    const today = getLocalDateStr();
-    const yesterday = getLocalDateStr(new Date(Date.now() - 86400000));
+    const tzOffset =
+      typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
+        ? adminSettingsRef.current.timezoneOffsetMinutes
+        : 360;
+    const today = getDateKeyWithOffset(Date.now(), tzOffset);
+    const yesterday = getDateKeyWithOffset(Date.now() - 86400000, tzOffset);
     const prevState = user.attendanceState || { claimedDays: [], streak: 0 };
+    const prevDays = Array.isArray(prevState.claimedDays) ? prevState.claimedDays : [];
     const missedDay = Boolean(
       prevState.lastClaimDate && prevState.lastClaimDate !== today && prevState.lastClaimDate !== yesterday
     );
+    const cycleRestart = missedDay || (prevDays.length >= 7 && prevState.lastClaimDate !== today);
 
     const newBal = +(user.balance + target.amount).toFixed(2);
+    const newTurnoverReq = +((user.turnoverRequired || 0) + target.amount).toFixed(2);
     const updatedUser: User = {
       ...user,
       balance: newBal,
+      turnoverRequired: newTurnoverReq,
       attendanceState: {
         ...prevState,
-        claimedDays: [...(prevState.claimedDays || []), day],
+        claimedDays: cycleRestart ? [day] : [...prevDays, day],
         lastClaimDate: today,
-        streak: missedDay ? 1 : (prevState.streak || 0) + 1
+        streak: cycleRestart ? 1 : (prevState.streak || 0) + 1
       }
     };
 
     setUser(updatedUser);
+    saveUserToFirebase(updatedUser).catch(() => {});
     fetch('/api/users/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user: updatedUser })
     }).catch(() => {});
 
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_att`,
-        userId: user.id,
-        type: 'attendance_bonus',
-        title: `Daily Attendance Day ${day} Bonus`,
-        detail: `Deposit Milestone ৳${target.requiredDeposit.toLocaleString()}+ Unlocked`,
-        amount: target.amount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const attTx: Transaction = {
+      id: `tx_${Date.now()}_att`,
+      userId: user.id,
+      type: 'attendance_bonus',
+      title: `Daily Sign-In Day ${day} Bonus`,
+      detail: `৳${target.amount} Bonus Credited (1x turnover)`,
+      amount: target.amount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [attTx, ...prev]);
+    saveTransactionToFirebase(attTx).catch(() => {});
 
     showToast(`Claimed Day ${day} bonus ৳${target.amount.toFixed(2)}!`);
     confetti({ particleCount: 60, spread: 65 });
@@ -4131,12 +4842,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Success' };
   };
 
-  // Binary Option Trade across all synchronized global markets
+  const recordMarketPoolBet = (
+    game: 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip',
+    mode: string,
+    period: string,
+    selection: string,
+    amount: number
+  ) => {
+    const numAmt = Number(amount) || 0;
+    if (numAmt <= 0) return;
+    const rawId = `${game}_${mode}_${period}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+    const prevPool = marketPoolsRef.current[rawId] || {
+      poolId: rawId,
+      game,
+      mode,
+      period,
+      selections: {},
+      totalAmount: 0,
+      updatedAt: Date.now()
+    };
+    const selKey = String(selection || 'BET').slice(0, 48);
+    const nextPool: MarketPoolEntry = {
+      ...prevPool,
+      selections: {
+        ...(prevPool.selections || {}),
+        [selKey]: +(Number(prevPool.selections?.[selKey] || 0) + numAmt).toFixed(2)
+      },
+      totalAmount: +(Number(prevPool.totalAmount || 0) + numAmt).toFixed(2),
+      updatedAt: Date.now()
+    };
+    setMarketPools((prev) => ({ ...prev, [rawId]: nextPool }));
+    saveMarketPoolInFirebase(nextPool).catch(() => {});
+    fetch('/api/market-pools/bet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ poolId: rawId, game, mode, period, selection: selKey, amount: numAmt })
+    }).catch(() => {});
+  };
+
+  // Binary Option Trade across all synchronized global markets (min ৳10, chart tip entry precision)
   const placeBinaryTrade = (
     asset: string,
     direction: 'UP' | 'DOWN',
     amount: number,
-    durationSeconds: number
+    durationSeconds: number,
+    entryPriceOverride?: number
   ) => {
     if (!user.isLoggedIn || !user.id) {
       showToast('Please login first to trade Binary Market');
@@ -4146,7 +4896,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Your account is banned by Administrator! Trading is disabled.');
       return { success: false, message: 'Account is banned by Administrator' };
     }
-    if (amount <= 0) return { success: false, message: 'Invalid trade amount' };
+    if (amount < 10) {
+      showToast('Minimum Binary trade is ৳10');
+      return { success: false, message: 'Minimum Binary trade is ৳10' };
+    }
     if (user.balance < amount) {
       showToast('Insufficient balance');
       return { success: false, message: 'Insufficient balance' };
@@ -4155,20 +4908,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const spec = BINARY_MARKET_MAP[asset];
     const decimals = spec?.decimals ?? 2;
     const payoutRate = spec?.payoutRate ?? 0.90;
-    const entryPrice = binaryMarkets[asset]?.price ?? binaryPrice;
+    const entryPrice = +(Number(entryPriceOverride ?? binaryMarkets[asset]?.price ?? binaryPrice)).toFixed(decimals);
 
     const newBal = +(user.balance - amount).toFixed(2);
-    setUser((u) => ({
-      ...u,
+    const updatedUser = syncUserEverywhere({
+      ...user,
       balance: newBal,
-      exp: u.exp + amount,
-      turnoverCompleted: (u.turnoverCompleted || 0) + amount
-    }));
+      exp: user.exp + amount,
+      turnoverCompleted: (user.turnoverCompleted || 0) + amount
+    });
+    setUser(updatedUser);
 
     const now = Date.now();
     const endTime = now + durationSeconds * 1000;
     const newBet: BinaryOptionBet = {
-      id: `bin_${now}`,
+      id: `bin_${now}_${Math.random().toString(36).slice(2, 5)}`,
       userId: user.id,
       asset,
       direction,
@@ -4182,6 +4936,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setBinaryBets((prev) => [newBet, ...prev]);
+    recordMarketPoolBet('binary', asset, 'live', direction, amount);
 
     fetch('/api/binary/bet', {
       method: 'POST',
@@ -4189,26 +4944,245 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({ asset, direction, amount, endTime })
     }).catch(() => {});
 
-    setTransactions((prev) => [
-      {
-        id: `tx_${now}`,
-        userId: user.id,
-        type: 'binary_bet',
-        title: `Binary Trade (${direction} ${asset})`,
-        detail: `Entry: ${entryPrice.toFixed(decimals)} • Timeframe: ${durationSeconds}s`,
-        amount: -amount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const tx: Transaction = {
+      id: `tx_${now}`,
+      userId: user.id,
+      type: 'binary_bet',
+      title: `Binary Trade (${direction} ${asset})`,
+      detail: `Entry: ${entryPrice.toFixed(decimals)} • Timeframe: ${durationSeconds}s`,
+      amount: -amount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
 
     showToast(`Binary Trade Placed: ${asset} ${direction} @ ${entryPrice.toFixed(decimals)}`);
     return { success: true, message: 'Success' };
   };
 
-  // Aviator Plane Game Actions
+  // Shared 30% Pool Crash Game Engine (Aviator + Lucky Jet)
+  const placeCrashBet = async (
+    game: 'aviator' | 'luckyjet',
+    roundId: string,
+    amount: number,
+    autoCashout?: number
+  ) => {
+    const label = game === 'luckyjet' ? 'Lucky Jet' : 'Aviator';
+    if (!user.isLoggedIn || !user.id) {
+      showToast(`Please login first to bet on ${label}`);
+      return { success: false, message: 'Please log in first' };
+    }
+    if (user.isBanned) {
+      showToast('Your account is banned by Administrator!');
+      return { success: false, message: 'Account is banned by Administrator' };
+    }
+    if (amount < 10) {
+      showToast(`Minimum ${label} bet is ৳10`);
+      return { success: false, message: `Minimum ${label} bet is ৳10` };
+    }
+    if (user.balance < amount) {
+      showToast('Insufficient wallet balance');
+      return { success: false, message: 'Insufficient balance' };
+    }
+
+    const betId = `${game === 'luckyjet' ? 'lj' : 'av'}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newBal = +(user.balance - amount).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...user,
+      balance: newBal,
+      exp: user.exp + amount,
+      turnoverCompleted: (user.turnoverCompleted || 0) + amount
+    });
+    setUser(updatedUser);
+
+    const newBet: AviatorBet = {
+      id: betId,
+      roundId,
+      userId: user.id,
+      game,
+      amount,
+      status: 'active',
+      autoCashout: autoCashout && autoCashout >= 1.1 ? autoCashout : undefined,
+      time: new Date().toLocaleTimeString('en-US', { hour12: false })
+    };
+    setAviatorBets((prev) => [newBet, ...prev]);
+
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_${game}`,
+      userId: user.id,
+      type: game === 'luckyjet' ? 'luckyjet_bet' : 'aviator_bet',
+      title: `${label} Bet`,
+      detail: `Round #${roundId.slice(-5)}${autoCashout ? ` • Auto @ ${autoCashout.toFixed(2)}x` : ''}`,
+      amount: -amount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+
+    try {
+      const res = await fetch('/api/crash/bet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          game,
+          roundId,
+          userId: user.id,
+          nickname: user.nickname || 'Player',
+          amount,
+          betId
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.pool) {
+        setCrashPoolStates((prev) => ({ ...prev, [game]: data.pool }));
+        saveCrashStateToFirebase(data.pool).catch(() => {});
+      }
+    } catch {
+      const curPool = crashPoolStatesRef.current[game];
+      const basePool: CrashPoolState =
+        curPool && curPool.roundId === roundId
+          ? curPool
+          : {
+              game,
+              roundId,
+              totalPool: 0,
+              totalPaidOut: 0,
+              maxPayoutCap: 0,
+              forcedCrashMultiplier: 0,
+              forcedCrashedAtMs: 0,
+              bets: [],
+              updatedAt: Date.now()
+            };
+      const nextPool: CrashPoolState = {
+        ...basePool,
+        totalPool: +(basePool.totalPool + amount).toFixed(2),
+        maxPayoutCap: +((basePool.totalPool + amount) * 0.3).toFixed(2),
+        bets: [
+          ...(basePool.bets || []),
+          {
+            id: betId,
+            game,
+            roundId,
+            userId: user.id,
+            nickname: user.nickname || 'Player',
+            amount,
+            status: 'active',
+            placedAt: Date.now()
+          }
+        ],
+        updatedAt: Date.now()
+      };
+      setCrashPoolStates((prev) => ({ ...prev, [game]: nextPool }));
+      saveCrashStateToFirebase(nextPool).catch(() => {});
+    }
+
+    showToast(`${label} Bet Placed: ৳${amount}`);
+    return { success: true, message: 'Bet placed', betId };
+  };
+
+  const cashOutCrashBet = async (game: 'aviator' | 'luckyjet', betId: string, multiplier: number) => {
+    const label = game === 'luckyjet' ? 'Lucky Jet' : 'Aviator';
+    const target = aviatorBets.find((b) => b.id === betId && b.status === 'active');
+    if (!target) return { success: false, winAmount: 0 };
+
+    // Server authoritative 30% payout check first
+    try {
+      const res = await fetch('/api/crash/cashout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          game,
+          roundId: target.roundId,
+          userId: userRef.current.id,
+          betId,
+          amount: target.amount,
+          multiplier
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.crashed) {
+        setAviatorBets((prev) =>
+          prev.map((b) => (b.id === betId && b.status === 'active' ? { ...b, status: 'lost', winAmount: 0 } : b))
+        );
+        return { success: false, winAmount: 0, crashed: true, crashPoint: Number(data.crashPoint || multiplier) };
+      }
+      if (data?.pool) {
+        setCrashPoolStates((prev) => ({ ...prev, [game]: data.pool }));
+        saveCrashStateToFirebase(data.pool).catch(() => {});
+      }
+    } catch {
+      // Static deploy fallback: enforce identical 30% cap from crashPoolStates
+      const curPool = crashPoolStatesRef.current[game];
+      if (curPool && curPool.roundId === target.roundId) {
+        const activeBets = (curPool.bets || []).filter((b) => b.status === 'active');
+        const uniqueUsers = new Set(activeBets.map((b) => b.userId)).size;
+        const evalRes = evaluateCrash30Cap({
+          totalPool: curPool.totalPool || target.amount,
+          totalPaidOut: curPool.totalPaidOut || 0,
+          activeBetAmount: target.amount,
+          currentMultiplier: multiplier,
+          activePlayerCount: Math.max(1, uniqueUsers)
+        });
+        if (evalRes.shouldForceCrash) {
+          const crashAt = Math.max(1.0, +(multiplier - 0.01).toFixed(2));
+          const forcedPool: CrashPoolState = {
+            ...curPool,
+            forcedCrashMultiplier: crashAt,
+            forcedCrashedAtMs: Date.now(),
+            bets: (curPool.bets || []).map((b) => (b.status === 'active' ? { ...b, status: 'lost' } : b)),
+            updatedAt: Date.now()
+          };
+          setCrashPoolStates((prev) => ({ ...prev, [game]: forcedPool }));
+          saveCrashStateToFirebase(forcedPool).catch(() => {});
+          setAviatorBets((prev) =>
+            prev.map((b) => (b.id === betId && b.status === 'active' ? { ...b, status: 'lost', winAmount: 0 } : b))
+          );
+          return { success: false, winAmount: 0, crashed: true, crashPoint: crashAt };
+        }
+      }
+    }
+
+    const winAmount = +(target.amount * multiplier).toFixed(2);
+    setAviatorBets((prev) =>
+      prev.map((b) =>
+        b.id === betId
+          ? { ...b, status: 'cashed_out', cashoutMultiplier: +multiplier.toFixed(2), winAmount }
+          : b
+      )
+    );
+
+    const newBal = +(userRef.current.balance + winAmount).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...userRef.current,
+      balance: newBal,
+      turnoverCompleted: (userRef.current.turnoverCompleted || 0) + winAmount
+    });
+    setUser(updatedUser);
+
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_${game}w`,
+      userId: userRef.current.id,
+      type: game === 'luckyjet' ? 'luckyjet_win' : 'aviator_win',
+      title: `${label} Cashed Out @ ${multiplier.toFixed(2)}x`,
+      detail: `Round #${target.roundId.slice(-5)} • Profit +৳${(winAmount - target.amount).toFixed(2)}`,
+      amount: winAmount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+
+    confetti({ particleCount: 70, spread: 60 });
+    showToast(`Cashed Out @ ${multiplier.toFixed(2)}x! +৳${winAmount.toFixed(2)}`);
+    return { success: true, winAmount };
+  };
+
+  // Aviator Plane Game Actions (delegates through shared 30% pool engine)
   const placeAviatorBet = (roundId: string, amount: number, autoCashout?: number) => {
     if (!user.isLoggedIn) {
       showToast('Please login first to bet on Aviator Plane');
@@ -4228,12 +5202,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const betId = `av_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const newBal = +(user.balance - amount).toFixed(2);
-    setUser((u) => ({
-      ...u,
+    const updatedUser = syncUserEverywhere({
+      ...user,
       balance: newBal,
-      exp: u.exp + amount,
-      turnoverCompleted: (u.turnoverCompleted || 0) + amount
-    }));
+      exp: user.exp + amount,
+      turnoverCompleted: (user.turnoverCompleted || 0) + amount
+    });
+    setUser(updatedUser);
 
     const newBet: AviatorBet = {
       id: betId,
@@ -4246,20 +5221,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setAviatorBets((prev) => [newBet, ...prev]);
 
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_avb`,
+    fetch('/api/crash/bet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game: 'aviator',
+        roundId,
         userId: user.id,
-        type: 'aviator_bet',
-        title: 'Aviator Plane Bet',
-        detail: `Round #${roundId.slice(-5)}${autoCashout ? ` • Auto @ ${autoCashout.toFixed(2)}x` : ''}`,
-        amount: -amount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+        nickname: user.nickname || 'Player',
+        amount,
+        betId
+      })
+    }).catch(() => {});
+
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_avb`,
+      userId: user.id,
+      type: 'aviator_bet',
+      title: 'Aviator Plane Bet',
+      detail: `Round #${roundId.slice(-5)}${autoCashout ? ` • Auto @ ${autoCashout.toFixed(2)}x` : ''}`,
+      amount: -amount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
 
     showToast(`Aviator Bet Placed: ৳${amount}`);
     return { success: true, message: 'Bet placed', betId };
@@ -4279,26 +5266,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     const newBal = +(userRef.current.balance + winAmount).toFixed(2);
-    setUser((u) => ({
-      ...u,
-      balance: +(u.balance + winAmount).toFixed(2),
-      turnoverCompleted: (u.turnoverCompleted || 0) + winAmount
-    }));
+    const updatedUser = syncUserEverywhere({
+      ...userRef.current,
+      balance: newBal,
+      turnoverCompleted: (userRef.current.turnoverCompleted || 0) + winAmount
+    });
+    setUser(updatedUser);
 
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_avw`,
-        userId: userRef.current.id,
-        type: 'aviator_win',
-        title: `Aviator Cashed Out @ ${multiplier.toFixed(2)}x`,
-        detail: `Round #${target.roundId.slice(-5)} • Profit +৳${(winAmount - target.amount).toFixed(2)}`,
-        amount: winAmount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_avw`,
+      userId: userRef.current.id,
+      type: 'aviator_win',
+      title: `Aviator Cashed Out @ ${multiplier.toFixed(2)}x`,
+      detail: `Round #${target.roundId.slice(-5)} • Profit +৳${(winAmount - target.amount).toFixed(2)}`,
+      amount: winAmount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
 
     confetti({ particleCount: 70, spread: 60 });
     showToast(`Cashed Out @ ${multiplier.toFixed(2)}x! +৳${winAmount.toFixed(2)}`);
@@ -4312,6 +5299,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Mines 777 Game Actions
+  const incrementMinesRoundSeq = () => {
+    if (!userRef.current.id) return;
+    const nextSeq = (userRef.current.minesRoundSeq || 0) + 1;
+    setUser((u) => syncUserEverywhere({ ...u, minesRoundSeq: nextSeq }));
+  };
+
   const placeMinesBet = (amount: number, minesCount: number) => {
     if (!user.isLoggedIn || !user.id) {
       showToast('Please login first to play Mines 777');
@@ -4330,53 +5323,149 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Insufficient balance' };
     }
     const newBal = +(user.balance - amount).toFixed(2);
-    setUser((u) => ({
-      ...u,
+    const updatedUser = syncUserEverywhere({
+      ...user,
       balance: newBal,
-      exp: u.exp + amount,
-      turnoverCompleted: (u.turnoverCompleted || 0) + amount
-    }));
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_mnb`,
-        userId: user.id,
-        type: 'mines_bet',
-        title: `Mines 777 Bet (${minesCount} Mines)`,
-        detail: `25 Tiles • Bet ৳${amount.toFixed(2)}`,
-        amount: -amount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+      exp: user.exp + amount,
+      turnoverCompleted: (user.turnoverCompleted || 0) + amount,
+      minesRoundSeq: (user.minesRoundSeq || 0) + 1
+    });
+    setUser(updatedUser);
+    recordMarketPoolBet('mines', String(minesCount), 'live', 'BET', amount);
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_mnb`,
+      userId: user.id,
+      type: 'mines_bet',
+      title: `Mines 777 Bet (${minesCount} Mines)`,
+      detail: `25 Tiles • Bet ৳${amount.toFixed(2)}`,
+      amount: -amount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
     return { success: true, message: 'Round started' };
   };
 
   const cashOutMinesWin = (betAmount: number, winAmount: number, multiplier: number, minesCount: number) => {
     const newBal = +(userRef.current.balance + winAmount).toFixed(2);
-    setUser((u) => ({
-      ...u,
-      balance: +(u.balance + winAmount).toFixed(2),
-      turnoverCompleted: (u.turnoverCompleted || 0) + winAmount
-    }));
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_mnw`,
-        userId: userRef.current.id,
-        type: 'mines_win',
-        title: `Mines 777 Win @ ${multiplier.toFixed(2)}x`,
-        detail: `${minesCount} Mines • Profit +৳${(winAmount - betAmount).toFixed(2)}`,
-        amount: winAmount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const updatedUser = syncUserEverywhere({
+      ...userRef.current,
+      balance: newBal,
+      turnoverCompleted: (userRef.current.turnoverCompleted || 0) + winAmount
+    });
+    setUser(updatedUser);
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_mnw`,
+      userId: userRef.current.id,
+      type: 'mines_win',
+      title: `Mines 777 Win @ ${multiplier.toFixed(2)}x`,
+      detail: `${minesCount} Mines • Profit +৳${(winAmount - betAmount).toFixed(2)}`,
+      amount: winAmount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
     confetti({ particleCount: 65, spread: 60 });
     showToast(`Mines 777 Win! +৳${winAmount.toFixed(2)} (${multiplier.toFixed(2)}x)`);
     return { success: true, winAmount };
+  };
+
+  // Coin Flip Game Actions (Min ৳10, GOLD vs SILVER EWI777, synced pool + 4-mode control)
+  const placeCoinFlipBet = (periodNumber: string, side: 'GOLD' | 'SILVER', amount: number) => {
+    if (!user.isLoggedIn || !user.id) {
+      showToast('Please login first to play Coin Flip');
+      return { success: false, message: 'Please log in first' };
+    }
+    if (user.isBanned) {
+      showToast('Your account is banned by Administrator!');
+      return { success: false, message: 'Account banned' };
+    }
+    if (amount < 10) {
+      showToast('Minimum Coin Flip bet is ৳10');
+      return { success: false, message: 'Minimum Coin Flip bet is ৳10' };
+    }
+    if (user.balance < amount) {
+      showToast('Insufficient wallet balance');
+      return { success: false, message: 'Insufficient balance' };
+    }
+    const newBal = +(user.balance - amount).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...user,
+      balance: newBal,
+      exp: user.exp + amount,
+      turnoverCompleted: (user.turnoverCompleted || 0) + amount
+    });
+    setUser(updatedUser);
+    recordMarketPoolBet('coinflip', 'default', periodNumber, side, amount);
+
+    const betId = `cf_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    const newBet: CoinFlipBet = {
+      id: betId,
+      userId: user.id,
+      periodNumber,
+      side,
+      amount,
+      status: 'pending',
+      time: new Date().toTimeString().slice(0, 8)
+    };
+    setCoinFlipBets((prev) => [newBet, ...prev]);
+
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_cfb`,
+      userId: user.id,
+      type: 'coinflip_bet',
+      title: `Coin Flip Bet (${side})`,
+      detail: `Round ${periodNumber.slice(-5)} • ৳${amount.toFixed(2)}`,
+      amount: -amount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+    showToast(`Coin Flip ${side} (EWI777) placed: ৳${amount}`);
+    return { success: true, message: 'Bet placed', betId };
+  };
+
+  const settleCoinFlipRound = (periodNumber: string, resultSide: 'GOLD' | 'SILVER') => {
+    let totalWin = 0;
+    setCoinFlipBets((prev) =>
+      prev.map((b) => {
+        if (b.periodNumber !== periodNumber || b.status !== 'pending') return b;
+        const won = b.side === resultSide;
+        const winAmt = won ? +(b.amount * 1.89).toFixed(2) : 0;
+        totalWin += winAmt;
+        return { ...b, resultSide, status: won ? 'won' : 'lost', winAmount: winAmt };
+      })
+    );
+    if (totalWin > 0) {
+      const nextBal = +(userRef.current.balance + totalWin).toFixed(2);
+      const updatedUser = syncUserEverywhere({
+        ...userRef.current,
+        balance: nextBal,
+        turnoverCompleted: (userRef.current.turnoverCompleted || 0) + totalWin
+      });
+      setUser(updatedUser);
+      const tx: Transaction = {
+        id: `tx_${Date.now()}_cfw`,
+        userId: userRef.current.id,
+        type: 'coinflip_win',
+        title: `Coin Flip Won (${resultSide})`,
+        detail: `Round ${periodNumber.slice(-5)} • +৳${totalWin.toFixed(2)}`,
+        amount: totalWin,
+        balanceAfter: nextBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      };
+      setTransactions((prev) => [tx, ...prev]);
+      saveTransactionToFirebase(tx).catch(() => {});
+      confetti({ particleCount: 70, spread: 60 });
+      showToast(`Coin Flip Won (${resultSide})! +৳${totalWin.toFixed(2)}`);
+    }
   };
 
   // Agent Daily Salary Claim (Enforces Terms & Conditions 1-8 cleanly)
@@ -4572,7 +5661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Bonus collected' };
   };
 
-  // K3 Dice Lottery Engine
+  // EWI K3 Dice Lottery Engine
   const placeK3Bet = (
     mode: K3Mode,
     periodNumber: string,
@@ -4583,7 +5672,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutRate: number
   ) => {
     if (!user.isLoggedIn) {
-      return { success: false, message: 'Please log in first to place K3 bets!' };
+      return { success: false, message: 'Please log in first to place EWI K3 bets!' };
+    }
+    if (user.isBanned) {
+      return { success: false, message: 'Account is banned by Administrator' };
     }
     const totalAmount = +(amount * multiplier).toFixed(2);
     if (totalAmount <= 0 || isNaN(totalAmount)) {
@@ -4593,18 +5685,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Insufficient balance! Please deposit first.' };
     }
     const newBal = +(user.balance - totalAmount).toFixed(2);
-    const updatedUser: User = {
+    const updatedUser = syncUserEverywhere({
       ...user,
       balance: newBal,
       turnoverCompleted: +(user.turnoverCompleted + totalAmount).toFixed(2),
       exp: user.exp + Math.round(totalAmount)
-    };
+    });
     setUser(updatedUser);
-    fetch('/api/users/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: updatedUser })
-    }).catch(() => {});
+
+    recordMarketPoolBet('k3', mode, periodNumber, `${betType}:${selection}`, totalAmount);
 
     const betEntry: K3Bet = {
       id: `k3_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -4621,20 +5710,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       time: new Date().toTimeString().slice(0, 8)
     };
     setK3Bets((prev) => [betEntry, ...prev]);
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_k3b`,
-        userId: user.id,
-        type: 'k3_bet',
-        title: `K3 ${mode} Bet (${selection})`,
-        detail: `Period ${periodNumber} • ${betType}`,
-        amount: -totalAmount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const k3BetTx: Transaction = {
+      id: `tx_${Date.now()}_k3b`,
+      userId: user.id,
+      type: 'k3_bet',
+      title: `EWI K3 ${mode} Bet (${selection})`,
+      detail: `Period ${periodNumber} • ${betType}`,
+      amount: -totalAmount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [k3BetTx, ...prev]);
+    saveTransactionToFirebase(k3BetTx).catch(() => {});
     return { success: true, message: 'Bet placed' };
   };
 
@@ -4695,33 +5783,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (totalWinCredit > 0) {
       const nextBal = +(userRef.current.balance + totalWinCredit).toFixed(2);
-      const updatedUser = { ...userRef.current, balance: nextBal };
+      const updatedUser = syncUserEverywhere({ ...userRef.current, balance: nextBal });
       setUser(updatedUser);
-      fetch('/api/users/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: updatedUser })
-      }).catch(() => {});
-      setTransactions((prev) => [
-        {
-          id: `tx_${Date.now()}_k3w`,
-          userId: userRef.current.id,
-          type: 'k3_win',
-          title: `K3 ${mode} Win`,
-          detail: `Period ${periodNumber} • Dice ${dice.join('-')} (Sum ${sum})`,
-          amount: totalWinCredit,
-          balanceAfter: nextBal,
-          time: new Date().toLocaleString(),
-          status: 'success'
-        },
-        ...prev
-      ]);
+      const k3WinTx: Transaction = {
+        id: `tx_${Date.now()}_k3w`,
+        userId: userRef.current.id,
+        type: 'k3_win',
+        title: `EWI K3 ${mode} Win`,
+        detail: `Period ${periodNumber} • Dice ${dice.join('-')} (Sum ${sum})`,
+        amount: totalWinCredit,
+        balanceAfter: nextBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      };
+      setTransactions((prev) => [k3WinTx, ...prev]);
+      saveTransactionToFirebase(k3WinTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`K3 Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`EWI K3 Won +৳${totalWinCredit.toFixed(2)}!`);
     }
   };
 
-  // 5D Lottery Engine
+  // EWI 5D Lottery Engine
   const placeD5Bet = (
     mode: D5Mode,
     periodNumber: string,
@@ -4733,7 +5815,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutRate: number
   ) => {
     if (!user.isLoggedIn) {
-      return { success: false, message: 'Please log in first to place 5D bets!' };
+      return { success: false, message: 'Please log in first to place EWI 5D bets!' };
+    }
+    if (user.isBanned) {
+      return { success: false, message: 'Account is banned by Administrator' };
     }
     const totalAmount = +(amount * multiplier).toFixed(2);
     if (totalAmount <= 0 || isNaN(totalAmount)) {
@@ -4743,18 +5828,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Insufficient balance! Please deposit first.' };
     }
     const newBal = +(user.balance - totalAmount).toFixed(2);
-    const updatedUser: User = {
+    const updatedUser = syncUserEverywhere({
       ...user,
       balance: newBal,
       turnoverCompleted: +(user.turnoverCompleted + totalAmount).toFixed(2),
       exp: user.exp + Math.round(totalAmount)
-    };
+    });
     setUser(updatedUser);
-    fetch('/api/users/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: updatedUser })
-    }).catch(() => {});
+
+    recordMarketPoolBet('d5', mode, periodNumber, `${position}:${betType}:${selection}`, totalAmount);
 
     const betEntry: D5Bet = {
       id: `d5_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -4772,20 +5854,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       time: new Date().toTimeString().slice(0, 8)
     };
     setD5Bets((prev) => [betEntry, ...prev]);
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_d5b`,
-        userId: user.id,
-        type: 'd5_bet',
-        title: `5D ${mode} Bet (${position}: ${selection})`,
-        detail: `Period ${periodNumber}`,
-        amount: -totalAmount,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const d5BetTx: Transaction = {
+      id: `tx_${Date.now()}_d5b`,
+      userId: user.id,
+      type: 'd5_bet',
+      title: `EWI 5D ${mode} Bet (${position}: ${selection})`,
+      detail: `Period ${periodNumber}`,
+      amount: -totalAmount,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [d5BetTx, ...prev]);
+    saveTransactionToFirebase(d5BetTx).catch(() => {});
     return { success: true, message: 'Bet placed' };
   };
 
@@ -4818,29 +5899,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (totalWinCredit > 0) {
       const nextBal = +(userRef.current.balance + totalWinCredit).toFixed(2);
-      const updatedUser = { ...userRef.current, balance: nextBal };
+      const updatedUser = syncUserEverywhere({ ...userRef.current, balance: nextBal });
       setUser(updatedUser);
-      fetch('/api/users/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: updatedUser })
-      }).catch(() => {});
-      setTransactions((prev) => [
-        {
-          id: `tx_${Date.now()}_d5w`,
-          userId: userRef.current.id,
-          type: 'd5_win',
-          title: `5D ${mode} Win`,
-          detail: `Period ${periodNumber} • ${digits.join('-')} (Sum ${sum})`,
-          amount: totalWinCredit,
-          balanceAfter: nextBal,
-          time: new Date().toLocaleString(),
-          status: 'success'
-        },
-        ...prev
-      ]);
+      const d5WinTx: Transaction = {
+        id: `tx_${Date.now()}_d5w`,
+        userId: userRef.current.id,
+        type: 'd5_win',
+        title: `EWI 5D ${mode} Win`,
+        detail: `Period ${periodNumber} • ${digits.join('-')} (Sum ${sum})`,
+        amount: totalWinCredit,
+        balanceAfter: nextBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      };
+      setTransactions((prev) => [d5WinTx, ...prev]);
+      saveTransactionToFirebase(d5WinTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`5D Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`EWI 5D Won +৳${totalWinCredit.toFixed(2)}!`);
     }
   };
 
@@ -4860,53 +5935,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const setUserTurnover = (userId: string, requiredTurnover: number) => {
-    lastUsersMutationAtRef.current = Date.now();
-    const target = allUsers.find((u) => u.id === userId) || (user.id === userId ? user : undefined);
+    const mutationTs = Date.now();
+    lastUsersMutationAtRef.current = mutationTs + 2000;
+    const target =
+      allUsers.find((u) => matchesTargetUser(u, userId)) ||
+      (matchesTargetUser(user, userId) ? user : undefined);
+    const resolvedId = target?.id || userId;
     setAllUsers((prevUsers) =>
-      prevUsers.map((u) => (u.id === userId ? { ...u, turnoverRequired: requiredTurnover } : u))
+      prevUsers.map((u) =>
+        matchesTargetUser(u, resolvedId, target?.phone)
+          ? { ...u, turnoverRequired: requiredTurnover, updatedAt: mutationTs }
+          : u
+      )
     );
-    if (user.id === userId) {
-      setUser((u) => ({ ...u, turnoverRequired: requiredTurnover }));
+    if (matchesTargetUser(user, resolvedId, target?.phone)) {
+      setUser((u) => ({ ...u, turnoverRequired: requiredTurnover, updatedAt: mutationTs }));
     }
+    updateUserInFirebase(
+      resolvedId,
+      { turnoverRequired: requiredTurnover, updatedAt: mutationTs },
+      target ? { ...target, turnoverRequired: requiredTurnover, updatedAt: mutationTs } : undefined
+    ).catch(() => {});
     fetch('/api/users/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId,
+        userId: resolvedId,
         userPhone: target?.phone,
         fallbackUser: target,
-        patch: { turnoverRequired: requiredTurnover }
+        patch: { turnoverRequired: requiredTurnover, updatedAt: mutationTs }
       })
     }).catch(() => {});
     showToast(`Turnover updated to ৳${requiredTurnover.toFixed(0)}`);
   };
 
-  // Admin Ban / Unban Any Member
-  // "sundor kore set koro ze kono member ke ban kora zabe"
+  // Admin Ban / Unban Any Member (Persisted to BOTH Firebase Firestore + Express API)
   const toggleUserBan = (userId: string, reason?: string) => {
-    lastUsersMutationAtRef.current = Date.now();
-    const target = allUsers.find((u) => u.id === userId) || (user.id === userId ? user : undefined);
+    const mutationTs = Date.now();
+    lastUsersMutationAtRef.current = mutationTs + 2000;
+    const target =
+      allUsers.find((u) => matchesTargetUser(u, userId)) ||
+      (matchesTargetUser(user, userId) ? user : undefined);
+    const resolvedId = target?.id || userId;
     const nextBanned = target ? !target.isBanned : true;
-    const nextReason = nextBanned ? (reason || 'Violation of Platform Fair Play Rules') : undefined;
+    const nextReason = nextBanned ? (reason || 'Violation of Platform Fair Play Rules') : '';
 
     setAllUsers((prevUsers) =>
       prevUsers.map((u) =>
-        u.id === userId ? { ...u, isBanned: nextBanned, banReason: nextReason } : u
+        matchesTargetUser(u, resolvedId, target?.phone)
+          ? { ...u, isBanned: nextBanned, banReason: nextReason, updatedAt: mutationTs }
+          : u
       )
     );
 
-    if (user.id === userId) {
-      setUser((u) => ({ ...u, isBanned: nextBanned, banReason: nextReason }));
+    if (matchesTargetUser(user, resolvedId, target?.phone)) {
+      setUser((u) => ({ ...u, isBanned: nextBanned, banReason: nextReason, updatedAt: mutationTs }));
     }
+
+    updateUserInFirebase(
+      resolvedId,
+      { isBanned: nextBanned, banReason: nextReason, updatedAt: mutationTs },
+      target ? { ...target, isBanned: nextBanned, banReason: nextReason, updatedAt: mutationTs } : undefined
+    ).catch(() => {});
 
     fetch('/api/users/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId,
+        userId: resolvedId,
         userPhone: target?.phone,
         fallbackUser: target,
-        patch: { isBanned: nextBanned, banReason: nextReason || '' }
+        patch: { isBanned: nextBanned, banReason: nextReason, updatedAt: mutationTs }
       })
     }).catch(() => {});
 
@@ -4922,10 +6021,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const numAmt = Number(amount) || 0;
     if (numAmt < 0) return { success: false, message: 'Amount cannot be negative' };
 
-    const target = allUsers.find((u) => u.id === userId) || (user.id === userId ? user : null);
+    const target =
+      allUsers.find((u) => matchesTargetUser(u, userId)) ||
+      (matchesTargetUser(user, userId) ? user : null);
     if (!target) return { success: false, message: 'User not found' };
 
-    lastUsersMutationAtRef.current = Date.now();
+    const resolvedId = target.id || userId;
+    const mutationTs = Date.now();
+    lastUsersMutationAtRef.current = mutationTs + 2000;
 
     const curBal = Number(target.balance || 0);
     let nextBal = curBal;
@@ -4934,68 +6037,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     else if (action === 'set') nextBal = +Math.max(0, numAmt).toFixed(2);
 
     setAllUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, balance: nextBal } : u))
+      prev.map((u) =>
+        matchesTargetUser(u, resolvedId, target.phone)
+          ? { ...u, balance: nextBal, updatedAt: mutationTs }
+          : u
+      )
     );
-    if (user.id === userId) {
-      setUser((u) => ({ ...u, balance: nextBal }));
+    if (matchesTargetUser(user, resolvedId, target.phone)) {
+      setUser((u) => ({ ...u, balance: nextBal, updatedAt: mutationTs }));
     }
+
+    updateUserInFirebase(
+      resolvedId,
+      { balance: nextBal, updatedAt: mutationTs },
+      { ...target, balance: nextBal, updatedAt: mutationTs }
+    ).catch(() => {});
 
     fetch('/api/users/modify-balance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId,
+        userId: resolvedId,
         userPhone: target.phone,
-        fallbackUser: target,
+        fallbackUser: { ...target, updatedAt: mutationTs },
         action,
         amount: numAmt
       })
     }).catch(() => {});
 
     const delta = +(nextBal - curBal).toFixed(2);
-    setTransactions((prev) => [
-      {
-        id: `tx_${Date.now()}_adm`,
-        userId,
-        type: delta >= 0 ? 'deposit' : 'withdraw',
-        title: `Admin ${action.toUpperCase()} Balance`,
-        detail: reason?.trim() || `Balance updated by Super Controller`,
-        amount: delta,
-        balanceAfter: nextBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      },
-      ...prev
-    ]);
+    const admTx: Transaction = {
+      id: `tx_${Date.now()}_adm`,
+      userId: resolvedId,
+      type: delta >= 0 ? 'deposit' : 'withdraw',
+      title: `Admin ${action.toUpperCase()} Balance`,
+      detail: reason?.trim() || `Balance updated by Super Controller`,
+      amount: delta,
+      balanceAfter: nextBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [admTx, ...prev]);
+    saveTransactionToFirebase(admTx).catch(() => {});
 
     showToast(`Updated ${target.nickname} balance to ৳${nextBal.toFixed(2)}`);
     return { success: true, message: 'Balance updated' };
   };
 
   const adminUpdateUserRole = (userId: string, role: 'USER' | 'VIP' | 'ADMIN') => {
-    lastUsersMutationAtRef.current = Date.now();
-    const target = allUsers.find((u) => u.id === userId) || (user.id === userId ? user : undefined);
-    setAllUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
-    if (user.id === userId) {
-      setUser((u) => ({ ...u, role }));
+    const mutationTs = Date.now();
+    lastUsersMutationAtRef.current = mutationTs + 2000;
+    const target =
+      allUsers.find((u) => matchesTargetUser(u, userId)) ||
+      (matchesTargetUser(user, userId) ? user : undefined);
+    const resolvedId = target?.id || userId;
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        matchesTargetUser(u, resolvedId, target?.phone) ? { ...u, role, updatedAt: mutationTs } : u
+      )
+    );
+    if (matchesTargetUser(user, resolvedId, target?.phone)) {
+      setUser((u) => ({ ...u, role, updatedAt: mutationTs }));
     }
+    updateUserInFirebase(
+      resolvedId,
+      { role, updatedAt: mutationTs },
+      target ? { ...target, role, updatedAt: mutationTs } : undefined
+    ).catch(() => {});
     fetch('/api/users/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId,
+        userId: resolvedId,
         userPhone: target?.phone,
         fallbackUser: target,
-        patch: { role }
+        patch: { role, updatedAt: mutationTs }
       })
     }).catch(() => {});
     showToast(`Role updated to ${role}`);
   };
 
   const adminDeleteUser = (userId: string) => {
-    lastUsersMutationAtRef.current = Date.now();
+    lastUsersMutationAtRef.current = Date.now() + 2000;
     deletedUserIdsRef.current.add(userId);
-    setAllUsers((prev) => prev.filter((u) => u.id !== userId));
+    setAllUsers((prev) => prev.filter((u) => u.id !== userId && u.uid !== userId));
+    deleteUserFromFirebase(userId).catch(() => {});
     fetch('/api/users/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -5016,6 +6142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       time: new Date().toLocaleString()
     };
     setNotifications((prev) => [entry, ...prev].slice(0, 50));
+    saveNotificationToFirebase(entry).catch(() => {});
     showToast('Personal notice sent to user!');
   };
 
@@ -5024,40 +6151,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!target) return;
     const prevStatus = target.status;
 
-    lastWithdrawsMutationAtRef.current = Date.now();
-    lastUsersMutationAtRef.current = Date.now();
+    const mutationTs = Date.now();
+    lastWithdrawsMutationAtRef.current = mutationTs;
+    lastUsersMutationAtRef.current = mutationTs + 2000;
 
+    const updatedWd = { ...target, status };
     setWithdrawRequests((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, status } : w))
+      prev.map((w) => (w.id === id ? updatedWd : w))
     );
+    updateWithdrawInFirebase(id, { status }, updatedWd).catch(() => {});
 
     if (status === 'completed' && prevStatus !== 'completed') {
       setAllUsers((prev) =>
-        prev.map((u) =>
-          u.id === target.userId
-            ? { ...u, totalWithdrawn: +(Number(u.totalWithdrawn || 0) + target.amount).toFixed(2) }
-            : u
-        )
+        prev.map((u) => {
+          if (matchesTargetUser(u, target.userId, target.userPhone)) {
+            const nextTot = +(Number(u.totalWithdrawn || 0) + target.amount).toFixed(2);
+            return syncUserEverywhere({ ...u, totalWithdrawn: nextTot }, mutationTs);
+          }
+          return u;
+        })
       );
-      if (user.id === target.userId) {
-        setUser((u) => ({
-          ...u,
-          totalWithdrawn: +(Number(u.totalWithdrawn || 0) + target.amount).toFixed(2)
-        }));
+      if (matchesTargetUser(user, target.userId, target.userPhone)) {
+        setUser((u) =>
+          syncUserEverywhere({
+            ...u,
+            totalWithdrawn: +(Number(u.totalWithdrawn || 0) + target.amount).toFixed(2)
+          }, mutationTs)
+        );
       }
     } else if (status === 'rejected' && prevStatus !== 'rejected') {
       setAllUsers((prev) =>
-        prev.map((u) =>
-          u.id === target.userId
-            ? { ...u, balance: +(Number(u.balance || 0) + target.amount).toFixed(2) }
-            : u
-        )
+        prev.map((u) => {
+          if (matchesTargetUser(u, target.userId, target.userPhone)) {
+            const nextBal = +(Number(u.balance || 0) + target.amount).toFixed(2);
+            return syncUserEverywhere({ ...u, balance: nextBal }, mutationTs);
+          }
+          return u;
+        })
       );
-      if (user.id === target.userId) {
-        setUser((u) => ({
-          ...u,
-          balance: +(Number(u.balance || 0) + target.amount).toFixed(2)
-        }));
+      if (matchesTargetUser(user, target.userId, target.userPhone)) {
+        setUser((u) =>
+          syncUserEverywhere({
+            ...u,
+            balance: +(Number(u.balance || 0) + target.amount).toFixed(2)
+          }, mutationTs)
+        );
       }
     }
 
@@ -5189,6 +6327,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserAvatar,
         bindWallet,
         submitDepositRequest,
+        initiateEwiPayDeposit,
+        syncEwiPayTransactions,
         approveDeposit,
         rejectDeposit,
         claimDepositBonus,
@@ -5202,8 +6342,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         placeAviatorBet,
         cashOutAviatorBet,
         loseAviatorBet,
+        crashPoolStates,
+        placeCrashBet,
+        cashOutCrashBet,
         placeMinesBet,
         cashOutMinesWin,
+        incrementMinesRoundSeq,
+        coinFlipBets,
+        placeCoinFlipBet,
+        settleCoinFlipRound,
+        marketPools,
+        recordMarketPoolBet,
         claimAgentSalary,
         claimActivityAward,
         getInviteLink,

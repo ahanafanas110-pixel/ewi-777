@@ -4,8 +4,15 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { getSyncedAviatorState, getSyncedBinarySnapshot } from './src/utils/syncedMarkets';
+import {
+  evaluateCrash30Cap,
+  getSyncedCrashEngineState,
+  getSyncedBinarySnapshot
+} from './src/utils/syncedMarkets';
 import { BINARY_MARKETS } from './src/constants/markets';
+
+const EWI_PAY_BASE = 'https://ewi-pay.vercel.app';
+const EWI_PAY_API_KEY = process.env.EWI_PAY_API_KEY || 'ewi_live_ewi777_88789947264e';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,7 +66,9 @@ interface ServerStore {
   wingoBets: any[];
   supportMessages: any[];
   adminAccessLogs: any[];
+  referrals: any[];
   marketPools: Record<string, any>;
+  crashPools: Record<string, any>;
   settings: any;
 }
 
@@ -99,7 +108,9 @@ const DEFAULT_STORE: ServerStore = {
   wingoBets: [],
   supportMessages: [],
   adminAccessLogs: [],
+  referrals: [],
   marketPools: {},
+  crashPools: {},
   settings: {
     bkashNumber: '',
     nagadNumber: '',
@@ -107,7 +118,7 @@ const DEFAULT_STORE: ServerStore = {
     usdtAddress: '',
     minWithdraw: 100,
     referCommissionPercent: 10,
-    depositInstructions: 'Deposit service is currently NOW NOT AVAILABLE.',
+    depositInstructions: 'Pay via EWI-Pay instant bKash/Nagad gateway. Minimum deposit ৳100.',
     nextWingoOutcome: 'AUTO',
     nextWingoOutcomes: {
       '30s': 'AUTO',
@@ -124,21 +135,23 @@ const DEFAULT_STORE: ServerStore = {
     supportLink: '',
     supportPhone: '',
     siteEnabled: true,
-    depositEnabled: false,
+    depositEnabled: true,
     withdrawEnabled: true,
     giftCodeEnabled: true,
     registrationEnabled: true,
     maintenanceMode: false,
     timezoneOffsetMinutes: 360,
     gameControlModes: {
-      k3: 'AUTO',
-      d5: 'AUTO',
+      k3: 'HIGH_BET_LOSS',
+      d5: 'HIGH_BET_LOSS',
       mines: 'AUTO',
-      binary: 'AUTO'
+      binary: 'HIGH_BET_LOSS',
+      coinflip: 'HIGH_BET_LOSS'
     },
+    minesPattern: 'RANDOM',
     binaryNextCandleBias: 'AUTO',
     updatedAt: 0,
-    marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Instant referral commission, 24/7 fast withdrawals via Nagad & bKash. Live synchronized WinGo Lottery, EWI K3, EWI 5D, Aviator, Mines & Binary Trading!',
+    marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Instant referral commission, 24/7 fast withdrawals via Nagad & bKash. Live synchronized WinGo Lottery, EWI K3, EWI 5D, Aviator, Lucky Jet, Coin Flip, Mines & Gold Market!',
     popupTitle: 'Welcome to EWI 777',
     popupMessage: '',
     enableSystemPopup: false,
@@ -218,10 +231,17 @@ function loadStore(): ServerStore {
         wingoBets: Array.isArray(parsed.wingoBets) ? parsed.wingoBets : [],
         supportMessages: Array.isArray(parsed.supportMessages) ? parsed.supportMessages : [],
         adminAccessLogs: Array.isArray(parsed.adminAccessLogs) ? parsed.adminAccessLogs : [],
+        referrals: Array.isArray(parsed.referrals) ? parsed.referrals : [],
         marketPools: parsed.marketPools && typeof parsed.marketPools === 'object' ? parsed.marketPools : {},
+        crashPools: parsed.crashPools && typeof parsed.crashPools === 'object' ? parsed.crashPools : {},
         settings: {
           ...DEFAULT_STORE.settings,
           ...cleanSaved,
+          depositEnabled: typeof cleanSaved.depositEnabled === 'boolean' ? cleanSaved.depositEnabled : true,
+          gameControlModes: {
+            ...DEFAULT_STORE.settings.gameControlModes,
+            ...(cleanSaved.gameControlModes || {})
+          },
           bkashNumber: sanitizeLegacyNumberIfNeeded(cleanSaved.bkashNumber),
           nagadNumber: sanitizeLegacyNumberIfNeeded(cleanSaved.nagadNumber),
           supportPhone: sanitizeLegacyNumberIfNeeded(cleanSaved.supportPhone),
@@ -419,17 +439,52 @@ async function startServer() {
       });
     }
 
+    const rawInvite = String(clientUser.referredBy || '').trim();
+    let matchedReferrer: any = null;
+    if (rawInvite) {
+      matchedReferrer = store.users.find(
+        (u) =>
+          String(u.inviteCode || '').trim().toUpperCase() === rawInvite.toUpperCase() ||
+          String(u.uid || '').trim().toUpperCase() === rawInvite.toUpperCase()
+      );
+      if (!matchedReferrer) {
+        return res.status(400).json({
+          success: false,
+          message: 'INVITE CODE IS NOT VALID'
+        });
+      }
+    }
+
     const sanitized = {
       ...clientUser,
       phone: normPhone || clientUser.phone,
       email: normEmail || clientUser.email,
+      referredBy: matchedReferrer ? (matchedReferrer.inviteCode || rawInvite.toUpperCase()) : '',
       balance: 0,
       safeBalance: 0,
       totalDeposited: 0,
       turnoverRequired: 0,
       turnoverCompleted: 0,
+      minesRoundSeq: 0,
     };
     store.users.push(sanitized);
+
+    if (matchedReferrer) {
+      const refEntry = {
+        id: `ref_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        referrerCode: matchedReferrer.inviteCode || matchedReferrer.uid,
+        phone: sanitized.phone || sanitized.email || '',
+        uid: sanitized.uid || sanitized.id,
+        nickname: sanitized.nickname || 'Member',
+        registrationDate: new Date().toISOString().slice(0, 10),
+        commission: 0,
+        depositAmount: 0,
+        level: 1,
+        status: 'active'
+      };
+      store.referrals = [refEntry, ...(store.referrals || [])];
+    }
+
     saveStore(store);
     res.json({ success: true, user: sanitized });
   });
@@ -479,13 +534,29 @@ async function startServer() {
       const idx = store.users.findIndex(
         (u) =>
           u.id === clientUser.id ||
+          (clientUser.uid && u.uid === clientUser.uid) ||
           (normPhone && normalizePhoneServer(u.phone || '') === normPhone)
       );
       if (idx >= 0) {
-        const preservedAvatar = clientUser.avatar || store.users[idx].avatar || '';
-        store.users[idx] = { ...store.users[idx], ...clientUser, avatar: preservedAvatar };
+        const existing = store.users[idx];
+        const existingTs = Number(existing.updatedAt || 0);
+        const clientTs = Number(clientUser.updatedAt || 0);
+        if (existingTs > 0 && clientTs > 0 && clientTs < existingTs) {
+          return res.json({ success: true, user: existing, ignoredStale: true });
+        }
+        const preservedAvatar = clientUser.avatar || existing.avatar || '';
+        const mergedTs = Math.max(existingTs, clientTs || Date.now());
+        store.users[idx] = {
+          ...existing,
+          ...clientUser,
+          avatar: preservedAvatar,
+          updatedAt: mergedTs
+        };
       } else {
-        store.users.push(clientUser);
+        store.users.push({
+          ...clientUser,
+          updatedAt: Number(clientUser.updatedAt || Date.now())
+        });
       }
       saveStore(store);
     }
@@ -496,7 +567,10 @@ async function startServer() {
     const { userId, action, amount, userPhone, fallbackUser } = req.body || {};
     const normPhone = normalizePhoneServer(String(userPhone || fallbackUser?.phone || ''));
     let idx = store.users.findIndex(
-      (u) => u.id === userId || (normPhone && normalizePhoneServer(u.phone || '') === normPhone)
+      (u) =>
+        u.id === userId ||
+        u.uid === userId ||
+        (normPhone && normalizePhoneServer(u.phone || '') === normPhone)
     );
     if (idx < 0 && fallbackUser && (fallbackUser.id || fallbackUser.phone || fallbackUser.email)) {
       store.users.push({ ...fallbackUser });
@@ -510,6 +584,7 @@ async function startServer() {
     else if (action === 'deduct') nextBal = +Math.max(0, curBal - numAmt).toFixed(2);
     else if (action === 'set') nextBal = +Math.max(0, numAmt).toFixed(2);
     store.users[idx].balance = nextBal;
+    store.users[idx].updatedAt = Date.now();
     saveStore(store);
     res.json({ success: true, user: store.users[idx] });
   });
@@ -517,20 +592,23 @@ async function startServer() {
   app.post('/api/users/update', (req, res) => {
     const { userId, patch, deleteUser, userPhone, fallbackUser } = req.body || {};
     if (deleteUser) {
-      store.users = store.users.filter((u) => u.id !== userId);
+      store.users = store.users.filter((u) => u.id !== userId && u.uid !== userId);
       saveStore(store);
       return res.json({ success: true, deleted: true });
     }
     const normPhone = normalizePhoneServer(String(userPhone || fallbackUser?.phone || ''));
     let idx = store.users.findIndex(
-      (u) => u.id === userId || (normPhone && normalizePhoneServer(u.phone || '') === normPhone)
+      (u) =>
+        u.id === userId ||
+        u.uid === userId ||
+        (normPhone && normalizePhoneServer(u.phone || '') === normPhone)
     );
     if (idx < 0 && fallbackUser && (fallbackUser.id || fallbackUser.phone || fallbackUser.email)) {
       store.users.push({ ...fallbackUser });
       idx = store.users.length - 1;
     }
     if (idx >= 0 && patch) {
-      store.users[idx] = { ...store.users[idx], ...patch };
+      store.users[idx] = { ...store.users[idx], ...patch, updatedAt: Date.now() };
       saveStore(store);
     }
     res.json({ success: true, user: idx >= 0 ? store.users[idx] : null });
@@ -561,9 +639,10 @@ async function startServer() {
       time: new Date().toLocaleString()
     };
     store.withdraws = [newWd, ...store.withdraws];
-    const uIdx = store.users.findIndex((u) => u.id === userId);
+    const uIdx = store.users.findIndex((u) => u.id === userId || u.uid === userId);
     if (uIdx >= 0) {
       store.users[uIdx].balance = +Math.max(0, Number(store.users[uIdx].balance || 0) - Number(amount)).toFixed(2);
+      store.users[uIdx].updatedAt = Date.now();
     }
     saveStore(store);
     res.json({ success: true, withdraw: newWd });
@@ -576,12 +655,14 @@ async function startServer() {
     const prevStatus = wd.status;
     wd.status = status;
 
-    const uIdx = store.users.findIndex((u) => u.id === wd.userId);
+    const uIdx = store.users.findIndex((u) => u.id === wd.userId || u.uid === wd.userId);
     if (uIdx >= 0) {
       if (status === 'completed' && prevStatus !== 'completed') {
         store.users[uIdx].totalWithdrawn = +(Number(store.users[uIdx].totalWithdrawn || 0) + wd.amount).toFixed(2);
+        store.users[uIdx].updatedAt = Date.now();
       } else if (status === 'rejected' && prevStatus !== 'rejected') {
         store.users[uIdx].balance = +(Number(store.users[uIdx].balance || 0) + wd.amount).toFixed(2);
+        store.users[uIdx].updatedAt = Date.now();
       }
     }
     saveStore(store);
@@ -804,8 +885,10 @@ async function startServer() {
     }
 
     const uIdx = store.users.findIndex(
-      (u) => u.id === userId || (phone && normalizePhoneServer(u.phone || '') === normalizePhoneServer(phone))
+      (u) => u.id === userId || (userUid && u.uid === userUid) || (phone && normalizePhoneServer(u.phone || '') === normalizePhoneServer(phone))
     );
+    const matchedServerUser = uIdx >= 0 ? store.users[uIdx] : null;
+    const claimerUid = String(userUid || matchedServerUser?.uid || '').trim().toUpperCase();
 
     const targetUidRaw = String(codeItem.targetUid || '').trim().toUpperCase();
     if (targetUidRaw && targetUidRaw !== 'ALL') {
@@ -813,7 +896,6 @@ async function startServer() {
         .split(/[\s,;]+/)
         .map((s: string) => s.trim().toUpperCase())
         .filter(Boolean);
-      const claimerUid = String(userUid || (uIdx >= 0 ? store.users[uIdx].uid : '') || '').trim().toUpperCase();
       if (!claimerUid || !allowedUids.includes(claimerUid)) {
         return res.status(403).json({
           success: false,
@@ -823,7 +905,7 @@ async function startServer() {
     }
 
     const minRequired = Number(codeItem.minRequiredBalance || 0);
-    if (minRequired > 0 && uIdx >= 0 && Number(store.users[uIdx].balance || 0) < minRequired) {
+    if (minRequired > 0 && matchedServerUser && Number(matchedServerUser.balance || 0) < minRequired) {
       return res.status(400).json({ success: false, message: `Minimum ৳${minRequired} balance required to claim this code!` });
     }
 
@@ -831,6 +913,108 @@ async function startServer() {
     const claimedBy: string[] = Array.isArray(codeItem.claimedBy) ? codeItem.claimedBy : [];
     if (claimerKey && claimedBy.includes(claimerKey)) {
       return res.status(400).json({ success: false, message: 'You have already claimed this gift code!' });
+    }
+
+    const rewardType = codeItem.rewardType === 'deposit_percent' ? 'deposit_percent' : 'fixed';
+    const pct = Number(codeItem.depositBonusPercent || codeItem.amount || 200);
+    const reasonText = String(codeItem.reason || codeItem.note || (rewardType === 'deposit_percent' ? `${pct}% Deposit Bonus` : 'Admin Gift Bonus')).trim();
+
+    if (rewardType === 'deposit_percent') {
+      const normUserPhone = normalizePhoneServer(phone || matchedServerUser?.phone || '');
+      const recentCutoff = Number(codeItem.createdAt || 0) - 24 * 60 * 60 * 1000;
+      const approvedDeps = (store.deposits || []).filter((d: any) => {
+        if (d.status !== 'approved') return false;
+        const depPhone = normalizePhoneServer(d.userPhone || d.senderNumber || '');
+        const belongs =
+          (userId && d.userId === userId) ||
+          (claimerUid && String(d.userId || '').toUpperCase() === claimerUid) ||
+          (normUserPhone && depPhone === normUserPhone);
+        if (!belongs) return false;
+        const creditedList: string[] = Array.isArray(matchedServerUser?.creditedDepositBonusCodes)
+          ? matchedServerUser.creditedDepositBonusCodes
+          : [];
+        if (creditedList.includes(`${trimmed}:${d.id}`)) return false;
+        const parsedTs = Date.parse(d.time || '');
+        if (Number.isFinite(parsedTs) && recentCutoff > 0 && parsedTs < recentCutoff) return false;
+        return Number(d.amount || 0) > 0;
+      });
+
+      const qualifyingDep = approvedDeps[0];
+      if (!qualifyingDep) {
+        if (uIdx >= 0) {
+          store.users[uIdx].pendingDepositBonusCode = trimmed;
+          store.users[uIdx].updatedAt = Date.now();
+          saveStore(store);
+        }
+        return res.json({
+          success: true,
+          pendingDeposit: true,
+          code: trimmed,
+          rewardType: 'deposit_percent',
+          depositBonusPercent: pct,
+          reason: reasonText,
+          amount: 0,
+          turnoverAmount: 0,
+          message: `${pct}% Deposit Bonus (${trimmed}) activated! Make a deposit now — bonus will auto-credit on approval.`,
+          settings: store.settings
+        });
+      }
+
+      const depAmt = Number(qualifyingDep.amount || 0);
+      const bonusAmount = +((depAmt * pct) / 100).toFixed(2);
+      const turnoverAmount =
+        codeItem.turnoverAmount && Number(codeItem.turnoverAmount) > 0
+          ? Number(codeItem.turnoverAmount)
+          : bonusAmount;
+
+      const existingRecords = Array.isArray(codeItem.claimRecords) ? codeItem.claimRecords : [];
+      const claimRecord = {
+        userId: String(userId || 'guest'),
+        uid: claimerUid || undefined,
+        nickname: nickname || matchedServerUser?.nickname || String(phone || 'User'),
+        contact: String(phone || ''),
+        amount: bonusAmount,
+        depositAmount: depAmt,
+        reason: reasonText,
+        time: new Date().toLocaleString()
+      };
+
+      codes[targetIdx] = {
+        ...codeItem,
+        claimedCount: claimedCount + 1,
+        claimedBy: claimerKey ? [...claimedBy, claimerKey] : claimedBy,
+        claimRecords: [claimRecord, ...existingRecords]
+      };
+      store.settings.activeGiftCodes = codes;
+
+      if (uIdx >= 0) {
+        const prevCredited = Array.isArray(store.users[uIdx].creditedDepositBonusCodes)
+          ? store.users[uIdx].creditedDepositBonusCodes
+          : [];
+        store.users[uIdx].balance = +(Number(store.users[uIdx].balance || 0) + bonusAmount).toFixed(2);
+        store.users[uIdx].turnoverRequired = +(Number(store.users[uIdx].turnoverRequired || 0) + turnoverAmount).toFixed(2);
+        store.users[uIdx].lastGiftClaimTime = claimRecord.time;
+        store.users[uIdx].lastGiftCode = trimmed;
+        store.users[uIdx].lastGiftAmount = bonusAmount;
+        store.users[uIdx].lastGiftReason = reasonText;
+        store.users[uIdx].pendingDepositBonusCode = '';
+        store.users[uIdx].creditedDepositBonusCodes = [...prevCredited, `${trimmed}:${qualifyingDep.id}`];
+        store.users[uIdx].updatedAt = Date.now();
+      }
+
+      saveStore(store);
+      return res.json({
+        success: true,
+        pendingDeposit: false,
+        code: trimmed,
+        rewardType: 'deposit_percent',
+        depositBonusPercent: pct,
+        depositAmount: depAmt,
+        reason: reasonText,
+        amount: bonusAmount,
+        turnoverAmount,
+        settings: store.settings
+      });
     }
 
     const bonusAmount = Number(codeItem.amount) || 0;
@@ -842,9 +1026,11 @@ async function startServer() {
     const existingRecords = Array.isArray(codeItem.claimRecords) ? codeItem.claimRecords : [];
     const claimRecord = {
       userId: String(userId || 'guest'),
-      nickname: nickname || (uIdx >= 0 ? store.users[uIdx].nickname : '') || String(phone || 'User'),
+      uid: claimerUid || undefined,
+      nickname: nickname || matchedServerUser?.nickname || String(phone || 'User'),
       contact: String(phone || ''),
       amount: bonusAmount,
+      reason: reasonText,
       time: new Date().toLocaleString()
     };
 
@@ -859,11 +1045,20 @@ async function startServer() {
     if (uIdx >= 0) {
       store.users[uIdx].balance = +(Number(store.users[uIdx].balance || 0) + bonusAmount).toFixed(2);
       store.users[uIdx].turnoverRequired = +(Number(store.users[uIdx].turnoverRequired || 0) + turnoverAmount).toFixed(2);
+      store.users[uIdx].lastGiftClaimTime = claimRecord.time;
+      store.users[uIdx].lastGiftCode = trimmed;
+      store.users[uIdx].lastGiftAmount = bonusAmount;
+      store.users[uIdx].lastGiftReason = reasonText;
+      store.users[uIdx].updatedAt = Date.now();
     }
 
     saveStore(store);
     res.json({
       success: true,
+      pendingDeposit: false,
+      code: trimmed,
+      rewardType: 'fixed',
+      reason: reasonText,
       amount: bonusAmount,
       turnoverAmount,
       settings: store.settings
@@ -1103,27 +1298,33 @@ async function startServer() {
             if (list.length < 50) {
               try {
                 const seen = new Set(list.map((x: any) => String(x?.issueNumber || x?.issue || '')));
-                for (let p = 2; p <= 5 && list.length < 50; p++) {
-                  const pUrl = `https://draw.ar-lottery01.com/WinGo/${segment}/GetHistoryIssuePage.json?pageNo=${p}&pageSize=50&ts=${Date.now()}`;
-                  const pRes = await fetch(pUrl, {
-                    headers: {
-                      Accept: 'application/json, text/plain, */*',
-                      'User-Agent':
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-                      Referer: 'https://draw.ar-lottery01.com/'
-                    }
-                  });
-                  if (!pRes.ok) break;
-                  const pText = await pRes.text();
-                  if (!pText.trim().startsWith('{')) break;
-                  const pJson = JSON.parse(pText);
+                const batchSize = list.length <= 12 ? 10 : 50;
+                const extraResults = await Promise.allSettled(
+                  [2, 3, 4, 5].map((p) =>
+                    fetch(
+                      `https://draw.ar-lottery01.com/WinGo/${segment}/GetHistoryIssuePage.json?pageNo=${p}&pageSize=${batchSize}&ts=${Date.now()}`,
+                      {
+                        headers: {
+                          Accept: 'application/json, text/plain, */*',
+                          'User-Agent':
+                            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                          Referer: 'https://draw.ar-lottery01.com/'
+                        }
+                      }
+                    ).then((r) => (r.ok ? r.text() : ''))
+                  )
+                );
+                for (const resp of extraResults) {
+                  if (resp.status !== 'fulfilled' || !resp.value || !resp.value.trim().startsWith('{')) continue;
+                  const pJson = JSON.parse(resp.value);
                   const extra = pJson?.data?.list || pJson?.list || [];
-                  if (!Array.isArray(extra) || extra.length === 0) break;
-                  for (const item of extra) {
-                    const key = String(item?.issueNumber || item?.issue || '');
-                    if (key && !seen.has(key)) {
-                      seen.add(key);
-                      list.push(item);
+                  if (Array.isArray(extra)) {
+                    for (const item of extra) {
+                      const key = String(item?.issueNumber || item?.issue || '');
+                      if (key && !seen.has(key)) {
+                        seen.add(key);
+                        list.push(item);
+                      }
                     }
                   }
                 }
@@ -1298,13 +1499,356 @@ async function startServer() {
     return res.json({ success: true, list, source: 'synced' });
   });
 
-  // 7. Shared Authoritative Aviator Plane Engine (Identical UTC state across Express server & Vercel static)
+  // 7. Shared Authoritative Aviator & Lucky Jet Crash Engine (30% Payout Pool Cap)
+  function ensureCrashPoolForRound(game: 'aviator' | 'luckyjet', roundId: string) {
+    if (!store.crashPools || typeof store.crashPools !== 'object') store.crashPools = {};
+    const cur = store.crashPools[game];
+    if (!cur || cur.roundId !== roundId) {
+      store.crashPools[game] = {
+        game,
+        roundId,
+        totalPool: 0,
+        totalPaidOut: 0,
+        maxPayoutCap: 0,
+        forcedCrashMultiplier: 0,
+        forcedCrashedAtMs: 0,
+        bets: [],
+        updatedAt: Date.now()
+      };
+    }
+    return store.crashPools[game];
+  }
+
+  function buildAuthoritativeCrashState(game: 'aviator' | 'luckyjet', nowMs = Date.now()) {
+    const base = getSyncedCrashEngineState(game, nowMs);
+    const pool = ensureCrashPoolForRound(game, base.roundId);
+
+    // Check active bettors dynamically during flying phase so 30% solo/group rule triggers immediately on tick
+    if (base.phase === 'flying' && !pool.forcedCrashMultiplier && pool.totalPool > 0) {
+      const activeBets = (pool.bets || []).filter((b: any) => b.status === 'active');
+      if (activeBets.length > 0) {
+        const largestActive = Math.max(...activeBets.map((b: any) => Number(b.amount || 0)));
+        const uniqueUsers = new Set(activeBets.map((b: any) => b.userId)).size;
+        const evalRes = evaluateCrash30Cap({
+          totalPool: pool.totalPool,
+          totalPaidOut: pool.totalPaidOut,
+          activeBetAmount: largestActive,
+          currentMultiplier: base.currentMultiplier,
+          activePlayerCount: uniqueUsers
+        });
+        if (evalRes.shouldForceCrash) {
+          pool.forcedCrashMultiplier = Math.max(1.0, +(base.currentMultiplier - 0.01).toFixed(2));
+          pool.forcedCrashedAtMs = nowMs;
+          pool.forcedReason = evalRes.reason;
+          pool.bets = (pool.bets || []).map((b: any) =>
+            b.status === 'active' ? { ...b, status: 'lost' } : b
+          );
+          pool.updatedAt = nowMs;
+          saveStore(store);
+        }
+      }
+    }
+
+    if (pool.forcedCrashMultiplier > 0 && (base.phase === 'flying' || base.phase === 'crashed')) {
+      return {
+        ...base,
+        phase: 'crashed' as const,
+        phaseStartedAt: pool.forcedCrashedAtMs || nowMs,
+        crashPoint: pool.forcedCrashMultiplier,
+        currentMultiplier: pool.forcedCrashMultiplier,
+        forcedCrashAt: pool.forcedCrashMultiplier,
+        forcedReason: pool.forcedReason,
+        totalPool: pool.totalPool,
+        totalPaidOut: pool.totalPaidOut,
+        payoutCapRemaining: Math.max(0, +(pool.maxPayoutCap - pool.totalPaidOut).toFixed(2))
+      };
+    }
+
+    return {
+      ...base,
+      totalPool: pool.totalPool,
+      totalPaidOut: pool.totalPaidOut,
+      payoutCapRemaining: Math.max(0, +(pool.maxPayoutCap - pool.totalPaidOut).toFixed(2))
+    };
+  }
+
   app.get('/api/aviator/state', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({
       success: true,
-      state: getSyncedAviatorState(Date.now())
+      state: buildAuthoritativeCrashState('aviator', Date.now())
     });
+  });
+
+  app.get('/api/crash/state', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const game = req.query.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+    const state = buildAuthoritativeCrashState(game, Date.now());
+    const pool = ensureCrashPoolForRound(game, state.roundId);
+    res.json({ success: true, state, pool });
+  });
+
+  app.post('/api/crash/bet', (req, res) => {
+    const game = req.body?.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+    const roundId = String(req.body?.roundId || '');
+    const userId = String(req.body?.userId || 'guest');
+    const nickname = String(req.body?.nickname || 'Player').slice(0, 36);
+    const amount = Number(req.body?.amount) || 0;
+    const betId = String(req.body?.betId || `cb_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
+    if (!roundId || amount < 10) {
+      return res.status(400).json({ success: false, message: 'Minimum bet is ৳10' });
+    }
+    const pool = ensureCrashPoolForRound(game, roundId);
+    if (pool.forcedCrashMultiplier > 0) {
+      return res.status(409).json({ success: false, message: 'Round already crashed' });
+    }
+    pool.bets = [
+      ...(pool.bets || []).filter((b: any) => b.id !== betId),
+      {
+        id: betId,
+        game,
+        roundId,
+        userId,
+        nickname,
+        amount,
+        status: 'active',
+        placedAt: Date.now()
+      }
+    ].slice(-60);
+    pool.totalPool = +(Number(pool.totalPool || 0) + amount).toFixed(2);
+    pool.maxPayoutCap = +(pool.totalPool * 0.30).toFixed(2);
+    pool.updatedAt = Date.now();
+    saveStore(store);
+    res.json({ success: true, pool });
+  });
+
+  app.post('/api/crash/cashout', (req, res) => {
+    const game = req.body?.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+    const roundId = String(req.body?.roundId || '');
+    const userId = String(req.body?.userId || 'guest');
+    const betId = String(req.body?.betId || '');
+    const requestedMult = Math.max(1, Number(req.body?.multiplier) || 1);
+
+    const stateNow = buildAuthoritativeCrashState(game, Date.now());
+    const pool = ensureCrashPoolForRound(game, roundId || stateNow.roundId);
+
+    if (stateNow.phase === 'crashed' || pool.forcedCrashMultiplier > 0) {
+      return res.status(409).json({
+        success: false,
+        crashed: true,
+        crashPoint: stateNow.crashPoint || pool.forcedCrashMultiplier,
+        message: 'Crash triggered before cashout!'
+      });
+    }
+
+    const betEntry = (pool.bets || []).find(
+      (b: any) => (betId ? b.id === betId : b.userId === userId && b.status === 'active')
+    );
+    const activeAmount = Number(betEntry?.amount || req.body?.amount || 0);
+    const uniqueUsers = new Set((pool.bets || []).filter((b: any) => b.status === 'active').map((b: any) => b.userId)).size;
+
+    const evalRes = evaluateCrash30Cap({
+      totalPool: pool.totalPool || activeAmount,
+      totalPaidOut: pool.totalPaidOut || 0,
+      activeBetAmount: activeAmount,
+      currentMultiplier: requestedMult,
+      activePlayerCount: Math.max(1, uniqueUsers)
+    });
+
+    if (evalRes.shouldForceCrash) {
+      const crashAt = Math.max(1.0, +(requestedMult - 0.01).toFixed(2));
+      pool.forcedCrashMultiplier = crashAt;
+      pool.forcedCrashedAtMs = Date.now();
+      pool.forcedReason = evalRes.reason;
+      pool.bets = (pool.bets || []).map((b: any) =>
+        b.status === 'active' ? { ...b, status: 'lost' } : b
+      );
+      pool.updatedAt = Date.now();
+      saveStore(store);
+      return res.status(409).json({
+        success: false,
+        crashed: true,
+        crashPoint: crashAt,
+        message: evalRes.reason || 'Round crashed at cashout!'
+      });
+    }
+
+    const winAmount = +(activeAmount * requestedMult).toFixed(2);
+    pool.totalPaidOut = +(Number(pool.totalPaidOut || 0) + winAmount).toFixed(2);
+    if (betEntry) {
+      betEntry.status = 'cashed_out';
+      betEntry.cashoutMultiplier = requestedMult;
+      betEntry.payoutAmount = winAmount;
+    }
+    pool.updatedAt = Date.now();
+    saveStore(store);
+    res.json({ success: true, winAmount, multiplier: requestedMult, pool });
+  });
+
+  // 7B. EWI-Pay Live Deposit & Withdrawal Gateway Proxy (Server-side API Key Injection)
+  app.post('/api/ewi-pay/checkout-create', async (req, res) => {
+    if (store.settings.depositEnabled === false) {
+      return res.status(403).json({ success: false, message: 'NOW NOT AVAILABLE' });
+    }
+    try {
+      const { amount, user_id, method, channel, senderNumber } = req.body || {};
+      const numAmt = Number(amount) || 0;
+      const cleanUserId = String(user_id || 'USER_1').trim();
+      if (numAmt <= 0) {
+        return res.status(400).json({ success: false, message: 'Valid deposit amount is required' });
+      }
+      const fallbackUrl = `${EWI_PAY_BASE}/payment/ewi777?amount=${encodeURIComponent(String(numAmt))}&user_id=${encodeURIComponent(cleanUserId)}`;
+      let upstreamJson: any = null;
+      let upstreamOk = false;
+      try {
+        const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/checkout/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': EWI_PAY_API_KEY
+          },
+          body: JSON.stringify({
+            site: 'ewi777',
+            amount: numAmt,
+            user_id: cleanUserId,
+            method: method || 'bKash',
+            channel: channel || 'EWI-Pay'
+          })
+        });
+        upstreamOk = upRes.ok;
+        upstreamJson = await upRes.json().catch(() => null);
+      } catch {
+        upstreamOk = false;
+      }
+
+      const checkoutUrl =
+        upstreamJson?.checkout_url ||
+        upstreamJson?.checkoutUrl ||
+        upstreamJson?.payment_url ||
+        upstreamJson?.data?.checkout_url ||
+        upstreamJson?.data?.url ||
+        fallbackUrl;
+      const depositId =
+        upstreamJson?.deposit_id ||
+        upstreamJson?.depositId ||
+        upstreamJson?.id ||
+        upstreamJson?.data?.id ||
+        `ewipay_${Date.now()}`;
+
+      const depRecord = {
+        id: String(depositId),
+        userId: cleanUserId,
+        userPhone: String(senderNumber || cleanUserId),
+        method: method || 'bKash',
+        channel: channel || 'EWI-Pay Gateway',
+        amount: numAmt,
+        senderNumber: String(senderNumber || cleanUserId),
+        trxId: String(upstreamJson?.trx_id || depositId).toUpperCase(),
+        status: 'pending',
+        time: new Date().toLocaleString()
+      };
+      store.deposits = [depRecord, ...(store.deposits || []).filter((d) => d.id !== depRecord.id)];
+      saveStore(store);
+
+      res.json({
+        success: true,
+        upstreamSynced: upstreamOk,
+        checkoutUrl,
+        depositId: depRecord.id,
+        deposit: depRecord,
+        gateway: upstreamJson
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message || 'EWI-Pay checkout error' });
+    }
+  });
+
+  app.get('/api/ewi-pay/transactions', async (req, res) => {
+    try {
+      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/merchant/transactions`, {
+        headers: { 'x-api-key': EWI_PAY_API_KEY }
+      });
+      const json = await upRes.json().catch(() => ({}));
+      const list = Array.isArray(json?.transactions)
+        ? json.transactions
+        : Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json)
+        ? json
+        : [];
+      res.json({ success: upRes.ok, transactions: list, raw: json });
+    } catch (err: any) {
+      res.status(502).json({ success: false, transactions: [], message: err?.message || 'Gateway fetch error' });
+    }
+  });
+
+  app.post('/api/ewi-pay/approve', async (req, res) => {
+    const depositId = String(req.body?.depositId || '').trim();
+    if (!depositId) return res.status(400).json({ success: false, message: 'depositId required' });
+    try {
+      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/merchant/transactions/${encodeURIComponent(depositId)}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': EWI_PAY_API_KEY }
+      });
+      const json = await upRes.json().catch(() => ({}));
+      res.json({ success: upRes.ok, gateway: json });
+    } catch (err: any) {
+      res.status(502).json({ success: false, message: err?.message || 'Gateway approve error' });
+    }
+  });
+
+  app.post('/api/ewi-pay/reject', async (req, res) => {
+    const depositId = String(req.body?.depositId || '').trim();
+    const note = String(req.body?.note || '').trim();
+    if (!depositId) return res.status(400).json({ success: false, message: 'depositId required' });
+    try {
+      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/merchant/transactions/${encodeURIComponent(depositId)}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': EWI_PAY_API_KEY },
+        body: JSON.stringify({ note })
+      });
+      const json = await upRes.json().catch(() => ({}));
+      res.json({ success: upRes.ok, gateway: json });
+    } catch (err: any) {
+      res.status(502).json({ success: false, message: err?.message || 'Gateway reject error' });
+    }
+  });
+
+  app.post('/api/ewi-pay/withdraw', async (req, res) => {
+    try {
+      const { amount, method, accountNumber, number, userId, user_id } = req.body || {};
+      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/withdrawals/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': EWI_PAY_API_KEY },
+        body: JSON.stringify({
+          site: 'ewi777',
+          user_id: user_id || userId || 'USER_1',
+          amount: Number(amount) || 0,
+          method: method || 'bKash',
+          account_number: number || accountNumber || ''
+        })
+      });
+      const json = await upRes.json().catch(() => ({}));
+      res.json({ success: upRes.ok, gateway: json });
+    } catch (err: any) {
+      res.status(502).json({ success: false, message: err?.message || 'Gateway withdraw error' });
+    }
+  });
+
+  // 7C. Cross-Device Referrals API
+  app.get('/api/referrals', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ success: true, referrals: store.referrals || [] });
+  });
+
+  app.post('/api/referrals', (req, res) => {
+    const r = req.body?.referral;
+    if (!r || !r.id || !r.referrerCode) {
+      return res.status(400).json({ success: false, message: 'Invalid referral record' });
+    }
+    store.referrals = [r, ...(store.referrals || []).filter((x: any) => x.id !== r.id)].slice(0, 500);
+    saveStore(store);
+    res.json({ success: true, referral: r });
   });
 
   // 8. Shared Authoritative Multi-Asset Binary Trading Engine & Cross-Device Market Pools

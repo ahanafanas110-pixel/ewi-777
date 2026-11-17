@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, PASSWORD_REGEX, PASSWORD_RULE_MSG } from '../context/AppContext';
 import { Header } from '../components/Header';
-import { Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Lock, Eye, EyeOff, ShieldCheck, AlertCircle } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
 
 export const ChangeLoginPassword: React.FC = () => {
@@ -12,10 +12,12 @@ export const ChangeLoginPassword: React.FC = () => {
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
+  const showRuleHint = newPassword.length > 0 && !PASSWORD_REGEX.test(newPassword);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.trim().length < 6) {
-      showToast('New password must be at least 6 characters');
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      showToast(PASSWORD_RULE_MSG);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -35,7 +37,7 @@ export const ChangeLoginPassword: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
       <Header
         title={getTranslation(language, 'changePasswordHeader')}
         showBack
@@ -46,9 +48,9 @@ export const ChangeLoginPassword: React.FC = () => {
       />
 
       <div className="p-4 space-y-4">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100 space-y-5">
-          <div className="flex items-center gap-3 pb-4 border-b border-pink-50">
-            <div className="w-12 h-12 rounded-2xl bg-pink-50 text-[#FF2A7A] flex items-center justify-center flex-shrink-0">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200 space-y-5">
+          <div className="flex items-center gap-3 pb-4 border-b border-amber-100">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-[#D97706] flex items-center justify-center flex-shrink-0">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
@@ -70,7 +72,7 @@ export const ChangeLoginPassword: React.FC = () => {
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
                   placeholder="Enter current password"
-                  className="w-full bg-[#FFF8FA] border border-pink-200 rounded-2xl px-4 py-3 pr-10 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF2A7A]"
+                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-2xl px-4 py-3 pr-10 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
                 />
                 <button
@@ -92,8 +94,8 @@ export const ChangeLoginPassword: React.FC = () => {
                   type={showNew ? 'text' : 'password'}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Minimum 6 characters"
-                  className="w-full bg-[#FFF8FA] border border-pink-200 rounded-2xl px-4 py-3 pr-10 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF2A7A]"
+                  placeholder="At least 8 characters with letters + numbers"
+                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-2xl px-4 py-3 pr-10 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
                 />
                 <button
@@ -104,6 +106,12 @@ export const ChangeLoginPassword: React.FC = () => {
                   {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {showRuleHint && (
+                <div className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold text-rose-500">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                  <span>{PASSWORD_RULE_MSG}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -115,14 +123,14 @@ export const ChangeLoginPassword: React.FC = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter new password"
-                className="w-full bg-[#FFF8FA] border border-pink-200 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF2A7A]"
+                className="w-full bg-[#FFFDF7] border border-amber-200 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
             </div>
 
             <button
               type="submit"
-              className="w-full min-h-[48px] py-3.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-sm shadow-md active:scale-98 transition-all flex items-center justify-center gap-2"
+              className="w-full min-h-[48px] py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-md active:scale-98 transition-all flex items-center justify-center gap-2"
             >
               <Lock className="w-4 h-4" />
               <span>Save New Password</span>
@@ -136,7 +144,7 @@ export const ChangeLoginPassword: React.FC = () => {
                 setActiveTab('customer-service');
                 window.location.hash = '#/customer-service';
               }}
-              className="text-xs font-bold text-[#FF2A7A] hover:underline"
+              className="text-xs font-bold text-[#D97706] hover:underline"
             >
               Forgot your current password? Contact Customer Service →
             </button>

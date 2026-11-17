@@ -47,9 +47,13 @@ import {
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
+import { getNextBinaryCandlePreview, formatOffsetLabel } from '../utils/syncedMarkets';
+import { BINARY_MARKET_MAP } from '../constants/markets';
 import {
   GameItem,
   GiftCodeItem,
+  MarketControlMode,
+  MinesPatternMode,
   User,
   WinGoBet,
   WinGoMode
@@ -131,6 +135,8 @@ export const Admin: React.FC = () => {
     bets,
     globalWingoBets,
     syncServerDataNow,
+    syncEwiPayTransactions,
+    marketPools,
     supportMessages,
     sendSupportMessage,
     adminAccessLogs,
@@ -252,24 +258,32 @@ export const Admin: React.FC = () => {
 
   // =================== GIFT CODES STATE ===================
   const [giftSearch, setGiftSearch] = useState('');
+  const [targetUserSearch, setTargetUserSearch] = useState('');
   const [claimHistoryCode, setClaimHistoryCode] = useState<GiftCodeItem | null>(null);
   const [giftModal, setGiftModal] = useState<{
     isEdit: boolean;
     originalCode?: string;
     code: string;
+    rewardType: 'fixed' | 'deposit_percent';
     amount: string;
+    depositBonusPercent: string;
     maxClaims: string;
     turnoverAmount: string;
     expiryDate: string;
     minRequiredBalance: string;
+    targetUid: string;
+    reason: string;
     note: string;
     active: boolean;
   } | null>(null);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkCount, setBulkCount] = useState('5');
+  const [bulkRewardType, setBulkRewardType] = useState<'fixed' | 'deposit_percent'>('fixed');
   const [bulkAmount, setBulkAmount] = useState('100');
+  const [bulkDepositPercent, setBulkDepositPercent] = useState('200');
   const [bulkMaxClaims, setBulkMaxClaims] = useState('1');
   const [bulkTurnover, setBulkTurnover] = useState('100');
+  const [bulkReason, setBulkReason] = useState('VIP Gift Reward');
   const [bulkNote, setBulkNote] = useState('VIP Gift');
 
   // =================== APP SETTINGS STATE ===================
@@ -294,6 +308,15 @@ export const Admin: React.FC = () => {
   const [giftEnabled, setGiftEnabled] = useState(adminSettings.giftCodeEnabled !== false);
   const [regEnabled, setRegEnabled] = useState(adminSettings.registrationEnabled !== false);
   const [maintMode, setMaintMode] = useState(Boolean(adminSettings.maintenanceMode));
+  const [siteEnabledDraft, setSiteEnabledDraft] = useState(adminSettings.siteEnabled !== false);
+  const [tzOffsetDraft, setTzOffsetDraft] = useState<number>(adminSettings.timezoneOffsetMinutes ?? 360);
+  const [ctrlK3, setCtrlK3] = useState<MarketControlMode>(adminSettings.gameControlModes?.k3 || 'AUTO');
+  const [ctrlD5, setCtrlD5] = useState<MarketControlMode>(adminSettings.gameControlModes?.d5 || 'AUTO');
+  const [ctrlMines, setCtrlMines] = useState<MarketControlMode>(adminSettings.gameControlModes?.mines || 'AUTO');
+  const [ctrlBinary, setCtrlBinary] = useState<MarketControlMode>(adminSettings.gameControlModes?.binary || 'AUTO');
+  const [ctrlCoinFlip, setCtrlCoinFlip] = useState<MarketControlMode>(adminSettings.gameControlModes?.coinflip || 'AUTO');
+  const [minesPatternDraft, setMinesPatternDraft] = useState<MinesPatternMode>(adminSettings.minesPattern || 'RANDOM');
+  const [binaryBiasDraft, setBinaryBiasDraft] = useState<'AUTO' | 'BULL' | 'BEAR'>(adminSettings.binaryNextCandleBias || 'AUTO');
 
   // Keep draft inputs hydrated whenever server settings sync or admin logs in
   const settingsSyncSignature = JSON.stringify({
@@ -313,6 +336,11 @@ export const Admin: React.FC = () => {
     gift: adminSettings.giftCodeEnabled,
     reg: adminSettings.registrationEnabled,
     maint: adminSettings.maintenanceMode,
+    siteEn: adminSettings.siteEnabled,
+    tz: adminSettings.timezoneOffsetMinutes,
+    ctrl: adminSettings.gameControlModes,
+    mPat: adminSettings.minesPattern,
+    bBias: adminSettings.binaryNextCandleBias,
     marquee: adminSettings.marqueeText,
     pTitle: adminSettings.popupTitle,
     pMsg: adminSettings.popupMessage,
@@ -337,6 +365,15 @@ export const Admin: React.FC = () => {
     setGiftEnabled(adminSettings.giftCodeEnabled !== false);
     setRegEnabled(adminSettings.registrationEnabled !== false);
     setMaintMode(Boolean(adminSettings.maintenanceMode));
+    setSiteEnabledDraft(adminSettings.siteEnabled !== false);
+    setTzOffsetDraft(adminSettings.timezoneOffsetMinutes ?? 360);
+    setCtrlK3(adminSettings.gameControlModes?.k3 || 'AUTO');
+    setCtrlD5(adminSettings.gameControlModes?.d5 || 'AUTO');
+    setCtrlMines(adminSettings.gameControlModes?.mines || 'AUTO');
+    setCtrlBinary(adminSettings.gameControlModes?.binary || 'AUTO');
+    setCtrlCoinFlip(adminSettings.gameControlModes?.coinflip || 'AUTO');
+    setMinesPatternDraft(adminSettings.minesPattern || 'RANDOM');
+    setBinaryBiasDraft(adminSettings.binaryNextCandleBias || 'AUTO');
     setMarqueeDraft(adminSettings.marqueeText || '');
     setPopupTitleDraft(adminSettings.popupTitle || '');
     setPopupMsgDraft(adminSettings.popupMessage || '');
@@ -712,25 +749,33 @@ export const Admin: React.FC = () => {
       showToast('Gift code cannot be empty');
       return;
     }
-    const amt = Math.max(1, Number(giftModal.amount) || 0);
+    const isDepPct = giftModal.rewardType === 'deposit_percent';
+    const depPct = Math.max(1, Number(giftModal.depositBonusPercent) || 200);
+    const amt = isDepPct ? depPct : Math.max(1, Number(giftModal.amount) || 0);
     const maxC = Math.max(1, Number(giftModal.maxClaims) || 1);
     const turn = Math.max(0, Number(giftModal.turnoverAmount) || 0);
     const minBal = Math.max(0, Number(giftModal.minRequiredBalance) || 0);
     const expiresAt = giftModal.expiryDate ? new Date(giftModal.expiryDate).getTime() : 0;
+    const reasonClean = giftModal.reason.trim() || giftModal.note.trim() || (isDepPct ? `${depPct}% Deposit Bonus` : 'Admin Gift Bonus');
 
     const existingList = adminSettings.activeGiftCodes;
+    const cleanTargetUid = giftModal.targetUid.trim().toUpperCase();
     if (giftModal.isEdit && giftModal.originalCode) {
       const updated = existingList.map((c) =>
         c.code === giftModal.originalCode
           ? {
               ...c,
               code: codeUpper,
+              rewardType: giftModal.rewardType,
               amount: amt,
+              depositBonusPercent: isDepPct ? depPct : undefined,
               maxClaims: maxC,
               turnoverAmount: turn,
               expiresAt: isNaN(expiresAt) ? 0 : expiresAt,
               minRequiredBalance: minBal,
-              note: giftModal.note.trim(),
+              targetUid: cleanTargetUid || undefined,
+              reason: reasonClean,
+              note: giftModal.note.trim() || reasonClean,
               active: giftModal.active
             }
           : c
@@ -740,7 +785,9 @@ export const Admin: React.FC = () => {
     } else {
       const created: GiftCodeItem = {
         code: codeUpper,
+        rewardType: giftModal.rewardType,
         amount: amt,
+        ...(isDepPct ? { depositBonusPercent: depPct } : {}),
         maxClaims: maxC,
         claimedCount: 0,
         turnoverAmount: turn,
@@ -750,27 +797,35 @@ export const Admin: React.FC = () => {
         claimRecords: [],
         active: giftModal.active,
         minRequiredBalance: minBal,
-        note: giftModal.note.trim()
+        targetUid: cleanTargetUid || undefined,
+        reason: reasonClean,
+        note: giftModal.note.trim() || reasonClean
       };
       updateAdminSettings({
         activeGiftCodes: [created, ...existingList.filter((c) => c.code !== codeUpper)]
       });
       showToast(`Gift code ${codeUpper} created!`);
     }
+    setTargetUserSearch('');
     setGiftModal(null);
   };
 
   const handleBulkGenerateCodes = (e: React.FormEvent) => {
     e.preventDefault();
     const count = Math.min(50, Math.max(1, Number(bulkCount) || 1));
-    const amt = Math.max(1, Number(bulkAmount) || 100);
+    const isDepPct = bulkRewardType === 'deposit_percent';
+    const depPct = Math.max(1, Number(bulkDepositPercent) || 200);
+    const amt = isDepPct ? depPct : Math.max(1, Number(bulkAmount) || 100);
     const maxC = Math.max(1, Number(bulkMaxClaims) || 1);
     const turn = Math.max(0, Number(bulkTurnover) || 0);
+    const reasonClean = bulkReason.trim() || bulkNote.trim() || (isDepPct ? `${depPct}% Deposit Bonus` : 'VIP Gift Reward');
     const generated: GiftCodeItem[] = [];
     for (let i = 0; i < count; i++) {
       generated.push({
         code: generateGiftCodeName(),
+        rewardType: bulkRewardType,
         amount: amt,
+        ...(isDepPct ? { depositBonusPercent: depPct } : {}),
         maxClaims: maxC,
         claimedCount: 0,
         turnoverAmount: turn,
@@ -779,14 +834,15 @@ export const Admin: React.FC = () => {
         claimRecords: [],
         active: true,
         minRequiredBalance: 0,
-        note: bulkNote.trim()
+        reason: reasonClean,
+        note: bulkNote.trim() || reasonClean
       });
     }
     updateAdminSettings({
       activeGiftCodes: [...generated, ...adminSettings.activeGiftCodes]
     });
     setBulkModalOpen(false);
-    showToast(`Generated ${count} gift codes!`);
+    showToast(`Generated ${count} ${isDepPct ? `${depPct}% Deposit Bonus` : 'Gift'} codes!`);
   };
 
   const handleResolvePwTicket = async (id: string, matchedPassword: string | null) => {
@@ -908,7 +964,7 @@ export const Admin: React.FC = () => {
 
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-pink-400" />
+                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
                     <span>8-Character Authenticator Code (30s)</span>
                   </label>
                   <input
@@ -922,7 +978,7 @@ export const Admin: React.FC = () => {
                       if (loginError) setLoginError(null);
                     }}
                     placeholder="XXXXXXXX"
-                    className="w-full px-4 py-3.5 rounded-xl bg-[#070E1B] border border-pink-500/60 text-lg font-mono font-black tracking-[0.3em] text-center uppercase text-pink-300 outline-none focus:border-pink-400"
+                    className="w-full px-4 py-3.5 rounded-xl bg-[#070E1B] border border-amber-500/60 text-lg font-mono font-black tracking-[0.3em] text-center uppercase text-amber-300 outline-none focus:border-amber-400"
                   />
                 </div>
               </div>
@@ -937,7 +993,7 @@ export const Admin: React.FC = () => {
             <button
               type="submit"
               disabled={isVerifyingLogin}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#FF2A7A] to-blue-600 text-white font-black text-sm shadow-lg active:scale-98 transition-all hover:brightness-110 disabled:opacity-60"
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-lg active:scale-98 transition-all hover:brightness-110 disabled:opacity-60"
             >
               {isVerifyingLogin
                 ? 'Verifying...'
@@ -994,7 +1050,13 @@ export const Admin: React.FC = () => {
 
   const filteredGiftCodes = adminSettings.activeGiftCodes.filter((c) => {
     const q = giftSearch.trim().toLowerCase();
-    return !q || c.code.toLowerCase().includes(q) || (c.note || '').toLowerCase().includes(q);
+    return (
+      !q ||
+      c.code.toLowerCase().includes(q) ||
+      (c.note || '').toLowerCase().includes(q) ||
+      (c.reason || '').toLowerCase().includes(q) ||
+      (c.targetUid || '').toLowerCase().includes(q)
+    );
   });
 
   const navItems: Array<{ id: AdminNavTab; label: string; icon: React.ReactNode; badge?: number }> = [
@@ -1128,7 +1190,7 @@ export const Admin: React.FC = () => {
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <h1 className="text-base md:text-lg font-black tracking-wider bg-gradient-to-r from-cyan-400 via-blue-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-base md:text-lg font-black tracking-wider bg-gradient-to-r from-amber-300 via-yellow-400 to-cyan-400 bg-clip-text text-transparent">
               {tabTitles[navTab]}
             </h1>
           </div>
@@ -1208,7 +1270,7 @@ export const Admin: React.FC = () => {
                 </div>
                 <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
                   <div className="text-[10px] font-bold text-slate-400 tracking-wider">GIFT CLAIMED ৳</div>
-                  <div className="text-2xl font-black text-pink-400 font-mono mt-1">
+                  <div className="text-2xl font-black text-amber-400 font-mono mt-1">
                     ৳{giftClaimedTotal.toFixed(2)}
                   </div>
                 </div>
@@ -1313,7 +1375,7 @@ export const Admin: React.FC = () => {
                 {/* Recent Gift Claims */}
                 <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black text-pink-400 tracking-wider">🎁 RECENT GIFT CLAIMS</h3>
+                    <h3 className="text-xs font-black text-amber-400 tracking-wider">🎁 RECENT GIFT CLAIMS</h3>
                     <button
                       type="button"
                       onClick={() => setNavTab('giftcodes')}
@@ -1476,7 +1538,7 @@ export const Admin: React.FC = () => {
                             <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-[#FF2A7A] text-white font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-[#D97706] text-white font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
                                     {u.avatar ? (
                                       <img src={u.avatar} alt="" className="w-full h-full object-cover" />
                                     ) : (
@@ -1512,7 +1574,7 @@ export const Admin: React.FC = () => {
                                 <span
                                   className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
                                     role === 'ADMIN'
-                                      ? 'bg-pink-500/20 text-pink-300'
+                                      ? 'bg-rose-500/20 text-rose-300'
                                       : role === 'VIP'
                                       ? 'bg-amber-500/20 text-amber-300'
                                       : 'bg-emerald-500/20 text-emerald-300'
@@ -1618,7 +1680,7 @@ export const Admin: React.FC = () => {
                       {filteredGames.map((g) => (
                         <tr key={g.id} className="hover:bg-slate-800/30">
                           <td className="px-4 py-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF2A7A]/30 to-blue-600/30 border border-slate-700 flex items-center justify-center overflow-hidden font-black text-xs text-white">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#D97706]/30 to-blue-600/30 border border-slate-700 flex items-center justify-center overflow-hidden font-black text-xs text-white">
                               {g.imageUrl ? (
                                 <img src={g.imageUrl} alt={g.title} className="w-full h-full object-cover" />
                               ) : (
@@ -2056,7 +2118,7 @@ export const Admin: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-black">
+                        <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black">
                           {totalRoundPool === 0 ? 'Random (৳0 Pool)' : `Smart Least Target: #${smartLeastNum}`}
                         </span>
                         <button
@@ -2148,6 +2210,200 @@ export const Admin: React.FC = () => {
                         ))}
                       </div>
                     )}
+                  </div>
+                );
+              })()}
+
+              {/* 4-MODE MARKET & GAME ENGINE CONTROLLER + BINARY NEXT CANDLE PREVIEW */}
+              {(() => {
+                const goldSpec = BINARY_MARKET_MAP['XAU/USD'];
+                const btcSpec = BINARY_MARKET_MAP['BTC/USDT'];
+                const goldNext = goldSpec
+                  ? getNextBinaryCandlePreview(goldSpec, binaryBiasDraft, nowMs, tzOffsetDraft)
+                  : null;
+                const btcNext = btcSpec
+                  ? getNextBinaryCandlePreview(btcSpec, binaryBiasDraft, nowMs, tzOffsetDraft)
+                  : null;
+                const controlOptions: Array<{ value: MarketControlMode; label: string }> = [
+                  { value: 'AUTO', label: 'AUTO (Balanced RNG)' },
+                  { value: 'HIGH_BET_LOSS', label: 'HIGH BET LOSS (Low Side Wins)' },
+                  { value: 'HIGH_BET_WIN', label: 'HIGH BET WIN (Heavy Side Wins)' },
+                  { value: 'LOW_BET_WIN', label: 'LOW BET WIN (Minority Side Wins)' },
+                  { value: 'LOW_BET_LOSS', label: 'LOW BET LOSS (Minority Side Loses)' }
+                ];
+
+                return (
+                  <div className="bg-[#0E172A] border border-amber-500/35 rounded-2xl p-4 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-xs font-black text-amber-400 tracking-wider">
+                          4-MODE MARKET &amp; GAME ENGINE CONTROLLER
+                        </h3>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Control EWI K3, EWI 5D, Mines 777, Binary &amp; Gold Market, and Coin Flip live payout pools.
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-[#070E1B] border border-slate-700 text-emerald-400">
+                        Live Pool Sync ({Object.keys(marketPools || {}).length} active pools)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">EWI K3 MODE</label>
+                        <select
+                          value={ctrlK3}
+                          onChange={(e) => setCtrlK3(e.target.value as MarketControlMode)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                        >
+                          {controlOptions.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">EWI 5D MODE</label>
+                        <select
+                          value={ctrlD5}
+                          onChange={(e) => setCtrlD5(e.target.value as MarketControlMode)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                        >
+                          {controlOptions.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">MINES 777 MODE</label>
+                        <select
+                          value={ctrlMines}
+                          onChange={(e) => setCtrlMines(e.target.value as MarketControlMode)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                        >
+                          {controlOptions.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">BINARY &amp; GOLD MODE</label>
+                        <select
+                          value={ctrlBinary}
+                          onChange={(e) => setCtrlBinary(e.target.value as MarketControlMode)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                        >
+                          {controlOptions.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">COIN FLIP MODE</label>
+                        <select
+                          value={ctrlCoinFlip}
+                          onChange={(e) => setCtrlCoinFlip(e.target.value as MarketControlMode)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                        >
+                          {controlOptions.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">MINES PATTERN</label>
+                        <select
+                          value={minesPatternDraft}
+                          onChange={(e) => setMinesPatternDraft(e.target.value as MinesPatternMode)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-amber-300 font-bold"
+                        >
+                          <option value="RANDOM">RANDOM (Fair / 4-Mode)</option>
+                          <option value="FIRST_WIN_SECOND_LOSS">1st Safe → 2nd Boom</option>
+                          <option value="THREE_WIN_TEN_LOSS">3 Win Rounds → 10 Loss Rounds</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Binary Next Candle Bias + Live Preview */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-end bg-[#070E1B] p-3.5 rounded-2xl border border-slate-800">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                          BINARY NEXT CANDLE BIAS
+                        </label>
+                        <select
+                          value={binaryBiasDraft}
+                          onChange={(e) => setBinaryBiasDraft(e.target.value as 'AUTO' | 'BULL' | 'BEAR')}
+                          className="w-full px-3 py-2 rounded-xl bg-[#0E172A] border border-slate-700 text-white font-bold text-xs"
+                        >
+                          <option value="AUTO">AUTO (Natural Chart)</option>
+                          <option value="BULL">FORCE BULL (Green Up)</option>
+                          <option value="BEAR">FORCE BEAR (Red Down)</option>
+                        </select>
+                      </div>
+
+                      {goldNext && (
+                        <div className="p-2.5 rounded-xl bg-[#0E172A] border border-amber-500/25 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="text-[10px] font-bold text-amber-300">
+                              NEXT XAU/USD CANDLE ({goldNext.timeLabel} {formatOffsetLabel(tzOffsetDraft)})
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-300 mt-0.5">
+                              O: {goldNext.open.toFixed(2)} → C: {goldNext.close.toFixed(2)}
+                            </div>
+                          </div>
+                          <span
+                            className={`px-2 py-1 rounded-lg font-black text-[11px] ${
+                              goldNext.direction === 'BULL'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-rose-500/20 text-rose-400'
+                            }`}
+                          >
+                            {goldNext.direction === 'BULL' ? '▲ BULL GREEN' : '▼ BEAR RED'} ({goldNext.secUntilNext}s)
+                          </span>
+                        </div>
+                      )}
+
+                      {btcNext && (
+                        <div className="p-2.5 rounded-xl bg-[#0E172A] border border-cyan-500/25 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="text-[10px] font-bold text-cyan-300">
+                              NEXT BTC/USDT CANDLE ({btcNext.timeLabel})
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-300 mt-0.5">
+                              O: {btcNext.open.toFixed(2)} → C: {btcNext.close.toFixed(2)}
+                            </div>
+                          </div>
+                          <span
+                            className={`px-2 py-1 rounded-lg font-black text-[11px] ${
+                              btcNext.direction === 'BULL'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-rose-500/20 text-rose-400'
+                            }`}
+                          >
+                            {btcNext.direction === 'BULL' ? '▲ BULL GREEN' : '▼ BEAR RED'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateAdminSettings({
+                          gameControlModes: {
+                            k3: ctrlK3,
+                            d5: ctrlD5,
+                            mines: ctrlMines,
+                            binary: ctrlBinary,
+                            coinflip: ctrlCoinFlip
+                          },
+                          minesPattern: minesPatternDraft,
+                          binaryNextCandleBias: binaryBiasDraft
+                        })
+                      }
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white font-black text-xs shadow-md"
+                    >
+                      SAVE ENGINE CONTROLS &amp; APPLY LIVE
+                    </button>
                   </div>
                 );
               })()}
@@ -2443,7 +2699,20 @@ export const Admin: React.FC = () => {
                       className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
                     />
                   </div>
-                  <span className="text-xs text-slate-400 font-mono">{filteredDeposits.length} requests</span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        syncEwiPayTransactions();
+                        showToast('Synced live EWI-Pay transactions');
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white text-xs font-black flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Sync EWI-Pay Live</span>
+                    </button>
+                    <span className="text-xs text-slate-400 font-mono">{filteredDeposits.length} requests</span>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
@@ -2501,7 +2770,7 @@ export const Admin: React.FC = () => {
                               ৳{d.amount.toFixed(2)}
                             </td>
                             <td className="px-4 py-3 font-bold text-slate-300">{d.method}</td>
-                            <td className="px-4 py-3 font-mono font-bold text-pink-400">{d.trxId}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-amber-400">{d.trxId}</td>
                             <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{d.time}</td>
                             <td className="px-4 py-3">
                               <span
@@ -2684,8 +2953,34 @@ export const Admin: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
+                    type="button"
+                    onClick={() => {
+                      setTargetUserSearch('');
+                      setGiftModal({
+                        isEdit: false,
+                        code: generateGiftCodeName(),
+                        rewardType: 'deposit_percent',
+                        amount: '200',
+                        depositBonusPercent: '200',
+                        maxClaims: '1',
+                        turnoverAmount: '0',
+                        expiryDate: '',
+                        minRequiredBalance: '0',
+                        targetUid: '',
+                        reason: '200% Deposit Bonus Reward',
+                        note: '200% Deposit Bonus',
+                        active: true
+                      });
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white text-xs font-black flex items-center gap-1 shadow-sm"
+                  >
+                    <Gift className="w-3.5 h-3.5" />
+                    <span>+ 200% DEP BONUS</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setBulkModalOpen(true)}
                     className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-black flex items-center gap-1"
                   >
@@ -2693,19 +2988,25 @@ export const Admin: React.FC = () => {
                     <span>+ BULK</span>
                   </button>
                   <button
-                    onClick={() =>
+                    type="button"
+                    onClick={() => {
+                      setTargetUserSearch('');
                       setGiftModal({
                         isEdit: false,
                         code: generateGiftCodeName(),
+                        rewardType: 'fixed',
                         amount: '500',
+                        depositBonusPercent: '200',
                         maxClaims: '50',
                         turnoverAmount: '500',
                         expiryDate: '',
                         minRequiredBalance: '0',
+                        targetUid: '',
+                        reason: 'Special Admin Gift Reward',
                         note: '',
                         active: true
-                      })
-                    }
+                      });
+                    }}
                     className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -2740,7 +3041,7 @@ export const Admin: React.FC = () => {
                     </div>
                     <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
                       <div className="text-[10px] font-bold text-slate-400">PAID ৳</div>
-                      <div className="text-2xl font-black text-pink-400 font-mono mt-1">
+                      <div className="text-2xl font-black text-amber-400 font-mono mt-1">
                         ৳{giftClaimedTotal.toFixed(2)}
                       </div>
                     </div>
@@ -2755,10 +3056,10 @@ export const Admin: React.FC = () => {
                     <thead className="bg-[#070E1B] text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800">
                       <tr>
                         <th className="px-4 py-3">CODE</th>
-                        <th className="px-4 py-3">AMOUNT</th>
-                        <th className="px-4 py-3">USES</th>
+                        <th className="px-4 py-3">REWARD</th>
+                        <th className="px-4 py-3">CLAIMED / MAX</th>
                         <th className="px-4 py-3">EXPIRY</th>
-                        <th className="px-4 py-3">NOTE</th>
+                        <th className="px-4 py-3">REASON &amp; TARGET USER</th>
                         <th className="px-4 py-3">STATUS</th>
                         <th className="px-4 py-3 text-right">ACTIONS</th>
                       </tr>
@@ -2767,7 +3068,7 @@ export const Admin: React.FC = () => {
                       {filteredGiftCodes.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="py-10 text-center text-slate-500">
-                            No gift codes created yet. Click "+ CREATE" above!
+                            No gift codes created yet. Click "+ 200% DEP BONUS" or "+ CREATE" above!
                           </td>
                         </tr>
                       ) : (
@@ -2775,6 +3076,12 @@ export const Admin: React.FC = () => {
                           const isExpired = Boolean(gc.expiresAt && gc.expiresAt > 0 && Date.now() > gc.expiresAt);
                           const isExhausted = (gc.claimedCount || 0) >= (gc.maxClaims || 1);
                           const isInactive = gc.active === false;
+                          const isDepPct = gc.rewardType === 'deposit_percent';
+                          const pctVal = Number(gc.depositBonusPercent || gc.amount || 200);
+                          const claimedDisplay = Math.max(Number(gc.claimedCount || 0), Array.isArray(gc.claimRecords) ? gc.claimRecords.length : 0);
+                          const targetUserMatch = gc.targetUid
+                            ? allUsers.find((u) => String(u.uid || '').toUpperCase() === String(gc.targetUid || '').toUpperCase())
+                            : undefined;
                           const statusLabel = isInactive
                             ? 'INACTIVE'
                             : isExpired
@@ -2784,20 +3091,48 @@ export const Admin: React.FC = () => {
                             : 'ACTIVE';
                           return (
                             <tr key={gc.code} className="hover:bg-slate-800/30">
-                              <td className="px-4 py-3 font-mono font-black text-white">{gc.code}</td>
-                              <td className="px-4 py-3 font-mono font-black text-cyan-400">
-                                ৳{Number(gc.amount).toFixed(2)}
+                              <td className="px-4 py-3">
+                                <div className="font-mono font-black text-white">{gc.code}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => copyTextSafely(gc.code, `Copied ${gc.code}`)}
+                                  className="text-[10px] text-cyan-400 hover:underline mt-0.5 flex items-center gap-1"
+                                >
+                                  <Copy className="w-2.5 h-2.5" />
+                                  <span>Copy</span>
+                                </button>
                               </td>
-                              <td className="px-4 py-3 font-mono text-slate-300">
-                                {gc.claimedCount}/{gc.maxClaims}
+                              <td className="px-4 py-3 font-mono font-black">
+                                {isDepPct ? (
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[11px]">
+                                    +{pctVal}% DEPOSIT
+                                  </span>
+                                ) : (
+                                  <span className="text-cyan-400">৳{Number(gc.amount).toFixed(2)}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setClaimHistoryCode(gc)}
+                                  className="px-2.5 py-1 rounded-lg bg-blue-600/25 hover:bg-blue-600/40 border border-blue-500/40 text-cyan-300 font-mono font-black text-[11px] flex items-center gap-1.5"
+                                >
+                                  <Users className="w-3 h-3" />
+                                  <span>{claimedDisplay} / {gc.maxClaims}</span>
+                                </button>
                               </td>
                               <td className="px-4 py-3 font-mono text-[11px] text-slate-400">
                                 {gc.expiresAt && gc.expiresAt > 0
                                   ? new Date(gc.expiresAt).toLocaleString()
-                                  : '—'}
+                                  : 'No Expiry'}
                               </td>
-                              <td className="px-4 py-3 text-slate-300">
-                                {gc.note || `Turnover: ৳${gc.turnoverAmount ?? gc.amount}`}
+                              <td className="px-4 py-3 text-slate-300 max-w-[230px]">
+                                <div className="font-semibold text-white truncate">
+                                  {gc.reason || gc.note || `Turnover: ৳${gc.turnoverAmount ?? gc.amount}`}
+                                </div>
+                                <div className="text-[10px] font-mono text-amber-300 mt-0.5 truncate">
+                                  User: {gc.targetUid ? `${targetUserMatch ? `${targetUserMatch.nickname} · ` : ''}${gc.targetUid}` : 'ALL USERS'}
+                                </div>
                               </td>
                               <td className="px-4 py-3">
                                 <span
@@ -2815,20 +3150,25 @@ export const Admin: React.FC = () => {
                               <td className="px-4 py-3 text-right">
                                 <div className="inline-flex items-center gap-1.5">
                                   <button
+                                    type="button"
                                     onClick={() => setClaimHistoryCode(gc)}
                                     className="px-2 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-black flex items-center gap-1"
-                                    title="Claim History"
+                                    title="View Claimants"
                                   >
-                                    <Users className="w-3 h-3" />
-                                    <span>{gc.claimedCount}</span>
+                                    <Eye className="w-3 h-3" />
+                                    <span>{claimedDisplay}</span>
                                   </button>
                                   <button
-                                    onClick={() =>
+                                    type="button"
+                                    onClick={() => {
+                                      setTargetUserSearch('');
                                       setGiftModal({
                                         isEdit: true,
                                         originalCode: gc.code,
                                         code: gc.code,
+                                        rewardType: gc.rewardType === 'deposit_percent' ? 'deposit_percent' : 'fixed',
                                         amount: String(gc.amount),
+                                        depositBonusPercent: String(gc.depositBonusPercent || gc.amount || 200),
                                         maxClaims: String(gc.maxClaims),
                                         turnoverAmount: String(gc.turnoverAmount ?? gc.amount),
                                         expiryDate:
@@ -2836,16 +3176,19 @@ export const Admin: React.FC = () => {
                                             ? new Date(gc.expiresAt).toISOString().slice(0, 16)
                                             : '',
                                         minRequiredBalance: String(gc.minRequiredBalance || 0),
+                                        targetUid: gc.targetUid || '',
+                                        reason: gc.reason || gc.note || '',
                                         note: gc.note || '',
                                         active: gc.active !== false
-                                      })
-                                    }
+                                      });
+                                    }}
                                     className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
                                     title="Edit Gift Code"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => {
                                       const next = adminSettings.activeGiftCodes.map((x) =>
                                         x.code === gc.code ? { ...x, active: x.active === false } : x
@@ -3012,14 +3355,27 @@ export const Admin: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">APP LOGO URL</label>
-                      <input
-                        type="text"
-                        value={appLogoDraft}
-                        onChange={(e) => setAppLogoDraft(e.target.value)}
-                        placeholder="https://..."
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
-                      />
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1">APP LOGO URL (Leave blank for Official Crown Logo)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={appLogoDraft}
+                          onChange={(e) => setAppLogoDraft(e.target.value)}
+                          placeholder="Leave blank for Official EWI 777 Crown Logo"
+                          className="flex-1 px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppLogoDraft('');
+                            updateAdminSettings({ appLogoUrl: '' });
+                            showToast('Restored Official Crown Logo everywhere!');
+                          }}
+                          className="px-3 py-2 rounded-xl bg-amber-600/25 border border-amber-500/40 text-amber-300 font-black text-[11px] hover:bg-amber-600/40 whitespace-nowrap"
+                        >
+                          Use Official Logo
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <label className="text-[11px] font-bold text-slate-400 block mb-1">
@@ -3133,8 +3489,37 @@ export const Admin: React.FC = () => {
 
               {/* Global System Switches */}
               <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-4">
-                <h3 className="text-xs font-black text-rose-400 tracking-wider">GLOBAL SYSTEM SWITCHES</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <h3 className="text-xs font-black text-amber-400 tracking-wider">GLOBAL SYSTEM SWITCHES</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Master Site Power</label>
+                    <select
+                      value={siteEnabledDraft ? 'ON' : 'OFF'}
+                      onChange={(e) => setSiteEnabledDraft(e.target.value === 'ON')}
+                      className={`w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border font-black ${
+                        siteEnabledDraft
+                          ? 'border-emerald-500/60 text-emerald-400'
+                          : 'border-rose-500/60 text-rose-400'
+                      }`}
+                    >
+                      <option value="ON">SITE ON (Live)</option>
+                      <option value="OFF">SITE OFF (SITE IS NOT COMING)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">System Timezone</label>
+                    <select
+                      value={String(tzOffsetDraft)}
+                      onChange={(e) => setTzOffsetDraft(Number(e.target.value))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-bold text-amber-300"
+                    >
+                      <option value="360">UTC+6:00 Bangladesh (Dhaka)</option>
+                      <option value="330">UTC+5:30 India (IST)</option>
+                      <option value="0">UTC+0:00 Universal (UTC)</option>
+                      <option value="240">UTC+4:00 UAE (Dubai)</option>
+                      <option value="480">UTC+8:00 Singapore (SGT)</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 block mb-1">Deposit System</label>
                     <select
@@ -3181,7 +3566,7 @@ export const Admin: React.FC = () => {
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 text-xs text-rose-300 font-bold cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-amber-300 font-bold cursor-pointer">
                   <input
                     type="checkbox"
                     checked={maintMode}
@@ -3194,6 +3579,8 @@ export const Admin: React.FC = () => {
                 <button
                   onClick={() =>
                     updateAdminSettings({
+                      siteEnabled: siteEnabledDraft,
+                      timezoneOffsetMinutes: tzOffsetDraft,
                       depositEnabled: depEnabled,
                       withdrawEnabled: wdEnabled,
                       giftCodeEnabled: giftEnabled,
@@ -3201,7 +3588,7 @@ export const Admin: React.FC = () => {
                       maintenanceMode: maintMode
                     })
                   }
-                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs"
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white font-black text-xs"
                 >
                   SAVE GLOBAL SYSTEM
                 </button>
@@ -3295,7 +3682,7 @@ export const Admin: React.FC = () => {
                             : 'bg-[#070E1B] border-slate-800 hover:border-slate-700'
                         }`}
                       >
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF2A7A] to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#D97706] to-[#B45309] text-white font-black text-xs flex items-center justify-center flex-shrink-0">
                           {(thread.userNickname || 'M')[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -3304,7 +3691,7 @@ export const Admin: React.FC = () => {
                               {thread.userNickname}
                             </span>
                             {thread.hasUnanswered && (
-                              <span className="w-2 h-2 rounded-full bg-[#FF2A7A] flex-shrink-0" />
+                              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
                             )}
                           </div>
                           <div className="text-[10px] font-mono text-slate-400 truncate">
@@ -3390,7 +3777,7 @@ export const Admin: React.FC = () => {
                             <div
                               className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-xs space-y-2 ${
                                 m.sender === 'admin'
-                                  ? 'bg-gradient-to-r from-[#FF2A7A] to-blue-600 text-white'
+                                  ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white'
                                   : 'bg-[#070E1B] border border-slate-700 text-slate-200'
                               }`}
                             >
@@ -3443,7 +3830,7 @@ export const Admin: React.FC = () => {
                         />
                         <button
                           type="submit"
-                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF2A7A] to-blue-600 text-white font-black text-xs flex items-center gap-1.5"
+                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs flex items-center gap-1.5"
                         >
                           <Send className="w-3.5 h-3.5" />
                           <span>Send</span>
@@ -3621,7 +4008,7 @@ export const Admin: React.FC = () => {
                 <>
                   <div className="flex items-center justify-between bg-[#070E1B] border border-slate-800 rounded-2xl p-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-[#FF2A7A] text-white font-black flex items-center justify-center overflow-hidden">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-[#D97706] text-white font-black flex items-center justify-center overflow-hidden">
                         {liveUser.avatar ? (
                           <img src={liveUser.avatar} alt="" className="w-full h-full object-cover" />
                         ) : (
@@ -3965,7 +4352,7 @@ export const Admin: React.FC = () => {
               {(cardsModalUser.boundWallets || []).length > 0 ? (
                 cardsModalUser.boundWallets!.map((w) => (
                   <div key={w.id} className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex justify-between">
-                    <span className="font-black text-pink-400">{w.type}</span>
+                    <span className={`font-black ${w.type === 'bKash' ? 'text-[#E2136E]' : 'text-amber-400'}`}>{w.type}</span>
                     <span className="font-mono text-white">{w.number}</span>
                   </div>
                 ))
@@ -4352,7 +4739,7 @@ export const Admin: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
           <form
             onSubmit={handleSaveGiftCode}
-            className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl text-xs"
+            className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-5 space-y-3 shadow-2xl text-xs"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-cyan-400">
@@ -4366,6 +4753,43 @@ export const Admin: React.FC = () => {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Reward Type Selector */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">REWARD MODE</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGiftModal({ ...giftModal, rewardType: 'fixed' })}
+                  className={`py-2 rounded-xl font-black border text-[11px] ${
+                    giftModal.rewardType === 'fixed'
+                      ? 'bg-blue-600/30 border-blue-400 text-cyan-300'
+                      : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                  }`}
+                >
+                  Fixed Bonus (৳)
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGiftModal({
+                      ...giftModal,
+                      rewardType: 'deposit_percent',
+                      depositBonusPercent: giftModal.depositBonusPercent || '200',
+                      reason: giftModal.reason || '200% Deposit Bonus Reward'
+                    })
+                  }
+                  className={`py-2 rounded-xl font-black border text-[11px] ${
+                    giftModal.rewardType === 'deposit_percent'
+                      ? 'bg-amber-600/30 border-amber-400 text-amber-300'
+                      : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                  }`}
+                >
+                  Deposit Bonus (%)
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="text-[10px] font-bold text-slate-400 block mb-1">GIFT CODE *</label>
               <div className="flex gap-2">
@@ -4385,17 +4809,48 @@ export const Admin: React.FC = () => {
                 </button>
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">AMOUNT ৳</label>
-                <input
-                  type="number"
-                  required
-                  value={giftModal.amount}
-                  onChange={(e) => setGiftModal({ ...giftModal, amount: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
-                />
-              </div>
+              {giftModal.rewardType === 'deposit_percent' ? (
+                <div>
+                  <label className="text-[10px] font-bold text-amber-300 block mb-1">DEPOSIT BONUS %</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={giftModal.depositBonusPercent}
+                    onChange={(e) => setGiftModal({ ...giftModal, depositBonusPercent: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-amber-500/50 font-mono font-black text-amber-300"
+                  />
+                  <div className="flex gap-1 mt-1">
+                    {['100', '150', '200', '300'].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setGiftModal({ ...giftModal, depositBonusPercent: pct })}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${
+                          giftModal.depositBonusPercent === pct
+                            ? 'bg-amber-500 text-slate-950 border-amber-300'
+                            : 'bg-[#070E1B] text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">AMOUNT ৳</label>
+                  <input
+                    type="number"
+                    required
+                    value={giftModal.amount}
+                    onChange={(e) => setGiftModal({ ...giftModal, amount: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                  />
+                </div>
+              )}
               <div>
                 <label className="text-[10px] font-bold text-slate-400 block mb-1">MAX USES</label>
                 <input
@@ -4407,9 +4862,12 @@ export const Admin: React.FC = () => {
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">TURNOVER ৳</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                  TURNOVER ৳ {giftModal.rewardType === 'deposit_percent' ? '(0 = Auto 1x)' : ''}
+                </label>
                 <input
                   type="number"
                   value={giftModal.turnoverAmount}
@@ -4429,6 +4887,7 @@ export const Admin: React.FC = () => {
                 />
               </div>
             </div>
+
             <div>
               <label className="text-[10px] font-bold text-slate-400 block mb-1">EXPIRY DATE</label>
               <input
@@ -4438,16 +4897,87 @@ export const Admin: React.FC = () => {
                 className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
               />
             </div>
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">NOTE</label>
+
+            {/* Select Target User Dropdown + Manual UID */}
+            <div className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-amber-300 uppercase">
+                  SELECT TARGET USER (OPTIONAL)
+                </label>
+                {giftModal.targetUid && (
+                  <button
+                    type="button"
+                    onClick={() => setGiftModal({ ...giftModal, targetUid: '' })}
+                    className="text-[10px] font-bold text-cyan-400 hover:underline"
+                  >
+                    Reset to ALL
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
-                value={giftModal.note}
-                onChange={(e) => setGiftModal({ ...giftModal, note: e.target.value })}
-                placeholder="Optional note..."
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                value={targetUserSearch}
+                onChange={(e) => setTargetUserSearch(e.target.value)}
+                placeholder="Search user by Nickname, UID or Phone..."
+                className="w-full px-2.5 py-1.5 rounded-lg bg-[#0E172A] border border-slate-700 text-[11px] text-white"
+              />
+              <select
+                value={giftModal.targetUid}
+                onChange={(e) => setGiftModal({ ...giftModal, targetUid: e.target.value })}
+                className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 text-[11px] font-bold text-amber-200"
+              >
+                <option value="">ALL USERS (Anyone can redeem)</option>
+                {allUsers
+                  .filter((u) => {
+                    const q = targetUserSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      (u.nickname || '').toLowerCase().includes(q) ||
+                      (u.uid || '').toLowerCase().includes(q) ||
+                      (u.phone || '').toLowerCase().includes(q)
+                    );
+                  })
+                  .slice(0, 60)
+                  .map((u) => (
+                    <option key={u.id} value={u.uid}>
+                      {u.nickname || 'User'} · UID {u.uid} · {u.phone || u.email}
+                    </option>
+                  ))}
+              </select>
+              <input
+                type="text"
+                value={giftModal.targetUid}
+                onChange={(e) => setGiftModal({ ...giftModal, targetUid: e.target.value.toUpperCase() })}
+                placeholder="Or enter UID(s): e.g. EWI700012 (Blank = ALL)"
+                className="w-full px-2.5 py-1.5 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-amber-300 uppercase"
               />
             </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-cyan-300 block mb-1">
+                GIFT REASON (SHOWN TO USER WHEN CLAIMING) *
+              </label>
+              <input
+                type="text"
+                value={giftModal.reason}
+                onChange={(e) => setGiftModal({ ...giftModal, reason: e.target.value, note: e.target.value })}
+                placeholder="e.g. 200% Deposit Bonus Reward / VIP Compensation"
+                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+              />
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {['200% Deposit Bonus', 'VIP Loyalty Gift', 'Loss Recovery Bonus', 'Special Event Gift'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setGiftModal({ ...giftModal, reason: preset, note: preset })}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[9px] text-slate-300 font-bold"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <label className="flex items-center gap-2 text-slate-300">
               <input
                 type="checkbox"
@@ -4456,7 +4986,7 @@ export const Admin: React.FC = () => {
               />
               <span>Active</span>
             </label>
-            <button type="submit" className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black">
+            <button type="submit" className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black">
               SAVE GIFT CODE
             </button>
           </form>
@@ -4469,33 +4999,51 @@ export const Admin: React.FC = () => {
           <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-black text-cyan-400">CLAIM HISTORY</h3>
-                <div className="text-[11px] text-slate-400 font-mono">
-                  {claimHistoryCode.code} — {claimHistoryCode.claimedCount} Claims
+                <h3 className="text-sm font-black text-cyan-400">CLAIM HISTORY &amp; CLAIMANTS</h3>
+                <div className="text-[11px] text-slate-300 font-mono">
+                  {claimHistoryCode.code} — {Math.max(claimHistoryCode.claimedCount || 0, (claimHistoryCode.claimRecords || []).length)} / {claimHistoryCode.maxClaims} Claimed
                 </div>
+                {(claimHistoryCode.reason || claimHistoryCode.note) && (
+                  <div className="text-[10px] text-amber-300 font-semibold mt-0.5">
+                    Reason: {claimHistoryCode.reason || claimHistoryCode.note}
+                  </div>
+                )}
               </div>
               <button
+                type="button"
                 onClick={() => setClaimHistoryCode(null)}
                 className="p-1.5 rounded-full bg-slate-800 text-slate-400"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="max-h-64 overflow-y-auto space-y-2">
+            <div className="max-h-72 overflow-y-auto space-y-2">
               {(claimHistoryCode.claimRecords || []).length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-500">No claim records recorded yet</div>
+                <div className="py-8 text-center text-xs text-slate-500">No one has claimed this code yet</div>
               ) : (
                 claimHistoryCode.claimRecords!.map((rec, i) => (
                   <div
                     key={i}
-                    className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center justify-between text-xs"
+                    className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center justify-between text-xs gap-2"
                   >
-                    <div>
-                      <div className="font-bold text-white">{rec.nickname}</div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-white flex items-center gap-1.5">
+                        <span>{rec.nickname}</span>
+                        {rec.uid && (
+                          <span className="px-1.5 py-0.2 rounded bg-slate-800 text-[9px] font-mono text-cyan-300">
+                            {rec.uid}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-slate-400 font-mono">{rec.contact}</div>
+                      {rec.depositAmount ? (
+                        <div className="text-[10px] text-amber-300 font-mono">
+                          On ৳{Number(rec.depositAmount).toFixed(0)} Deposit
+                        </div>
+                      ) : null}
                       <div className="text-[10px] text-slate-500">{rec.time}</div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       <div className="font-mono font-black text-emerald-400">+৳{rec.amount.toFixed(2)}</div>
                       <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-black">
                         CLAIMED
@@ -4527,6 +5075,30 @@ export const Admin: React.FC = () => {
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkRewardType('fixed')}
+                className={`py-2 rounded-xl font-black border text-[11px] ${
+                  bulkRewardType === 'fixed'
+                    ? 'bg-blue-600/30 border-blue-400 text-cyan-300'
+                    : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                }`}
+              >
+                Fixed ৳
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkRewardType('deposit_percent')}
+                className={`py-2 rounded-xl font-black border text-[11px] ${
+                  bulkRewardType === 'deposit_percent'
+                    ? 'bg-amber-600/30 border-amber-400 text-amber-300'
+                    : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                }`}
+              >
+                Deposit % (200%)
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 block mb-1">QUANTITY (MAX 50)</label>
                 <input
@@ -4537,11 +5109,17 @@ export const Admin: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">AMOUNT ৳</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                  {bulkRewardType === 'deposit_percent' ? 'BONUS %' : 'AMOUNT ৳'}
+                </label>
                 <input
                   type="number"
-                  value={bulkAmount}
-                  onChange={(e) => setBulkAmount(e.target.value)}
+                  value={bulkRewardType === 'deposit_percent' ? bulkDepositPercent : bulkAmount}
+                  onChange={(e) =>
+                    bulkRewardType === 'deposit_percent'
+                      ? setBulkDepositPercent(e.target.value)
+                      : setBulkAmount(e.target.value)
+                  }
                   className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
                 />
               </div>
@@ -4567,11 +5145,14 @@ export const Admin: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">NOTE</label>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">GIFT REASON (SHOWN TO USER)</label>
               <input
                 type="text"
-                value={bulkNote}
-                onChange={(e) => setBulkNote(e.target.value)}
+                value={bulkReason}
+                onChange={(e) => {
+                  setBulkReason(e.target.value);
+                  setBulkNote(e.target.value);
+                }}
                 className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
               />
             </div>

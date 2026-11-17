@@ -31,7 +31,7 @@ export const AddToDesktop: React.FC = () => {
     <div className="flex justify-center my-4 px-4">
       <button
         onClick={handleClick}
-        className="w-full max-w-xs py-3 px-6 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-sm shadow-md hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2.5"
+        className="w-full max-w-xs py-3 px-6 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-md hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2.5"
       >
         <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center">
           {isInstalled ? (
@@ -79,9 +79,9 @@ export const AddToDesktopModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-xs animate-fade-in">
-      <div className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl border border-pink-100 max-h-[92vh] flex flex-col">
-        {/* Top Pink Header with App Icon Preview */}
-        <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] p-5 text-white relative">
+      <div className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl border border-amber-200 max-h-[92vh] flex flex-col">
+        {/* Top Gold Header with App Icon Preview */}
+        <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] p-5 text-white relative">
           <button
             onClick={() => setShowInstallModal(false)}
             aria-label="Close"
@@ -101,7 +101,7 @@ export const AddToDesktopModal: React.FC = () => {
                 Home Screen & Desktop App
               </div>
               <h3 className="text-lg font-black leading-tight">Install EWI 777 Shortcut</h3>
-              <p className="text-[11px] text-pink-100 mt-0.5">
+              <p className="text-[11px] text-amber-100 mt-0.5">
                 Launch EWI 777 full-screen from your Desktop or Home Screen in 1 tap.
               </p>
             </div>
@@ -130,13 +130,13 @@ export const AddToDesktopModal: React.FC = () => {
           )}
 
           {/* Platform Switcher Tabs */}
-          <div className="grid grid-cols-3 gap-1.5 bg-pink-50/80 p-1 rounded-2xl border border-pink-100">
+          <div className="grid grid-cols-3 gap-1.5 bg-amber-50/80 p-1 rounded-2xl border border-amber-200">
             <button
               type="button"
               onClick={() => setGuideTab('desktop')}
               className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
                 guideTab === 'desktop'
-                  ? 'bg-white text-[#FF2A7A] shadow-xs'
+                  ? 'bg-white text-[#B45309] shadow-xs'
                   : 'text-slate-600 hover:text-slate-800'
               }`}
             >
@@ -148,7 +148,7 @@ export const AddToDesktopModal: React.FC = () => {
               onClick={() => setGuideTab('android')}
               className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
                 guideTab === 'android'
-                  ? 'bg-white text-[#FF2A7A] shadow-xs'
+                  ? 'bg-white text-[#B45309] shadow-xs'
                   : 'text-slate-600 hover:text-slate-800'
               }`}
             >
@@ -160,7 +160,7 @@ export const AddToDesktopModal: React.FC = () => {
               onClick={() => setGuideTab('ios')}
               className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
                 guideTab === 'ios'
-                  ? 'bg-white text-[#FF2A7A] shadow-xs'
+                  ? 'bg-white text-[#B45309] shadow-xs'
                   : 'text-slate-600 hover:text-slate-800'
               }`}
             >
@@ -173,25 +173,25 @@ export const AddToDesktopModal: React.FC = () => {
           {guideTab === 'desktop' && (
             <div className="space-y-2.5 text-xs">
               <div className="font-black text-slate-800 flex items-center gap-1.5">
-                <Monitor className="w-4 h-4 text-[#FF2A7A]" />
+                <Monitor className="w-4 h-4 text-[#D97706]" />
                 <span>How to Create a Desktop Shortcut (Chrome / Edge):</span>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   1
                 </div>
                 <div className="text-slate-700 leading-relaxed">
                   Open this page in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> and look at the top-right corner of the address bar for the{' '}
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-pink-100 text-[#FF2A7A] font-bold">
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-[#B45309] font-bold">
                     <Download className="w-3 h-3" /> Install
                   </span>{' '}
                   icon.
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   2
                 </div>
                 <div className="text-slate-700 leading-relaxed">
@@ -203,8 +203,8 @@ export const AddToDesktopModal: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   3
                 </div>
                 <div className="text-slate-700 leading-relaxed">
@@ -217,12 +217,12 @@ export const AddToDesktopModal: React.FC = () => {
           {guideTab === 'android' && (
             <div className="space-y-2.5 text-xs">
               <div className="font-black text-slate-800 flex items-center gap-1.5">
-                <Smartphone className="w-4 h-4 text-[#FF2A7A]" />
+                <Smartphone className="w-4 h-4 text-[#D97706]" />
                 <span>How to Add to Android Home Screen (Chrome):</span>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   1
                 </div>
                 <div className="text-slate-700 leading-relaxed">
@@ -234,21 +234,21 @@ export const AddToDesktopModal: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   2
                 </div>
                 <div className="text-slate-700 leading-relaxed">
                   Select{' '}
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-pink-100 text-[#FF2A7A] font-bold">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-[#B45309] font-bold">
                     <PlusSquare className="w-3 h-3" /> Add to Home screen
                   </span>{' '}
                   or <strong>Install app</strong>.
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   3
                 </div>
                 <div className="text-slate-700 leading-relaxed">
@@ -261,12 +261,12 @@ export const AddToDesktopModal: React.FC = () => {
           {guideTab === 'ios' && (
             <div className="space-y-2.5 text-xs">
               <div className="font-black text-slate-800 flex items-center gap-1.5">
-                <Apple className="w-4 h-4 text-[#FF2A7A]" />
+                <Apple className="w-4 h-4 text-[#D97706]" />
                 <span>How to Add to iPhone / iPad Home Screen (Safari):</span>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   1
                 </div>
                 <div className="text-slate-700 leading-relaxed">
@@ -278,21 +278,21 @@ export const AddToDesktopModal: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   2
                 </div>
                 <div className="text-slate-700 leading-relaxed">
                   Scroll down and tap{' '}
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-pink-100 text-[#FF2A7A] font-bold">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-[#B45309] font-bold">
                     <PlusSquare className="w-3 h-3" /> Add to Home Screen
                   </span>
                   .
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#FFF8FA] border border-pink-100 flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#FF2A7A] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
+              <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-200 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#D97706] text-white font-black text-[11px] flex items-center justify-center flex-shrink-0">
                   3
                 </div>
                 <div className="text-slate-700 leading-relaxed">
@@ -316,7 +316,7 @@ export const AddToDesktopModal: React.FC = () => {
                 navigator.clipboard?.writeText(window.location.origin).catch(() => {});
                 showToast('App URL copied! Paste in Chrome/Safari to pin shortcut.');
               }}
-              className="px-3 py-1.5 rounded-xl bg-white border border-pink-200 text-[#FF2A7A] font-black text-[11px] flex items-center gap-1 flex-shrink-0 active:scale-95"
+              className="px-3 py-1.5 rounded-xl bg-white border border-amber-200 text-[#B45309] font-black text-[11px] flex items-center gap-1 flex-shrink-0 active:scale-95"
             >
               <ExternalLink className="w-3 h-3" />
               <span>Copy URL</span>
@@ -326,7 +326,7 @@ export const AddToDesktopModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowInstallModal(false)}
-            className="w-full py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md active:scale-98"
+            className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md active:scale-98"
           >
             Got It
           </button>

@@ -1,184 +1,168 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Header } from '../components/Header';
-import { Check, Lock, CalendarCheck2, BookOpen } from 'lucide-react';
-import { getTranslation } from '../utils/i18n';
-import { PinkAttendanceIllustration } from '../components/PinkActivityIllustrations';
+import { ArrowLeft, Check, Gift } from 'lucide-react';
+import checkinBanner from '../assets/images/ewi777_checkin_banner_1794826719310.jpg';
 
 export const Attendance: React.FC = () => {
-  const { user, attendance, claimAttendanceReward, language, setActiveTab } = useApp();
-  const [view, setView] = useState<'checkin' | 'rules'>('checkin');
+  const { attendance, claimAttendanceReward, language, setActiveTab, setLanguage } = useApp();
+  const [darkCardMode, setDarkCardMode] = useState(false);
+
+  const nextAvailableDay = attendance.find((d) => d.status === 'available');
+  const claimedCount = attendance.filter((d) => d.status === 'claimed').length;
+
+  const handleMainClaim = () => {
+    if (nextAvailableDay) {
+      claimAttendanceReward(nextAvailableDay.day);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
-      <Header
-        title={getTranslation(language, 'attendanceBonus')}
-        showBack
-        onBack={() => {
-          setActiveTab('activity');
-          window.location.hash = '#/activity';
-        }}
-      />
+    <div className={`min-h-screen pb-24 transition-colors ${darkCardMode ? 'bg-[#12100B] text-white' : 'bg-[#FAF9F6] text-slate-900'}`}>
+      {/* Top Clean Navigation Header matching Daily Sign-In UI */}
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <button
+          onClick={() => {
+            setActiveTab('activity');
+            window.location.hash = '#/activity';
+          }}
+          className={`w-9 h-9 rounded-xl border flex items-center justify-center active:scale-95 transition-all ${
+            darkCardMode ? 'bg-[#1E1A11] border-amber-700/50 text-white' : 'bg-white border-amber-200 text-slate-800 shadow-2xs'
+          }`}
+        >
+          <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+        </button>
 
-      {/* Hero Summary */}
-      <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] px-4 pt-5 pb-12 text-white rounded-b-[2rem] shadow-md">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-12 rounded-2xl overflow-hidden border-2 border-white/50 shadow-sm flex-shrink-0">
-              <PinkAttendanceIllustration className="w-full h-full" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-pink-100 uppercase">Cumulative Deposit</div>
-              <div className="text-2xl font-black tabular-nums">
-                ৳{(user.totalDeposited || 0).toLocaleString()}
-              </div>
-            </div>
-          </div>
+        <h1 className="font-black text-base tracking-wide uppercase">
+          DAILY SIGN-IN
+        </h1>
 
-          <div className="px-3 py-1.5 rounded-2xl bg-white/20 backdrop-blur-xs text-center">
-            <div className="text-[10px] font-bold text-pink-100 uppercase">Streak</div>
-            <div className="text-base font-black tabular-nums">{user.attendanceState?.streak || 0} Days</div>
-          </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setLanguage(language === 'en' ? 'bn' : 'en')}
+            className={`px-2.5 py-1 rounded-full border text-xs font-bold flex items-center gap-1 ${
+              darkCardMode ? 'bg-[#1E1A11] border-amber-700/50 text-amber-200' : 'bg-white border-amber-200 text-slate-800 shadow-2xs'
+            }`}
+          >
+            <span>{language === 'en' ? '🇺🇸' : '🇧🇩'}</span>
+            <span>{language === 'en' ? 'EN' : 'BN'}</span>
+          </button>
+          <button
+            onClick={() => setDarkCardMode((d) => !d)}
+            className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs ${
+              darkCardMode ? 'bg-[#1E1A11] border-amber-700/50 text-amber-300' : 'bg-white border-amber-200 text-amber-600 shadow-2xs'
+            }`}
+            title="Toggle contrast"
+          >
+            ☀
+          </button>
         </div>
       </div>
 
-      <div className="px-4 -mt-6 space-y-4">
-        {/* Segmented Control */}
-        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-pink-100 grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => setView('checkin')}
-            className={`py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
-              view === 'checkin'
-                ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-pink-50'
-            }`}
-          >
-            <CalendarCheck2 className="w-4 h-4" />
-            <span>7-Day Check-In</span>
-          </button>
-          <button
-            onClick={() => setView('rules')}
-            className={`py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
-              view === 'rules'
-                ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-pink-50'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>Game Rules</span>
-          </button>
+      <div className="px-4 space-y-4">
+        {/* Official EWI 777 Daily Check-In Banner */}
+        <div className="rounded-3xl overflow-hidden border border-amber-300/70 shadow-md bg-white">
+          <img
+            src={checkinBanner}
+            alt="EWI 777 Daily Check-In"
+            className="w-full h-32 object-cover"
+          />
         </div>
 
-        {view === 'checkin' ? (
-          <div className="grid grid-cols-2 gap-3">
-            {attendance.map((day) => {
-              const isClaimed = day.status === 'claimed';
-              const isAvailable = day.status === 'available';
-              return (
-                <button
-                  key={day.day}
-                  type="button"
-                  onClick={() => claimAttendanceReward(day.day)}
-                  className={`p-4 rounded-3xl border text-left transition-all active:scale-98 flex flex-col justify-between min-h-[110px] ${
-                    day.day === 7 ? 'col-span-2' : ''
-                  } ${
+        {/* Summary Card */}
+        <div
+          className={`rounded-3xl p-6 text-center shadow-xs border ${
+            darkCardMode
+              ? 'bg-[#1E1A11] border-amber-800/50'
+              : 'bg-white border-amber-200/80'
+          }`}
+        >
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-[#D97706] flex items-center justify-center mx-auto mb-3 shadow-xs">
+            <Gift className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-black tracking-tight">
+            Sign in every day, get a bonus
+          </h2>
+          <p className={`text-xs mt-1 ${darkCardMode ? 'text-amber-100/70' : 'text-slate-500'}`}>
+            Day 1 ৳1 up to Day 7 ৳7. Missing a day starts again from Day 1.
+          </p>
+        </div>
+
+        {/* 7-Day Grid (Days 1-4 top row, Days 5-6 + wider Day 7 bottom row) */}
+        <div className="grid grid-cols-4 gap-2.5">
+          {attendance.map((day) => {
+            const isClaimed = day.status === 'claimed';
+            const isAvailable = day.status === 'available';
+            const isDay7 = day.day === 7;
+            return (
+              <button
+                key={day.day}
+                type="button"
+                onClick={() => isAvailable && claimAttendanceReward(day.day)}
+                className={`rounded-2xl p-3 flex flex-col items-center justify-center gap-1 min-h-[84px] border transition-all ${
+                  isDay7 ? 'col-span-2' : 'col-span-1'
+                } ${
+                  isAvailable
+                    ? 'bg-gradient-to-b from-[#FEF3C7] to-[#FDE68A] border-[#D97706] ring-2 ring-amber-400/50 shadow-sm active:scale-95'
+                    : isClaimed
+                    ? darkCardMode
+                      ? 'bg-[#1A261F] border-emerald-700/60'
+                      : 'bg-white border-emerald-200 shadow-2xs'
+                    : darkCardMode
+                    ? 'bg-[#1C1810] border-amber-900/40'
+                    : 'bg-white border-amber-100 shadow-2xs'
+                }`}
+              >
+                <span className={`text-[11px] font-semibold ${darkCardMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Day {day.day}
+                </span>
+                <span
+                  className={`text-base font-black tabular-nums ${
                     isClaimed
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                      ? 'text-[#16A34A]'
                       : isAvailable
-                      ? 'bg-gradient-to-br from-[#FF2A7A] to-[#FF5A92] border-transparent text-white shadow-md ring-2 ring-pink-300/60'
-                      : 'bg-white border-pink-100 text-slate-700 shadow-xs'
+                      ? 'text-[#D97706]'
+                      : isDay7
+                      ? 'text-[#D97706]'
+                      : darkCardMode
+                      ? 'text-amber-200'
+                      : 'text-slate-800'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span
-                      className={`text-xs font-black uppercase ${
-                        isAvailable ? 'text-pink-100' : isClaimed ? 'text-emerald-700' : 'text-slate-400'
-                      }`}
-                    >
-                      Day {day.day}
-                    </span>
-                    {isClaimed ? (
-                      <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </span>
-                    ) : isAvailable ? (
-                      <span className="px-2 py-0.5 rounded-full bg-yellow-300 text-slate-900 text-[9px] font-black">
-                        UNLOCKED
-                      </span>
-                    ) : (
-                      <Lock className="w-4 h-4 text-slate-300" />
-                    )}
-                  </div>
+                  ৳{day.amount}
+                </span>
+                {isClaimed ? (
+                  <Check className="w-3.5 h-3.5 text-[#16A34A] stroke-[3]" />
+                ) : isAvailable ? (
+                  <span className="text-[9px] font-black text-[#B45309] uppercase">Ready</span>
+                ) : (
+                  <span className="h-3.5" />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-                  <div className="my-1.5">
-                    <div
-                      className={`text-xl font-black tabular-nums leading-tight ${
-                        isAvailable ? 'text-white' : isClaimed ? 'text-emerald-700' : 'text-slate-900'
-                      }`}
-                    >
-                      ৳{day.amount.toLocaleString()}
-                    </div>
-                    <div
-                      className={`text-[11px] font-bold tabular-nums ${
-                        isAvailable ? 'text-pink-100' : 'text-slate-400'
-                      }`}
-                    >
-                      Min Deposit: ৳{day.requiredDeposit.toLocaleString()}+
-                    </div>
-                  </div>
+        {/* Main Claim / Come back tomorrow button */}
+        <button
+          type="button"
+          onClick={handleMainClaim}
+          disabled={!nextAvailableDay}
+          className={`w-full py-3.5 rounded-full font-extrabold text-sm shadow-sm transition-all ${
+            nextAvailableDay
+              ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white hover:brightness-105 active:scale-98'
+              : 'bg-[#DCC792] text-white/90 cursor-default'
+          }`}
+        >
+          {nextAvailableDay
+            ? `Claim Day ${nextAvailableDay.day} Bonus (৳${nextAvailableDay.amount})`
+            : claimedCount >= 7
+            ? 'Cycle Complete • Resets to Day 1 tomorrow (12:00 AM)'
+            : 'Come back tomorrow'}
+        </button>
 
-                  <div
-                    className={`text-[11px] font-extrabold ${
-                      isClaimed
-                        ? 'text-emerald-600'
-                        : isAvailable
-                        ? 'text-yellow-200'
-                        : 'text-[#FF2A7A]/80'
-                    }`}
-                  >
-                    {isClaimed
-                      ? 'Claimed Once ✓'
-                      : isAvailable
-                      ? 'Tap to Claim Bonus →'
-                      : day.lockReason || 'Locked'}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="bg-white rounded-3xl overflow-hidden border border-pink-100 shadow-xs">
-              <div className="bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white grid grid-cols-3 text-center py-3 px-2 text-[11px] font-extrabold">
-                <div>Continuous Days</div>
-                <div>Accumulated Deposit</div>
-                <div>Attendance Bonus</div>
-              </div>
-              <div className="divide-y divide-pink-50 text-xs tabular-nums">
-                {attendance.map((row, idx) => (
-                  <div
-                    key={row.day}
-                    className={`grid grid-cols-3 text-center py-3 px-2 font-semibold ${
-                      idx % 2 === 0 ? 'bg-white' : 'bg-[#FFF5F9]'
-                    }`}
-                  >
-                    <div className="text-slate-800 font-bold">Day {row.day}</div>
-                    <div className="text-slate-600">৳{row.requiredDeposit.toLocaleString()}.00</div>
-                    <div className="text-[#FF2A7A] font-black">৳{row.amount.toLocaleString()}.00</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-pink-100 shadow-xs p-5 space-y-2.5 text-xs text-slate-600 leading-relaxed">
-              <h4 className="font-black text-slate-800 text-sm mb-1">Attendance Rules</h4>
-              <p>◆ Consecutive login and deposit days unlock progressively higher rewards up to ৳1,200 on Day 7.</p>
-              <p>◆ Check in once per day. Each day tier can only be claimed once per user.</p>
-              <p>◆ Players with no deposit history cannot claim attendance bonuses.</p>
-              <p>◆ Missing a consecutive day without claiming resets the streak back to Day 1.</p>
-            </div>
-          </div>
-        )}
+        <div className={`text-center text-xs font-medium ${darkCardMode ? 'text-amber-200/70' : 'text-slate-500'}`}>
+          Bonus needs 1× betting before withdrawal. Unlocks daily after 12:00 AM.
+        </div>
       </div>
     </div>
   );

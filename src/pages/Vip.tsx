@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { VIP_TIERS } from '../constants/vipTiers';
 import { DepositPastelIcon } from '../components/AccountIcons';
+import vipLevelUpGift from '../assets/images/vip_levelup_gift_1794826715707.jpg';
+import vipMonthlyChest from '../assets/images/vip_monthly_chest_1794826717578.jpg';
 
 export const Vip: React.FC = () => {
   const { user, claimVipReward, setActiveTab, showToast } = useApp();
@@ -43,9 +45,9 @@ export const Vip: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
-      {/* Top Pink Gradient Header */}
-      <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
+      {/* Luxury Gold Header */}
+      <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => {
@@ -57,16 +59,15 @@ export const Vip: React.FC = () => {
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
           <div className="flex items-center gap-1.5 font-black text-lg tracking-wide">
-            <Award className="w-5 h-5 text-yellow-300" />
+            <Award className="w-5 h-5 text-yellow-200" />
             <span>VIP PRIVILEGE CLUB (1-10)</span>
           </div>
           <div className="w-6" />
         </div>
 
-        {/* User Current VIP Rank & Deposit Progress Box */}
-        <div className="bg-white rounded-2xl p-4 text-slate-800 shadow-sm grid grid-cols-2 divide-x divide-pink-100">
+        <div className="bg-white rounded-2xl p-4 text-slate-800 shadow-sm grid grid-cols-2 divide-x divide-amber-100">
           <div className="text-center pr-2">
-            <div className="text-base font-black text-[#FF2A7A]">
+            <div className="text-base font-black text-[#D97706]">
               ৳{userDeposited.toLocaleString()}
             </div>
             <div className="text-[11px] text-slate-400 font-medium mt-0.5">Total Deposits</div>
@@ -82,10 +83,10 @@ export const Vip: React.FC = () => {
 
       <div className="px-4 -mt-4 space-y-4">
         {/* Horizontal VIP 1 to 10 Selector Pills */}
-        <div className="bg-white rounded-3xl p-2.5 shadow-xs border border-pink-100">
+        <div className="bg-white rounded-3xl p-2.5 shadow-xs border border-amber-200">
           <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-2 px-1">
             <span>Select VIP Tier:</span>
-            <span className="text-[11px] text-[#FF2A7A] font-bold">Auto-Unlock on Deposit</span>
+            <span className="text-[11px] text-[#D97706] font-bold">Auto-Unlock on Deposit</span>
           </div>
           <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {VIP_TIERS.map((tier) => {
@@ -97,10 +98,10 @@ export const Vip: React.FC = () => {
                   onClick={() => setSelectedVipLevel(tier.level)}
                   className={`flex-shrink-0 px-3.5 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-1 ${
                     isSelected
-                      ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-md scale-102'
+                      ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white shadow-md scale-102'
                       : tierUnlocked
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-pink-50/50 text-slate-600 hover:bg-pink-100/50 border border-pink-100'
+                      : 'bg-amber-50/70 text-slate-600 hover:bg-amber-100/70 border border-amber-200'
                   }`}
                 >
                   {tierUnlocked ? (
@@ -116,7 +117,7 @@ export const Vip: React.FC = () => {
         </div>
 
         {/* Selected VIP Tier Card */}
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100 space-y-4">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div
@@ -133,7 +134,7 @@ export const Vip: React.FC = () => {
                       <Check className="w-3 h-3 stroke-[3]" /> Unlocked
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-full bg-pink-100 text-[#FF2A7A] font-bold text-[10px] flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-[#B45309] font-bold text-[10px] flex items-center gap-1">
                       <Lock className="w-3 h-3" /> Locked
                     </span>
                   )}
@@ -144,17 +145,17 @@ export const Vip: React.FC = () => {
           </div>
 
           {/* Deposit Requirement Progress Bar */}
-          <div className="p-3.5 rounded-2xl bg-[#FFF8FA] border border-pink-100 space-y-2">
+          <div className="p-3.5 rounded-2xl bg-[#FFFDF7] border border-amber-200 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-700">Required Deposit to Unlock</span>
-              <span className="font-mono font-black text-[#FF2A7A]">
+              <span className="font-mono font-black text-[#D97706]">
                 ৳{currentTier.requiredDeposit.toLocaleString()}
               </span>
             </div>
 
-            <div className="w-full bg-pink-100/70 h-2.5 rounded-full overflow-hidden">
+            <div className="w-full bg-amber-100 h-2.5 rounded-full overflow-hidden">
               <div
-                className="bg-gradient-to-r from-[#FF2A7A] to-[#FF758F] h-full rounded-full transition-all"
+                className="bg-gradient-to-r from-[#D97706] to-[#FBBF24] h-full rounded-full transition-all"
                 style={{ width: `${depositProgress}%` }}
               />
             </div>
@@ -164,7 +165,7 @@ export const Vip: React.FC = () => {
               {isUnlocked ? (
                 <span className="text-emerald-600 font-bold">Auto-Unlocked!</span>
               ) : (
-                <span className="text-[#FF2A7A] font-bold">Need ৳{depositNeeded.toLocaleString()} more</span>
+                <span className="text-[#D97706] font-bold">Need ৳{depositNeeded.toLocaleString()} more</span>
               )}
             </div>
 
@@ -174,7 +175,7 @@ export const Vip: React.FC = () => {
                   setActiveTab('deposit');
                   window.location.hash = '#/deposit';
                 }}
-                className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 active:scale-95"
+                className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 active:scale-95"
               >
                 <DepositPastelIcon size={18} />
                 <span>Deposit ৳{depositNeeded.toLocaleString()} to Auto-Unlock VIP{currentTier.level}</span>
@@ -182,81 +183,95 @@ export const Vip: React.FC = () => {
             )}
           </div>
 
-          {/* Privilege Reward Cards with Auto Wallet Credit */}
+          {/* Privilege Reward Cards with Custom Artwork */}
           <div className="space-y-3 pt-1">
             <h4 className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-              <Gift className="w-4 h-4 text-[#FF2A7A]" />
+              <Gift className="w-4 h-4 text-[#D97706]" />
               <span>Privilege Rewards (Auto Credited to Wallet)</span>
             </h4>
 
-            {/* Level-Up Bonus Card */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-50/60 to-rose-50/40 border border-pink-100 flex items-center justify-between">
-              <div>
-                <div className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-                  <Coins className="w-4 h-4 text-amber-500" />
-                  <span>Level-Up Cash Reward</span>
-                </div>
-                <div className="text-base font-black text-[#FF2A7A] mt-0.5 font-mono">
-                  ৳{currentTier.levelUpBonus.toLocaleString()}
-                </div>
-                <div className="text-[10px] text-slate-400">
-                  Auto-credited when VIP {currentTier.level} unlocks
+            {/* Level-Up Cash Reward Card with Gold Gift Image */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50/90 to-yellow-50/70 border border-amber-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <img
+                  src={vipLevelUpGift}
+                  alt="Level-Up Gift"
+                  className="w-16 h-16 rounded-2xl object-cover border border-amber-300 shadow-sm flex-shrink-0 bg-white"
+                />
+                <div className="min-w-0">
+                  <div className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>Level-Up Cash Reward</span>
+                  </div>
+                  <div className="text-base font-black text-[#B45309] mt-0.5 font-mono">
+                    ৳{currentTier.levelUpBonus.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    Auto-credited when VIP {currentTier.level} unlocks
+                  </div>
                 </div>
               </div>
 
               <button
                 onClick={() => handleClaim('levelUp', currentTier.levelUpBonus)}
                 disabled={!isUnlocked || isLevelUpClaimed}
-                className={`px-4 py-2 rounded-full font-black text-xs shadow-xs transition-all ${
+                className={`px-3.5 py-2 rounded-full font-black text-[11px] shadow-xs transition-all flex-shrink-0 ${
                   isLevelUpClaimed
                     ? 'bg-emerald-100 text-emerald-700'
                     : isUnlocked
-                    ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white active:scale-95'
+                    ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white active:scale-95'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                {isLevelUpClaimed ? 'Auto Credited ✓' : isUnlocked ? 'Claim Bonus' : 'Locked'}
+                {isLevelUpClaimed ? 'Credited ✓' : isUnlocked ? 'Claim' : 'Locked'}
               </button>
             </div>
 
-            {/* Monthly VIP Salary Card (Excluded from VIP 1; ৳00 for VIP 2; Auto-Credited from VIP 3+) */}
+            {/* Monthly VIP Salary Card with Gold Chest Image */}
             {currentTier.level >= 2 && (
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-50/60 to-rose-50/40 border border-pink-100 flex items-center justify-between">
-                <div>
-                  <div className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-                    <Gift className="w-4 h-4 text-[#FF2A7A]" />
-                    <span>Monthly VIP Salary</span>
-                  </div>
-                  <div className="text-base font-black text-[#FF2A7A] mt-0.5 font-mono">
-                    {currentTier.monthlyBonus === 0 ? '৳00' : `৳${currentTier.monthlyBonus.toLocaleString()}`}
-                  </div>
-                  <div className="text-[10px] text-slate-400">
-                    {currentTier.monthlyBonus === 0
-                      ? 'Monthly VIP salary starts from VIP 3'
-                      : 'Auto-credited every 30 days to wallet'}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50/90 to-yellow-50/70 border border-amber-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={vipMonthlyChest}
+                    alt="Monthly VIP Chest"
+                    className="w-16 h-16 rounded-2xl object-cover border border-amber-300 shadow-sm flex-shrink-0 bg-white"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+                      <Gift className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <span>Monthly VIP Salary</span>
+                    </div>
+                    <div className="text-base font-black text-[#B45309] mt-0.5 font-mono">
+                      {currentTier.monthlyBonus === 0 ? '৳00' : `৳${currentTier.monthlyBonus.toLocaleString()}`}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {currentTier.monthlyBonus === 0
+                        ? 'Monthly VIP salary starts from VIP 3'
+                        : 'Auto-credited every 30 days to wallet'}
+                    </div>
                   </div>
                 </div>
 
                 {currentTier.monthlyBonus === 0 ? (
-                  <span className="px-3.5 py-2 rounded-full bg-slate-100 text-slate-500 font-black text-xs">
+                  <span className="px-3.5 py-2 rounded-full bg-slate-100 text-slate-500 font-black text-xs flex-shrink-0">
                     ৳00
                   </span>
                 ) : (
                   <button
                     onClick={() => handleClaim('monthly', currentTier.monthlyBonus)}
                     disabled={!isUnlocked || isMonthlyCreditedForCycle}
-                    className={`px-4 py-2 rounded-full font-black text-xs shadow-xs transition-all ${
+                    className={`px-3.5 py-2 rounded-full font-black text-[11px] shadow-xs transition-all flex-shrink-0 ${
                       isMonthlyCreditedForCycle
                         ? 'bg-emerald-100 text-emerald-700'
                         : isUnlocked
-                        ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white active:scale-95'
+                        ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white active:scale-95'
                         : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                     }`}
                   >
                     {isMonthlyCreditedForCycle
-                      ? 'Auto Credited ✓'
+                      ? 'Credited ✓'
                       : isUnlocked
-                      ? 'Claim Salary'
+                      ? 'Claim'
                       : 'Locked'}
                   </button>
                 )}
@@ -265,9 +280,9 @@ export const Vip: React.FC = () => {
 
             {/* Safe Vault & Game Rebate perks */}
             <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-              <div className="p-3 rounded-2xl bg-white border border-pink-100 space-y-1">
+              <div className="p-3 rounded-2xl bg-white border border-amber-200 space-y-1">
                 <div className="text-slate-500 font-bold flex items-center gap-1">
-                  <Shield className="w-3.5 h-3.5 text-[#FF2A7A]" />
+                  <Shield className="w-3.5 h-3.5 text-[#D97706]" />
                   <span>Safe Vault Daily Interest</span>
                 </div>
                 <div className="text-sm font-black text-slate-800 font-mono">
@@ -275,9 +290,9 @@ export const Vip: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-white border border-pink-100 space-y-1">
+              <div className="p-3 rounded-2xl bg-white border border-amber-200 space-y-1">
                 <div className="text-slate-500 font-bold flex items-center gap-1">
-                  <TrendingUp className="w-3.5 h-3.5 text-green-600" />
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Game Betting Rebate</span>
                 </div>
                 <div className="text-sm font-black text-slate-800 font-mono">
@@ -289,9 +304,9 @@ export const Vip: React.FC = () => {
         </div>
 
         {/* Complete VIP Level Rules Breakdown */}
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100 space-y-3">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200 space-y-3">
           <h3 className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-            <Award className="w-4 h-4 text-[#FF2A7A]" />
+            <Award className="w-4 h-4 text-[#D97706]" />
             <span>VIP Level Unlock Tiers &amp; Auto-Credit Rules</span>
           </h3>
 
@@ -310,11 +325,11 @@ export const Vip: React.FC = () => {
                   <tr
                     key={t.level}
                     onClick={() => setSelectedVipLevel(t.level)}
-                    className={`cursor-pointer ${selectedVipLevel === t.level ? 'bg-pink-50/70 font-bold' : ''}`}
+                    className={`cursor-pointer ${selectedVipLevel === t.level ? 'bg-amber-50 font-bold' : ''}`}
                   >
                     <td className="py-2 text-slate-800 font-black">VIP {t.level}</td>
                     <td className="py-2 text-slate-600">৳{t.requiredDeposit.toLocaleString()}</td>
-                    <td className="py-2 text-[#FF2A7A] font-bold">৳{t.levelUpBonus.toLocaleString()}</td>
+                    <td className="py-2 text-[#D97706] font-bold">৳{t.levelUpBonus.toLocaleString()}</td>
                     <td className="py-2 text-right font-bold">
                       {t.level === 1 ? (
                         <span className="text-slate-400 font-sans text-[10px]">No Monthly</span>

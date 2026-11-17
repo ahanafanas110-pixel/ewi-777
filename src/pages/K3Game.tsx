@@ -16,9 +16,9 @@ import {
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { computeDailyIssueInfo, nextIssueFromLatest } from '../utils/lotteryApi';
 import {
-  buildSyncedK3Row,
-  getSyncedK3Dice,
-  getSyncedK3History
+  formatTimeWithOffset,
+  getSyncedK3History,
+  resolveControlledK3Dice
 } from '../utils/syncedMarkets';
 
 const K3_TOTAL_MULTIPLIERS: Record<number, number> = {
@@ -164,6 +164,7 @@ export const K3Game: React.FC = () => {
     user,
     adminSettings,
     k3Bets,
+    marketPools,
     placeK3Bet,
     settleK3Round,
     setActiveTab,
@@ -208,6 +209,19 @@ export const K3Game: React.FC = () => {
   const activePeriodRef = useRef<string>('');
   const lastLatestIssueRef = useRef<string>('');
   const prevRemRef = useRef<number>(periodInfo.rem);
+  const k3BetsRef = useRef(k3Bets);
+  const marketPoolsRef = useRef(marketPools);
+  const settleK3Ref = useRef(settleK3Round);
+  const controlModeRef = useRef(adminSettings.gameControlModes?.k3 || 'AUTO');
+  const tzOffsetRef = useRef(adminSettings.timezoneOffsetMinutes ?? 360);
+
+  useEffect(() => {
+    k3BetsRef.current = k3Bets;
+    marketPoolsRef.current = marketPools;
+    settleK3Ref.current = settleK3Round;
+    controlModeRef.current = adminSettings.gameControlModes?.k3 || 'AUTO';
+    tzOffsetRef.current = adminSettings.timezoneOffsetMinutes ?? 360;
+  }, [k3Bets, marketPools, settleK3Round, adminSettings.gameControlModes, adminSettings.timezoneOffsetMinutes]);
 
   // Rolling dice animation ticker while isRolling === true (purely visual spin before synced reveal)
   useEffect(() => {
@@ -253,15 +267,63 @@ export const K3Game: React.FC = () => {
         setBetSlip(null);
         setIsRolling(true);
 
-        const drawnDice = getSyncedK3Dice(mode, resolvingPeriod);
+        const normalizeK3Bet = (betType: string, selection: string, totalAmount: number) => {
+          if (betType === 'total_num') return { betType: 'sum', selection, totalAmount };
+          if (betType === 'total_prop') {
+            return {
+              betType: selection === 'Big' || selection === 'Small' ? 'size' : 'parity',
+              selection,
+              totalAmount
+            };
+          }
+          if (betType === '2same_match' || betType === '2same_pair') {
+            return { betType: '2same', selection, totalAmount };
+          }
+          if (betType === '3same_exact' || betType === '3same_any') {
+            return { betType: '3same', selection, totalAmount };
+          }
+          return { betType: 'diff', selection, totalAmount };
+        };
+
+        const activeLocalBets = k3BetsRef.current
+          .filter((b) => b.mode === mode && b.periodNumber === resolvingPeriod && b.status === 'pending')
+          .map((b) => normalizeK3Bet(b.betType, b.selection, b.totalAmount));
+
+        const poolEntry = marketPoolsRef.current?.[`k3_${mode}_${resolvingPeriod}`];
+        const poolBets = poolEntry
+          ? Object.entries(poolEntry.selections || {}).map(([key, total]) => {
+              const sepIdx = key.indexOf(':');
+              const bType = sepIdx >= 0 ? key.slice(0, sepIdx) : 'total_prop';
+              const sel = sepIdx >= 0 ? key.slice(sepIdx + 1) : key;
+              return normalizeK3Bet(bType, sel, Number(total) || 0);
+            })
+          : [];
+
+        const mergedBets = poolBets.length > 0 ? poolBets : activeLocalBets;
+        const drawnDice = resolveControlledK3Dice(
+          mode,
+          resolvingPeriod,
+          controlModeRef.current,
+          mergedBets
+        );
+
         setTimeout(() => {
-          const newRow = buildSyncedK3Row(mode, resolvingPeriod, Date.now());
-          setHistory((prev) => {
-            const updated = [newRow, ...prev.filter((r) => r.periodNumber !== resolvingPeriod)].slice(0, 50);
-            return updated;
-          });
+          const sum = drawnDice[0] + drawnDice[1] + drawnDice[2];
+          const uniq = new Set(drawnDice).size;
+          const pattern =
+            uniq === 1 ? '3 same numbers' : uniq === 2 ? '2 same numbers' : '3 different numbers';
+          const newRow: K3Result = {
+            periodNumber: resolvingPeriod,
+            dice: drawnDice,
+            sum,
+            size: sum >= 11 ? 'Big' : 'Small',
+            parity: sum % 2 === 0 ? 'Even' : 'Odd',
+            pattern,
+            time: formatTimeWithOffset(Date.now(), tzOffsetRef.current)
+          };
+          setHistory((prev) => [newRow, ...prev.filter((r) => r.periodNumber !== resolvingPeriod)].slice(0, 50));
           lastLatestIssueRef.current = resolvingPeriod;
-          settleK3Round(mode, resolvingPeriod, drawnDice);
+          settleK3Ref.current(mode, resolvingPeriod, drawnDice);
           setIsRolling(false);
         }, 1250);
       }
@@ -310,7 +372,7 @@ export const K3Game: React.FC = () => {
       showToast(res.message);
       return;
     }
-    showToast(`K3 Bet placed: ${betSlip.label} (৳${(betBaseAmount * betMultiplier).toFixed(2)})`);
+    showToast(`EWI K3 Bet placed: ${betSlip.label} (৳${(betBaseAmount * betMultiplier).toFixed(2)})`);
     setBetSlip(null);
     setSelected2Match([]);
     setSelected2PairTop([]);
@@ -367,9 +429,9 @@ export const K3Game: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
-      {/* Pink Luxury Header */}
-      <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
+      {/* Luxury Gold Header */}
+      <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           <button
             onClick={() => {
@@ -396,7 +458,7 @@ export const K3Game: React.FC = () => {
             >
               <Bell className="w-5 h-5" />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full bg-yellow-300 text-[#800F2F] text-[9px] font-black flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full bg-yellow-300 text-[#78350F] text-[9px] font-black flex items-center justify-center">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
@@ -418,7 +480,7 @@ export const K3Game: React.FC = () => {
         </div>
 
         {/* Wallet Balance Card */}
-        <div className="bg-white rounded-3xl p-5 text-slate-800 shadow-md border border-pink-100">
+        <div className="bg-white rounded-3xl p-5 text-slate-800 shadow-md border border-amber-100">
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="text-3xl font-black tracking-tight text-slate-900">
               ৳{user.balance.toFixed(2)}
@@ -428,7 +490,7 @@ export const K3Game: React.FC = () => {
                 syncServerDataNow();
                 showToast('Wallet balance refreshed');
               }}
-              className="text-slate-400 hover:text-[#FF2A7A] active:rotate-180 transition-transform"
+              className="text-slate-400 hover:text-[#B45309] active:rotate-180 transition-transform"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -440,7 +502,7 @@ export const K3Game: React.FC = () => {
                 setActiveTab('wallet');
                 window.location.hash = '#/wallet';
               }}
-              className="py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-extrabold text-sm shadow-xs active:scale-98"
+              className="py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-extrabold text-sm shadow-xs active:scale-98"
             >
               Withdraw
             </button>
@@ -458,32 +520,32 @@ export const K3Game: React.FC = () => {
       </div>
 
       <div className="px-4 -mt-3 space-y-4">
-        {/* K3 Mode Selector Tabs */}
-        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-pink-100 grid grid-cols-4 gap-1.5">
+        {/* EWI K3 Mode Selector Tabs */}
+        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-amber-100 grid grid-cols-4 gap-1.5">
           {(['1m', '3m', '5m', '10m'] as K3Mode[]).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               className={`py-2 px-1 rounded-xl text-xs font-black text-center transition-all ${
                 mode === m
-                  ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-pink-50/50'
+                  ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-amber-50/50'
               }`}
             >
-              K3 Lotre {m === '1m' ? '1Min' : m === '3m' ? '3Min' : m === '5m' ? '5Min' : '10Min'}
+              EWI K3 {m === '1m' ? '1Min' : m === '3m' ? '3Min' : m === '5m' ? '5Min' : '10Min'}
             </button>
           ))}
         </div>
 
         {/* Period & Video-Matched Green 3-Dice Slot Machine Card */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 space-y-3.5">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-3.5">
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500">Period</span>
                 <button
                   onClick={() => setShowRulesModal(true)}
-                  className="px-2.5 py-0.5 rounded-full border border-rose-300 text-rose-500 text-[10px] font-bold flex items-center gap-1 hover:bg-rose-50 active:scale-95"
+                  className="px-2.5 py-0.5 rounded-full border border-amber-300 text-[#B45309] text-[10px] font-bold flex items-center gap-1 hover:bg-amber-50 active:scale-95"
                 >
                   <HelpCircle className="w-3 h-3" />
                   <span>How to play</span>
@@ -496,7 +558,7 @@ export const K3Game: React.FC = () => {
 
             <div className="text-right">
               <div className="text-[11px] font-semibold text-slate-500 mb-1 flex items-center justify-end gap-1">
-                <Clock className="w-3 h-3 text-rose-400" />
+                <Clock className="w-3 h-3 text-[#D97706]" />
                 <span>Time remaining</span>
               </div>
               <div className="flex items-center gap-1">
@@ -553,15 +615,15 @@ export const K3Game: React.FC = () => {
           </div>
         </div>
 
-        {/* K3 Betting Area with 5s Lock Overlay */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100 relative overflow-hidden space-y-4">
+        {/* EWI K3 Betting Area with 5s Lock Overlay */}
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 relative overflow-hidden space-y-4">
           {isLocked && (
             <div className="absolute inset-0 z-20 bg-black/55 backdrop-blur-[1.5px] flex flex-col items-center justify-center gap-2">
               <div className="flex items-center gap-3">
-                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#FF2A7A]">
+                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#B45309]">
                   0
                 </div>
-                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#FF2A7A]">
+                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#B45309]">
                   {periodInfo.rem}
                 </div>
               </div>
@@ -573,7 +635,7 @@ export const K3Game: React.FC = () => {
           )}
 
           {/* Bet Category Sub-Tabs */}
-          <div className="grid grid-cols-4 gap-1.5 bg-pink-50/70 p-1 rounded-2xl">
+          <div className="grid grid-cols-4 gap-1.5 bg-amber-50/70 p-1 rounded-2xl">
             {(
               [
                 { id: 'total', label: 'Total' },
@@ -587,7 +649,7 @@ export const K3Game: React.FC = () => {
                 onClick={() => setActiveBetTab(t.id)}
                 className={`py-2 rounded-xl text-xs font-extrabold transition-all ${
                   activeBetTab === t.id
-                    ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs'
+                    ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-white/70'
                 }`}
               >
@@ -638,7 +700,7 @@ export const K3Game: React.FC = () => {
                 </button>
                 <button
                   onClick={() => openSlip('total_prop', 'Odd', 'Odd Sum', 2)}
-                  className="py-2.5 rounded-xl bg-gradient-to-b from-[#FF4B91] to-[#FF2A7A] text-white font-black text-xs shadow-xs active:scale-95"
+                  className="py-2.5 rounded-xl bg-gradient-to-b from-[#D97706] to-[#B45309] text-white font-black text-xs shadow-xs active:scale-95"
                 >
                   <div>Odd</div>
                   <div className="text-[10px] opacity-90">2X</div>
@@ -658,7 +720,7 @@ export const K3Game: React.FC = () => {
             <div className="space-y-4 text-xs">
               <div>
                 <div className="font-bold text-slate-700 mb-2">
-                  2 matching numbers: odds <span className="text-[#FF2A7A]">(13.83)</span>
+                  2 matching numbers: odds <span className="text-[#B45309]">(13.83)</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5">
                   {[1, 2, 3, 4, 5, 6].map((d) => {
@@ -682,7 +744,7 @@ export const K3Game: React.FC = () => {
 
               <div>
                 <div className="font-bold text-slate-700 mb-2">
-                  A pair of unique numbers: odds <span className="text-[#FF2A7A]">(69.12)</span>
+                  A pair of unique numbers: odds <span className="text-[#B45309]">(69.12)</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5 mb-2">
                   {[1, 2, 3, 4, 5, 6].map((d) => {
@@ -695,7 +757,7 @@ export const K3Game: React.FC = () => {
                           setSelected2PairBot((b) => b.filter((x) => x !== d));
                         }}
                         className={`py-2 rounded-xl font-black ${
-                          active ? 'bg-[#FF2A7A] text-white' : 'bg-pink-50 text-[#FF2A7A] border border-pink-200'
+                          active ? 'bg-[#D97706] text-white' : 'bg-amber-50 text-[#B45309] border border-amber-200'
                         }`}
                       >
                         {d}{d}
@@ -726,7 +788,7 @@ export const K3Game: React.FC = () => {
 
               <button
                 onClick={handleSubmitComboBet}
-                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-sm"
+                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-sm"
               >
                 Place 2-Same Bet
               </button>
@@ -737,7 +799,7 @@ export const K3Game: React.FC = () => {
             <div className="space-y-4 text-xs">
               <div>
                 <div className="font-bold text-slate-700 mb-2">
-                  3 of the same number: odds <span className="text-[#FF2A7A]">(207.36)</span>
+                  3 of the same number: odds <span className="text-[#B45309]">(207.36)</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5">
                   {[1, 2, 3, 4, 5, 6].map((d) => {
@@ -762,7 +824,7 @@ export const K3Game: React.FC = () => {
 
               <div>
                 <div className="font-bold text-slate-700 mb-2">
-                  Any 3 of the same number: odds <span className="text-[#FF2A7A]">(34.56)</span>
+                  Any 3 of the same number: odds <span className="text-[#B45309]">(34.56)</span>
                 </div>
                 <button
                   onClick={() => {
@@ -771,8 +833,8 @@ export const K3Game: React.FC = () => {
                   }}
                   className={`w-full py-3 rounded-xl font-black ${
                     selected3Any
-                      ? 'bg-[#FF2A7A] text-white shadow-sm'
-                      : 'bg-rose-50 text-[#FF2A7A] border border-rose-200'
+                      ? 'bg-[#D97706] text-white shadow-sm'
+                      : 'bg-amber-50 text-[#B45309] border border-amber-200'
                   }`}
                 >
                   Any 3 of the same number: odds (34.56)
@@ -781,7 +843,7 @@ export const K3Game: React.FC = () => {
 
               <button
                 onClick={handleSubmitComboBet}
-                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-sm"
+                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-sm"
               >
                 Place 3-Same Bet
               </button>
@@ -792,7 +854,7 @@ export const K3Game: React.FC = () => {
             <div className="space-y-4 text-xs">
               <div>
                 <div className="font-bold text-slate-700 mb-2">
-                  3 different numbers: odds <span className="text-[#FF2A7A]">(34.56)</span>
+                  3 different numbers: odds <span className="text-[#B45309]">(34.56)</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5">
                   {[1, 2, 3, 4, 5, 6].map((d) => {
@@ -818,12 +880,12 @@ export const K3Game: React.FC = () => {
 
               <div>
                 <div className="font-bold text-slate-700 mb-2">
-                  3 continuous numbers: odds <span className="text-[#FF2A7A]">(8.64)</span>
+                  3 continuous numbers: odds <span className="text-[#B45309]">(8.64)</span>
                 </div>
                 <button
                   onClick={() => setSelectedDiffConsec((v) => !v)}
                   className={`w-full py-2.5 rounded-xl font-black ${
-                    selectedDiffConsec ? 'bg-[#FF2A7A] text-white' : 'bg-pink-50 text-[#FF2A7A] border border-pink-200'
+                    selectedDiffConsec ? 'bg-[#D97706] text-white' : 'bg-amber-50 text-[#B45309] border border-amber-200'
                   }`}
                 >
                   3 continuous numbers
@@ -832,7 +894,7 @@ export const K3Game: React.FC = () => {
 
               <div>
                 <div className="font-bold text-slate-700 mb-2">
-                  2 different numbers: odds <span className="text-[#FF2A7A]">(6.91)</span>
+                  2 different numbers: odds <span className="text-[#B45309]">(6.91)</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5">
                   {[1, 2, 3, 4, 5, 6].map((d) => {
@@ -858,7 +920,7 @@ export const K3Game: React.FC = () => {
 
               <button
                 onClick={handleSubmitComboBet}
-                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-sm"
+                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-sm"
               >
                 Place Different Numbers Bet
               </button>
@@ -867,7 +929,7 @@ export const K3Game: React.FC = () => {
         </div>
 
         {/* History / Chart / My Bets Tabs */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-pink-100">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100">
           <div className="grid grid-cols-3 gap-2 mb-3">
             {(
               [
@@ -881,8 +943,8 @@ export const K3Game: React.FC = () => {
                 onClick={() => setActiveRecordTab(t.id)}
                 className={`py-2 rounded-xl text-xs font-extrabold transition-all ${
                   activeRecordTab === t.id
-                    ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white shadow-xs'
-                    : 'bg-pink-50/70 text-slate-600'
+                    ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white shadow-xs'
+                    : 'bg-amber-50/70 text-slate-600'
                 }`}
               >
                 {t.label}
@@ -894,22 +956,22 @@ export const K3Game: React.FC = () => {
             <div className="space-y-3">
               <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white">
+                  <tr className="bg-gradient-to-r from-[#B45309] to-[#D97706] text-white">
                     <th className="py-2 px-2 rounded-l-xl font-bold">Period</th>
                     <th className="py-2 px-1 text-center font-bold">Sum</th>
                     <th className="py-2 px-2 rounded-r-xl text-right font-bold">Results</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-pink-50">
+                <tbody className="divide-y divide-amber-50">
                   {pagedHistory.map((row) => (
-                    <tr key={row.periodNumber} className="hover:bg-pink-50/30">
+                    <tr key={row.periodNumber} className="hover:bg-amber-50/30">
                       <td className="py-2.5 px-2 font-mono text-[11px] font-bold text-slate-700">
                         {row.periodNumber}
                       </td>
                       <td className="py-2.5 px-1 text-center text-[11px] font-bold text-slate-700">
                         <span className="font-black text-slate-900 mr-1">{row.sum}</span>
                         <span className={row.size === 'Big' ? 'text-amber-600' : 'text-blue-600'}>{row.size}</span>{' '}
-                        <span className={row.parity === 'Even' ? 'text-emerald-600' : 'text-[#FF2A7A]'}>{row.parity}</span>
+                        <span className={row.parity === 'Even' ? 'text-emerald-600' : 'text-[#B45309]'}>{row.parity}</span>
                       </td>
                       <td className="py-2.5 px-2">
                         <div className="flex items-center justify-end gap-1">
@@ -927,7 +989,7 @@ export const K3Game: React.FC = () => {
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="p-1.5 rounded-lg bg-pink-50 text-[#FF2A7A] disabled:opacity-40"
+                  className="p-1.5 rounded-lg bg-amber-50 text-[#B45309] disabled:opacity-40"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -937,7 +999,7 @@ export const K3Game: React.FC = () => {
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="p-1.5 rounded-lg bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white disabled:opacity-40"
+                  className="p-1.5 rounded-lg bg-gradient-to-r from-[#B45309] to-[#D97706] text-white disabled:opacity-40"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -954,7 +1016,7 @@ export const K3Game: React.FC = () => {
                 return (
                   <div
                     key={row.periodNumber}
-                    className="flex items-center justify-between text-[11px] py-2 border-b border-pink-50 last:border-0"
+                    className="flex items-center justify-between text-[11px] py-2 border-b border-amber-50 last:border-0"
                   >
                     <span className="font-mono font-bold text-slate-700">{row.periodNumber}</span>
                     <div className="flex items-center gap-1">
@@ -972,12 +1034,12 @@ export const K3Game: React.FC = () => {
           {activeRecordTab === 'my' && (
             <div className="space-y-2.5">
               {myModeBets.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-400">No K3 bets placed yet.</div>
+                <div className="py-10 text-center text-xs text-slate-400">No EWI K3 bets placed yet.</div>
               ) : (
                 myModeBets.slice(0, 30).map((b) => (
                   <div
                     key={b.id}
-                    className="p-3 rounded-2xl bg-pink-50/40 border border-pink-100 flex items-center justify-between text-xs"
+                    className="p-3 rounded-2xl bg-amber-50/40 border border-amber-100 flex items-center justify-between text-xs"
                   >
                     <div>
                       <div className="font-black text-slate-800">{b.selection}</div>
@@ -1009,9 +1071,9 @@ export const K3Game: React.FC = () => {
       {betSlip && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-xs">
           <div className="w-full max-w-md bg-white rounded-t-3xl p-5 space-y-4 shadow-2xl animate-fade-in">
-            <div className="bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] -mx-5 -mt-5 px-5 py-3.5 rounded-t-3xl text-white flex items-center justify-between">
+            <div className="bg-gradient-to-r from-[#B45309] to-[#D97706] -mx-5 -mt-5 px-5 py-3.5 rounded-t-3xl text-white flex items-center justify-between">
               <div>
-                <div className="text-xs font-bold opacity-90">K3 {mode.toUpperCase()}</div>
+                <div className="text-xs font-bold opacity-90">EWI K3 {mode.toUpperCase()}</div>
                 <div className="text-base font-black">Select: {betSlip.label} ({betSlip.payoutRate}X)</div>
               </div>
               <button onClick={() => setBetSlip(null)} className="p-1 rounded-full hover:bg-white/20">
@@ -1027,7 +1089,7 @@ export const K3Game: React.FC = () => {
                     key={v}
                     onClick={() => setBetBaseAmount(v)}
                     className={`px-3 py-1.5 rounded-xl font-black ${
-                      betBaseAmount === v ? 'bg-[#FF2A7A] text-white' : 'bg-pink-50 text-slate-700'
+                      betBaseAmount === v ? 'bg-[#D97706] text-white' : 'bg-amber-50 text-slate-700'
                     }`}
                   >
                     ৳{v}
@@ -1041,14 +1103,14 @@ export const K3Game: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setBetMultiplier((m) => Math.max(1, m - 1))}
-                  className="w-8 h-8 rounded-xl bg-pink-50 text-[#FF2A7A] font-black text-base"
+                  className="w-8 h-8 rounded-xl bg-amber-50 text-[#B45309] font-black text-base"
                 >
                   -
                 </button>
                 <span className="w-10 text-center font-black text-sm">{betMultiplier}</span>
                 <button
                   onClick={() => setBetMultiplier((m) => m + 1)}
-                  className="w-8 h-8 rounded-xl bg-pink-50 text-[#FF2A7A] font-black text-base"
+                  className="w-8 h-8 rounded-xl bg-amber-50 text-[#B45309] font-black text-base"
                 >
                   +
                 </button>
@@ -1061,7 +1123,7 @@ export const K3Game: React.FC = () => {
                   key={q}
                   onClick={() => setBetMultiplier(q)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-black ${
-                    betMultiplier === q ? 'bg-[#FF2A7A] text-white' : 'bg-slate-100 text-slate-600'
+                    betMultiplier === q ? 'bg-[#D97706] text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
                   X{q}
@@ -1078,7 +1140,7 @@ export const K3Game: React.FC = () => {
               </button>
               <button
                 onClick={confirmBet}
-                className="col-span-2 py-3 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs shadow-md"
+                className="col-span-2 py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md"
               >
                 Total amount ৳{(betBaseAmount * betMultiplier).toFixed(2)}
               </button>
@@ -1091,8 +1153,8 @@ export const K3Game: React.FC = () => {
       {showRulesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-xs bg-white rounded-3xl overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] p-4 text-white text-center font-black text-sm">
-              EWI 777 K3 Rules
+            <div className="bg-gradient-to-r from-[#B45309] to-[#D97706] p-4 text-white text-center font-black text-sm">
+              EWI K3 Rules
             </div>
             <div className="p-4 text-xs text-slate-600 space-y-2 leading-relaxed">
               <p>3 dice roll each round (each 1-6).</p>
@@ -1102,7 +1164,7 @@ export const K3Game: React.FC = () => {
             <div className="p-4 pt-0">
               <button
                 onClick={() => setShowRulesModal(false)}
-                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-black text-xs"
+                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs"
               >
                 Close
               </button>

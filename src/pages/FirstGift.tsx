@@ -93,12 +93,12 @@ export const FirstGift: React.FC = () => {
 
       <div className="p-4 space-y-4">
         {/* Event Start / Claim Card */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden text-center pb-5">
-          <div className="inline-block bg-gradient-to-r from-[#FF5A5A] to-[#FF7676] text-white font-black text-xs px-8 py-2 rounded-b-2xl shadow-xs">
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-xs overflow-hidden text-center pb-5">
+          <div className="inline-block bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs px-8 py-2 rounded-b-2xl shadow-xs">
             First Deposit Event Status
           </div>
           <div className="mt-4 px-4 space-y-2">
-            <div className="text-base font-black text-[#FF5A5A]">
+            <div className="text-base font-black text-[#B45309]">
               {user.hasClaimedDepositBonus
                 ? 'First Gift Bonus Claimed ✓'
                 : hasCompletedDeposit
@@ -116,18 +116,18 @@ export const FirstGift: React.FC = () => {
         </div>
 
         {/* 3-Column Conditions / Compensation / Bonus Limit Table */}
-        <div className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-xs">
-          <div className="bg-gradient-to-r from-[#FF5A5A] to-[#FF6E6E] text-white grid grid-cols-3 text-center py-3 px-2 text-[11px] font-black leading-tight items-center">
+        <div className="bg-white rounded-2xl overflow-hidden border border-amber-200 shadow-xs">
+          <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white grid grid-cols-3 text-center py-3 px-2 text-[11px] font-black leading-tight items-center">
             <div>Conditions of participation</div>
             <div>Get Compensation Bonus</div>
             <div>Bonus limit</div>
           </div>
-          <div className="divide-y divide-slate-100 text-xs text-center">
+          <div className="divide-y divide-amber-100 text-xs text-center">
             {compensationRows.map((row) => (
               <div key={row.condition} className="grid grid-cols-3 py-3.5 px-2 items-center gap-1">
                 <div className="font-bold text-slate-700">{row.condition}</div>
                 <div className="text-slate-600 text-[11px] leading-snug">{row.rate}</div>
-                <div className="font-black text-[#FF5A5A] tabular-nums">{row.limit}</div>
+                <div className="font-black text-[#B45309] tabular-nums">{row.limit}</div>
               </div>
             ))}
           </div>
@@ -149,8 +149,8 @@ export const FirstGift: React.FC = () => {
             user.hasClaimedDepositBonus
               ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
               : hasCompletedDeposit
-              ? 'bg-gradient-to-r from-[#FF5A5A] to-[#FF7B54] text-white shadow-md'
-              : 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white'
+              ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md'
+              : 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white'
           }`}
         >
           {user.hasClaimedDepositBonus

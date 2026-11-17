@@ -27,15 +27,15 @@ export const Safe: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8FA] pb-24">
+    <div className="min-h-screen bg-[#FFFDF7] pb-24">
       {/* Top Bar */}
-      <div className="bg-white px-4 py-3 border-b border-pink-100 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+      <div className="bg-white px-4 py-3 border-b border-amber-200 flex items-center justify-between sticky top-0 z-30 shadow-xs">
         <button
           onClick={() => {
             setActiveTab('account');
             window.location.hash = '#/account';
           }}
-          className="p-1 -ml-1 text-slate-700 hover:text-[#FF2A7A] active:scale-95"
+          className="p-1 -ml-1 text-slate-700 hover:text-[#B45309] active:scale-95"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
@@ -47,12 +47,12 @@ export const Safe: React.FC = () => {
 
       <div className="p-4 space-y-4">
         {/* Banner with Interest Rate */}
-        <div className="text-center text-xs font-bold text-[#FF2A7A]">
+        <div className="text-center text-xs font-bold text-[#B45309]">
           Interest rate 0.006%
         </div>
 
-        {/* Pink Luxury Vault Card */}
-        <div className="bg-gradient-to-r from-[#FF2A7A] via-[#FF4B91] to-[#FF758F] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
+        {/* Luxury Gold Vault Card */}
+        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <PinkSafePlateLogo size={36} />
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-bold backdrop-blur-xs">
@@ -61,18 +61,18 @@ export const Safe: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-xs text-pink-100 font-medium">Safe Vault Balance</div>
+          <div className="text-xs text-amber-100 font-medium">Safe Vault Balance</div>
           <div className="text-3xl font-black mt-1">৳{user.safeBalance.toFixed(2)}</div>
         </div>
 
         {/* Transfer Box */}
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-pink-100 space-y-4">
-          <div className="flex border-b border-pink-50">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200 space-y-4">
+          <div className="flex border-b border-amber-100">
             <button
               onClick={() => setActiveTabMode('in')}
               className={`flex-1 pb-3 text-xs font-bold text-center border-b-2 transition-all ${
                 activeTab === 'in'
-                  ? 'border-[#FF2A7A] text-[#FF2A7A]'
+                  ? 'border-[#D97706] text-[#B45309]'
                   : 'border-transparent text-slate-400'
               }`}
             >
@@ -82,7 +82,7 @@ export const Safe: React.FC = () => {
               onClick={() => setActiveTabMode('out')}
               className={`flex-1 pb-3 text-xs font-bold text-center border-b-2 transition-all ${
                 activeTab === 'out'
-                  ? 'border-[#FF2A7A] text-[#FF2A7A]'
+                  ? 'border-[#D97706] text-[#B45309]'
                   : 'border-transparent text-slate-400'
               }`}
             >
@@ -97,7 +97,7 @@ export const Safe: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCustomAmount(activeTab === 'in' ? user.balance.toString() : user.safeBalance.toString())}
-                className="text-[#FF2A7A] font-black text-xs hover:underline"
+                className="text-[#B45309] font-black text-xs hover:underline"
               >
                 All
               </button>
@@ -106,7 +106,7 @@ export const Safe: React.FC = () => {
               type="number"
               value={customAmount}
               onChange={(e) => setCustomAmount(e.target.value)}
-              className="w-full bg-[#FFF8FA] border border-pink-100 rounded-2xl px-4 py-3 text-sm font-black text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#FF2A7A]"
+              className="w-full bg-[#FFFDF7] border border-amber-200 rounded-2xl px-4 py-3 text-sm font-black text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#D97706]"
             />
           </div>
 
@@ -118,8 +118,8 @@ export const Safe: React.FC = () => {
                 onClick={() => handleSelectMultiplier(mul)}
                 className={`py-2 rounded-xl text-xs font-black border transition-all ${
                   amountMultiplier === mul
-                    ? 'bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white border-transparent shadow-xs'
-                    : 'bg-[#FFF8FA] border-pink-100 text-slate-700 hover:bg-pink-50'
+                    ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white border-transparent shadow-xs'
+                    : 'bg-[#FFFDF7] border-amber-200 text-slate-700 hover:bg-amber-50'
                 }`}
               >
                 {mul}x
@@ -128,7 +128,7 @@ export const Safe: React.FC = () => {
           </div>
 
           {/* Amount Available & Info */}
-          <div className="bg-[#FFF8FA] rounded-2xl p-3 text-xs space-y-1.5 border border-pink-100">
+          <div className="bg-[#FFFDF7] rounded-2xl p-3 text-xs space-y-1.5 border border-amber-200">
             <div className="flex items-center justify-between font-semibold text-slate-700">
               <span>Amount available</span>
               <span className="font-mono font-bold">
@@ -137,7 +137,7 @@ export const Safe: React.FC = () => {
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500">
               <span>24-hour estimated revenue</span>
-              <span className="text-[#FF2A7A] font-bold">
+              <span className="text-[#B45309] font-bold">
                 ৳{((Number(customAmount) || 0) * 0.00006 * 48).toFixed(2)}
               </span>
             </div>
@@ -145,7 +145,7 @@ export const Safe: React.FC = () => {
 
           <button
             onClick={handleTransfer}
-            className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#FF2A7A] to-[#FF5A92] text-white font-extrabold text-sm shadow-md active:scale-98 transition-all hover:brightness-105"
+            className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-extrabold text-sm shadow-md active:scale-98 transition-all hover:brightness-105"
           >
             {activeTab === 'in' ? 'Transfer In' : 'Transfer Out'}
           </button>
