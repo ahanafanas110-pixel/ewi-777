@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Send,
   ChevronRight,
-  KeyRound,
   CheckCircle2,
   Copy,
   Wallet,
@@ -40,7 +39,6 @@ export const CustomerService: React.FC = () => {
     adminSettings,
     setActiveTab,
     showToast,
-    requestPasswordRecovery,
     supportMessages,
     sendSupportMessage
   } = useApp();
@@ -53,9 +51,6 @@ export const CustomerService: React.FC = () => {
   const [issueAmount, setIssueAmount] = useState('');
   const [issueNote, setIssueNote] = useState('');
   const [usdtDraft, setUsdtDraft] = useState('');
-  const [phoneForPassword, setPhoneForPassword] = useState(user.phone || '');
-  const [recoveredPass, setRecoveredPass] = useState<string | null>(null);
-  const [isRecovering, setIsRecovering] = useState(false);
 
   // Live 2-Way Admin Chat state (no auto-reply bot)
   const myMessages = supportMessages.filter((m) => m.userId === (user.id || 'guest'));
@@ -122,8 +117,8 @@ export const CustomerService: React.FC = () => {
     },
     {
       id: 'apply_77_bonus',
-      title: 'Apply 77 Taka Bonus',
-      subtitle: 'Eligibility guide & bonus claim application',
+      title: 'Apply 200% Bonus',
+      subtitle: 'Deposit 200% bonus application & gift codes',
       icon: <Gift className="w-4 h-4 stroke-[2.3]" />
     },
     {
@@ -133,31 +128,6 @@ export const CustomerService: React.FC = () => {
       icon: <Send className="w-4 h-4 stroke-[2.3]" />
     }
   ];
-
-  const handlePasswordRecoverySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneForPassword.trim()) {
-      showToast('Please enter your registered phone number');
-      return;
-    }
-    setIsRecovering(true);
-    const res = await requestPasswordRecovery(
-      phoneForPassword.trim(),
-      'Requested via Customer Service Center'
-    );
-    setIsRecovering(false);
-
-    if (res.success) {
-      if (res.password) {
-        setRecoveredPass(res.password);
-        showToast('Password retrieved successfully!');
-      } else {
-        showToast('Recovery ticket submitted to Customer Service.');
-      }
-    } else {
-      showToast(res.message);
-    }
-  };
 
   const handleSendChat = async (textToSend?: string, imageUrlToSend?: string) => {
     const text = (textToSend ?? inputMessage).trim();
@@ -180,7 +150,20 @@ export const CustomerService: React.FC = () => {
     if (!file) return;
     setIsSendingPhoto(true);
     try {
-      const dataUrl = await compressImageFileToDataUrl(file, 900, 0.78);
+      const steps: Array<[number, number]> = [
+        [720, 0.72],
+        [520, 0.62],
+        [400, 0.5]
+      ];
+      let dataUrl = '';
+      for (const [maxDim, quality] of steps) {
+        dataUrl = await compressImageFileToDataUrl(file, maxDim, quality);
+        if (dataUrl.length <= 280000) break;
+      }
+      if (!dataUrl || dataUrl.length > 340000) {
+        showToast('Image too large even after compression');
+        return;
+      }
       await handleSendChat('', dataUrl);
       showToast('Photo sent to Customer Service');
     } catch {
@@ -212,7 +195,7 @@ export const CustomerService: React.FC = () => {
   const activeTopicMeta = supportItems.find((s) => s.id === selectedTopic);
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] text-slate-900 pb-10">
+    <div className="min-h-screen bg-[#FFFDF7] text-slate-900 pb-24">
       {/* Light-Mode Clean Top Navbar */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-amber-200 px-4 py-3 flex items-center justify-between shadow-2xs">
         <button
@@ -584,43 +567,25 @@ export const CustomerService: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-amber-200 space-y-3">
                     <div className="font-black text-slate-900 flex items-center gap-1.5">
-                      <KeyRound className="w-4 h-4 text-[#D97706]" />
-                      <span>Forgot Password Instant Recovery</span>
+                      <Lock className="w-4 h-4 text-[#D97706]" />
+                      <span>Password Reset / Recovery</span>
                     </div>
-                    <form onSubmit={handlePasswordRecoverySubmit} className="flex gap-2">
-                      <input
-                        type="tel"
-                        value={phoneForPassword}
-                        onChange={(e) => setPhoneForPassword(e.target.value)}
-                        placeholder="01XXXXXXXXX"
-                        className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold"
-                        required
-                      />
-                      <button
-                        type="submit"
-                        disabled={isRecovering}
-                        className="px-4 py-2 rounded-xl bg-slate-900 text-white font-black text-xs"
-                      >
-                        {isRecovering ? 'Checking...' : 'Recover'}
-                      </button>
-                    </form>
-                    {recoveredPass && (
-                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-                        <div>
-                          <div className="text-[10px] font-bold text-emerald-700">YOUR PASSWORD:</div>
-                          <div className="font-mono font-black text-sm text-slate-900">{recoveredPass}</div>
-                        </div>
-                        <button
-                          onClick={() => copyText(recoveredPass, 'Password copied!')}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] flex items-center gap-1"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>Copy</span>
-                        </button>
-                      </div>
-                    )}
+                    <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+                      For account security, password recovery is handled directly by our verification desk. To reset or recover your password, please message Customer Care.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTopic(null);
+                        setViewMode('chat');
+                        handleSendChat('Hello, I need help resetting or recovering my account password.');
+                      }}
+                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md active:scale-98"
+                    >
+                      Message Customer Care →
+                    </button>
                   </div>
                 </>
               )}
@@ -760,10 +725,10 @@ export const CustomerService: React.FC = () => {
               {selectedTopic === 'apply_77_bonus' && (
                 <>
                   <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-[#B45309]">How to Claim 77 Taka Welcome Bonus:</div>
+                    <div className="font-black text-[#B45309]">How to Claim 200% Deposit Bonus:</div>
                     <p>1. Your account must be registered and logged in.</p>
-                    <p>2. Bind a unique bKash or Nagad wallet in your Wallet settings.</p>
-                    <p>3. Submit your application below or enter an active promo code in <strong>/gifts</strong>.</p>
+                    <p>2. Complete a minimum deposit of <strong>৳200</strong> or enter an active 200% Deposit Bonus Gift Code in <strong>/gifts</strong>.</p>
+                    <p>3. Submit your application below if you need support assistance activating your bonus.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -777,7 +742,7 @@ export const CustomerService: React.FC = () => {
                       Open Gift Codes
                     </button>
                     <button
-                      onClick={() => handleSubmitUrgentTicket(`Apply 77 Taka Bonus (UID: ${user.uid || 'N/A'})`)}
+                      onClick={() => handleSubmitUrgentTicket(`Apply 200% Bonus (UID: ${user.uid || 'N/A'})`)}
                       className="py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md flex items-center justify-center gap-1"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />

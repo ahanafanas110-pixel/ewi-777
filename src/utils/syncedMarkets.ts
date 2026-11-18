@@ -5,11 +5,13 @@ import type {
   Candle,
   D5Mode,
   D5Result,
+  EwiWingoMode,
   K3Mode,
   K3Result,
   MarketControlMode,
   MinesPatternMode,
-  WinGoMode
+  WinGoMode,
+  WinGoResult
 } from '../types';
 
 /**
@@ -73,6 +75,118 @@ export function formatUtcTimeFromSec(epochMs: number): string {
 export function getSyncedWinGoNumber(mode: WinGoMode, periodNumber: string): number {
   const rng = createSeededRng(`wingo:${mode}:${periodNumber}`);
   return Math.floor(rng() * 10);
+}
+
+// ================= EWI WINGO OWNED SYNCHRONIZED ENGINE =================
+export const EWI_WINGO_DURATIONS: Record<EwiWingoMode, number> = {
+  '15s': 15,
+  '30s': 30,
+  '1m': 60,
+  '3m': 180
+};
+
+export function getEwiWingoNumberMeta(num: number): {
+  color: WinGoResult['color'];
+  size: 'big' | 'small';
+} {
+  const n = ((Math.round(num) % 10) + 10) % 10;
+  let color: WinGoResult['color'] = n % 2 === 0 ? 'red' : 'green';
+  if (n === 0) color = 'red-violet';
+  if (n === 5) color = 'green-violet';
+  return { color, size: n >= 5 ? 'big' : 'small' };
+}
+
+export function getEwiWingoPeriodInfo(
+  mode: EwiWingoMode,
+  nowMs = Date.now(),
+  offsetMinutes = 360
+): { period: string; timeRemaining: number; durationSeconds: number } {
+  const dur = EWI_WINGO_DURATIONS[mode] || 30;
+  const totalSec = Math.floor(nowMs / 1000);
+  const slotIdx = Math.floor(totalSec / dur);
+  const rem = Math.max(1, dur - (totalSec % dur));
+  const dateKey = getDateKeyWithOffset(nowMs, offsetMinutes).replace(/-/g, '');
+  const modeCode = mode === '15s' ? '15' : mode === '30s' ? '30' : mode === '1m' ? '01' : '03';
+  const period = `${dateKey}EW${modeCode}${String(slotIdx).slice(-5).padStart(5, '0')}`;
+  return { period, timeRemaining: rem, durationSeconds: dur };
+}
+
+export function getSyncedEwiWingoNumber(mode: EwiWingoMode, periodNumber: string): number {
+  const rng = createSeededRng(`ewi_wingo:${mode}:${periodNumber}`);
+  return Math.floor(rng() * 10);
+}
+
+export function resolveControlledEwiWingoNumber(
+  mode: EwiWingoMode,
+  periodNumber: string,
+  controlMode: MarketControlMode | undefined,
+  bets: Array<{ type: 'color' | 'number' | 'size'; value: string | number; totalAmount: number }>
+): number {
+  const fallback = getSyncedEwiWingoNumber(mode, periodNumber);
+  if (!controlMode || controlMode === 'AUTO' || bets.length === 0) {
+    return fallback;
+  }
+
+  const scores = Array.from({ length: 10 }, (_, candidate) => {
+    const meta = getEwiWingoNumberMeta(candidate);
+    let payout = 0;
+    for (const b of bets) {
+      const amt = Number(b.totalAmount) || 0;
+      if (amt <= 0) continue;
+      if (b.type === 'number' && Number(b.value) === candidate) {
+        payout += amt * 9;
+      } else if (b.type === 'size' && String(b.value) === meta.size) {
+        payout += amt * 1.89;
+      } else if (b.type === 'color') {
+        const val = String(b.value);
+        if (val === 'green' && (meta.color === 'green' || meta.color === 'green-violet')) {
+          payout += amt * (candidate === 5 ? 1.5 : 1.89);
+        } else if (val === 'red' && (meta.color === 'red' || meta.color === 'red-violet')) {
+          payout += amt * (candidate === 0 ? 1.5 : 1.89);
+        } else if (val === 'violet' && (candidate === 0 || candidate === 5)) {
+          payout += amt * 4.5;
+        }
+      }
+    }
+    return { candidate, payout };
+  });
+
+  scores.sort((a, b) => a.payout - b.payout);
+  if (controlMode === 'HIGH_BET_LOSS' || controlMode === 'LOW_BET_WIN') {
+    const minPayout = scores[0].payout;
+    const minCandidates = scores.filter((s) => s.payout === minPayout).map((s) => s.candidate);
+    const rng = createSeededRng(`ewi_wingo_pick:${mode}:${periodNumber}`);
+    return minCandidates[Math.floor(rng() * minCandidates.length)] ?? scores[0].candidate;
+  }
+  const maxPayout = scores[scores.length - 1].payout;
+  const maxCandidates = scores.filter((s) => s.payout === maxPayout).map((s) => s.candidate);
+  const rng = createSeededRng(`ewi_wingo_pick:${mode}:${periodNumber}`);
+  return maxCandidates[Math.floor(rng() * maxCandidates.length)] ?? scores[scores.length - 1].candidate;
+}
+
+export function getSyncedEwiWingoHistory(
+  mode: EwiWingoMode,
+  count = 10,
+  nowMs = Date.now(),
+  offsetMinutes = 360
+): WinGoResult[] {
+  const dur = EWI_WINGO_DURATIONS[mode] || 30;
+  const rows: WinGoResult[] = [];
+  for (let i = 1; i <= count; i++) {
+    const pastMs = nowMs - i * dur * 1000;
+    const info = getEwiWingoPeriodInfo(mode, pastMs, offsetMinutes);
+    const num = getSyncedEwiWingoNumber(mode, info.period);
+    const meta = getEwiWingoNumberMeta(num);
+    rows.push({
+      periodNumber: info.period,
+      number: num,
+      color: meta.color,
+      size: meta.size,
+      time: formatTimeWithOffset(pastMs, offsetMinutes),
+      source: 'local'
+    });
+  }
+  return rows;
 }
 
 // ================= K3 SYNCHRONIZED ENGINE =================
@@ -323,20 +437,31 @@ export function evaluateCrash30Cap(params: {
     return { shouldForceCrash: false, potentialPayout, payoutCap };
   }
 
-  // Solo player check: if a single bet makes up >60% of the pool (or high bet >= 1000 alone),
-  // waiting for >=30% profit (1.30x+) or trying to cash out >=30% profit forces instant crash.
-  const isDominantSolo = params.activePlayerCount <= 1 || activeBetAmount >= totalPool * 0.65;
-  if (isDominantSolo && (mult >= 1.30 || profit >= activeBetAmount * 0.30)) {
+  // Solo player & 1-4 small-pool guard:
+  // A single bet (or 1-4 simultaneous players) cannot extract >30% net profit (1.30x)
+  // or push collective payouts past 30% of round pool; 1-4 high stakes burst right away at 1.00x-1.05x.
+  const isSmallGroupOrSolo = params.activePlayerCount <= 4;
+  const isDominantSolo = params.activePlayerCount <= 1 || activeBetAmount >= totalPool * 0.55;
+  if (isDominantSolo && (mult >= 1.30 || profit > activeBetAmount * 0.30)) {
     return {
       shouldForceCrash: true,
-      reason: '30% solo payout threshold reached — instant round termination',
+      reason: '30% solo payout cap reached — instant crash',
+      potentialPayout,
+      payoutCap
+    };
+  }
+
+  if (isSmallGroupOrSolo && profit > totalPool * 0.30) {
+    return {
+      shouldForceCrash: true,
+      reason: '1-4 player 30% pool protection triggered — instant burst',
       potentialPayout,
       payoutCap
     };
   }
 
   // Group pool cap check: collective cashouts cannot push totalPaidOut past 30% of round pool
-  if (totalPaidOut + potentialPayout > payoutCap) {
+  if (totalPaidOut + potentialPayout > payoutCap && totalPaidOut + profit > payoutCap) {
     return {
       shouldForceCrash: true,
       reason: '30% collective pool cap reached — instant round termination',
@@ -409,7 +534,7 @@ export function getSyncedBinarySnapshot(
   const currentSecInCandle = Math.floor((nowMs % BINARY_CANDLE_MS) / 1000) + 1;
   const candleSecRemaining = Math.max(1, 8 - Math.floor((nowMs % BINARY_CANDLE_MS) / 1000));
 
-  const warmStartBucket = currentBucket - 48;
+  const warmStartBucket = currentBucket - 160;
   const markets: Record<string, BinaryMarketQuote> = {};
 
   for (const spec of specs) {
@@ -439,8 +564,8 @@ export function getSyncedBinarySnapshot(
       prevClose = price;
     }
 
-    const visibleCandles = allCandles.slice(-28);
-    const firstOpen = visibleCandles[0]?.open || prevClose;
+    const visibleCandles = allCandles.slice(-140);
+    const firstOpen = visibleCandles[visibleCandles.length - 28]?.open || visibleCandles[0]?.open || prevClose;
     markets[spec.symbol] = {
       symbol: spec.symbol,
       price: prevClose,
@@ -715,13 +840,21 @@ export function resolveMinesTileControl(
     return 'FORCE_BOMB';
   }
 
-  if (!controlMode || controlMode === 'AUTO') return 'AUTO';
-  const threshold = Math.max(100, poolAvgBet);
+  if (!controlMode || controlMode === 'AUTO') {
+    // Tighter house protection on AUTO: rare deep streaks, bombs trigger frequently after 1st/2nd reveal
+    if (revealStep >= 3) return 'FORCE_BOMB';
+    if (revealStep === 2 && ((userRoundSeq + Math.round(activeBetAmt)) % 5 !== 0)) {
+      return 'FORCE_BOMB';
+    }
+    return 'AUTO';
+  }
+  const threshold = Math.max(50, poolAvgBet);
   const isHighBet = activeBetAmt >= threshold;
 
   if (controlMode === 'HIGH_BET_LOSS') {
     if (isHighBet && revealStep >= 2) return 'FORCE_BOMB';
-    if (!isHighBet && revealStep <= 4) return 'FORCE_SAFE';
+    if (!isHighBet && revealStep >= 3) return 'FORCE_BOMB';
+    if (!isHighBet && revealStep <= 2) return 'FORCE_SAFE';
     return 'AUTO';
   }
   if (controlMode === 'HIGH_BET_WIN') {
@@ -729,13 +862,13 @@ export function resolveMinesTileControl(
     return 'AUTO';
   }
   if (controlMode === 'LOW_BET_WIN') {
-    if (!isHighBet) return 'FORCE_SAFE';
+    if (!isHighBet && revealStep <= 2) return 'FORCE_SAFE';
     if (isHighBet && revealStep >= 2) return 'FORCE_BOMB';
-    return 'AUTO';
+    return revealStep >= 3 ? 'FORCE_BOMB' : 'AUTO';
   }
   if (controlMode === 'LOW_BET_LOSS') {
     if (!isHighBet && revealStep >= 2) return 'FORCE_BOMB';
-    if (isHighBet && revealStep <= 4) return 'FORCE_SAFE';
+    if (isHighBet && revealStep <= 3) return 'FORCE_SAFE';
     return 'AUTO';
   }
   return 'AUTO';

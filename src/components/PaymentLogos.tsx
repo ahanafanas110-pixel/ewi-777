@@ -16,7 +16,7 @@ export const BkashLogo: React.FC<LogoProps> = ({ className = '', size = 'md', sh
 
   return (
     <div className={`inline-flex items-center gap-2 select-none ${className}`}>
-      <div className={`${sizeClasses[size]} rounded-xl overflow-hidden bg-[#E2136E] flex items-center justify-center shadow-xs flex-shrink-0 border border-pink-200/50`}>
+      <div className={`${sizeClasses[size]} rounded-xl overflow-hidden bg-[#E2136E] flex items-center justify-center shadow-xs flex-shrink-0 border border-amber-200/60`}>
         <img
           src="/assets/brand/bkash-logo.png"
           alt="bKash"
@@ -74,9 +74,9 @@ export const PaymentMethodBadge: React.FC<{
       className={`w-full p-3 rounded-2xl border transition-all text-left flex items-center justify-between ${
         isSelected
           ? method === 'bKash'
-            ? 'bg-pink-50/70 border-[#E2136E] ring-2 ring-[#E2136E]/20 shadow-xs'
+            ? 'bg-amber-50/70 border-[#D97706] ring-2 ring-[#D97706]/20 shadow-xs'
             : 'bg-orange-50/70 border-[#F7931E] ring-2 ring-[#F7931E]/20 shadow-xs'
-          : 'bg-white border-slate-200 hover:border-pink-200'
+          : 'bg-white border-slate-200 hover:border-amber-200'
       }`}
     >
       <div className="flex items-center gap-2.5">
@@ -104,7 +104,7 @@ export const PaymentMethodBadge: React.FC<{
         className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
           isSelected
             ? method === 'bKash'
-              ? 'bg-[#E2136E] border-[#E2136E] text-white'
+              ? 'bg-[#D97706] border-[#D97706] text-white'
               : 'bg-[#F7931E] border-[#F7931E] text-white'
             : 'border-slate-300'
         }`}

@@ -1,6 +1,7 @@
 export type Language = 'en' | 'bn';
 
 export type WinGoMode = '30s' | '1m' | '3m' | '5m';
+export type EwiWingoMode = '15s' | '30s' | '1m' | '3m';
 
 export interface User {
   id: string;
@@ -166,6 +167,8 @@ export interface Transaction {
     | 'luckyjet_win'
     | 'coinflip_bet'
     | 'coinflip_win'
+    | 'ewi_wingo_bet'
+    | 'ewi_wingo_win'
     | 'turnover_penalty';
   title: string;
   detail?: string;
@@ -180,11 +183,13 @@ export interface Transaction {
 
 export interface DepositRequest {
   id: string;
+  sessionId?: string;
   userId: string;
   userPhone: string;
   method: 'bKash' | 'Nagad' | 'USDT';
   channel: string;
   amount: number;
+  usdAmount?: number;
   senderNumber: string;
   trxId: string;
   status: 'pending' | 'processing' | 'approved' | 'rejected';
@@ -210,6 +215,23 @@ export interface WinGoBet {
   userPhone?: string;
   periodNumber: string;
   mode: WinGoMode;
+  type: 'color' | 'number' | 'size';
+  value: string | number;
+  amount: number;
+  multiplier: number;
+  totalAmount: number;
+  winAmount?: number;
+  status: 'pending' | 'won' | 'lost';
+  time: string;
+}
+
+export interface EwiWingoBet {
+  id: string;
+  userId: string;
+  nickname?: string;
+  userPhone?: string;
+  periodNumber: string;
+  mode: EwiWingoMode;
   type: 'color' | 'number' | 'size';
   value: string | number;
   amount: number;
@@ -323,6 +345,8 @@ export interface WinGoPopupResult {
   resultNumber: number;
   resultColor: 'green' | 'red' | 'violet' | 'red-violet' | 'green-violet';
   resultSize: 'big' | 'small';
+  gameLabel?: string;
+  badges?: Array<{ label: string; tone?: 'green' | 'red' | 'violet' | 'amber' | 'orange' | 'slate' }>;
 }
 
 export interface AviatorBet {
@@ -330,6 +354,7 @@ export interface AviatorBet {
   roundId: string;
   userId: string;
   game?: 'aviator' | 'luckyjet';
+  slot?: 1 | 2 | 3;
   amount: number;
   status: 'active' | 'cashed_out' | 'lost';
   cashoutMultiplier?: number;
@@ -351,6 +376,7 @@ export interface AppNotification {
 
 export interface WithdrawRequest {
   id: string;
+  ewiPayWithdrawId?: string;
   userId: string;
   userName: string;
   userPhone: string;
@@ -424,7 +450,9 @@ export interface AdminSettings {
   marqueeText?: string;
   popupTitle?: string;
   popupMessage?: string;
+  popupImageUrl?: string;
   enableSystemPopup?: boolean;
+  usdtRateBdt?: number;
   banners: Array<{
     id: string;
     url: string;

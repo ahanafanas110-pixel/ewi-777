@@ -10,7 +10,7 @@
           "description": "Normalized 11-digit Bangladeshi mobile wallet number",
           "minLength": 11,
           "maxLength": 11,
-          "pattern": "^01[3-9][0-9]{8}$"
+          "pattern": "^01[35789][0-9]{8}$"
         },
         "type": {
           "type": "string",
@@ -59,6 +59,11 @@
         "timezoneOffsetMinutes": { "type": "number" },
         "minesPattern": { "type": "string", "enum": ["RANDOM", "FIRST_WIN_SECOND_LOSS", "THREE_WIN_TEN_LOSS"] },
         "binaryNextCandleBias": { "type": "string", "enum": ["AUTO", "BULL", "BEAR"] },
+        "popupTitle": { "type": "string", "maxLength": 200 },
+        "popupMessage": { "type": "string", "maxLength": 4000 },
+        "popupImageUrl": { "type": "string", "maxLength": 350000 },
+        "enableSystemPopup": { "type": "boolean" },
+        "usdtRateBdt": { "type": "number" },
         "updatedAt": { "type": "number" }
       }
     },

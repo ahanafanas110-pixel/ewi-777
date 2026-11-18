@@ -202,7 +202,9 @@ export async function saveAppSettingsToFirebase(settings: AdminSettings): Promis
       appName: String(settings.appName || 'EWI 777').slice(0, 120),
       appLogoUrl: String(settings.appLogoUrl || '').slice(0, 320000),
       marqueeText: String(settings.marqueeText || '').slice(0, 2000),
+      popupTitle: String(settings.popupTitle || '').slice(0, 200),
       popupMessage: String(settings.popupMessage || '').slice(0, 4000),
+      popupImageUrl: String(settings.popupImageUrl || '').slice(0, 320000),
       banners: safeBanners,
       updatedAt: Date.now()
     });

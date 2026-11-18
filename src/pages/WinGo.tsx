@@ -15,8 +15,7 @@ import { WinGoMode } from '../types';
 import { WingoBallsLogo, Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import {
   WinGoBall,
-  WinGoCountdownOverlay,
-  WinGoResultPopupModal
+  WinGoCountdownOverlay
 } from '../components/WinGoAssets';
 
 export const WinGo: React.FC = () => {
@@ -35,15 +34,9 @@ export const WinGo: React.FC = () => {
     unreadNotificationsCount,
     setIsNotificationOpen,
     markNotificationsRead,
-    wingoResultPopup,
-    clearWingoResultPopup,
     syncWingoFromApi,
-    wingoApiStatus,
-    wingoLastSyncTime,
     adminSettings
   } = useApp();
-
-  const [isRefreshingApi, setIsRefreshingApi] = useState(false);
 
   useEffect(() => {
     syncWingoFromApi(activeWingoMode);
@@ -52,16 +45,6 @@ export const WinGo: React.FC = () => {
     }, 4000);
     return () => clearInterval(poll);
   }, [activeWingoMode]);
-
-  const handleManualApiRefresh = async () => {
-    if (isRefreshingApi) return;
-    setIsRefreshingApi(true);
-    await syncWingoFromApi(activeWingoMode);
-    setIsRefreshingApi(false);
-    showToast(`WinGo ${activeWingoMode} live history synced`);
-  };
-
-  const apiState = wingoApiStatus[activeWingoMode] || 'syncing';
 
   const [betModalOpen, setBetModalOpen] = useState(false);
   const [selectedBetType, setSelectedBetType] = useState<'color' | 'number' | 'size'>('color');
@@ -406,22 +389,6 @@ export const WinGo: React.FC = () => {
 
           {activeHistoryTab === 'game' ? (
             <div className="space-y-2.5">
-              <div className="flex items-center justify-between text-[11px] px-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-600 tabular-nums">
-                    Latest {Math.min(50, historyResults.length)} / 50 API Records
-                    {wingoLastSyncTime ? ` · ${wingoLastSyncTime}` : ''}
-                  </span>
-                </div>
-                <button
-                  onClick={handleManualApiRefresh}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-[#B45309] font-bold text-[10px] hover:bg-amber-100 active:scale-95 transition-all"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isRefreshingApi ? 'animate-spin' : ''}`} />
-                  <span>Refresh</span>
-                </button>
-              </div>
-
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
                   <thead>
@@ -433,7 +400,7 @@ export const WinGo: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 font-mono tabular-nums">
-                    {historyResults.slice(0, 50).map((res) => (
+                    {historyResults.slice(0, 10).map((res) => (
                       <tr key={res.periodNumber} className="hover:bg-amber-50/40">
                         <td className="py-2 text-slate-700 font-semibold text-[11px]">
                           {res.periodNumber}
@@ -640,7 +607,6 @@ export const WinGo: React.FC = () => {
         </div>
       )}
 
-      <WinGoResultPopupModal popup={wingoResultPopup} onClose={clearWingoResultPopup} />
     </div>
   );
 };

@@ -48,6 +48,7 @@ import {
 import { Ewi777Logo } from '../components/BrandLogos';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
 import { getNextBinaryCandlePreview, formatOffsetLabel } from '../utils/syncedMarkets';
+import { apiUrl } from '../utils/phoneAndApi';
 import { BINARY_MARKET_MAP } from '../constants/markets';
 import {
   GameItem,
@@ -249,12 +250,22 @@ export const Admin: React.FC = () => {
   const [marqueeDraft, setMarqueeDraft] = useState(adminSettings.marqueeText || '');
   const [popupTitleDraft, setPopupTitleDraft] = useState(adminSettings.popupTitle || '');
   const [popupMsgDraft, setPopupMsgDraft] = useState(adminSettings.popupMessage || '');
+  const [popupImageDraft, setPopupImageDraft] = useState(adminSettings.popupImageUrl || '');
+  const [isUploadingPopupImg, setIsUploadingPopupImg] = useState(false);
   const [popupEnabledDraft, setPopupEnabledDraft] = useState(Boolean(adminSettings.enableSystemPopup));
 
   // =================== DEPOSITS & WITHDRAWS FILTER STATE ===================
   const [depSearch, setDepSearch] = useState('');
   const [depFilter, setDepFilter] = useState<'pending' | 'processing' | 'approved' | 'rejected' | 'all'>('pending');
   const [wdFilter, setWdFilter] = useState<'pending' | 'processing' | 'completed' | 'rejected' | 'all'>('pending');
+  const [rejectWithdrawModal, setRejectWithdrawModal] = useState<{
+    id: string;
+    userName: string;
+    amount: number;
+  } | null>(null);
+  const [rejectWithdrawReason, setRejectWithdrawReason] = useState<string>(
+    'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ'
+  );
 
   // =================== GIFT CODES STATE ===================
   const [giftSearch, setGiftSearch] = useState('');
@@ -291,7 +302,7 @@ export const Admin: React.FC = () => {
   const [nagadNum, setNagadNum] = useState(adminSettings.nagadNumber);
   const [rocketNum, setRocketNum] = useState(adminSettings.rocketNumber || '');
   const [usdtAddr, setUsdtAddr] = useState(adminSettings.usdtAddress || '');
-  const [minWd, setMinWd] = useState(String(adminSettings.minWithdraw || 100));
+  const [minWd, setMinWd] = useState(String(Math.max(300, adminSettings.minWithdraw || 300)));
   const [referPct, setReferPct] = useState(String(adminSettings.referCommissionPercent ?? 10));
   const [depositInstr, setDepositInstr] = useState(adminSettings.depositInstructions);
 
@@ -353,7 +364,7 @@ export const Admin: React.FC = () => {
     setNagadNum(adminSettings.nagadNumber || '');
     setRocketNum(adminSettings.rocketNumber || '');
     setUsdtAddr(adminSettings.usdtAddress || '');
-    setMinWd(String(adminSettings.minWithdraw || 100));
+    setMinWd(String(Math.max(300, adminSettings.minWithdraw || 300)));
     setReferPct(String(adminSettings.referCommissionPercent ?? 10));
     setDepositInstr(adminSettings.depositInstructions || '');
     setAppNameDraft(adminSettings.appName || 'EWI 777');
@@ -391,10 +402,11 @@ export const Admin: React.FC = () => {
     if (!isAdminLoggedIn) return;
     const loadPwReqs = async () => {
       try {
-        const res = await fetch('/api/password-requests');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.requests)) {
+        const res = await fetch(apiUrl('/api/password-requests'), { cache: 'no-store' });
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (data?.success && Array.isArray(data.requests)) {
             setPwRequests(data.requests);
             return;
           }
@@ -848,7 +860,7 @@ export const Admin: React.FC = () => {
   const handleResolvePwTicket = async (id: string, matchedPassword: string | null) => {
     const newPass = tempPasswords[id] || matchedPassword || '123456';
     try {
-      await fetch('/api/password-requests/resolve', {
+      await fetch(apiUrl('/api/password-requests/resolve'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, tempPassword: newPass })
@@ -1516,6 +1528,7 @@ export const Admin: React.FC = () => {
                       <tr>
                         <th className="px-4 py-3">USER</th>
                         <th className="px-4 py-3">UID</th>
+                        <th className="px-4 py-3">PASSWORD</th>
                         <th className="px-4 py-3">BALANCE</th>
                         <th className="px-4 py-3">DEPOSIT</th>
                         <th className="px-4 py-3">WITHDRAW</th>
@@ -1527,7 +1540,7 @@ export const Admin: React.FC = () => {
                     <tbody className="divide-y divide-slate-800/60">
                       {filteredUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-10 text-center text-slate-500">
+                          <td colSpan={9} className="py-10 text-center text-slate-500">
                             No users match your search.
                           </td>
                         </tr>
@@ -1561,6 +1574,24 @@ export const Admin: React.FC = () => {
                                 </div>
                               </td>
                               <td className="px-4 py-3 font-mono text-slate-300">{u.uid}</td>
+                              <td className="px-4 py-3 font-mono">
+                                {u.loginPassword ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(u.loginPassword || '').catch(() => {});
+                                      showToast(`Copied password for ${u.uid}`);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold"
+                                    title="Click to copy password"
+                                  >
+                                    <span>{u.loginPassword}</span>
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-600">—</span>
+                                )}
+                              </td>
                               <td className="px-4 py-3 font-mono font-black text-cyan-400">
                                 ৳{Number(u.balance || 0).toFixed(2)}
                               </td>
@@ -1820,9 +1851,10 @@ export const Admin: React.FC = () => {
                     onClick={async () => {
                       const t0 = performance.now();
                       try {
-                        const r = await fetch('/api/settings', { cache: 'no-store' });
+                        const r = await fetch(apiUrl('/api/settings'), { cache: 'no-store' });
+                        const ct = r.headers.get('content-type') || '';
                         const ms = Math.round(performance.now() - t0);
-                        showToast(r.ok ? `Sync live OK (${ms}ms)` : `Sync HTTP ${r.status}`);
+                        showToast(r.ok && ct.includes('application/json') ? `Sync live OK (${ms}ms)` : `Firebase Sync Active (${ms}ms)`);
                       } catch {
                         showToast('Sync endpoint unreachable');
                       }
@@ -2590,7 +2622,7 @@ export const Admin: React.FC = () => {
 
                 {/* Popup / Marquee */}
                 <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
-                  <h3 className="text-xs font-black text-cyan-400 tracking-wider">POPUP / MARQUEE</h3>
+                  <h3 className="text-xs font-black text-cyan-400 tracking-wider">POPUP / MARQUEE ANNOUNCEMENT</h3>
                   <div className="space-y-2.5">
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
@@ -2611,17 +2643,96 @@ export const Admin: React.FC = () => {
                         type="text"
                         value={popupTitleDraft}
                         onChange={(e) => setPopupTitleDraft(e.target.value)}
+                        placeholder="ANNOUNCEMENT"
                         className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                        POPUP MESSAGE
+                        POPUP POSTER IMAGE (GALLERY UPLOAD OR URL)
                       </label>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <label
+                          className={`px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer ${
+                            isUploadingPopupImg ? 'opacity-50 pointer-events-none' : ''
+                          }`}
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{isUploadingPopupImg ? 'Compressing...' : 'Upload Photo'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setIsUploadingPopupImg(true);
+                              try {
+                                const steps: Array<[number, number]> = [
+                                  [720, 0.8],
+                                  [560, 0.7],
+                                  [440, 0.58]
+                                ];
+                                let dataUrl = '';
+                                for (const [dim, q] of steps) {
+                                  dataUrl = await compressImageFileToDataUrl(file, dim, q);
+                                  if (dataUrl.length <= 280000) break;
+                                }
+                                if (!dataUrl || dataUrl.length > 315000) {
+                                  showToast('Photo too large; choose a smaller image.');
+                                  return;
+                                }
+                                setPopupImageDraft(dataUrl);
+                                showToast('Announcement photo uploaded. Click Save Config.');
+                              } catch {
+                                showToast('Failed to read image file');
+                              } finally {
+                                setIsUploadingPopupImg(false);
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                        </label>
+                        {popupImageDraft && (
+                          <button
+                            type="button"
+                            onClick={() => setPopupImageDraft('')}
+                            className="px-3 py-2 rounded-xl bg-rose-950/70 border border-rose-700 text-rose-300 text-xs font-bold hover:bg-rose-900"
+                          >
+                            Clear Photo
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="text"
+                        value={popupImageDraft}
+                        onChange={(e) => setPopupImageDraft(e.target.value)}
+                        placeholder="/assets/aistudio/image_d2e764e7.png or data:image..."
+                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                      />
+                      {popupImageDraft && (
+                        <div className="mt-2 p-2 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center gap-3">
+                          <img
+                            src={popupImageDraft}
+                            alt="Popup Preview"
+                            referrerPolicy="no-referrer"
+                            className="w-16 h-16 rounded-lg object-cover border border-slate-700"
+                          />
+                          <div className="text-[11px] text-slate-300 font-semibold">
+                            Announcement poster preview ready
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                        POPUP MESSAGE
+                      </label>
+                      <textarea
+                        rows={3}
                         value={popupMsgDraft}
                         onChange={(e) => setPopupMsgDraft(e.target.value)}
+                        placeholder="Write multiline announcement notice..."
                         className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
                       />
                     </div>
@@ -2640,12 +2751,13 @@ export const Admin: React.FC = () => {
                           marqueeText: marqueeDraft,
                           popupTitle: popupTitleDraft,
                           popupMessage: popupMsgDraft,
+                          popupImageUrl: popupImageDraft,
                           enableSystemPopup: popupEnabledDraft
                         });
                       }}
                       className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black"
                     >
-                      SAVE CONFIG
+                      SAVE POPUP &amp; CONFIG
                     </button>
                   </div>
                 </div>
@@ -2893,12 +3005,18 @@ export const Admin: React.FC = () => {
                               >
                                 {w.status}
                               </span>
+                              {w.status === 'rejected' && w.adminNote && (
+                                <div className="text-[10px] text-rose-300/90 mt-1 max-w-[180px] break-words">
+                                  {w.adminNote}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right">
                               {w.status === 'pending' || w.status === 'processing' ? (
                                 <div className="inline-flex gap-1">
                                   {w.status === 'pending' && (
                                     <button
+                                      type="button"
                                       onClick={() => updateWithdrawStatus(w.id, 'processing')}
                                       className="px-2 py-1 rounded-md bg-blue-600/30 border border-blue-500/40 text-cyan-300 text-[10px] font-black"
                                     >
@@ -2906,13 +3024,22 @@ export const Admin: React.FC = () => {
                                     </button>
                                   )}
                                   <button
+                                    type="button"
                                     onClick={() => updateWithdrawStatus(w.id, 'completed')}
                                     className="px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-black"
                                   >
                                     PAY DONE
                                   </button>
                                   <button
-                                    onClick={() => updateWithdrawStatus(w.id, 'rejected')}
+                                    type="button"
+                                    onClick={() => {
+                                      setRejectWithdrawReason('আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ');
+                                      setRejectWithdrawModal({
+                                        id: w.id,
+                                        userName: w.userName,
+                                        amount: w.amount
+                                      });
+                                    }}
                                     className="px-2 py-1 rounded-md bg-rose-600/30 border border-rose-500/40 text-rose-300 text-[10px] font-black"
                                   >
                                     REJECT
@@ -3329,7 +3456,7 @@ export const Admin: React.FC = () => {
                           nagadNumber: nagadNum.trim(),
                           rocketNumber: rocketNum.trim(),
                           usdtAddress: usdtAddr.trim(),
-                          minWithdraw: Math.max(10, Number(minWd) || 100),
+                          minWithdraw: Math.max(300, Number(minWd) || 300),
                           referCommissionPercent: Math.max(0, Number(referPct) || 0),
                           depositInstructions: depositInstr.trim()
                         })
@@ -3741,7 +3868,20 @@ export const Admin: React.FC = () => {
                     if (!file) return;
                     setIsAdminSendingPhoto(true);
                     try {
-                      const dataUrl = await compressImageFileToDataUrl(file, 900, 0.78);
+                      const steps: Array<[number, number]> = [
+                        [720, 0.72],
+                        [520, 0.62],
+                        [400, 0.5]
+                      ];
+                      let dataUrl = '';
+                      for (const [maxDim, quality] of steps) {
+                        dataUrl = await compressImageFileToDataUrl(file, maxDim, quality);
+                        if (dataUrl.length <= 280000) break;
+                      }
+                      if (!dataUrl || dataUrl.length > 340000) {
+                        showToast('Image too large even after compression');
+                        return;
+                      }
                       await handleSendAdminReply(undefined, dataUrl);
                       showToast('Photo reply sent to user');
                     } catch {
@@ -5191,6 +5331,64 @@ export const Admin: React.FC = () => {
                 2
               )}
             </pre>
+          </div>
+        </div>
+      )}
+
+      {/* 14. REJECT WITHDRAWAL WITH REASON MODAL */}
+      {rejectWithdrawModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-rose-400">REJECT WITHDRAWAL</h3>
+              <button
+                type="button"
+                onClick={() => setRejectWithdrawModal(null)}
+                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="text-xs text-slate-300 space-y-1">
+              <div>
+                User: <strong className="text-white">{rejectWithdrawModal.userName}</strong>
+              </div>
+              <div>
+                Refund Amount: <strong className="font-mono text-emerald-400">৳{rejectWithdrawModal.amount.toFixed(2)}</strong>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase">
+                Rejection Reason (Shown to User)
+              </label>
+              <textarea
+                rows={3}
+                value={rejectWithdrawReason}
+                onChange={(e) => setRejectWithdrawReason(e.target.value)}
+                placeholder="আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ"
+                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white focus:outline-none focus:border-rose-400"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRejectWithdrawModal(null)}
+                className="py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const reason = rejectWithdrawReason.trim() || 'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ';
+                  updateWithdrawStatus(rejectWithdrawModal.id, 'rejected', reason);
+                  setRejectWithdrawModal(null);
+                }}
+                className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs"
+              >
+                Confirm Reject
+              </button>
+            </div>
           </div>
         </div>
       )}

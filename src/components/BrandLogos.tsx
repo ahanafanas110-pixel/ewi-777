@@ -409,3 +409,39 @@ export const CustomerServiceLogo: React.FC<{ size?: number; className?: string }
     </svg>
   );
 };
+
+/**
+ * Luxury Gold Market Card Emblem (Fine Gold Bars)
+ */
+export const GoldMarketLogo: React.FC<{ size?: number; className?: string }> = ({
+  size = 32,
+  className = ''
+}) => {
+  return (
+    <img
+      src="/assets/aistudio/image_e176352b.png"
+      alt="Gold Market"
+      style={{ width: size, height: size }}
+      referrerPolicy="no-referrer"
+      className={`inline-block flex-shrink-0 select-none rounded-xl object-cover border border-amber-400/60 shadow-xs ${className}`}
+    />
+  );
+};
+
+/**
+ * Gold-Accented 3D Lottery Ball Emblem for EWI WinGo
+ */
+export const EwiWingoLogo: React.FC<{ size?: number; className?: string }> = ({
+  size = 32,
+  className = ''
+}) => {
+  return (
+    <div
+      style={{ width: size, height: size }}
+      className={`inline-flex items-center justify-center flex-shrink-0 select-none rounded-xl bg-gradient-to-br from-[#78350F] via-[#D97706] to-[#FBBF24] border border-amber-200/70 shadow-xs p-0.5 ${className}`}
+    >
+      <BrandBallsLogo size={Math.round(size * 0.84)} />
+    </div>
+  );
+};
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp, getLocalDateStr } from '../context/AppContext';
 import { X, Check } from 'lucide-react';
 import eventRewardsGiftImg from '../assets/images/event_rewards_gift_1794740711784.jpg';
@@ -324,6 +324,12 @@ export const ExtraFirstDepositModal: React.FC = () => {
     showToast
   } = useApp();
   const [noMoreToday, setNoMoreToday] = useState(false);
+
+  useEffect(() => {
+    if (firstDepositModalOpen) {
+      setNoMoreToday(false);
+    }
+  }, [firstDepositModalOpen]);
 
   if (!user.isLoggedIn || !firstDepositModalOpen) return null;
 

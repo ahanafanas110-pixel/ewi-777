@@ -13,14 +13,13 @@ import {
   Globe2,
   Coins
 } from 'lucide-react';
-import { Ewi777Logo } from '../components/BrandLogos';
+import { Ewi777Logo, GoldMarketLogo } from '../components/BrandLogos';
 import { BINARY_MARKETS, BINARY_MARKET_MAP } from '../constants/markets';
 import { BinaryMarketCategory, BinaryMarketConfig } from '../types';
 import { formatTimeWithOffset, formatOffsetLabel } from '../utils/syncedMarkets';
 
-const CATEGORIES: Array<'All' | BinaryMarketCategory> = [
+const BINARY_ONLY_CATEGORIES: Array<'All' | BinaryMarketCategory> = [
   'All',
-  'Commodities',
   'Crypto',
   'Forex',
   'Indices'
@@ -46,7 +45,11 @@ function formatAssetPrice(value: number, spec?: BinaryMarketConfig): string {
   return `$${formatted}`;
 }
 
-export const BinaryMarket: React.FC = () => {
+interface BinaryMarketProps {
+  initialMarketMode?: 'gold' | 'binary';
+}
+
+export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 'binary' }) => {
   const {
     user,
     binaryMarkets,
@@ -58,8 +61,9 @@ export const BinaryMarket: React.FC = () => {
     adminSettings
   } = useApp();
 
+  const isGoldMode = initialMarketMode === 'gold';
   const [selectedCategory, setSelectedCategory] = useState<'All' | BinaryMarketCategory>('All');
-  const [selectedAsset, setSelectedAsset] = useState<string>('XAU/USD');
+  const [selectedAsset, setSelectedAsset] = useState<string>(isGoldMode ? 'XAU/USD' : 'BTC/USDT');
   const [showAssetPicker, setShowAssetPicker] = useState<boolean>(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState<number>(30);
   const [tradeAmount, setTradeAmount] = useState<number>(100);
@@ -67,9 +71,23 @@ export const BinaryMarket: React.FC = () => {
   const [pendingTradeMode, setPendingTradeMode] = useState<boolean>(false);
   const [tradesPopover, setTradesPopover] = useState<'none' | 'open' | 'closed'>('none');
   const [nowTime, setNowTime] = useState<number>(() => Date.now());
+  const [visibleCount, setVisibleCount] = useState<number>(28);
+  const [panOffset, setPanOffset] = useState<number>(0);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dragRef = useRef<{ active: boolean; startX: number; startPan: number }>({
+    active: false,
+    startX: 0,
+    startPan: 0
+  });
   const offsetMinutes = adminSettings.timezoneOffsetMinutes ?? 360;
+
+  useEffect(() => {
+    setSelectedCategory('All');
+    setShowAssetPicker(false);
+    setPanOffset(0);
+    setSelectedAsset(initialMarketMode === 'gold' ? 'XAU/USD' : 'BTC/USDT');
+  }, [initialMarketMode]);
 
   useEffect(() => {
     const t = setInterval(() => setNowTime(Date.now()), 250);
@@ -77,12 +95,21 @@ export const BinaryMarket: React.FC = () => {
   }, []);
 
   const filteredMarkets = useMemo(() => {
-    if (selectedCategory === 'All') return BINARY_MARKETS;
-    return BINARY_MARKETS.filter((m) => m.category === selectedCategory);
-  }, [selectedCategory]);
+    if (isGoldMode) {
+      return BINARY_MARKETS.filter((m) => m.symbol === 'XAU/USD' || m.category === 'Commodities');
+    }
+    const nonGold = BINARY_MARKETS.filter((m) => m.category !== 'Commodities' && m.symbol !== 'XAU/USD');
+    if (selectedCategory === 'All') return nonGold;
+    return nonGold.filter((m) => m.category === selectedCategory);
+  }, [isGoldMode, selectedCategory]);
 
-  const activeSpec = BINARY_MARKET_MAP[selectedAsset] || BINARY_MARKET_MAP['XAU/USD'] || BINARY_MARKETS[0];
-  const activeQuote = binaryMarkets[selectedAsset] || binaryMarkets['XAU/USD'] || binaryMarkets['BTC/USDT'];
+  const activeSpec =
+    BINARY_MARKET_MAP[selectedAsset] ||
+    (isGoldMode ? BINARY_MARKET_MAP['XAU/USD'] : BINARY_MARKET_MAP['BTC/USDT']) ||
+    BINARY_MARKETS[0];
+  const activeQuote =
+    binaryMarkets[selectedAsset] ||
+    (isGoldMode ? binaryMarkets['XAU/USD'] : binaryMarkets['BTC/USDT']);
   const assetPrice = activeQuote?.price ?? activeSpec.basePrice;
   const assetCandles = activeQuote?.candles || [];
   const payoutPct = Math.round(activeSpec.payoutRate * 100);
@@ -102,7 +129,9 @@ export const BinaryMarket: React.FC = () => {
     activeOrders: assetActiveOrders,
     secRemaining: binaryCandleSecRemaining,
     timeframeSec: selectedTimeframe,
-    offsetMinutes
+    offsetMinutes,
+    visibleCount,
+    panOffset
   });
 
   chartDataRef.current = {
@@ -112,7 +141,9 @@ export const BinaryMarket: React.FC = () => {
     activeOrders: assetActiveOrders,
     secRemaining: binaryCandleSecRemaining,
     timeframeSec: selectedTimeframe,
-    offsetMinutes
+    offsetMinutes,
+    visibleCount,
+    panOffset
   };
 
   useEffect(() => {
@@ -139,7 +170,9 @@ export const BinaryMarket: React.FC = () => {
             activeOrders: orders,
             secRemaining,
             timeframeSec,
-            offsetMinutes: tzMin
+            offsetMinutes: tzMin,
+            visibleCount: count,
+            panOffset: offset
           } = chartDataRef.current;
 
           const w = canvas.width;
@@ -156,7 +189,12 @@ export const BinaryMarket: React.FC = () => {
           const plotW = Math.max(80, w - axisRightW);
           const plotH = Math.max(80, h - bottomAxisH - topPad);
 
-          const visible = candles.slice(-26);
+          const safeCount = Math.max(12, Math.min(candles.length || 28, count));
+          const maxPan = Math.max(0, candles.length - safeCount);
+          const clampedPan = Math.max(0, Math.min(maxPan, offset));
+          const endIdx = candles.length - clampedPan;
+          const startIdx = Math.max(0, endIdx - safeCount);
+          const visible = candles.slice(startIdx, endIdx);
           const highs = visible.map((c) => c.high);
           const lows = visible.map((c) => c.low);
           orders.forEach((o) => {
@@ -415,21 +453,27 @@ export const BinaryMarket: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => setShowAssetPicker((v) => !v)}
-              className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-amber-400 flex items-center gap-2 text-left transition-colors min-w-0"
+              onClick={() => {
+                if (!isGoldMode) setShowAssetPicker((v) => !v);
+              }}
+              className={`px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2 text-left transition-colors min-w-0 ${
+                isGoldMode ? 'cursor-default border-amber-200 bg-amber-50/60' : 'hover:border-amber-400'
+              }`}
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-black text-xs text-slate-900 truncate">{selectedAsset}</span>
+                  <span className="font-black text-xs text-slate-900 truncate">
+                    {isGoldMode ? 'GOLD XAU/USD' : selectedAsset}
+                  </span>
                   <span className="text-[10px] font-black text-[#B45309] tabular-nums">
                     +{payoutPct}%
                   </span>
                 </div>
                 <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
-                  <span>{activeSpec.name}</span>
+                  <span>{isGoldMode ? 'Spot Gold Trading' : activeSpec.name}</span>
                 </div>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+              {!isGoldMode && <ChevronDown className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />}
             </button>
           </div>
 
@@ -464,18 +508,17 @@ export const BinaryMarket: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSelectedAsset('XAU/USD')}
-              className={`px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 transition-all ${
-                selectedAsset === 'XAU/USD'
-                  ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white shadow-2xs'
-                  : 'bg-amber-50 text-[#B45309] border border-amber-200'
-              }`}
-            >
-              <Coins className="w-3 h-3" />
-              <span>GOLD XAU/USD</span>
-            </button>
+            {isGoldMode ? (
+              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white shadow-2xs">
+                <GoldMarketLogo size={14} className="rounded-sm" />
+                <span>GOLD TRADING</span>
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-amber-50 text-[#B45309] border border-amber-200">
+                <Globe2 className="w-3 h-3" />
+                <span>BINARY TRADING</span>
+              </span>
+            )}
 
             <button
               type="button"
@@ -502,13 +545,13 @@ export const BinaryMarket: React.FC = () => {
           </div>
         </div>
 
-        {/* Asset Dropdown Overlay */}
-        {showAssetPicker && (
+        {/* Asset Dropdown Overlay (Binary Trading markets only) */}
+        {!isGoldMode && showAssetPicker && (
           <div className="mt-2 bg-white border border-amber-200 rounded-2xl p-3 shadow-xl space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
                 <Globe2 className="w-4 h-4 text-[#D97706]" />
-                <span>Select Trading Market ({filteredMarkets.length})</span>
+                <span>Select Binary Market ({filteredMarkets.length})</span>
               </div>
               <button
                 type="button"
@@ -520,7 +563,7 @@ export const BinaryMarket: React.FC = () => {
             </div>
 
             <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-              {CATEGORIES.map((cat) => (
+              {BINARY_ONLY_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   type="button"
@@ -582,19 +625,28 @@ export const BinaryMarket: React.FC = () => {
       <div className="p-3 space-y-3">
         {/* Live Quote Header Strip */}
         <div className="bg-white rounded-2xl border border-slate-200 px-3.5 py-2.5 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-black text-sm text-slate-900">{selectedAsset}</span>
-              <span className="text-[11px] font-bold text-[#B45309]">{activeSpec.category}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5 font-mono tabular-nums">
-              <span className="text-lg font-black text-slate-900">
-                {formatAssetPrice(assetPrice, activeSpec)}
-              </span>
-              <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {isUp ? '+' : ''}
-                {(activeQuote?.changePct ?? 0).toFixed(2)}%
-              </span>
+          <div className="flex items-center gap-2.5">
+            {selectedAsset === 'XAU/USD' ? (
+              <GoldMarketLogo size={36} />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-[#B45309]">
+                <Coins className="w-4 h-4" />
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm text-slate-900">{selectedAsset}</span>
+                <span className="text-[11px] font-bold text-[#B45309]">{activeSpec.category}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 font-mono tabular-nums">
+                <span className="text-lg font-black text-slate-900">
+                  {formatAssetPrice(assetPrice, activeSpec)}
+                </span>
+                <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {isUp ? '+' : ''}
+                  {(activeQuote?.changePct ?? 0).toFixed(2)}%
+                </span>
+              </div>
             </div>
           </div>
 
@@ -711,9 +763,81 @@ export const BinaryMarket: React.FC = () => {
           </div>
         )}
 
-        {/* Smooth 60fps Quotex-Style Light Canvas */}
+        {/* Smooth 60fps Quotex-Style Light Canvas + Zoom & Pan Controls */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="w-full h-64 sm:h-72 relative">
+          <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 text-[10px]">
+            <span className="font-bold text-slate-500">
+              Showing {Math.min(visibleCount, assetCandles.length || visibleCount)}/{assetCandles.length || 140} candles
+              {panOffset > 0 ? ` • History (-${panOffset})` : ' • Live'}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setPanOffset((p) =>
+                    Math.min(Math.max(0, assetCandles.length - visibleCount), p + Math.max(4, Math.floor(visibleCount / 4)))
+                  )
+                }
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                title="Pan Left"
+              >
+                &lt;
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => Math.min(140, c + 12))}
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                title="Zoom Out"
+              >
+                -
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVisibleCount(Math.min(140, Math.max(28, assetCandles.length || 140)));
+                  setPanOffset(0);
+                }}
+                className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 font-black text-[#B45309] hover:bg-amber-100"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => Math.max(12, c - 8))}
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                title="Zoom In"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanOffset((p) => Math.max(0, p - Math.max(4, Math.floor(visibleCount / 4))))}
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                title="Pan Right"
+              >
+                &gt;
+              </button>
+            </div>
+          </div>
+          <div
+            className="w-full h-64 sm:h-72 relative touch-pan-y select-none cursor-grab active:cursor-grabbing"
+            onPointerDown={(e) => {
+              dragRef.current = { active: true, startX: e.clientX, startPan: panOffset };
+            }}
+            onPointerMove={(e) => {
+              if (!dragRef.current.active) return;
+              const dx = e.clientX - dragRef.current.startX;
+              const deltaCandles = Math.round(dx / 12);
+              const maxPan = Math.max(0, assetCandles.length - visibleCount);
+              setPanOffset(Math.max(0, Math.min(maxPan, dragRef.current.startPan + deltaCandles)));
+            }}
+            onPointerUp={() => {
+              dragRef.current.active = false;
+            }}
+            onPointerLeave={() => {
+              dragRef.current.active = false;
+            }}
+          >
             <canvas ref={canvasRef} className="w-full h-full block" />
           </div>
         </div>

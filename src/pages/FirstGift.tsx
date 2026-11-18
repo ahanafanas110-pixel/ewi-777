@@ -110,7 +110,7 @@ export const FirstGift: React.FC = () => {
                 ? 'Your 1-time new member First Deposit reward has been added.'
                 : hasCompletedDeposit
                 ? 'Your approved deposit qualifies for the 1-time First Deposit gift.'
-                : 'Make your first deposit of ৳100+ to unlock your new member package.'}
+                : 'Make your first deposit of ৳200+ to unlock your new member package.'}
             </p>
           </div>
         </div>

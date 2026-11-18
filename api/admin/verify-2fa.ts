@@ -103,6 +103,16 @@ async function fetchLiveAdminCredentialHashes(): Promise<{ phoneHash: string; pa
 }
 
 export default async function handler(req: IncomingMessage & { method?: string; body?: any }, res: ServerResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   const sendJson = (statusCode: number, payload: any) => {
     res.statusCode = statusCode;
     res.setHeader('Content-Type', 'application/json');

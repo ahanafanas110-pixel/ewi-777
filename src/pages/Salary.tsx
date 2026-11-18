@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp, getLocalDateStr } from '../context/AppContext';
 import { ArrowLeft, Award, CheckCircle2, Clock, Users } from 'lucide-react';
 
@@ -20,10 +20,11 @@ const SALARY_TIERS = [
 const SALARY_TERMS = [
   'Must be active and play daily (at least 1 bet yourself). Fake members put the salary on hold or stop it.',
   'Same IP, same bank/wallet details or same phone number cannot claim salary.',
-  'Team total recharge must be at least 10× your salary.',
+  'Starter Bonus: Bring ৳2,000+ total referral deposit to unlock the ৳300 Agent Salary immediately.',
+  'Team total recharge for higher tiers must be at least 10× your salary.',
   'Example: salary 600 × 10 = 6,000 — if team recharge is over 6,000 you get 600.',
-  'Your own deposit must be at least 25% of the team recharge.',
-  'Team total betting must be over 3× the team recharge.',
+  'For higher tiers (৳600+), your own deposit must be at least 25% of the team recharge.',
+  'For higher tiers (৳600+), team total betting must be over 3× the team recharge.',
   'For great performance, find a TEACHER for better offers.',
   'All decisions are final by EWI777.'
 ];
@@ -31,6 +32,7 @@ const SALARY_TERMS = [
 export const Salary: React.FC = () => {
   const {
     user,
+    adminSettings,
     referrals,
     bets,
     aviatorBets,
@@ -40,6 +42,24 @@ export const Salary: React.FC = () => {
     setActiveTab,
     showToast
   } = useApp();
+
+  const [midnightCountdown, setMidnightCountdown] = useState('00:00:00');
+
+  useEffect(() => {
+    const updateClock = () => {
+      const offsetMs = (adminSettings.timezoneOffsetMinutes ?? 360) * 60_000;
+      const offsetNowMs = Date.now() + offsetMs;
+      const remMs = Math.max(0, 86_400_000 - (offsetNowMs % 86_400_000));
+      const totalSec = Math.floor(remMs / 1000);
+      const hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const ss = String(totalSec % 60).padStart(2, '0');
+      setMidnightCountdown(`${hh}:${mm}:${ss}`);
+    };
+    updateClock();
+    const iv = setInterval(updateClock, 1000);
+    return () => clearInterval(iv);
+  }, [adminSettings.timezoneOffsetMinutes]);
 
   const userReferrals = referrals.filter(
     (r) => r.referrerCode === user.inviteCode || r.referrerCode === user.uid
@@ -73,11 +93,12 @@ export const Salary: React.FC = () => {
     .reverse()
     .find(
       (t) =>
-        rechargeMembersCount >= t.members &&
-        hasPlacedBetToday &&
-        teamRechargeTotal >= t.salary * 10 &&
-        yourDeposit >= teamRechargeTotal * 0.25 &&
-        teamBetsTotal > teamRechargeTotal * 3
+        (t.salary === 300 && teamRechargeTotal >= 2000) ||
+        (rechargeMembersCount >= t.members &&
+          hasPlacedBetToday &&
+          teamRechargeTotal >= t.salary * 10 &&
+          yourDeposit >= teamRechargeTotal * 0.25 &&
+          teamBetsTotal > teamRechargeTotal * 3)
     );
 
   const alreadyClaimedToday = user.lastSalaryClaimDate === today;
@@ -121,6 +142,24 @@ export const Salary: React.FC = () => {
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Midnight 12:00 AM Auto-Collect Status Banner */}
+        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-2xl p-4 text-white shadow-sm flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-amber-100">
+              Auto-Collect Active • Midnight 12:00 AM
+            </div>
+            <div className="text-xs font-extrabold mt-0.5">
+              {alreadyClaimedToday
+                ? 'Today’s eligible salary has been credited ✓'
+                : 'Eligible salary settles automatically at 12:00 AM'}
+            </div>
+          </div>
+          <div className="text-right flex-shrink-0 bg-black/20 px-3 py-1.5 rounded-xl border border-white/20">
+            <div className="text-[9px] uppercase font-bold text-amber-100">Reset In</div>
+            <div className="text-sm font-mono font-black tabular-nums">{midnightCountdown}</div>
+          </div>
+        </div>
+
         {/* Today's Progress Summary Card (Light Mode) */}
         <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
@@ -153,8 +192,10 @@ export const Salary: React.FC = () => {
 
           <div className="pt-2 space-y-1 border-t border-slate-100">
             <p className="text-xs font-bold text-slate-800">
-              {nextTier
-                ? `You need ${membersNeeded} more recharge member(s) for the next tier`
+              {eligibleTier
+                ? `Unlocked ৳${eligibleTier.salary.toLocaleString()} Daily Salary!`
+                : nextTier
+                ? `Bring ৳${Math.max(0, 2000 - teamRechargeTotal).toLocaleString()} more team deposit for ৳300 Salary (or ${membersNeeded} member(s) for tier)`
                 : 'Maximum 1,000+ recharge member tier unlocked!'}
             </p>
             {hasPlacedBetToday ? (

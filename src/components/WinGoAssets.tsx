@@ -135,6 +135,7 @@ export const WinGoResultPopupModal: React.FC<ResultPopupModalProps> = ({ popup, 
       : popup.mode === '3m'
       ? 'WinGo 3min'
       : 'WinGo 5min';
+  const displayTitle = popup.gameLabel || modeLabel;
 
   const hasGreen = popup.resultColor.includes('green');
   const hasViolet = popup.resultColor.includes('violet');
@@ -205,7 +206,7 @@ export const WinGoResultPopupModal: React.FC<ResultPopupModalProps> = ({ popup, 
 
           {/* Game Name */}
           <div className="text-[17px] font-extrabold text-slate-900 mt-5 mb-3">
-            {modeLabel}
+            {displayTitle}
           </div>
 
           <div className="border-t border-black/15 my-3" />
@@ -222,30 +223,57 @@ export const WinGoResultPopupModal: React.FC<ResultPopupModalProps> = ({ popup, 
             <div className="flex items-center justify-between gap-2">
               <span className="text-slate-600 font-medium text-[13px]">Result</span>
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-white shadow-2xs ${
-                    isSmall ? 'bg-[#109B4B]' : 'bg-[#FB923C]'
-                  }`}
-                >
-                  {isSmall ? 'Small' : 'Big'}
-                </span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-white shadow-2xs ${
-                    hasGreen ? 'bg-[#109B4B]' : 'bg-[#EA3838]'
-                  }`}
-                >
-                  {hasGreen ? 'Green' : 'Red'}
-                </span>
-                {hasViolet && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-white bg-[#9333EA] shadow-2xs">
-                    Violet
-                  </span>
+                {Array.isArray(popup.badges) && popup.badges.length > 0 ? (
+                  popup.badges.map((badge, idx) => {
+                    const toneCls =
+                      badge.tone === 'green'
+                        ? 'bg-[#109B4B]'
+                        : badge.tone === 'red'
+                        ? 'bg-[#EA3838]'
+                        : badge.tone === 'violet'
+                        ? 'bg-[#9333EA]'
+                        : badge.tone === 'orange'
+                        ? 'bg-[#FB923C]'
+                        : badge.tone === 'amber'
+                        ? 'bg-[#D97706]'
+                        : 'bg-slate-600';
+                    return (
+                      <span
+                        key={`${badge.label}-${idx}`}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-white shadow-2xs ${toneCls}`}
+                      >
+                        {badge.label}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-white shadow-2xs ${
+                        isSmall ? 'bg-[#109B4B]' : 'bg-[#FB923C]'
+                      }`}
+                    >
+                      {isSmall ? 'Small' : 'Big'}
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-white shadow-2xs ${
+                        hasGreen ? 'bg-[#109B4B]' : 'bg-[#EA3838]'
+                      }`}
+                    >
+                      {hasGreen ? 'Green' : 'Red'}
+                    </span>
+                    {hasViolet && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-white bg-[#9333EA] shadow-2xs">
+                        Violet
+                      </span>
+                    )}
+                    <span
+                      className={`w-6 h-6 rounded-full border-2 border-white shadow-xs flex items-center justify-center text-[11px] font-black text-white ${ballBadgeColor}`}
+                    >
+                      {num}
+                    </span>
+                  </>
                 )}
-                <span
-                  className={`w-6 h-6 rounded-full border-2 border-white shadow-xs flex items-center justify-center text-[11px] font-black text-white ${ballBadgeColor}`}
-                >
-                  {num}
-                </span>
               </div>
             </div>
           </div>

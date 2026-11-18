@@ -20,6 +20,7 @@ import {
   DepositHistoryGridIcon,
   WithdrawHistoryGridIcon
 } from '../components/AccountIcons';
+import { BD_PHONE_RULE_MSG, isValidBdFullPhone } from '../utils/phoneAndApi';
 
 export const Wallet: React.FC = () => {
   const {
@@ -34,7 +35,7 @@ export const Wallet: React.FC = () => {
     adminSettings,
   } = useApp();
 
-  const minWithdraw = adminSettings.minWithdraw || 100;
+  const minWithdraw = Math.max(300, adminSettings.minWithdraw || 300);
   const withdrawDisabled = adminSettings.withdrawEnabled === false;
 
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -55,6 +56,14 @@ export const Wallet: React.FC = () => {
   const handleWithdrawSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(withdrawAmount);
+    if (isNaN(amt) || amt < minWithdraw) {
+      showToast(`Minimum withdrawal amount is ৳${minWithdraw}`);
+      return;
+    }
+    if (amt > 50000) {
+      showToast('Maximum withdrawal amount is ৳50,000');
+      return;
+    }
     const res = withdraw(amt, withdrawMethod, loginPasswordInput);
     if (res.success) {
       setShowWithdrawModal(false);
@@ -68,9 +77,18 @@ export const Wallet: React.FC = () => {
     e.preventDefault();
     if (isBinding) return;
     setBindError(null);
+
+    const digits = bindNumberInput.replace(/\D/g, '');
+    const normalized = digits.startsWith('0') ? digits.slice(0, 11) : `0${digits}`.slice(0, 11);
+    if (!isValidBdFullPhone(normalized)) {
+      setBindError(BD_PHONE_RULE_MSG);
+      showToast(BD_PHONE_RULE_MSG);
+      return;
+    }
+
     setIsBinding(true);
     try {
-      const res = await bindWallet(bindType, bindNumberInput, bindPassword);
+      const res = await bindWallet(bindType, normalized, bindPassword);
       if (res.success) {
         setShowBindModal(false);
         setBindNumberInput('');
@@ -370,7 +388,7 @@ export const Wallet: React.FC = () => {
                 onClick={() => setWithdrawMethod('bKash')}
                 className={`p-2.5 rounded-2xl text-xs font-bold border-2 transition-all flex items-center justify-between ${
                   withdrawMethod === 'bKash'
-                    ? 'bg-pink-50 border-[#E2136E] text-[#E2136E] ring-1 ring-[#E2136E]/30'
+                    ? 'bg-amber-50/80 border-[#D97706] text-[#B45309] ring-1 ring-[#D97706]/30'
                     : 'border-slate-200 text-slate-600 bg-white hover:bg-amber-50/40'
                 }`}
               >
@@ -405,13 +423,13 @@ export const Wallet: React.FC = () => {
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   min={minWithdraw}
-                  max={user.balance}
+                  max={Math.min(50000, user.balance)}
                   className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
                   required
                 />
                 <div className="flex justify-between text-[10px] text-slate-400 mt-1 tabular-nums">
                   <span>Available: ৳{user.balance.toFixed(2)}</span>
-                  <span>Min: ৳{minWithdraw}</span>
+                  <span>Min: ৳{minWithdraw} · Max: ৳50,000</span>
                 </div>
               </div>
 
@@ -467,7 +485,7 @@ export const Wallet: React.FC = () => {
                 onClick={() => setBindType('bKash')}
                 className={`p-2.5 rounded-2xl border-2 transition-all flex items-center justify-center ${
                   bindType === 'bKash'
-                    ? 'bg-pink-50 border-[#E2136E] ring-1 ring-[#E2136E]/30'
+                    ? 'bg-amber-50/80 border-[#D97706] ring-1 ring-[#D97706]/30'
                     : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
@@ -493,12 +511,15 @@ export const Wallet: React.FC = () => {
                 </label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  maxLength={11}
                   value={bindNumberInput}
                   onChange={(e) => {
-                    setBindNumberInput(e.target.value);
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+                    setBindNumberInput(digits);
                     if (bindError) setBindError(null);
                   }}
-                  placeholder="017xxxxxxxx"
+                  placeholder="017XXXXXXXX (Prefix 18, 17, 13, 15, 19)"
                   className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
                   required
                 />

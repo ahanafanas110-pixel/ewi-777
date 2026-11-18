@@ -12,11 +12,39 @@ import {
 import { Ewi777Logo } from '../components/BrandLogos';
 import { AviatorServerState } from '../types';
 import { getSyncedCrashEngineState } from '../utils/syncedMarkets';
+import { apiUrl } from '../utils/phoneAndApi';
 import luckyJetPilotImg from '../assets/images/lucky_jet_pilot_1794905505516.jpg';
 
 type RoundPhase = 'waiting' | 'flying' | 'crashed';
+type SlotId = 1 | 2 | 3;
+
+interface LuckySlotState {
+  betAmount: string;
+  autoBetEnabled: boolean;
+  autoCashoutEnabled: boolean;
+  autoCashoutVal: string;
+  activeBetId: string | null;
+  activeBetRoundId: string | null;
+  activeBetAmount: number;
+  cashedOutInfo: { mult: number; win: number } | null;
+  isPlacing: boolean;
+}
+
 const MAX_MULTIPLIER = 10000;
 const QUICK_CHIPS = [10, 50, 100, 500];
+const SLOT_IDS: SlotId[] = [1, 2, 3];
+
+const createInitialSlot = (defaultAmt = '50'): LuckySlotState => ({
+  betAmount: defaultAmt,
+  autoBetEnabled: false,
+  autoCashoutEnabled: false,
+  autoCashoutVal: '2.00',
+  activeBetId: null,
+  activeBetRoundId: null,
+  activeBetAmount: 0,
+  cashedOutInfo: null,
+  isPlacing: false
+});
 
 export const LuckyJetGame: React.FC = () => {
   const {
@@ -37,26 +65,22 @@ export const LuckyJetGame: React.FC = () => {
   const [roundId, setRoundId] = useState<string>('LJ000000');
   const [crashHistory, setCrashHistory] = useState<number[]>([3.12, 1.44, 8.95, 1.92, 14.5, 1.19, 2.75, 4.18]);
 
-  // Dual Bet Deck States (matching Lucky Jet reference)
-  const [betAmount, setBetAmount] = useState<string>('50');
-  const [autoBetEnabled, setAutoBetEnabled] = useState<boolean>(false);
-  const [autoCashoutEnabled, setAutoCashoutEnabled] = useState<boolean>(false);
-  const [autoCashoutVal, setAutoCashoutVal] = useState<string>('2.00');
+  // 3 Simultaneous Bet Slots
+  const [slots, setSlots] = useState<Record<SlotId, LuckySlotState>>({
+    1: createInitialSlot('50'),
+    2: createInitialSlot('20'),
+    3: createInitialSlot('10')
+  });
 
-  const [activeBetId, setActiveBetId] = useState<string | null>(null);
-  const [activeBetRoundId, setActiveBetRoundId] = useState<string | null>(null);
-  const [activeBetAmount, setActiveBetAmount] = useState<number>(0);
-  const [cashedOutInfo, setCashedOutInfo] = useState<{ mult: number; win: number } | null>(null);
-  const [isPlacing, setIsPlacing] = useState<boolean>(false);
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
   const [betsTab, setBetsTab] = useState<'all' | 'my' | 'top'>('all');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pilotSpriteRef = useRef<HTMLImageElement | null>(null);
-  const activeBetIdRef = useRef<string | null>(activeBetId);
-  const activeBetRoundRef = useRef<string | null>(activeBetRoundId);
-  const autoBetRef = useRef<{ enabled: boolean; amount: string }>({ enabled: false, amount: '50' });
-  const autoCashoutRef = useRef<{ enabled: boolean; target: number }>({ enabled: false, target: 2.0 });
+  const slotsRef = useRef(slots);
+  slotsRef.current = slots;
+
+  const autoCashLockRef = useRef<Record<SlotId, boolean>>({ 1: false, 2: false, 3: false });
   const forcedPoolRef = useRef(crashPoolStates.luckyjet);
   forcedPoolRef.current = crashPoolStates.luckyjet;
 
@@ -74,14 +98,6 @@ export const LuckyJetGame: React.FC = () => {
     crashPoint: 1.0
   });
 
-  activeBetIdRef.current = activeBetId;
-  activeBetRoundRef.current = activeBetRoundId;
-  autoBetRef.current = { enabled: autoBetEnabled, amount: betAmount };
-  autoCashoutRef.current = {
-    enabled: autoCashoutEnabled,
-    target: Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(autoCashoutVal) || 2.0))
-  };
-
   const cashOutRef = useRef(cashOutCrashBet);
   const loseBetRef = useRef(loseAviatorBet);
   const placeBetRef = useRef(placeCrashBet);
@@ -89,13 +105,20 @@ export const LuckyJetGame: React.FC = () => {
   loseBetRef.current = loseAviatorBet;
   placeBetRef.current = placeCrashBet;
 
+  const updateSlot = (slotId: SlotId, patch: Partial<LuckySlotState>) => {
+    setSlots((prev) => ({
+      ...prev,
+      [slotId]: { ...prev[slotId], ...patch }
+    }));
+  };
+
   useEffect(() => {
     const img = new Image();
     img.src = luckyJetPilotImg;
     pilotSpriteRef.current = img;
   }, []);
 
-  // Poll /api/crash/state?game=luckyjet (identical deterministic fallback on static Vercel)
+  // Poll /api/crash/state?game=luckyjet (identical deterministic fallback on static host)
   useEffect(() => {
     let mounted = true;
     let useFallback = false;
@@ -120,41 +143,62 @@ export const LuckyJetGame: React.FC = () => {
         setCrashHistory(st.crashHistory);
       }
 
-      if (st.phase === 'waiting' && st.roundId !== prevRoundId) {
-        setCashedOutInfo(null);
+      const isNewWaiting = st.phase === 'waiting' && st.roundId !== prevRoundId;
+      if (isNewWaiting) {
+        autoCashLockRef.current = { 1: false, 2: false, 3: false };
+        setSlots((prev) => ({
+          1: { ...prev[1], cashedOutInfo: null },
+          2: { ...prev[2], cashedOutInfo: null },
+          3: { ...prev[3], cashedOutInfo: null }
+        }));
       }
 
-      if (
-        (st.phase === 'crashed' &&
-          activeBetIdRef.current &&
-          (!activeBetRoundRef.current || activeBetRoundRef.current === st.roundId)) ||
-        (st.phase === 'waiting' &&
-          activeBetIdRef.current &&
-          activeBetRoundRef.current &&
-          activeBetRoundRef.current !== st.roundId)
-      ) {
-        const lostId = activeBetIdRef.current;
-        activeBetIdRef.current = null;
-        activeBetRoundRef.current = null;
-        setActiveBetId(null);
-        setActiveBetRoundId(null);
-        loseBetRef.current(lostId);
+      const curSlots = slotsRef.current;
+      const toLoseIds: string[] = [];
+      const clearSlotIds: SlotId[] = [];
+
+      SLOT_IDS.forEach((sid) => {
+        const sl = curSlots[sid];
+        if (!sl.activeBetId) return;
+        const shouldLose =
+          (st.phase === 'crashed' && (!sl.activeBetRoundId || sl.activeBetRoundId === st.roundId)) ||
+          (st.phase === 'waiting' && sl.activeBetRoundId && sl.activeBetRoundId !== st.roundId);
+        if (shouldLose) {
+          toLoseIds.push(sl.activeBetId);
+          clearSlotIds.push(sid);
+        }
+      });
+
+      if (clearSlotIds.length > 0) {
+        setSlots((prev) => {
+          const next = { ...prev };
+          clearSlotIds.forEach((sid) => {
+            next[sid] = { ...next[sid], activeBetId: null, activeBetRoundId: null };
+          });
+          return next;
+        });
+        toLoseIds.forEach((id) => loseBetRef.current(id));
       }
 
-      // Autobet trigger at start of new waiting round
-      if (
-        st.phase === 'waiting' &&
-        st.roundId !== prevRoundId &&
-        autoBetRef.current.enabled &&
-        !activeBetIdRef.current
-      ) {
-        const amt = Math.max(10, Number(autoBetRef.current.amount) || 50);
-        const autoTarget = autoCashoutRef.current.enabled ? autoCashoutRef.current.target : undefined;
-        placeBetRef.current('luckyjet', st.roundId, amt, autoTarget).then((res) => {
-          if (res.success && res.betId && mounted) {
-            setActiveBetId(res.betId);
-            setActiveBetRoundId(st.roundId);
-            setActiveBetAmount(amt);
+      // Per-slot Autobet trigger at start of new waiting round
+      if (isNewWaiting) {
+        SLOT_IDS.forEach((sid) => {
+          const sl = curSlots[sid];
+          if (sl.autoBetEnabled && (!sl.activeBetId || clearSlotIds.includes(sid))) {
+            const amt = Math.max(10, Number(sl.betAmount) || 50);
+            const autoTarget = sl.autoCashoutEnabled
+              ? Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.autoCashoutVal) || 2.0))
+              : undefined;
+            placeBetRef.current('luckyjet', st.roundId, amt, autoTarget, sid).then((res) => {
+              if (res.success && res.betId && mounted) {
+                autoCashLockRef.current[sid] = false;
+                updateSlot(sid, {
+                  activeBetId: res.betId,
+                  activeBetRoundId: st.roundId,
+                  activeBetAmount: amt
+                });
+              }
+            });
           }
         });
       }
@@ -166,14 +210,14 @@ export const LuckyJetGame: React.FC = () => {
         return;
       }
       try {
-        const res = await fetch('/api/crash/state?game=luckyjet', { cache: 'no-store' });
+        const res = await fetch(apiUrl('/api/crash/state?game=luckyjet'), { cache: 'no-store' });
         const ct = res.headers.get('content-type') || '';
         if (!res.ok || !ct.includes('application/json')) {
           useFallback = true;
           applyState(getSyncedCrashEngineState('luckyjet', Date.now()));
           return;
         }
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
         if (!data?.success || !data.state) {
           useFallback = true;
           applyState(getSyncedCrashEngineState('luckyjet', Date.now()));
@@ -216,17 +260,15 @@ export const LuckyJetGame: React.FC = () => {
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
 
-      // Deep Indigo Lucky Jet Background
       const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
       bgGrad.addColorStop(0, '#1D153A');
       bgGrad.addColorStop(1, '#141029');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, w, h);
 
-      // Starry Cosmic Particles
       ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
       for (let i = 0; i < 18; i++) {
-        const sx = ((i * 73 + Math.floor(elapsedSec * 12)) % w);
+        const sx = (i * 73 + Math.floor(elapsedSec * 12)) % w;
         const sy = ((i * 47) % (h - 24 * dpr)) + 8 * dpr;
         ctx.fillRect(sx, sy, 1.5 * dpr, 1.5 * dpr);
       }
@@ -289,7 +331,6 @@ export const LuckyJetGame: React.FC = () => {
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        // Pilot Jetpack Thruster Flame
         ctx.save();
         ctx.translate(tipX, tipY);
         const flameGrad = ctx.createRadialGradient(-8 * dpr, 12 * dpr, 2 * dpr, -8 * dpr, 12 * dpr, 16 * dpr);
@@ -300,7 +341,6 @@ export const LuckyJetGame: React.FC = () => {
         ctx.arc(-8 * dpr, 12 * dpr, 15 * dpr, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pilot Avatar Badge
         const r = 18 * dpr;
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -357,41 +397,57 @@ export const LuckyJetGame: React.FC = () => {
           setPhase('crashed');
           setMultiplier(forcedMult);
           drawArena('crashed', elapsedSec);
-          if (activeBetIdRef.current && activeBetRoundRef.current === st.roundId) {
-            const lostId = activeBetIdRef.current;
-            activeBetIdRef.current = null;
-            activeBetRoundRef.current = null;
-            setActiveBetId(null);
-            setActiveBetRoundId(null);
-            loseBetRef.current(lostId);
+
+          const curSlots = slotsRef.current;
+          const lostIds: string[] = [];
+          const clearSids: SlotId[] = [];
+          SLOT_IDS.forEach((sid) => {
+            const sl = curSlots[sid];
+            if (sl.activeBetId && sl.activeBetRoundId === st.roundId) {
+              lostIds.push(sl.activeBetId);
+              clearSids.push(sid);
+            }
+          });
+          if (clearSids.length > 0) {
+            setSlots((prev) => {
+              const next = { ...prev };
+              clearSids.forEach((sid) => {
+                next[sid] = { ...next[sid], activeBetId: null, activeBetRoundId: null };
+              });
+              return next;
+            });
+            lostIds.forEach((id) => loseBetRef.current(id));
           }
         } else {
           setMultiplier(curMult);
           drawArena('flying', elapsedSec);
 
-          if (
-            activeBetIdRef.current &&
-            activeBetRoundRef.current === st.roundId &&
-            autoCashoutRef.current.enabled &&
-            curMult >= autoCashoutRef.current.target
-          ) {
-            const idToCash = activeBetIdRef.current;
-            const cashMult = autoCashoutRef.current.target;
-            activeBetIdRef.current = null;
-            activeBetRoundRef.current = null;
-            setActiveBetId(null);
-            setActiveBetRoundId(null);
-            cashOutRef.current('luckyjet', idToCash, cashMult).then((res) => {
-              if (res.success) {
-                setCashedOutInfo({ mult: cashMult, win: res.winAmount });
-              } else if (res.crashed) {
-                st.phase = 'crashed';
-                st.crashPoint = res.crashPoint || cashMult;
-                setPhase('crashed');
-                setMultiplier(res.crashPoint || cashMult);
-              }
-            });
-          }
+          const curSlots = slotsRef.current;
+          SLOT_IDS.forEach((sid) => {
+            const sl = curSlots[sid];
+            const target = Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.autoCashoutVal) || 2.0));
+            if (
+              sl.activeBetId &&
+              sl.activeBetRoundId === st.roundId &&
+              sl.autoCashoutEnabled &&
+              !autoCashLockRef.current[sid] &&
+              curMult >= target
+            ) {
+              autoCashLockRef.current[sid] = true;
+              const idToCash = sl.activeBetId;
+              updateSlot(sid, { activeBetId: null, activeBetRoundId: null });
+              cashOutRef.current('luckyjet', idToCash, target).then((res) => {
+                if (res.success) {
+                  updateSlot(sid, { cashedOutInfo: { mult: target, win: res.winAmount } });
+                } else if (res.crashed) {
+                  st.phase = 'crashed';
+                  st.crashPoint = res.crashPoint || target;
+                  setPhase('crashed');
+                  setMultiplier(res.crashPoint || target);
+                }
+              });
+            }
+          });
         }
       } else if (st.phase === 'crashed') {
         const finalCrash =
@@ -411,51 +467,54 @@ export const LuckyJetGame: React.FC = () => {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-  const handlePlaceBet = async () => {
-    if (isPlacing) return;
+  const handlePlaceBet = async (slotId: SlotId) => {
+    const sl = slots[slotId];
+    if (sl.isPlacing) return;
     if (phase !== 'waiting') {
       showToast('Wait for current flight to land before placing bet');
       return;
     }
-    if (activeBetId) {
-      showToast('Bet already locked for this round');
+    if (sl.activeBetId) {
+      showToast(`Slot #${slotId} bet already locked for this round`);
       return;
     }
-    const amt = Number(betAmount);
+    const amt = Number(sl.betAmount);
     if (isNaN(amt) || amt < 10) {
       showToast('Minimum Lucky Jet bet is ৳10');
       return;
     }
-    const autoTarget = autoCashoutEnabled
-      ? Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(autoCashoutVal) || 2.0))
+    const autoTarget = sl.autoCashoutEnabled
+      ? Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.autoCashoutVal) || 2.0))
       : undefined;
-    setIsPlacing(true);
+    updateSlot(slotId, { isPlacing: true });
     try {
-      const res = await placeCrashBet('luckyjet', roundId, amt, autoTarget);
+      const res = await placeCrashBet('luckyjet', roundId, amt, autoTarget, slotId);
       if (res.success && res.betId) {
-        setActiveBetId(res.betId);
-        setActiveBetRoundId(roundId);
-        setActiveBetAmount(amt);
-        setCashedOutInfo(null);
+        autoCashLockRef.current[slotId] = false;
+        updateSlot(slotId, {
+          activeBetId: res.betId,
+          activeBetRoundId: roundId,
+          activeBetAmount: amt,
+          cashedOutInfo: null
+        });
       } else {
         showToast(res.message);
       }
     } finally {
-      setIsPlacing(false);
+      updateSlot(slotId, { isPlacing: false });
     }
   };
 
-  const handleCashOut = async () => {
-    if (phase !== 'flying' || !activeBetId) return;
-    const idToCash = activeBetId;
+  const handleCashOut = async (slotId: SlotId) => {
+    const sl = slots[slotId];
+    if (phase !== 'flying' || !sl.activeBetId) return;
+    const idToCash = sl.activeBetId;
     const cashMult = multiplier;
-    setActiveBetId(null);
-    setActiveBetRoundId(null);
-    activeBetIdRef.current = null;
-    activeBetRoundRef.current = null;
+    autoCashLockRef.current[slotId] = true;
+    updateSlot(slotId, { activeBetId: null, activeBetRoundId: null });
     const res = await cashOutCrashBet('luckyjet', idToCash, cashMult);
     if (res.success) {
-      setCashedOutInfo({ mult: cashMult, win: res.winAmount });
+      updateSlot(slotId, { cashedOutInfo: { mult: cashMult, win: res.winAmount } });
     } else if (res.crashed) {
       serverStateRef.current.phase = 'crashed';
       serverStateRef.current.crashPoint = res.crashPoint || cashMult;
@@ -470,6 +529,9 @@ export const LuckyJetGame: React.FC = () => {
   const topBets = [...myLuckyJetBets]
     .filter((b) => b.status === 'cashed_out')
     .sort((a, b) => (b.winAmount || 0) - (a.winAmount || 0));
+  const cashedOutBadges = SLOT_IDS.map((sid) => ({ sid, info: slots[sid].cashedOutInfo })).filter(
+    (x): x is { sid: SlotId; info: { mult: number; win: number } } => Boolean(x.info)
+  );
 
   return (
     <div className="min-h-screen bg-[#141029] text-white pb-16">
@@ -521,7 +583,7 @@ export const LuckyJetGame: React.FC = () => {
               referrerPolicy="no-referrer"
               className="w-7 h-7 rounded-full object-cover border border-amber-400"
             />
-            <span className="font-black text-xs tracking-wider text-white">LUCKY JET</span>
+            <span className="font-black text-xs tracking-wider text-white">LUCKY JET · 3 SLOTS</span>
           </div>
           <span className="text-[11px] font-bold text-violet-300 font-mono tabular-nums">
             #{roundId}
@@ -596,12 +658,19 @@ export const LuckyJetGame: React.FC = () => {
                 >
                   {multiplier.toFixed(2)}x
                 </div>
-                {cashedOutInfo && (
-                  <div className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400/50 text-emerald-300 text-xs font-black">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>
-                      Withdrawn @ {cashedOutInfo.mult.toFixed(2)}x (+৳{cashedOutInfo.win.toFixed(2)})
-                    </span>
+                {cashedOutBadges.length > 0 && (
+                  <div className="mt-2 flex flex-wrap justify-center gap-1">
+                    {cashedOutBadges.map((b) => (
+                      <div
+                        key={b.sid}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400/50 text-emerald-300 text-[11px] font-black"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>
+                          S{b.sid}: {b.info.mult.toFixed(2)}x (+৳{b.info.win.toFixed(2)})
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -620,125 +689,160 @@ export const LuckyJetGame: React.FC = () => {
           </div>
         </div>
 
-        {/* Autobet & Autowithdrawal Betting Deck */}
-        <div className="bg-[#1D163A] rounded-2xl p-4 border border-violet-500/25 space-y-3.5">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <label className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-2 border border-violet-500/20 cursor-pointer">
-              <span className="font-bold text-violet-100">Autobet</span>
-              <input
-                type="checkbox"
-                checked={autoBetEnabled}
-                onChange={(e) => setAutoBetEnabled(e.target.checked)}
-                className="w-4 h-4 accent-amber-400"
-              />
-            </label>
-            <label className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-2 border border-violet-500/20 cursor-pointer">
-              <span className="font-bold text-violet-100">Autowithdrawal</span>
-              <input
-                type="checkbox"
-                checked={autoCashoutEnabled}
-                onChange={(e) => setAutoCashoutEnabled(e.target.checked)}
-                className="w-4 h-4 accent-amber-400"
-              />
-            </label>
-          </div>
-
-          {autoCashoutEnabled && (
-            <div className="flex items-center justify-between bg-[#141029] rounded-xl px-3.5 py-2 border border-amber-400/30">
-              <span className="text-xs font-bold text-amber-200">Target Multiplier</span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  step="0.1"
-                  min="1.1"
-                  max={MAX_MULTIPLIER}
-                  value={autoCashoutVal}
-                  onChange={(e) => setAutoCashoutVal(e.target.value)}
-                  className="w-20 bg-[#1D163A] border border-violet-400/30 rounded-lg px-2 py-1 text-right font-mono font-black text-xs text-amber-300 focus:outline-none"
-                />
-                <span className="text-xs font-black text-violet-300">x</span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-[#141029] border border-violet-500/30 rounded-xl px-3.5 py-2 flex items-center justify-between">
-              <span className="text-xs font-black text-amber-400">৳</span>
-              <input
-                type="number"
-                min={10}
-                disabled={Boolean(activeBetId)}
-                value={betAmount}
-                onChange={(e) => setBetAmount(e.target.value)}
-                className="w-full bg-transparent text-center font-mono font-black text-base text-white focus:outline-none tabular-nums disabled:opacity-60"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={Boolean(activeBetId)}
-              onClick={() => setBetAmount(String(Math.max(10, Math.floor((Number(betAmount) || 20) / 2))))}
-              className="min-h-[44px] px-3.5 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
-            >
-              1/2
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(activeBetId)}
-              onClick={() => setBetAmount(String(Math.min(50000, (Number(betAmount) || 10) * 2)))}
-              className="min-h-[44px] px-3.5 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
-            >
-              2X
-            </button>
-          </div>
-
-          <div className="grid grid-cols-4 gap-1.5">
-            {QUICK_CHIPS.map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                disabled={Boolean(activeBetId)}
-                onClick={() => setBetAmount(String(chip))}
-                className={`min-h-[38px] rounded-xl text-xs font-black font-mono tabular-nums border transition-all disabled:opacity-50 ${
-                  Number(betAmount) === chip
-                    ? 'bg-gradient-to-r from-[#D97706] to-[#F59E0B] border-amber-300 text-slate-950'
-                    : 'bg-[#141029] border-white/10 text-violet-100 hover:bg-white/10'
-                }`}
+        {/* 3 Independent Simultaneous Trade Slots */}
+        <div className="space-y-2.5">
+          {SLOT_IDS.map((slotId) => {
+            const sl = slots[slotId];
+            return (
+              <div
+                key={slotId}
+                className="bg-[#1D163A] rounded-2xl p-3.5 border border-violet-500/25 space-y-2.5"
               >
-                ৳{chip}
-              </button>
-            ))}
-          </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-black text-amber-300 tracking-wider uppercase">
+                    Jet Slot #{slotId}
+                  </span>
+                  {sl.cashedOutInfo ? (
+                    <span className="text-emerald-400 font-black font-mono">
+                      Won +৳{sl.cashedOutInfo.win.toFixed(2)} @ {sl.cashedOutInfo.mult.toFixed(2)}x
+                    </span>
+                  ) : sl.activeBetId ? (
+                    <span className="text-emerald-300 font-bold font-mono">
+                      Locked: ৳{sl.activeBetAmount.toFixed(0)}
+                    </span>
+                  ) : (
+                    <span className="text-violet-300/75 font-semibold">Min ৳10</span>
+                  )}
+                </div>
 
-          {phase === 'flying' && activeBetId ? (
-            <button
-              type="button"
-              onClick={handleCashOut}
-              className="w-full min-h-[54px] py-3.5 rounded-xl bg-gradient-to-r from-[#D97706] via-[#F59E0B] to-[#FBBF24] text-slate-950 font-black text-base shadow-lg active:scale-97 transition-all flex items-center justify-center gap-2"
-            >
-              <span>WITHDRAW</span>
-              <span className="font-mono tabular-nums">
-                ৳{(activeBetAmount * multiplier).toFixed(2)}
-              </span>
-            </button>
-          ) : activeBetId && phase === 'waiting' ? (
-            <div className="w-full min-h-[54px] py-3.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-black text-sm flex items-center justify-center gap-2">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Bet Locked: ৳{activeBetAmount.toFixed(2)} · Takeoff Ready</span>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handlePlaceBet}
-              disabled={phase !== 'waiting' || isPlacing}
-              className="w-full min-h-[54px] py-3.5 rounded-xl bg-gradient-to-r from-[#7C3AED] via-[#8B5CF6] to-[#A855F7] hover:brightness-110 text-white font-black text-base shadow-lg active:scale-97 transition-all disabled:opacity-45 disabled:cursor-not-allowed"
-            >
-              {phase === 'waiting'
-                ? `BET ৳${(Number(betAmount) || 0).toFixed(2)}`
-                : phase === 'flying'
-                ? 'FLIGHT IN PROGRESS...'
-                : 'NEXT ROUND STARTING...'}
-            </button>
-          )}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <label className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-1.5 border border-violet-500/20 cursor-pointer">
+                    <span className="font-bold text-violet-100 text-[11px]">Autobet</span>
+                    <input
+                      type="checkbox"
+                      checked={sl.autoBetEnabled}
+                      onChange={(e) => updateSlot(slotId, { autoBetEnabled: e.target.checked })}
+                      className="w-4 h-4 accent-amber-400"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-1.5 border border-violet-500/20 cursor-pointer">
+                    <span className="font-bold text-violet-100 text-[11px]">Autowithdraw</span>
+                    <input
+                      type="checkbox"
+                      checked={sl.autoCashoutEnabled}
+                      onChange={(e) => updateSlot(slotId, { autoCashoutEnabled: e.target.checked })}
+                      className="w-4 h-4 accent-amber-400"
+                    />
+                  </label>
+                </div>
+
+                {sl.autoCashoutEnabled && (
+                  <div className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-1.5 border border-amber-400/30">
+                    <span className="text-[11px] font-bold text-amber-200">Target Multiplier</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="1.1"
+                        max={MAX_MULTIPLIER}
+                        value={sl.autoCashoutVal}
+                        onChange={(e) => updateSlot(slotId, { autoCashoutVal: e.target.value })}
+                        className="w-16 bg-[#1D163A] border border-violet-400/30 rounded-lg px-2 py-0.5 text-right font-mono font-black text-xs text-amber-300 focus:outline-none"
+                      />
+                      <span className="text-xs font-black text-violet-300">x</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#141029] border border-violet-500/30 rounded-xl px-3 py-1.5 flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-400">৳</span>
+                    <input
+                      type="number"
+                      min={10}
+                      disabled={Boolean(sl.activeBetId)}
+                      value={sl.betAmount}
+                      onChange={(e) => updateSlot(slotId, { betAmount: e.target.value })}
+                      className="w-full bg-transparent text-center font-mono font-black text-sm text-white focus:outline-none tabular-nums disabled:opacity-60"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={Boolean(sl.activeBetId)}
+                    onClick={() =>
+                      updateSlot(slotId, {
+                        betAmount: String(Math.max(10, Math.floor((Number(sl.betAmount) || 20) / 2)))
+                      })
+                    }
+                    className="min-h-[38px] px-3 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
+                  >
+                    1/2
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(sl.activeBetId)}
+                    onClick={() =>
+                      updateSlot(slotId, {
+                        betAmount: String(Math.min(50000, (Number(sl.betAmount) || 10) * 2))
+                      })
+                    }
+                    className="min-h-[38px] px-3 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
+                  >
+                    2X
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5">
+                  {QUICK_CHIPS.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      disabled={Boolean(sl.activeBetId)}
+                      onClick={() => updateSlot(slotId, { betAmount: String(chip) })}
+                      className={`min-h-[34px] rounded-xl text-[11px] font-black font-mono tabular-nums border transition-all disabled:opacity-50 ${
+                        Number(sl.betAmount) === chip
+                          ? 'bg-gradient-to-r from-[#D97706] to-[#F59E0B] border-amber-300 text-slate-950'
+                          : 'bg-[#141029] border-white/10 text-violet-100 hover:bg-white/10'
+                      }`}
+                    >
+                      ৳{chip}
+                    </button>
+                  ))}
+                </div>
+
+                {phase === 'flying' && sl.activeBetId ? (
+                  <button
+                    type="button"
+                    onClick={() => handleCashOut(slotId)}
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-gradient-to-r from-[#D97706] via-[#F59E0B] to-[#FBBF24] text-slate-950 font-black text-sm shadow-lg active:scale-97 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>WITHDRAW #{slotId}</span>
+                    <span className="font-mono tabular-nums">
+                      ৳{(sl.activeBetAmount * multiplier).toFixed(2)}
+                    </span>
+                  </button>
+                ) : sl.activeBetId && phase === 'waiting' ? (
+                  <div className="w-full min-h-[46px] py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-black text-xs flex items-center justify-center gap-2">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Slot #{slotId} Locked: ৳{sl.activeBetAmount.toFixed(2)} · Takeoff Ready</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handlePlaceBet(slotId)}
+                    disabled={phase !== 'waiting' || sl.isPlacing}
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-gradient-to-r from-[#7C3AED] via-[#8B5CF6] to-[#A855F7] hover:brightness-110 text-white font-black text-sm shadow-lg active:scale-97 transition-all disabled:opacity-45 disabled:cursor-not-allowed"
+                  >
+                    {phase === 'waiting'
+                      ? `BET SLOT #${slotId} · ৳${(Number(sl.betAmount) || 0).toFixed(2)}`
+                      : phase === 'flying'
+                      ? 'FLIGHT IN PROGRESS...'
+                      : 'NEXT ROUND STARTING...'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* All / My / Top Bets Tabs */}
@@ -810,6 +914,7 @@ export const LuckyJetGame: React.FC = () => {
                     <div>
                       <div className="font-bold text-white flex items-center gap-2">
                         <span className="font-mono text-amber-300">#{b.roundId.slice(-5)}</span>
+                        {b.slot ? <span className="text-[10px] text-violet-300">S{b.slot}</span> : null}
                         <span className="tabular-nums">Bet: ৳{b.amount.toFixed(2)}</span>
                       </div>
                       <div className="text-[10px] text-violet-300/60 mt-0.5">{b.time}</div>
@@ -871,9 +976,9 @@ export const LuckyJetGame: React.FC = () => {
               </button>
             </div>
             <div className="p-4 text-xs text-violet-100 space-y-2.5 leading-relaxed">
-              <p>1. Place a bet (minimum ৳10) during the 5-second countdown before Lucky Joe takes off.</p>
+              <p>1. Place up to 3 simultaneous bets (minimum ৳10 per slot) during the 5-second countdown before Lucky Joe takes off.</p>
               <p>2. Watch the multiplier climb in real time synchronized across every connected device.</p>
-              <p>3. Tap WITHDRAW before Lucky Joe flies away to multiply your stake up to 10,000x!</p>
+              <p>3. Tap WITHDRAW on each slot before Lucky Joe flies away to multiply your stake up to 10,000x!</p>
             </div>
           </div>
         </div>

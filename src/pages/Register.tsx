@@ -4,6 +4,11 @@ import { ArrowLeft, Smartphone, Lock, Eye, EyeOff, Gift, Check, AlertCircle } fr
 import { getTranslation } from '../utils/i18n';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
+import {
+  BD_PHONE_RULE_MSG,
+  isValidBdLocalTenDigits,
+  normalizeBdDigitsInput
+} from '../utils/phoneAndApi';
 
 interface RegisterProps {
   onOpenLanguage?: () => void;
@@ -46,6 +51,10 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
       showToast('Please enter your phone number');
       return;
     }
+    if (countryCode === '+880' && !isValidBdLocalTenDigits(phoneNumber)) {
+      showToast(BD_PHONE_RULE_MSG);
+      return;
+    }
     if (!PASSWORD_REGEX.test(password)) {
       setPasswordError(PASSWORD_RULE_MSG);
       showToast(PASSWORD_RULE_MSG);
@@ -72,8 +81,9 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
       const fullPhone = cleaned.startsWith('+') ? cleaned : `${countryCode}${cleaned.replace(/^0+/, '')}`;
       const res = await register(fullPhone, password, inviteCode.trim());
       if (!res.success) {
-        if (res.message.toUpperCase().includes('INVITE CODE')) {
-          setInviteError('INVITE CODE IS NOT VALID');
+        const upper = res.message.toUpperCase();
+        if (upper.includes('INVITE CODE') || upper.includes('REFER CODE')) {
+          setInviteError('Refer Code is not Valid');
         }
         showToast(res.message);
       }
@@ -85,7 +95,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
   const showPwLiveError = password.length > 0 && !PASSWORD_REGEX.test(password);
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-10">
+    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-24">
       {/* Luxury Gold Header */}
       <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
@@ -166,14 +176,27 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 <div className="relative flex-1">
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={countryCode === '+880' ? 10 : 14}
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder={getTranslation(language, 'pleaseEnterPhone')}
+                    onChange={(e) => {
+                      const val =
+                        countryCode === '+880'
+                          ? normalizeBdDigitsInput(e.target.value)
+                          : e.target.value.replace(/\D/g, '').slice(0, 14);
+                      setPhoneNumber(val);
+                    }}
+                    placeholder={countryCode === '+880' ? '17XXXXXXXX (10 digits)' : getTranslation(language, 'pleaseEnterPhone')}
                     className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     required
                   />
                 </div>
               </div>
+              {countryCode === '+880' && (
+                <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                  Must start with <strong className="text-[#B45309]">18, 17, 13, 15, or 19</strong> (10 digits max)
+                </div>
+              )}
             </div>
 
             {/* Set Password */}

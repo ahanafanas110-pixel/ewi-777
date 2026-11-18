@@ -18,9 +18,17 @@ function extractClientIp(req: IncomingMessage): string {
 }
 
 export default async function handler(req: IncomingMessage & { method?: string; body?: any }, res: ServerResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
   res.statusCode = 200;
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', 'no-store');
   const ip = extractClientIp(req);
   const nowMs = Date.now();
   res.end(

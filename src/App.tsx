@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AppProvider, useApp, PUBLIC_UNAUTH_TABS } from './context/AppContext';
+import React, { useState, useEffect, useRef } from 'react';
+import { AppProvider, useApp, PUBLIC_UNAUTH_TABS, getLocalDateStr } from './context/AppContext';
 import { Toast } from './components/Toast';
 import { BottomNav } from './components/BottomNav';
 import { LanguageModal } from './components/LanguageModal';
@@ -37,7 +37,10 @@ import { SuperJackpot } from './pages/SuperJackpot';
 import { FirstGift } from './pages/FirstGift';
 import { K3Game } from './pages/K3Game';
 import { D5Game } from './pages/D5Game';
-import { ExtraFirstDepositModal } from './components/AccountIcons';
+import { GameStatistics } from './pages/GameStatistics';
+import { EwiWinGo } from './pages/EwiWinGo';
+import { ExtraFirstDepositModal, FIRST_DEPOSIT_TIERS } from './components/AccountIcons';
+import { WinGoResultPopupModal } from './components/WinGoAssets';
 import { CustomerServiceLogo } from './components/BrandLogos';
 import { Megaphone, Wrench, ShieldCheck, Ban, PowerOff, LogOut, X } from 'lucide-react';
 
@@ -58,8 +61,20 @@ export const isAuthorizedAdminRoute = (): boolean => {
 };
 
 const MainApp: React.FC = () => {
-  const { user, logout, activeTab, setActiveTab, isNavigating, adminSettings } = useApp();
+  const {
+    user,
+    logout,
+    activeTab,
+    setActiveTab,
+    isNavigating,
+    adminSettings,
+    wingoResultPopup,
+    clearWingoResultPopup,
+    setFirstDepositModalOpen
+  } = useApp();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const prevDepositedRef = useRef<number | null>(null);
+  const lastMainTabRef = useRef<string>('');
   const [dismissedPopupKey, setDismissedPopupKey] = useState<string>('');
   const [showSplash, setShowSplash] = useState<boolean>(true);
   const [splashFading, setSplashFading] = useState<boolean>(false);
@@ -150,6 +165,43 @@ const MainApp: React.FC = () => {
     };
   }, [user.isLoggedIn, setActiveTab]);
 
+  // Trigger Extra First Deposit bonus popup across main tabs & automatically after new deposit
+  useEffect(() => {
+    if (!user.isLoggedIn) {
+      prevDepositedRef.current = null;
+      lastMainTabRef.current = '';
+      return;
+    }
+
+    const curDep = Number(user.totalDeposited) || 0;
+    const didDepositIncrease = prevDepositedRef.current !== null && curDep > prevDepositedRef.current;
+    prevDepositedRef.current = curDep;
+
+    const claimedMap = user.claimedFirstDepositTiers || {};
+    const hasUncollectedTier = FIRST_DEPOSIT_TIERS.some((t) => !claimedMap[String(t.deposit)]);
+    const hasCollectableUnlocked = FIRST_DEPOSIT_TIERS.some(
+      (t) => curDep >= t.deposit && !claimedMap[String(t.deposit)]
+    );
+
+    if (didDepositIncrease && hasUncollectedTier) {
+      try {
+        localStorage.removeItem('ewi777_fd_hide_date');
+      } catch {}
+      setFirstDepositModalOpen(true);
+      lastMainTabRef.current = activeTab;
+      return;
+    }
+
+    const MAIN_TABS = ['home', 'activity', 'promotion', 'wallet', 'account'];
+    if (MAIN_TABS.includes(activeTab) && lastMainTabRef.current !== activeTab) {
+      lastMainTabRef.current = activeTab;
+      const hiddenToday = localStorage.getItem('ewi777_fd_hide_date') === getLocalDateStr();
+      if (!hiddenToday && hasUncollectedTier && (curDep === 0 || hasCollectableUnlocked)) {
+        setFirstDepositModalOpen(true);
+      }
+    }
+  }, [user.isLoggedIn, user.totalDeposited, user.claimedFirstDepositTiers, activeTab, setFirstDepositModalOpen]);
+
   const isAuthBlocked = !user.isLoggedIn && !PUBLIC_UNAUTH_TABS.has(activeTab);
 
   const renderCurrentView = () => {
@@ -190,9 +242,11 @@ const MainApp: React.FC = () => {
         ) : (
           <Login onOpenLanguage={() => setShowLanguageModal(true)} />
         );
+      case 'gold-market':
+        return <BinaryMarket initialMarketMode="gold" />;
       case 'binary':
       case 'binary-market':
-        return <BinaryMarket />;
+        return <BinaryMarket initialMarketMode="binary" />;
       case 'aviator':
       case 'aviator-plane':
         return <AviatorPlane />;
@@ -227,6 +281,10 @@ const MainApp: React.FC = () => {
         return <K3Game />;
       case '5d':
         return <D5Game />;
+      case 'ewi-wingo':
+        return <EwiWinGo />;
+      case 'game-statistics':
+        return <GameStatistics />;
       default:
         return <Home onOpenLanguage={() => setShowLanguageModal(true)} />;
     }
@@ -241,12 +299,21 @@ const MainApp: React.FC = () => {
     );
   }
 
-  const showBottomNav =
-    user.isLoggedIn && ['home', 'activity', 'promotion', 'wallet', 'account'].includes(activeTab);
-  const popupKey = `${adminSettings.popupTitle || ''}::${adminSettings.popupMessage || ''}`;
+  const showBottomNav = [
+    'home',
+    'activity',
+    'promotion',
+    'wallet',
+    'account',
+    'login',
+    'register',
+    'registration',
+    'customer-service'
+  ].includes(activeTab);
+  const popupKey = `${adminSettings.popupTitle || ''}::${adminSettings.popupMessage || ''}::${adminSettings.popupImageUrl || ''}`;
   const showSystemPopup =
     Boolean(adminSettings.enableSystemPopup) &&
-    Boolean(adminSettings.popupMessage?.trim()) &&
+    (Boolean(adminSettings.popupMessage?.trim()) || Boolean(adminSettings.popupImageUrl?.trim())) &&
     dismissedPopupKey !== popupKey;
 
   const isSiteOff = adminSettings.siteEnabled === false && !isAuthorizedAdminRoute();
@@ -268,12 +335,6 @@ const MainApp: React.FC = () => {
               referrerPolicy="no-referrer"
               className="w-80 max-w-[85vw] object-contain drop-shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
             />
-            <div className="w-44 h-1.5 rounded-full bg-white/30 overflow-hidden shadow-inner">
-              <div
-                className="h-full bg-amber-200 rounded-full transition-all duration-[1800ms] ease-out"
-                style={{ width: splashFading ? '100%' : '88%' }}
-              />
-            </div>
             <div className="text-xs font-black tracking-widest uppercase text-amber-100">
               {adminSettings.appName || 'EWI 777'} Official
             </div>
@@ -399,33 +460,55 @@ const MainApp: React.FC = () => {
 
         {/* System Announcement Popup */}
         {!isSiteOff && !adminSettings.maintenanceMode && !isUserBanned && showSystemPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-            <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-amber-100">
-              <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] p-4 text-white flex items-center justify-between">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-fade-in">
+            <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-amber-200 flex flex-col">
+              <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] px-5 py-3.5 text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
                     <Megaphone className="w-4 h-4" />
                   </div>
-                  <h3 className="font-black text-sm tracking-tight">
-                    {adminSettings.popupTitle || 'System Announcement'}
+                  <h3 className="font-black text-base tracking-wide uppercase">
+                    {adminSettings.popupTitle?.trim() || 'ANNOUNCEMENT'}
                   </h3>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setDismissedPopupKey(popupKey)}
                   className="p-1 rounded-full hover:bg-white/20 text-white"
+                  aria-label="Close Announcement"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="p-5 space-y-4">
-                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-medium">
-                  {adminSettings.popupMessage}
-                </p>
+
+              <div className="p-4 space-y-3.5 max-h-[65vh] overflow-y-auto bg-white">
+                {adminSettings.popupImageUrl?.trim() && (
+                  <div className="rounded-2xl overflow-hidden border border-amber-100 shadow-xs bg-[#FFFDF7]">
+                    <img
+                      src={adminSettings.popupImageUrl.trim()}
+                      alt={adminSettings.popupTitle || 'Announcement'}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-auto max-h-80 object-contain mx-auto block"
+                    />
+                  </div>
+                )}
+
+                {adminSettings.popupMessage?.trim() && (
+                  <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-100">
+                    <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-semibold">
+                      {adminSettings.popupMessage}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-4 pb-4 pt-2 bg-white border-t border-amber-50">
                 <button
+                  type="button"
                   onClick={() => setDismissedPopupKey(popupKey)}
-                  className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md active:scale-98 transition-all"
+                  className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm tracking-wide shadow-md active:scale-98 transition-all"
                 >
-                  I Know
+                  Confirm
                 </button>
               </div>
             </div>
@@ -436,6 +519,7 @@ const MainApp: React.FC = () => {
         <NotificationModal />
         <AddToDesktopModal />
         <ExtraFirstDepositModal />
+        <WinGoResultPopupModal popup={wingoResultPopup} onClose={clearWingoResultPopup} />
         <LanguageModal
           isOpen={showLanguageModal}
           onClose={() => setShowLanguageModal(false)}

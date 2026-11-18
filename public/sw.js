@@ -1,6 +1,5 @@
-const CACHE_NAME = 'ewi777-shell-v1';
+const CACHE_NAME = 'ewi777-shell-v3';
 const SHELL_ASSETS = [
-  '/',
   '/manifest.webmanifest',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
@@ -28,8 +27,16 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  // Never cache API calls or cross-origin live data
-  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) {
+
+  // Never intercept or cache API calls, cross-origin requests, service worker script, or HTML navigations
+  if (
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname === '/sw.js' ||
+    req.mode === 'navigate'
+  ) {
     return;
   }
 

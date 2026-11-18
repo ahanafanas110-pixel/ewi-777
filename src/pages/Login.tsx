@@ -1,17 +1,27 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowLeft, Smartphone, Mail, Lock, Eye, EyeOff, Check, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Smartphone, Mail, Lock, Eye, EyeOff, Check, ShieldCheck, Ban } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { EventRewardsModal } from '../components/AccountIcons';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
+import { normalizeBdDigitsInput } from '../utils/phoneAndApi';
 
 interface LoginProps {
   onOpenLanguage?: () => void;
 }
 
 export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
-  const { user, login, setActiveTab, language, showToast, adminSettings } = useApp();
+  const {
+    user,
+    login,
+    setActiveTab,
+    language,
+    showToast,
+    adminSettings,
+    banNotice,
+    clearBanNotice
+  } = useApp();
   const [authMode, setAuthMode] = useState<'phone' | 'email'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -24,10 +34,13 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
   const [captchaOpen, setCaptchaOpen] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<string | null>(null);
   const [showEventRewards, setShowEventRewards] = useState<boolean>(!user.isLoggedIn);
+  const [banAlert, setBanAlert] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    setBanAlert(null);
+    clearBanNotice();
     const target =
       authMode === 'phone'
         ? phoneNumber.trim().startsWith('+') || phoneNumber.trim().startsWith('0')
@@ -49,6 +62,9 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
     try {
       const res = await login(pendingTarget, password, rememberPassword);
       if (!res.success) {
+        if (res.message.toLowerCase().includes('banned')) {
+          setBanAlert('This account has been banned. Please contact Customer Care.');
+        }
         showToast(res.message);
       }
     } finally {
@@ -57,8 +73,10 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
     }
   };
 
+  const activeBanText = banAlert || banNotice;
+
   return (
-    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-10">
+    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-24">
       {/* Luxury Gold Gradient Header */}
       <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
@@ -106,6 +124,27 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
       {/* Main Card Content */}
       <div className="px-4 -mt-3">
         <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200">
+          {activeBanText && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2 shadow-2xs">
+              <div className="flex items-start gap-2 text-xs font-black">
+                <Ban className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <span>{activeBanText}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  clearBanNotice();
+                  setBanAlert(null);
+                  setActiveTab('customer-service');
+                  window.location.hash = '#/customer-service';
+                }}
+                className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-2xs active:scale-98"
+              >
+                Contact Customer Care →
+              </button>
+            </div>
+          )}
+
           <div className="mb-4 px-3 py-2 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-[#B45309] flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 flex-shrink-0" />
             <span>Account login or registration is required to enter WinGo, Aviator &amp; Gold Markets.</span>
@@ -182,9 +221,17 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
 
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={countryCode === '+880' ? 10 : 14}
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder={getTranslation(language, 'pleaseEnterPhone')}
+                    onChange={(e) => {
+                      const val =
+                        countryCode === '+880'
+                          ? normalizeBdDigitsInput(e.target.value)
+                          : e.target.value.replace(/\D/g, '').slice(0, 14);
+                      setPhoneNumber(val);
+                    }}
+                    placeholder={countryCode === '+880' ? '17XXXXXXXX (10 digits)' : getTranslation(language, 'pleaseEnterPhone')}
                     className="flex-1 bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     required
                   />

@@ -20,6 +20,10 @@ export const Safe: React.FC = () => {
   const handleTransfer = (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(customAmount);
+    if (activeTab === 'in' && (isNaN(amt) || amt < 200)) {
+      showToast('Minimum Safe Vault deposit is ৳200');
+      return;
+    }
     const res = transferSafe(amt, activeTab);
     if (!res.success) {
       showToast(res.message);
@@ -93,7 +97,7 @@ export const Safe: React.FC = () => {
           {/* Amount input & presets */}
           <div>
             <div className="flex items-center justify-between text-xs text-slate-600 font-bold mb-2">
-              <span>Amount (Each amount: 100)</span>
+              <span>Amount (Min ৳200 to Vault In)</span>
               <button
                 type="button"
                 onClick={() => setCustomAmount(activeTab === 'in' ? user.balance.toString() : user.safeBalance.toString())}

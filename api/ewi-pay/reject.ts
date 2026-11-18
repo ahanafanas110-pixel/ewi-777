@@ -5,6 +5,9 @@ const EWI_PAY_API_KEY = process.env.EWI_PAY_API_KEY || 'ewi_live_ewi777_88789947
 
 async function readBodyJson(req: any): Promise<any> {
   if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    try { return JSON.parse(req.body); } catch { return {}; }
+  }
   return new Promise((resolve) => {
     let raw = '';
     req.on('data', (chunk: Buffer | string) => { raw += chunk.toString(); });
@@ -13,7 +16,21 @@ async function readBodyJson(req: any): Promise<any> {
   });
 }
 
+function setCorsHeaders(res: ServerResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
+  res.setHeader('Cache-Control', 'no-store');
+}
+
 export default async function handler(req: IncomingMessage & { method?: string; body?: any }, res: ServerResponse) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   const sendJson = (code: number, payload: any) => {
     res.statusCode = code;
     res.setHeader('Content-Type', 'application/json');

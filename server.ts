@@ -76,7 +76,7 @@ const DEFAULT_BANNERS = [
   {
     id: 'ban_ewi777_official',
     title: 'EWI 777 Official Crown Event',
-    url: '/ewi777-banner.jpg',
+    url: '/assets/aistudio/image_046bb074.png',
     link: '#/wingo',
     sortOrder: 1,
     active: true
@@ -90,10 +90,10 @@ const DEFAULT_BANNERS = [
     active: true
   },
   {
-    id: 'ban_ewi777_asia_welcome',
-    title: "EWI 777 — Welcome to Asia's Best Entertainment Website",
-    url: '/ewi777-asia-banner.jpg',
-    link: '#/wingo',
+    id: 'ban_ewi777_usdt_2pct',
+    title: 'Recharge USDT Get 2% Bonus ($2 - $20,000)',
+    url: '/assets/aistudio/image_d2e764e7.png',
+    link: '#/deposit',
     sortOrder: 3,
     active: true
   }
@@ -116,9 +116,9 @@ const DEFAULT_STORE: ServerStore = {
     nagadNumber: '',
     rocketNumber: '',
     usdtAddress: '',
-    minWithdraw: 100,
+    minWithdraw: 300,
     referCommissionPercent: 10,
-    depositInstructions: 'Pay via EWI-Pay instant bKash/Nagad gateway. Minimum deposit ৳100.',
+    depositInstructions: 'Pay via EWI-Pay instant bKash/Nagad gateway. Minimum deposit ৳200.',
     nextWingoOutcome: 'AUTO',
     nextWingoOutcomes: {
       '30s': 'AUTO',
@@ -151,10 +151,12 @@ const DEFAULT_STORE: ServerStore = {
     minesPattern: 'RANDOM',
     binaryNextCandleBias: 'AUTO',
     updatedAt: 0,
-    marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Instant referral commission, 24/7 fast withdrawals via Nagad & bKash. Live synchronized WinGo Lottery, EWI K3, EWI 5D, Aviator, Lucky Jet, Coin Flip, Mines & Gold Market!',
-    popupTitle: 'Welcome to EWI 777',
-    popupMessage: '',
-    enableSystemPopup: false,
+    marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Binance / USDT ($2 - $20,000) deposit live with automatic +2% bonus! Fast 24/7 payouts via Nagad & bKash.',
+    popupTitle: 'ANNOUNCEMENT',
+    popupMessage: 'Binance / USDT deposit is now available on EWI 777! Minimum $2 to $20,000 supported — get +2% automatic bonus on every completed USDT deposit.',
+    popupImageUrl: '/assets/aistudio/image_d2e764e7.png',
+    enableSystemPopup: true,
+    usdtRateBdt: 120,
     banners: DEFAULT_BANNERS,
     bannersCustomized: false,
     activeGiftCodes: [],
@@ -172,17 +174,25 @@ function normalizePhoneServer(phone: string): string {
   else if (cleaned.startsWith('+880')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('8800')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('880')) cleaned = '0' + cleaned.slice(3);
-  else if (/^1[3-9]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
+  else if (/^1[35789]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
   return cleaned;
 }
 
+function isValidBdPhoneServer(normPhone: string): boolean {
+  return /^01[35789]\d{8}$/.test(String(normPhone || '').trim());
+}
+
 function sanitizeBannerList(banners: any[]) {
-  return banners.slice(0, 10).map((b: any) => ({
-    ...b,
-    url: String(b?.url || '').includes('image_06ccef65.png')
-      ? '/assets/brand/welcome-200-banner.png'
-      : String(b?.url || '')
-  }));
+  return banners.slice(0, 10).map((b: any) => {
+    const rawUrl = String(b?.url || '');
+    if (rawUrl.includes('image_06ccef65.png')) {
+      return { ...b, url: '/assets/brand/welcome-200-banner.png' };
+    }
+    if (rawUrl.includes('image_8c5384f7') || rawUrl.includes('image_3c433c14')) {
+      return { ...b, url: '/assets/aistudio/image_046bb074.png' };
+    }
+    return { ...b, url: rawUrl };
+  });
 }
 
 function redactPublicSettings(s: any) {
@@ -209,6 +219,7 @@ function loadStore(): ServerStore {
       const parsed = JSON.parse(raw);
       const savedSettings = parsed.settings || {};
       const hasCustomBanners = Boolean(savedSettings.bannersCustomized);
+      const hasCustomPopup = Boolean(savedSettings.popupCustomized);
       const migratedPhoneHash =
         savedSettings.adminPhoneHash ||
         (savedSettings.adminPhone
@@ -247,6 +258,10 @@ function loadStore(): ServerStore {
           supportPhone: sanitizeLegacyNumberIfNeeded(cleanSaved.supportPhone),
           adminPhoneHash: migratedPhoneHash,
           adminPasswordHash: migratedPassHash,
+          popupTitle: hasCustomPopup ? cleanSaved.popupTitle : DEFAULT_STORE.settings.popupTitle,
+          popupMessage: hasCustomPopup ? cleanSaved.popupMessage : DEFAULT_STORE.settings.popupMessage,
+          popupImageUrl: hasCustomPopup ? cleanSaved.popupImageUrl : DEFAULT_STORE.settings.popupImageUrl,
+          enableSystemPopup: hasCustomPopup ? cleanSaved.enableSystemPopup : true,
           banners: hasCustomBanners
             ? (Array.isArray(cleanSaved.banners) ? sanitizeBannerList(cleanSaved.banners) : DEFAULT_BANNERS)
             : DEFAULT_BANNERS
@@ -376,18 +391,24 @@ async function startServer() {
     if (!dep) {
       return res.status(404).json({ success: false, message: 'Deposit not found' });
     }
+    if (dep.status === 'approved') {
+      return res.json({ success: true, deposit: dep, alreadyApproved: true });
+    }
 
     dep.status = 'approved';
+    const isUsdtDeposit = String(dep.method || '').toUpperCase() === 'USDT';
+    const usdtAutoBonus = isUsdtDeposit ? +(Number(dep.amount || 0) * 0.02).toFixed(2) : 0;
 
     // Credit user if user exists on server
     const user = store.users.find((u) => u.id === dep.userId || u.phone === dep.userPhone);
     if (user) {
-      user.balance = +(Number(user.balance || 0) + dep.amount).toFixed(2);
-      user.totalDeposited = +(Number(user.totalDeposited || 0) + dep.amount).toFixed(2);
+      user.balance = +(Number(user.balance || 0) + Number(dep.amount || 0) + usdtAutoBonus).toFixed(2);
+      user.totalDeposited = +(Number(user.totalDeposited || 0) + Number(dep.amount || 0)).toFixed(2);
+      user.updatedAt = Date.now();
     }
 
     saveStore(store);
-    res.json({ success: true, deposit: dep });
+    res.json({ success: true, deposit: dep, usdtAutoBonus });
   });
 
   app.post('/api/deposits/reject', (req, res) => {
@@ -426,6 +447,13 @@ async function startServer() {
     const normPhone = normalizePhoneServer(clientUser.phone || '');
     const normEmail = (clientUser.email || '').trim().toLowerCase();
 
+    if (!normEmail && !isValidBdPhoneServer(normPhone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number must be max 10 digits (after +880) starting with 18, 17, 13, 15, or 19.'
+      });
+    }
+
     const duplicate = store.users.find((u) => {
       const uPhone = normalizePhoneServer(u.phone || '');
       const uEmail = (u.email || '').trim().toLowerCase();
@@ -450,7 +478,7 @@ async function startServer() {
       if (!matchedReferrer) {
         return res.status(400).json({
           success: false,
-          message: 'INVITE CODE IS NOT VALID'
+          message: 'Refer Code is not Valid'
         });
       }
     }
@@ -513,7 +541,8 @@ async function startServer() {
     if (existing.isBanned) {
       return res.status(403).json({
         success: false,
-        message: `Account is Banned: ${existing.banReason || 'Terms Violation'}. Contact Customer Support.`
+        banned: true,
+        message: 'This account has been banned. Please contact Customer Care.'
       });
     }
 
@@ -624,15 +653,20 @@ async function startServer() {
       return res.status(403).json({ success: false, message: 'Withdraw system is currently disabled by Administrator' });
     }
     const { userId, userName, userPhone, amount, method, number } = req.body;
-    if (!amount || !number) {
+    const numAmt = Number(amount) || 0;
+    const minWd = Math.max(300, Number(store.settings.minWithdraw || 300));
+    if (!numAmt || !number) {
       return res.status(400).json({ success: false, message: 'Missing withdraw fields' });
+    }
+    if (numAmt < minWd || numAmt > 50000) {
+      return res.status(400).json({ success: false, message: `Withdrawal amount must be between ৳${minWd} and ৳50,000` });
     }
     const newWd = {
       id: `wd_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       userId: userId || 'guest',
       userName: userName || userPhone || 'User',
       userPhone: userPhone || '',
-      amount: Number(amount),
+      amount: numAmt,
       method: method || 'bKash',
       number: String(number).trim(),
       status: 'pending',
@@ -641,7 +675,7 @@ async function startServer() {
     store.withdraws = [newWd, ...store.withdraws];
     const uIdx = store.users.findIndex((u) => u.id === userId || u.uid === userId);
     if (uIdx >= 0) {
-      store.users[uIdx].balance = +Math.max(0, Number(store.users[uIdx].balance || 0) - Number(amount)).toFixed(2);
+      store.users[uIdx].balance = +Math.max(0, Number(store.users[uIdx].balance || 0) - numAmt).toFixed(2);
       store.users[uIdx].updatedAt = Date.now();
     }
     saveStore(store);
@@ -649,11 +683,19 @@ async function startServer() {
   });
 
   app.post('/api/withdraws/update', (req, res) => {
-    const { id, status } = req.body;
+    const { id, status, adminNote, ewiPayWithdrawId } = req.body || {};
     const wd = store.withdraws.find((w) => w.id === id);
     if (!wd) return res.status(404).json({ success: false, message: 'Withdraw request not found' });
     const prevStatus = wd.status;
     wd.status = status;
+    if (typeof adminNote === 'string' && adminNote.trim()) {
+      wd.adminNote = adminNote.trim();
+    } else if (status === 'rejected' && !wd.adminNote) {
+      wd.adminNote = 'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ';
+    }
+    if (typeof ewiPayWithdrawId === 'string' && ewiPayWithdrawId.trim()) {
+      wd.ewiPayWithdrawId = ewiPayWithdrawId.trim();
+    }
 
     const uIdx = store.users.findIndex((u) => u.id === wd.userId || u.uid === wd.userId);
     if (uIdx >= 0) {
@@ -681,17 +723,11 @@ async function startServer() {
       return res.status(400).json({ success: false, message: 'Phone number is required' });
     }
 
-    const cleanPhone = phone.trim();
-    // Look up user's registered password
-    const matchedUser = store.users.find(
-      (u) => (u.phone && u.phone.includes(cleanPhone)) || u.id === cleanPhone
-    );
-
+    const cleanPhone = String(phone).trim();
     const newReq = {
       id: `pw_${Date.now()}`,
       phone: cleanPhone,
-      note: note || 'User requested password recovery via Customer Service',
-      matchedPassword: matchedUser ? matchedUser.loginPassword : null,
+      note: note || 'User requested password recovery via Customer Care',
       status: 'pending',
       time: new Date().toLocaleString()
     };
@@ -699,10 +735,9 @@ async function startServer() {
     store.passwordRequests = [newReq, ...store.passwordRequests];
     saveStore(store);
 
-    console.log(`[PASSWORD RECOVERY REQUEST] Phone: ${cleanPhone}`);
     res.json({
       success: true,
-      message: 'Support ticket submitted successfully. Customer Service is processing your password recovery.',
+      message: 'To reset or recover your password, please message Customer Care in Live Chat.',
       ticket: newReq
     });
   });
@@ -798,9 +833,15 @@ async function startServer() {
     delete incoming.adminPhone;
     delete incoming.adminPassword;
 
+    const touchesPopup =
+      'popupTitle' in incoming ||
+      'popupMessage' in incoming ||
+      'popupImageUrl' in incoming ||
+      'enableSystemPopup' in incoming;
     const nextSettings = {
       ...store.settings,
       ...incoming,
+      popupCustomized: touchesPopup ? true : Boolean(store.settings.popupCustomized),
       bannersCustomized:
         typeof incoming.bannersCustomized === 'boolean'
           ? incoming.bannersCustomized
@@ -1691,17 +1732,40 @@ async function startServer() {
       return res.status(403).json({ success: false, message: 'NOW NOT AVAILABLE' });
     }
     try {
-      const { amount, user_id, method, channel, senderNumber } = req.body || {};
-      const numAmt = Number(amount) || 0;
+      const { amount, usdAmount, user_id, method, channel, senderNumber, returnUrl } = req.body || {};
+      const methodStr = String(method || 'bKash');
+      const isUsdt = methodStr.toUpperCase() === 'USDT';
+      const usdtRate = Math.max(100, Number(store.settings?.usdtRateBdt || 120));
+      const numUsd = usdAmount !== undefined ? Number(usdAmount) : 0;
+      const numAmt = isUsdt && numUsd > 0 ? +(numUsd * usdtRate).toFixed(2) : Number(amount) || 0;
       const cleanUserId = String(user_id || 'USER_1').trim();
-      if (numAmt <= 0) {
-        return res.status(400).json({ success: false, message: 'Valid deposit amount is required' });
+      if (isUsdt) {
+        const checkUsd = numUsd > 0 ? numUsd : +(numAmt / usdtRate).toFixed(2);
+        if (checkUsd < 2 || checkUsd > 20000) {
+          return res.status(400).json({ success: false, message: 'Binance / USDT deposit must be between $2 and $20,000' });
+        }
+      } else if (numAmt < 200 || numAmt > 50000) {
+        return res.status(400).json({ success: false, message: 'Deposit amount must be between ৳200 and ৳50,000' });
       }
-      const fallbackUrl = `${EWI_PAY_BASE}/payment/ewi777?amount=${encodeURIComponent(String(numAmt))}&user_id=${encodeURIComponent(cleanUserId)}`;
+      const methodLower = methodStr.toLowerCase();
+      const gatewayEndpoint = methodLower.includes('bkash')
+        ? `${EWI_PAY_BASE}/api/v1/bkash/checkout/create`
+        : methodLower.includes('nagad')
+        ? `${EWI_PAY_BASE}/api/v1/nagad/checkout/create`
+        : `${EWI_PAY_BASE}/api/v1/checkout/create`;
+      const methodQuery = methodLower.includes('bkash')
+        ? '&method=bkash'
+        : methodLower.includes('nagad')
+        ? '&method=nagad'
+        : isUsdt
+        ? '&method=usdt'
+        : '';
+      const fallbackUrl = `${EWI_PAY_BASE}/payment/ewi777?amount=${encodeURIComponent(String(numAmt))}&user_id=${encodeURIComponent(cleanUserId)}${methodQuery}`;
+
       let upstreamJson: any = null;
       let upstreamOk = false;
       try {
-        const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/checkout/create`, {
+        const upRes = await fetch(gatewayEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1710,9 +1774,12 @@ async function startServer() {
           body: JSON.stringify({
             site: 'ewi777',
             amount: numAmt,
+            ...(isUsdt && numUsd > 0 ? { usdAmount: numUsd } : {}),
             user_id: cleanUserId,
-            method: method || 'bKash',
-            channel: channel || 'EWI-Pay'
+            method: methodLower.includes('bkash') ? 'bkash' : methodLower.includes('nagad') ? 'nagad' : (method || 'bKash'),
+            channel: channel || 'EWI-Pay',
+            return_url: returnUrl || undefined,
+            returnUrl: returnUrl || undefined
           })
         });
         upstreamOk = upRes.ok;
@@ -1726,34 +1793,49 @@ async function startServer() {
         upstreamJson?.checkoutUrl ||
         upstreamJson?.payment_url ||
         upstreamJson?.data?.checkout_url ||
+        upstreamJson?.data?.checkoutUrl ||
         upstreamJson?.data?.url ||
         fallbackUrl;
+      const sessionId =
+        upstreamJson?.session_id ||
+        upstreamJson?.sessionId ||
+        upstreamJson?.data?.session_id ||
+        upstreamJson?.data?.sessionId ||
+        '';
       const depositId =
         upstreamJson?.deposit_id ||
         upstreamJson?.depositId ||
         upstreamJson?.id ||
         upstreamJson?.data?.id ||
-        `ewipay_${Date.now()}`;
+        (sessionId || `ewipay_${Date.now()}`);
 
       const depRecord = {
         id: String(depositId),
+        sessionId: sessionId ? String(sessionId) : String(depositId),
         userId: cleanUserId,
         userPhone: String(senderNumber || cleanUserId),
-        method: method || 'bKash',
-        channel: channel || 'EWI-Pay Gateway',
+        method: (method || 'bKash') as 'bKash' | 'Nagad' | 'USDT',
+        channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
         amount: numAmt,
+        ...(isUsdt && numUsd > 0 ? { usdAmount: numUsd } : {}),
         senderNumber: String(senderNumber || cleanUserId),
-        trxId: String(upstreamJson?.trx_id || depositId).toUpperCase(),
+        trxId: String(upstreamJson?.trx_id || upstreamJson?.trxId || depositId).toUpperCase(),
         status: 'pending',
         time: new Date().toLocaleString()
       };
-      store.deposits = [depRecord, ...(store.deposits || []).filter((d) => d.id !== depRecord.id)];
+      store.deposits = [
+        depRecord,
+        ...(store.deposits || []).filter(
+          (d) => d.id !== depRecord.id && !(depRecord.sessionId && d.sessionId === depRecord.sessionId)
+        )
+      ];
       saveStore(store);
 
       res.json({
         success: true,
         upstreamSynced: upstreamOk,
         checkoutUrl,
+        sessionId: depRecord.sessionId,
         depositId: depRecord.id,
         deposit: depRecord,
         gateway: upstreamJson
@@ -1763,20 +1845,56 @@ async function startServer() {
     }
   });
 
-  app.get('/api/ewi-pay/transactions', async (req, res) => {
+  app.get('/api/ewi-pay/checkout-status/:sessionId', async (req, res) => {
+    const sessionId = String(req.params.sessionId || '').trim();
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'sessionId required' });
+    }
     try {
-      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/merchant/transactions`, {
+      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/checkout/status/${encodeURIComponent(sessionId)}`, {
         headers: { 'x-api-key': EWI_PAY_API_KEY }
       });
       const json = await upRes.json().catch(() => ({}));
-      const list = Array.isArray(json?.transactions)
-        ? json.transactions
-        : Array.isArray(json?.data)
-        ? json.data
-        : Array.isArray(json)
-        ? json
-        : [];
-      res.json({ success: upRes.ok, transactions: list, raw: json });
+      res.json({ success: upRes.ok, sessionId, gateway: json });
+    } catch (err: any) {
+      res.status(502).json({ success: false, message: err?.message || 'Checkout status error' });
+    }
+  });
+
+  app.get('/api/ewi-pay/transactions', async (req, res) => {
+    try {
+      const endpoints = [
+        `${EWI_PAY_BASE}/api/v1/bkash/transactions`,
+        `${EWI_PAY_BASE}/api/v1/nagad/transactions`,
+        `${EWI_PAY_BASE}/api/v1/merchant/transactions`
+      ];
+      const results = await Promise.all(
+        endpoints.map(async (url) => {
+          try {
+            const upRes = await fetch(url, { headers: { 'x-api-key': EWI_PAY_API_KEY } });
+            if (!upRes.ok) return [];
+            const json = await upRes.json().catch(() => ({}));
+            return Array.isArray(json?.transactions)
+              ? json.transactions
+              : Array.isArray(json?.data)
+              ? json.data
+              : Array.isArray(json)
+              ? json
+              : [];
+          } catch {
+            return [];
+          }
+        })
+      );
+      const mergedMap = new Map<string, any>();
+      results.flat().forEach((item: any) => {
+        if (!item) return;
+        const key = String(item.id || item.deposit_id || item.depositId || item.sessionId || item.trx_id || item.trxId || '');
+        if (!key) return;
+        const prev = mergedMap.get(key) || {};
+        mergedMap.set(key, { ...prev, ...item });
+      });
+      res.json({ success: true, transactions: Array.from(mergedMap.values()) });
     } catch (err: any) {
       res.status(502).json({ success: false, transactions: [], message: err?.message || 'Gateway fetch error' });
     }
@@ -1817,21 +1935,49 @@ async function startServer() {
   app.post('/api/ewi-pay/withdraw', async (req, res) => {
     try {
       const { amount, method, accountNumber, number, userId, user_id } = req.body || {};
-      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/withdrawals/request`, {
+      const methodLower = String(method || '').toLowerCase();
+      const withdrawUrl = methodLower.includes('bkash')
+        ? `${EWI_PAY_BASE}/api/v1/bkash/withdrawals/request`
+        : methodLower.includes('nagad')
+        ? `${EWI_PAY_BASE}/api/v1/nagad/withdrawals/request`
+        : `${EWI_PAY_BASE}/api/v1/withdrawals/request`;
+      const upRes = await fetch(withdrawUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': EWI_PAY_API_KEY },
         body: JSON.stringify({
           site: 'ewi777',
           user_id: user_id || userId || 'USER_1',
           amount: Number(amount) || 0,
-          method: method || 'bKash',
-          account_number: number || accountNumber || ''
+          method: methodLower.includes('bkash') ? 'bkash' : methodLower.includes('nagad') ? 'nagad' : (method || 'bKash'),
+          account_number: number || accountNumber || '',
+          accountNumber: number || accountNumber || ''
         })
       });
       const json = await upRes.json().catch(() => ({}));
-      res.json({ success: upRes.ok, gateway: json });
+      const withdrawalId =
+        json?.withdrawalId ||
+        json?.withdrawal_id ||
+        json?.id ||
+        json?.data?.withdrawalId ||
+        json?.data?.id ||
+        '';
+      res.json({ success: upRes.ok, withdrawalId, gateway: json });
     } catch (err: any) {
       res.status(502).json({ success: false, message: err?.message || 'Gateway withdraw error' });
+    }
+  });
+
+  app.get('/api/ewi-pay/withdraw-status/:id', async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ success: false, message: 'withdrawal id required' });
+    try {
+      const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/withdrawals/${encodeURIComponent(id)}/status`, {
+        headers: { 'x-api-key': EWI_PAY_API_KEY }
+      });
+      const json = await upRes.json().catch(() => ({}));
+      res.json({ success: upRes.ok, withdrawalId: id, gateway: json });
+    } catch (err: any) {
+      res.status(502).json({ success: false, message: err?.message || 'Withdrawal status error' });
     }
   });
 

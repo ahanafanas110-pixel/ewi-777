@@ -32,8 +32,17 @@ export const TransactionHistory: React.FC = () => {
       statusBadge: 'Completed'
     }));
 
+    const seenDepositKeys = new Set<string>();
     const extraDeposits = depositRequests
-      .filter((d) => (d.userId === user.id || d.senderNumber === user.phone) && d.status !== 'approved')
+      .filter((d) => {
+        if ((d.userId !== user.id && d.senderNumber !== user.phone) || d.status === 'approved') {
+          return false;
+        }
+        const key = d.sessionId || d.trxId || d.id;
+        if (seenDepositKeys.has(key)) return false;
+        seenDepositKeys.add(key);
+        return true;
+      })
       .map((d) => ({
         id: `dep_req_${d.id}`,
         type: 'deposit' as const,
@@ -44,13 +53,21 @@ export const TransactionHistory: React.FC = () => {
         statusBadge: d.status === 'rejected' ? 'Rejected' : 'Pending'
       }));
 
+    const seenWithdrawKeys = new Set<string>();
     const extraWithdraws = withdrawRequests
-      .filter((w) => (w.userId === user.id || w.userPhone === user.phone) && w.status !== 'completed')
+      .filter((w) => {
+        if ((w.userId !== user.id && w.userPhone !== user.phone) || w.status === 'completed') {
+          return false;
+        }
+        if (seenWithdrawKeys.has(w.id)) return false;
+        seenWithdrawKeys.add(w.id);
+        return true;
+      })
       .map((w) => ({
         id: `wd_req_${w.id}`,
         type: 'withdraw' as const,
         title: `${w.method} Withdraw (${w.status.toUpperCase()})`,
-        detail: `To: ${w.number}`,
+        detail: `To: ${w.number}${w.status === 'rejected' && w.adminNote ? ` • Reason: ${w.adminNote}` : ''}`,
         time: w.time,
         amount: -Math.abs(w.amount),
         statusBadge:

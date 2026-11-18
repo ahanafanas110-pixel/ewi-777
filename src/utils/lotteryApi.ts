@@ -1,4 +1,5 @@
 import { K3Mode, D5Mode, WinGoMode } from '../types';
+import { apiUrl } from './phoneAndApi';
 
 export type LotteryGameType = 'wingo' | 'k3' | 'd5';
 
@@ -177,7 +178,7 @@ export async function fetchLotteryHistory(
               } catch {}
             }
             const sliced = list.slice(0, 50);
-            fetch('/api/lottery/cache', {
+            fetch(apiUrl('/api/lottery/cache'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ game, mode, list: sliced })
@@ -190,11 +191,12 @@ export async function fetchLotteryHistory(
   }
 
   try {
-    const proxyRes = await fetch(`/api/${game}/history?mode=${encodeURIComponent(mode)}&ts=${Date.now()}`, {
+    const proxyRes = await fetch(apiUrl(`/api/${game}/history?mode=${encodeURIComponent(mode)}&ts=${Date.now()}`), {
       cache: 'no-store'
     });
-    if (proxyRes.ok) {
-      const pData = await proxyRes.json();
+    const proxyCt = proxyRes.headers.get('content-type') || '';
+    if (proxyRes.ok && proxyCt.includes('application/json')) {
+      const pData = await proxyRes.json().catch(() => null);
       if (pData?.success && Array.isArray(pData.list) && pData.list.length > 0) {
         return {
           list: pData.list.slice(0, 50),

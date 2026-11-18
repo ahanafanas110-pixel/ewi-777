@@ -364,8 +364,8 @@ export const Account: React.FC<AccountProps> = () => {
           {/* Game statistics */}
           <button
             onClick={() => {
-              setActiveTab('wingo');
-              window.location.hash = '#/wingo';
+              setActiveTab('game-statistics');
+              window.location.hash = '#/game-statistics';
             }}
             className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
           >

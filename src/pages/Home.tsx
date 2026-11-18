@@ -15,12 +15,12 @@ import {
   WingoBallsLogo,
   BinaryMarketLogo,
   AviatorPlaneLogo,
-  MinesGameLogo
+  MinesGameLogo,
+  GoldMarketLogo,
+  EwiWingoLogo
 } from '../components/BrandLogos';
 import { WinGoBall } from '../components/WinGoAssets';
 import { GameItem } from '../types';
-import heroBannerImg from '../assets/images/ewi777_hero_banner_1794683642451.jpg';
-import asiaWelcomeBannerImg from '../assets/images/ewi777_banner_real_logo_1794734301859.jpg';
 import lotteryGameIconImg from '../assets/images/game_icon_lottery_3d_1794734298193.jpg';
 import aviatorGameIconImg from '../assets/images/game_icon_aviator_3d_1794734299543.jpg';
 import minesGameIconImg from '../assets/images/game_icon_mines_3d_1794734301052.jpg';
@@ -34,11 +34,13 @@ interface HomeProps {
 const ALLOWED_TABS = [
   'home',
   'wingo',
+  'ewi-wingo',
   'k3',
   '5d',
   'aviator',
   'luckyjet',
   'binary',
+  'gold-market',
   'mines',
   'coinflip',
   'activity',
@@ -57,6 +59,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
   const {
     setActiveTab,
     adminSettings,
+    binaryMarkets,
     binaryPrice,
     timeRemaining,
     currentPeriod,
@@ -67,7 +70,6 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
   } = useApp();
 
   const [activeCategory, setActiveCategory] = useState<'all' | 'slots' | 'original' | 'lottery'>('all');
-  const [activeMode, setActiveMode] = useState<'lottery' | 'aviator' | 'binary' | 'mines'>('lottery');
   const [bannerIdx, setBannerIdx] = useState<number>(0);
   const [activeCustomGame, setActiveCustomGame] = useState<GameItem | null>(null);
 
@@ -106,7 +108,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     {
       id: 'hero_official_crown',
       title: 'EWI 777 Official',
-      url: heroBannerImg,
+      url: '/assets/aistudio/image_046bb074.png',
       targetTab: 'wingo'
     },
     {
@@ -116,10 +118,10 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
       targetTab: 'deposit'
     },
     {
-      id: 'hero_ewi777_asia_welcome',
-      title: "EWI 777 — Welcome to Asia's Best Entertainment Website",
-      url: asiaWelcomeBannerImg,
-      targetTab: 'wingo'
+      id: 'hero_usdt_binance_bonus',
+      title: 'Recharge USDT Get 2% Bonus',
+      url: '/assets/aistudio/image_d2e764e7.png',
+      targetTab: 'deposit'
     }
   ];
 
@@ -165,11 +167,13 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           'game_wingo_1m',
           'game_wingo_3m',
           'game_wingo_5m',
+          'game_ewi_wingo',
           'game_k3',
           'game_5d',
           'game_aviator',
           'game_luckyjet',
           'game_binary',
+          'game_gold_market',
           'game_mines',
           'game_coinflip'
         ].includes(g.id)
@@ -199,9 +203,17 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
   const handleGameClick = () => goTab('wingo');
 
+  const handleGoldMarketClick = () => {
+    if (!isGameActive('game_gold_market') && !isGameActive('game_binary')) {
+      showToast('Gold Market is currently offline for maintenance');
+      return;
+    }
+    goTab('gold-market');
+  };
+
   const handleBinaryClick = () => {
     if (!isGameActive('game_binary')) {
-      showToast('Binary & Gold Market is currently offline for maintenance');
+      showToast('Binary Trading is currently offline for maintenance');
       return;
     }
     goTab('binary');
@@ -253,9 +265,6 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
   const handleCategoryPress = (cat: 'slots' | 'original' | 'lottery') => {
     setActiveCategory((prev) => (prev === cat ? 'all' : cat));
-    if (cat === 'lottery') setActiveMode('lottery');
-    if (cat === 'original') setActiveMode('aviator');
-    if (cat === 'slots') setActiveMode('mines');
   };
 
   const showLotterySection = activeCategory === 'all' || activeCategory === 'lottery';
@@ -384,158 +393,8 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </button>
         </div>
 
-        {/* Quad-Mode Quick Switcher: Win Go, Aviator, Binary & Gold, Mines 777 */}
-        <div className="grid grid-cols-4 gap-2">
-          <button
-            onClick={() => {
-              setActiveCategory('all');
-              setActiveMode('lottery');
-            }}
-            className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
-              activeMode === 'lottery'
-                ? 'bg-gradient-to-b from-[#D97706] to-[#92400E] text-white shadow-lg shadow-amber-600/25 ring-2 ring-amber-400/50'
-                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/10 bg-[#A855F7] flex items-center justify-center">
-              <img
-                src={lotteryGameIconImg}
-                alt="Win Go Lottery"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="w-full mt-1.5">
-              <div className="font-black text-[11px] leading-tight tracking-tight whitespace-nowrap">
-                Win Go
-              </div>
-              <div
-                className={`text-[9px] font-bold mt-0.5 whitespace-nowrap ${
-                  activeMode === 'lottery' ? 'text-amber-100' : 'text-slate-400'
-                }`}
-              >
-                30s-5m
-              </div>
-            </div>
-            <div
-              className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'lottery' ? 'bg-white/90' : 'bg-amber-100'
-              }`}
-            />
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveCategory('all');
-              setActiveMode('aviator');
-            }}
-            className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
-              activeMode === 'aviator'
-                ? 'bg-gradient-to-b from-[#E11D48] to-[#881337] text-white shadow-lg shadow-rose-500/25 ring-2 ring-rose-500/35'
-                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/15 bg-[#1B1B1E] flex items-center justify-center">
-              <img
-                src={aviatorGameIconImg}
-                alt="Aviator"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="w-full mt-1.5">
-              <div className="font-black text-[11px] leading-tight tracking-tight whitespace-nowrap">
-                Aviator
-              </div>
-              <div
-                className={`text-[9px] font-bold mt-0.5 whitespace-nowrap ${
-                  activeMode === 'aviator' ? 'text-rose-100' : 'text-slate-400'
-                }`}
-              >
-                10,000X
-              </div>
-            </div>
-            <div
-              className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'aviator' ? 'bg-white/90' : 'bg-amber-100'
-              }`}
-            />
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveCategory('all');
-              setActiveMode('binary');
-            }}
-            className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
-              activeMode === 'binary'
-                ? 'bg-gradient-to-b from-[#B45309] to-[#78350F] text-white shadow-lg shadow-amber-700/25 ring-2 ring-amber-400/50'
-                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/15 bg-[#0C0F1A] flex items-center justify-center">
-              <BinaryMarketLogo size={48} className="rounded-none" />
-            </div>
-            <div className="w-full mt-1.5">
-              <div className="font-black text-[11px] leading-tight tracking-tight whitespace-nowrap">
-                Binary
-              </div>
-              <div
-                className={`text-[9px] font-bold mt-0.5 whitespace-nowrap ${
-                  activeMode === 'binary' ? 'text-amber-100' : 'text-slate-400'
-                }`}
-              >
-                Gold 90%
-              </div>
-            </div>
-            <div
-              className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'binary' ? 'bg-white/90' : 'bg-amber-100'
-              }`}
-            />
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveCategory('all');
-              setActiveMode('mines');
-            }}
-            className={`rounded-2xl px-1.5 py-2.5 transition-all duration-200 flex flex-col items-center text-center justify-between min-h-[106px] active:scale-[0.97] ${
-              activeMode === 'mines'
-                ? 'bg-gradient-to-b from-[#059669] to-[#065F46] text-white shadow-lg shadow-emerald-500/25 ring-2 ring-emerald-500/35'
-                : 'bg-white border border-amber-100 text-slate-800 shadow-xs hover:border-amber-300'
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md ring-1 ring-black/10 bg-[#C24F3A] flex items-center justify-center">
-              <img
-                src={minesGameIconImg}
-                alt="Mines 777"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="w-full mt-1.5">
-              <div className="font-black text-[11px] leading-tight tracking-tight whitespace-nowrap">
-                Mines 777
-              </div>
-              <div
-                className={`text-[9px] font-bold mt-0.5 whitespace-nowrap ${
-                  activeMode === 'mines' ? 'text-emerald-100' : 'text-slate-400'
-                }`}
-              >
-                5x5 Gems
-              </div>
-            </div>
-            <div
-              className={`w-5 h-1 rounded-full mt-1 transition-all ${
-                activeMode === 'mines' ? 'bg-white/90' : 'bg-amber-100'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* SECTION 1: Win Go + EWI K3 + EWI 5D Lottery Suite */}
-        {showLotterySection && (activeCategory === 'lottery' || activeMode === 'lottery') && (
+        {/* SECTION 1: Win Go + EWI WinGo + EWI K3 + EWI 5D Lottery Suite */}
+        {showLotterySection && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
@@ -725,17 +584,36 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   <span className="text-[11px] font-bold text-slate-700">Enter →</span>
                 </div>
               </div>
+              {/* EWI WinGo Card */}
+              <div
+                onClick={() => goTab('ewi-wingo')}
+                className="bg-gradient-to-br from-amber-50 to-white rounded-3xl p-3.5 border border-amber-200 shadow-xs cursor-pointer hover:border-[#D97706] transition-all active:scale-98 col-span-2"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-extrabold text-xs text-slate-800 flex items-center gap-2">
+                    <EwiWingoLogo size={24} />
+                    <span>EWI WinGo Fast</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white text-[9px] font-black uppercase">
+                    15s · 30s · 1m · 3m
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">Exclusive Official High-Speed Draw · 1.89X &amp; 9X</span>
+                  <span className="text-[11px] font-black text-[#B45309]">Enter →</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* SECTION 2: Binary & Gold Market (XAU/USD) Showcase */}
-        {showOriginalSection && activeMode === 'binary' && (
+        {/* SECTION 2: Separated Gold Market (XAU/USD) & Binary Trading */}
+        {showOriginalSection && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
                 <span className="w-1.5 h-4 bg-[#D97706] rounded-full inline-block" />
-                <span>Binary &amp; Gold Market (XAU/USD)</span>
+                <span>Gold Trading &amp; Binary Markets</span>
               </h3>
               <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -743,55 +621,107 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               </span>
             </div>
 
+            {/* Dedicated XAU/USD Gold Trading Card (Ivory-Gold Luxury Style) */}
+            <div
+              onClick={handleGoldMarketClick}
+              className="bg-gradient-to-br from-white via-[#FFFDF7] to-[#FEF3C7] rounded-3xl p-4 text-slate-900 shadow-sm border border-amber-200 cursor-pointer active:scale-99 transition-all hover:border-amber-400"
+            >
+              <div className="flex items-center gap-3.5 mb-3.5">
+                <div className="w-24 h-20 rounded-2xl overflow-hidden border border-amber-300 shadow-xs flex-shrink-0 bg-[#1A1205]">
+                  <img
+                    src="/assets/aistudio/image_2c2d654f.png"
+                    alt="999.9 Fine Gold XAU/USD"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white text-[9px] font-black uppercase tracking-wider">
+                      XAU/USD GOLD
+                    </span>
+                    <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      90% Payout
+                    </span>
+                  </div>
+                  <div className="font-black text-base text-slate-900 mt-1 truncate">
+                    Gold Market
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-lg font-mono font-black text-[#B45309] tabular-nums">
+                      ${(binaryMarkets['XAU/USD']?.price ?? binaryPrice).toFixed(2)}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold">Spot Gold Live</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 mb-3">
+                <div className="py-2 rounded-xl bg-emerald-600 text-white font-black text-xs text-center flex items-center justify-center gap-1 shadow-2xs">
+                  <span>▲ BUY GOLD</span>
+                  <span className="text-[10px] text-emerald-100">+90%</span>
+                </div>
+                <div className="py-2 rounded-xl bg-rose-600 text-white font-black text-xs text-center flex items-center justify-center gap-1 shadow-2xs">
+                  <span>▼ SELL GOLD</span>
+                  <span className="text-[10px] text-rose-100">+90%</span>
+                </div>
+              </div>
+
+              <div className="pt-2.5 border-t border-amber-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-semibold">Exclusive XAU/USD • Min Trade ৳10</span>
+                <span className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white font-black flex items-center gap-1 shadow-xs">
+                  <span>Trade Gold</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </div>
+
+            {/* Dedicated Binary Trading Card (Crypto / Forex / Indices) */}
             <div
               onClick={handleBinaryClick}
-              className="bg-gradient-to-b from-[#1A1409] to-[#0D0A04] rounded-3xl p-5 text-white shadow-md border border-amber-500/35 cursor-pointer active:scale-99 transition-all"
+              className="bg-gradient-to-br from-white via-[#FFFDF7] to-amber-50 rounded-3xl p-4 text-slate-900 shadow-sm border border-amber-200 cursor-pointer active:scale-99 transition-all hover:border-amber-400"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center p-0.5 shadow-xs flex-shrink-0">
-                    <BinaryMarketLogo size={36} />
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#FDE68A] to-[#F59E0B] border border-amber-300 flex items-center justify-center p-1 shadow-2xs flex-shrink-0">
+                    <BinaryMarketLogo size={34} />
                   </div>
                   <div>
-                    <div className="font-black text-sm text-white">XAU/USD Gold &amp; 17+ Markets</div>
-                    <div className="text-[10px] text-amber-300">Gold Market • Crypto • Forex • Indices</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-sm text-slate-900">Binary Trading</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-[#B45309] text-[9px] font-black uppercase">
+                        16+ ASSETS
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-semibold">
+                      BTC/USDT • ETH • EUR/USD • GBP/USD • US30
+                    </div>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-xl font-mono font-black text-amber-300">
-                    ${binaryPrice.toFixed(2)}
+                  <div className="text-base font-mono font-black text-[#B45309] tabular-nums">
+                    ${(binaryMarkets['BTC/USDT']?.price ?? 84250).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
-                  <div className="text-[10px] text-emerald-400 font-bold">90% Payout Rate</div>
+                  <div className="text-[10px] text-emerald-600 font-black">Up to 92% Payout</div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5 mb-4">
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {['15s', '30s', '1m', '3m', '5m', '15m', '30m'].map((tf) => (
                   <span
                     key={tf}
-                    className="px-2.5 py-1 rounded-xl bg-white/10 text-white font-mono text-[10px] font-extrabold border border-white/10"
+                    className="px-2.5 py-1 rounded-xl bg-amber-50 text-[#92400E] font-mono text-[10px] font-extrabold border border-amber-200"
                   >
                     {tf}
                   </span>
                 ))}
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="py-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black text-xs text-center flex items-center justify-center gap-1">
-                  <span>▲ BUY / UP</span>
-                  <span className="text-[10px] text-emerald-300">+90%</span>
-                </div>
-                <div className="py-2.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 font-black text-xs text-center flex items-center justify-center gap-1">
-                  <span>▼ SELL / DOWN</span>
-                  <span className="text-[10px] text-rose-300">+90%</span>
-                </div>
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Min Trade ৳10 • Tap to open Live Chart</span>
-                <span className="text-amber-300 font-black flex items-center gap-1">
-                  <span>Trade Now</span>
+              <div className="pt-2.5 border-t border-amber-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-semibold">Crypto, Forex &amp; Indices • Min ৳10</span>
+                <span className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black flex items-center gap-1 shadow-xs">
+                  <span>Open Binary</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </div>
@@ -799,8 +729,8 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         )}
 
-        {/* SECTION 3: Aviator Plane Showcase */}
-        {showOriginalSection && activeMode === 'aviator' && (
+        {/* SECTION 3: Aviator Plane Showcase (Luxury Ivory-Gold) */}
+        {showOriginalSection && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
@@ -814,27 +744,39 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
             <div
               onClick={handleAviatorClick}
-              className="bg-gradient-to-b from-[#1F1215] to-[#0E0E10] rounded-3xl p-5 text-white shadow-md border border-rose-500/35 cursor-pointer active:scale-99 transition-all"
+              className="bg-gradient-to-br from-white via-[#FFFDF7] to-amber-50 rounded-3xl p-4 text-slate-900 shadow-sm border border-amber-200 cursor-pointer active:scale-99 transition-all hover:border-amber-400"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-400/30 flex items-center justify-center flex-shrink-0">
-                    <AviatorPlaneLogo size={38} />
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100/80 border border-amber-300 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-2xs">
+                    <img
+                      src={aviatorGameIconImg}
+                      alt="Aviator Plane"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
-                    <div className="font-black text-base text-white">Aviator Plane</div>
-                    <div className="text-[11px] text-amber-200">Live Multiplier Flight • Cash Out Anytime</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-base text-slate-900">Aviator Plane</span>
+                      <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-black uppercase">
+                        LIVE
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-semibold">
+                      Live Multiplier Flight • Cash Out Anytime
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xl font-mono font-black text-amber-300">10,000.00x</div>
-                  <div className="text-[10px] text-emerald-400 font-bold">Max Payout</div>
+                  <div className="text-lg font-mono font-black text-[#B45309]">10,000x</div>
+                  <div className="text-[10px] text-emerald-600 font-black">Max Payout</div>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Min Bet ৳10 • Auto Cashout Supported</span>
-                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#B91C1C] text-white font-black flex items-center gap-1 shadow-xs">
+              <div className="pt-2.5 border-t border-amber-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-semibold">Min Bet ৳10 • 3 Simultaneous Trade Slots</span>
+                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black flex items-center gap-1 shadow-xs">
                   <span>Play Plane</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
@@ -843,8 +785,8 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         )}
 
-        {/* SECTION 4: Mines 777 Showcase */}
-        {showSlotsSection && activeMode === 'mines' && (
+        {/* SECTION 4: Mines 777 Showcase (Luxury Ivory-Gold) */}
+        {(showSlotsSection || showOriginalSection) && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
@@ -858,27 +800,34 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
             <div
               onClick={handleMinesClick}
-              className="bg-gradient-to-b from-[#1D1609] to-[#110D05] rounded-3xl p-5 text-white shadow-md border border-amber-500/35 cursor-pointer active:scale-99 transition-all"
+              className="bg-gradient-to-br from-white via-[#FFFDF7] to-amber-50 rounded-3xl p-4 text-slate-900 shadow-sm border border-amber-200 cursor-pointer active:scale-99 transition-all hover:border-amber-400"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
-                    <MinesGameLogo size={38} />
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100/80 border border-amber-300 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-2xs">
+                    <img
+                      src={minesGameIconImg}
+                      alt="Mines 777"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
-                    <div className="font-black text-base text-white">Mines 777</div>
-                    <div className="text-[11px] text-amber-200">5x5 Grid • Pick Gems &amp; Cash Out Anytime</div>
+                    <div className="font-black text-base text-slate-900">Mines 777</div>
+                    <div className="text-[11px] text-slate-500 font-semibold">
+                      5x5 Grid • Pick Gems &amp; Cash Out Anytime
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xl font-mono font-black text-amber-300">98.5%</div>
-                  <div className="text-[10px] text-emerald-400 font-bold">RTP Rate</div>
+                  <div className="text-lg font-mono font-black text-[#B45309]">500X</div>
+                  <div className="text-[10px] text-emerald-600 font-black">Max Multiplier</div>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                <span className="text-amber-200/80 font-medium">Instant Settlement • Min Bet ৳10</span>
-                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white font-black flex items-center gap-1 shadow-xs">
+              <div className="pt-2.5 border-t border-amber-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-semibold">Instant Settlement • Min Bet ৳10</span>
+                <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black flex items-center gap-1 shadow-xs">
                   <span>Play Mines</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
@@ -887,168 +836,86 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
         )}
 
-        {/* EWI 777 Originals & Trading Grid (All Games Accessible) */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-              <Coins className="w-4 h-4 text-[#B45309]" />
-              <span>EWI 777 Games &amp; Live Markets</span>
-            </h3>
-            {activeCategory !== 'all' && (
-              <button
-                onClick={() => setActiveCategory('all')}
-                className="text-[11px] font-bold text-[#B45309] underline"
+        {/* EWI 777 Originals & Trading Grid (Luxury Ivory-Gold) */}
+        {(showOriginalSection || showSlotsSection) && (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[#B45309]" />
+                <span>EWI 777 Originals</span>
+              </h3>
+              {activeCategory !== 'all' && (
+                <button
+                  onClick={() => setActiveCategory('all')}
+                  className="text-[11px] font-bold text-[#B45309] underline"
+                >
+                  Show All
+                </button>
+              )}
+            </div>
+
+            {/* Lucky Jet Card */}
+            {showOriginalSection && (
+              <div
+                onClick={handleLuckyJetClick}
+                className="bg-gradient-to-br from-white via-[#FFFDF7] to-amber-50 rounded-3xl p-4 text-slate-900 shadow-sm border border-amber-200 flex items-center justify-between cursor-pointer active:scale-98 transition-all hover:border-amber-400"
               >
-                Show All
-              </button>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-100 border border-amber-300 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-2xs">
+                    <img
+                      src={luckyJetPilotImg}
+                      alt="Lucky Jet"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-sm text-slate-900 truncate">Lucky Jet</span>
+                      <span className="px-1.5 py-0.5 rounded bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white text-[9px] font-black">
+                        HOT
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-semibold truncate">
+                      Jetpack Multiplier Flight • 3 Simultaneous Trade Slots!
+                    </div>
+                  </div>
+                </div>
+                <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs flex-shrink-0 shadow-xs">
+                  Fly →
+                </span>
+              </div>
+            )}
+
+            {/* Coin Flip Gold/Silver Card */}
+            {(showOriginalSection || showSlotsSection) && (
+              <div
+                onClick={handleCoinFlipClick}
+                className="bg-gradient-to-br from-white via-[#FFFDF7] to-[#FEF3C7] rounded-3xl p-4 text-slate-900 shadow-sm border border-amber-200 flex items-center justify-between cursor-pointer active:scale-98 transition-all hover:border-amber-400"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-100/80 border border-amber-300 flex items-center justify-center flex-shrink-0 p-1 shadow-2xs">
+                    <EwiCoinBadgePair size={36} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-sm text-slate-900 truncate">Coin Flip (Gold / Silver)</span>
+                      <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-[#92400E] text-[9px] font-black">
+                        1.89X
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-semibold truncate">
+                      Flip Gold EWI777 vs Silver EWI777 • Min ৳10!
+                    </div>
+                  </div>
+                </div>
+                <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs flex-shrink-0 shadow-xs">
+                  Flip →
+                </span>
+              </div>
             )}
           </div>
-
-          {/* Lucky Jet Card */}
-          {showOriginalSection && (
-            <div
-              onClick={handleLuckyJetClick}
-              className="bg-gradient-to-r from-[#141029] via-[#1E1944] to-[#4C1D95] rounded-3xl p-4 text-white shadow-md border border-indigo-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-amber-300/30 overflow-hidden flex items-center justify-center flex-shrink-0">
-                  <img
-                    src={luckyJetPilotImg}
-                    alt="Lucky Jet"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-white truncate">Lucky Jet</span>
-                    <span className="px-1.5 py-0.5 rounded bg-amber-300 text-slate-900 text-[9px] font-black">
-                      HOT
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-indigo-100 truncate">
-                    Jetpack Multiplier Flight • Autobet &amp; Cashout!
-                  </div>
-                </div>
-              </div>
-              <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-slate-950 font-black text-xs flex-shrink-0 shadow-sm">
-                Fly →
-              </span>
-            </div>
-          )}
-
-          {/* Coin Flip Gold/Silver Card */}
-          {(showOriginalSection || showSlotsSection) && (
-            <div
-              onClick={handleCoinFlipClick}
-              className="bg-gradient-to-r from-[#1E1608] via-[#3A280B] to-[#B45309] rounded-3xl p-4 text-white shadow-md border border-amber-400/35 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-black/35 border border-amber-300/40 flex items-center justify-center flex-shrink-0 p-1">
-                  <EwiCoinBadgePair size={36} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-white truncate">Coin Flip (Gold / Silver)</span>
-                    <span className="px-1.5 py-0.5 rounded bg-amber-300 text-slate-900 text-[9px] font-black">
-                      1.89X
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-amber-100 truncate">
-                    Flip Gold EWI777 vs Silver EWI777 • Min ৳10!
-                  </div>
-                </div>
-              </div>
-              <span className="px-3.5 py-2 rounded-full bg-white text-[#92400E] font-black text-xs flex-shrink-0 shadow-sm">
-                Flip →
-              </span>
-            </div>
-          )}
-
-          {/* Binary & Gold XAU/USD Card */}
-          {showOriginalSection && activeMode !== 'binary' && (
-            <div
-              onClick={handleBinaryClick}
-              className="bg-gradient-to-r from-[#111827] via-[#1E293B] to-[#B45309] rounded-3xl p-4 text-white shadow-md border border-amber-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-amber-300/30 flex items-center justify-center flex-shrink-0">
-                  <BinaryMarketLogo size={34} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-white truncate">Binary &amp; Gold Market (XAU/USD)</span>
-                    <span className="px-1.5 py-0.5 rounded bg-amber-300 text-slate-900 text-[9px] font-black">
-                      GOLD
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-amber-100 truncate">
-                    Live Candlesticks • Up/Down Binary Trading (Min ৳10)
-                  </div>
-                </div>
-              </div>
-              <span className="px-3.5 py-2 rounded-full bg-white text-[#B45309] font-black text-xs flex-shrink-0 shadow-sm">
-                Trade →
-              </span>
-            </div>
-          )}
-
-          {/* Aviator Quick Card */}
-          {showOriginalSection && activeMode !== 'aviator' && (
-            <div
-              onClick={handleAviatorClick}
-              className="bg-gradient-to-r from-[#1B0B10] via-[#3A101B] to-[#E11D48] rounded-3xl p-4 text-white shadow-md border border-rose-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-                  <AviatorPlaneLogo size={34} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-white truncate">Aviator Plane</span>
-                    <span className="px-1.5 py-0.5 rounded bg-yellow-300 text-slate-900 text-[9px] font-black">
-                      HOT
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-rose-100 truncate">
-                    Place bet &amp; cash out before the plane flies away!
-                  </div>
-                </div>
-              </div>
-              <span className="px-3.5 py-2 rounded-full bg-white text-[#B91C1C] font-black text-xs flex-shrink-0 shadow-sm">
-                Play →
-              </span>
-            </div>
-          )}
-
-          {/* Mines 777 Quick Card */}
-          {showSlotsSection && activeMode !== 'mines' && (
-            <div
-              onClick={handleMinesClick}
-              className="bg-gradient-to-r from-[#06211B] via-[#0B3B2E] to-[#059669] rounded-3xl p-4 text-white shadow-md border border-emerald-400/30 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-                  <MinesGameLogo size={34} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-white truncate">Mines 777</span>
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-300 text-slate-900 text-[9px] font-black">
-                      NEW
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-emerald-100 truncate">
-                    Reveal diamonds &amp; cash out instant multipliers!
-                  </div>
-                </div>
-              </div>
-              <span className="px-3.5 py-2 rounded-full bg-white text-emerald-700 font-black text-xs flex-shrink-0 shadow-sm">
-                Play →
-              </span>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Real-Time Top Earners & Referral Leaderboard */}
         {adminSettings.showTopEarners && (
@@ -1130,7 +997,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                 >
                   <div className="relative h-24 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 overflow-hidden flex items-center justify-center">
                     {g.imageUrl ? (
-                      <img src={g.imageUrl} alt={g.title} className="w-full h-full object-cover" />
+                      <img src={g.imageUrl} alt={g.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                     ) : (
                       <Gamepad2 className="w-8 h-8 text-[#B45309]" />
                     )}
