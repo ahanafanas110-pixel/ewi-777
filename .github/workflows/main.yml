@@ -40,3 +40,12 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD_2 }}
           server-dir: /htdocs/
           local-dir: ./dist/
+
+      - name: Sync built files to Subdomain (ewi777.kesug.com)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER_2 }}
+          username: ${{ secrets.FTP_USERNAME_2 }}
+          password: ${{ secrets.FTP_PASSWORD_2 }}
+          server-dir: /ewi777.kesug.com/htdocs/
+          local-dir: ./dist/
