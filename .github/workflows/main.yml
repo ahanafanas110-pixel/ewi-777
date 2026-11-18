@@ -23,11 +23,20 @@ jobs:
           npm install --legacy-peer-deps
           npm run build
 
-      - name: Sync built files via FTP
+      - name: Sync built files to Main Domain
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /htdocs/
+          local-dir: ./dist/
+
+      - name: Sync built files to Second Domain (ewi777.gt.tc)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER_2 }}
+          username: ${{ secrets.FTP_USERNAME_2 }}
+          password: ${{ secrets.FTP_PASSWORD_2 }}
           server-dir: /htdocs/
           local-dir: ./dist/
