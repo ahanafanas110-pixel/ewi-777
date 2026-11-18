@@ -17,23 +17,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build production bundle
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '' }}
         run: npm run build
 
-      - name: Verify build output
+      - name: Verify built dist entrypoint
         run: |
           test -f dist/index.html
+          test -d dist/assets
           ls -la dist
 
-      - name: Sync built dist via FTP
+      - name: Sync built dist to InfinityFree /htdocs/
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
