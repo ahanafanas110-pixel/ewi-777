@@ -32,6 +32,15 @@ jobs:
           server-dir: /htdocs/
           local-dir: ./dist/
 
+      - name: Sync built files to Subdomain (ewi777.xo.je)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /ewi777.xo.je/htdocs/
+          local-dir: ./dist/
+
       - name: Sync built files to Second Domain (ewi777.gt.tc)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
