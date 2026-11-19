@@ -630,31 +630,46 @@ export const Deposit: React.FC = () => {
               {myRecentDeposits.map((dep) => (
                 <div
                   key={dep.id}
-                  className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-100 flex items-center justify-between gap-2 text-xs"
+                  className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-100 space-y-2 text-xs"
                 >
-                  <div className="min-w-0">
-                    <div className="font-extrabold text-slate-800 truncate tabular-nums">
-                      {dep.method} • ৳{dep.amount.toFixed(2)}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-extrabold text-slate-800 truncate tabular-nums">
+                        {dep.method} • ৳{dep.amount.toFixed(2)}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-500 truncate">
+                        Order: {dep.trxId} • {dep.time}
+                      </div>
                     </div>
-                    <div className="text-[10px] font-mono text-slate-500 truncate">
-                      TrxID: {dep.trxId} • {dep.time}
-                    </div>
-                  </div>
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase flex-shrink-0 ${
-                      dep.status === 'approved'
-                        ? 'bg-emerald-100 text-emerald-700'
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase flex-shrink-0 ${
+                        dep.status === 'approved'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : dep.status === 'rejected'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {dep.status === 'approved'
+                        ? 'Completed'
                         : dep.status === 'rejected'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-amber-100 text-amber-700'
-                    }`}
-                  >
-                    {dep.status === 'approved'
-                      ? 'Complete'
-                      : dep.status === 'rejected'
-                      ? 'Rejected'
-                      : 'Pending'}
-                  </span>
+                        ? 'Rejected'
+                        : 'Pending'}
+                    </span>
+                  </div>
+                  {dep.status === 'rejected' && (dep.rejectionReason || dep.adminNote) && (
+                    <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-[11px] font-semibold text-red-700">
+                      Reason: {dep.rejectionReason || dep.adminNote}
+                    </div>
+                  )}
+                  {dep.status === 'pending' && dep.checkoutUrl && (
+                    <a
+                      href={dep.checkoutUrl}
+                      className="block w-full py-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#EAB308] text-white text-center font-black text-[11px] uppercase tracking-wider shadow-2xs"
+                    >
+                      Complete Payment →
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

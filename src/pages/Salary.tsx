@@ -160,6 +160,24 @@ export const Salary: React.FC = () => {
           </div>
         </div>
 
+        {/* All Bonus Charts Navigation Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('all-chart');
+            window.location.hash = '#/all-chart';
+          }}
+          className="w-full py-3.5 px-4 rounded-2xl bg-white border-2 border-amber-300 text-[#B45309] font-black text-xs uppercase tracking-wider shadow-xs hover:bg-amber-50 active:scale-98 transition-all flex items-center justify-between"
+        >
+          <span className="flex items-center gap-2">
+            <Award className="w-4 h-4 text-[#D97706]" />
+            <span>View All Chart (Weekly, Streak, Refer &amp; 6-Step Refund)</span>
+          </span>
+          <span className="px-2.5 py-1 rounded-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white text-[10px]">
+            All Chart →
+          </span>
+        </button>
+
         {/* Today's Progress Summary Card (Light Mode) */}
         <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between">

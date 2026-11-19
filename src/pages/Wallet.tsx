@@ -20,7 +20,7 @@ import {
   DepositHistoryGridIcon,
   WithdrawHistoryGridIcon
 } from '../components/AccountIcons';
-import { BD_PHONE_RULE_MSG, isValidBdFullPhone } from '../utils/phoneAndApi';
+import { isValidBdFullPhone } from '../utils/phoneAndApi';
 
 export const Wallet: React.FC = () => {
   const {
@@ -81,8 +81,9 @@ export const Wallet: React.FC = () => {
     const digits = bindNumberInput.replace(/\D/g, '');
     const normalized = digits.startsWith('0') ? digits.slice(0, 11) : `0${digits}`.slice(0, 11);
     if (!isValidBdFullPhone(normalized)) {
-      setBindError(BD_PHONE_RULE_MSG);
-      showToast(BD_PHONE_RULE_MSG);
+      const msg = 'Please enter a valid 11-digit mobile number';
+      setBindError(msg);
+      showToast(msg);
       return;
     }
 
@@ -119,9 +120,29 @@ export const Wallet: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-3xl font-black tracking-tight mb-4 tabular-nums">
+          <div className="text-3xl font-black tracking-tight mb-3 tabular-nums">
             ৳{(user?.balance || 0).toFixed(2)}
           </div>
+
+          {(user?.lockedBalance || 0) > 0 && (
+            <div className="grid grid-cols-2 gap-2 mb-3 bg-black/20 rounded-2xl px-3 py-2 border border-white/15 text-[11px] tabular-nums">
+              <div>
+                <div className="text-amber-200/80 text-[10px] font-bold">Withdrawable</div>
+                <div className="font-black text-white">
+                  ৳{Math.max(0, (user?.balance || 0) - (user?.lockedBalance || 0)).toFixed(2)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-amber-200/80 text-[10px] font-bold flex items-center justify-end gap-1">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Locked Bonus</span>
+                </div>
+                <div className="font-black text-amber-200">
+                  ৳{(user?.lockedBalance || 0).toFixed(2)}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 pt-1">
             <button
@@ -351,7 +372,17 @@ export const Wallet: React.FC = () => {
                   >
                     {tx.amount > 0 ? `+৳${tx.amount.toFixed(2)}` : `-৳${Math.abs(tx.amount).toFixed(2)}`}
                   </div>
-                  <span className="text-[10px] text-slate-400 capitalize">{tx.status}</span>
+                  <span
+                    className={`text-[10px] font-bold ${
+                      tx.status === 'success'
+                        ? 'text-emerald-600'
+                        : tx.status === 'rejected'
+                        ? 'text-rose-500'
+                        : 'text-amber-600'
+                    }`}
+                  >
+                    {tx.status === 'success' ? 'Completed' : tx.status === 'rejected' ? 'Rejected' : 'Pending'}
+                  </span>
                 </div>
               </div>
             ))}
@@ -423,12 +454,14 @@ export const Wallet: React.FC = () => {
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   min={minWithdraw}
-                  max={Math.min(50000, user.balance)}
+                  max={Math.min(50000, Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)))}
                   className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
                   required
                 />
                 <div className="flex justify-between text-[10px] text-slate-400 mt-1 tabular-nums">
-                  <span>Available: ৳{user.balance.toFixed(2)}</span>
+                  <span>
+                    Withdrawable: ৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}
+                  </span>
                   <span>Min: ৳{minWithdraw} · Max: ৳50,000</span>
                 </div>
               </div>
@@ -519,7 +552,7 @@ export const Wallet: React.FC = () => {
                     setBindNumberInput(digits);
                     if (bindError) setBindError(null);
                   }}
-                  placeholder="017XXXXXXXX (Prefix 18, 17, 13, 15, 19)"
+                  placeholder="01XXXXXXXXX"
                   className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
                   required
                 />

@@ -39,6 +39,7 @@ import { K3Game } from './pages/K3Game';
 import { D5Game } from './pages/D5Game';
 import { GameStatistics } from './pages/GameStatistics';
 import { EwiWinGo } from './pages/EwiWinGo';
+import { AllCharts } from './pages/AllCharts';
 import { ExtraFirstDepositModal, FIRST_DEPOSIT_TIERS } from './components/AccountIcons';
 import { WinGoResultPopupModal } from './components/WinGoAssets';
 import { CustomerServiceLogo } from './components/BrandLogos';
@@ -63,6 +64,7 @@ export const isAuthorizedAdminRoute = (): boolean => {
 const MainApp: React.FC = () => {
   const {
     user,
+    depositRequests,
     logout,
     activeTab,
     setActiveTab,
@@ -165,7 +167,7 @@ const MainApp: React.FC = () => {
     };
   }, [user.isLoggedIn, setActiveTab]);
 
-  // Trigger Extra First Deposit bonus popup across main tabs & automatically after new deposit
+  // Trigger Extra First Deposit bonus popup ONLY until user's first deposit is completed
   useEffect(() => {
     if (!user.isLoggedIn) {
       prevDepositedRef.current = null;
@@ -174,33 +176,38 @@ const MainApp: React.FC = () => {
     }
 
     const curDep = Number(user.totalDeposited) || 0;
-    const didDepositIncrease = prevDepositedRef.current !== null && curDep > prevDepositedRef.current;
+    const hasCompletedAnyDeposit =
+      curDep > 0 ||
+      Boolean(user.hasClaimedDepositBonus) ||
+      depositRequests.some((d) => d.userId === user.id && d.status === 'approved');
+
     prevDepositedRef.current = curDep;
 
-    const claimedMap = user.claimedFirstDepositTiers || {};
-    const hasUncollectedTier = FIRST_DEPOSIT_TIERS.some((t) => !claimedMap[String(t.deposit)]);
-    const hasCollectableUnlocked = FIRST_DEPOSIT_TIERS.some(
-      (t) => curDep >= t.deposit && !claimedMap[String(t.deposit)]
-    );
-
-    if (didDepositIncrease && hasUncollectedTier) {
-      try {
-        localStorage.removeItem('ewi777_fd_hide_date');
-      } catch {}
-      setFirstDepositModalOpen(true);
-      lastMainTabRef.current = activeTab;
+    if (hasCompletedAnyDeposit) {
+      setFirstDepositModalOpen(false);
       return;
     }
 
+    const claimedMap = user.claimedFirstDepositTiers || {};
+    const hasUncollectedTier = FIRST_DEPOSIT_TIERS.some((t) => !claimedMap[String(t.deposit)]);
     const MAIN_TABS = ['home', 'activity', 'promotion', 'wallet', 'account'];
     if (MAIN_TABS.includes(activeTab) && lastMainTabRef.current !== activeTab) {
       lastMainTabRef.current = activeTab;
       const hiddenToday = localStorage.getItem('ewi777_fd_hide_date') === getLocalDateStr();
-      if (!hiddenToday && hasUncollectedTier && (curDep === 0 || hasCollectableUnlocked)) {
+      if (!hiddenToday && hasUncollectedTier) {
         setFirstDepositModalOpen(true);
       }
     }
-  }, [user.isLoggedIn, user.totalDeposited, user.claimedFirstDepositTiers, activeTab, setFirstDepositModalOpen]);
+  }, [
+    user.isLoggedIn,
+    user.id,
+    user.totalDeposited,
+    user.hasClaimedDepositBonus,
+    user.claimedFirstDepositTiers,
+    depositRequests,
+    activeTab,
+    setFirstDepositModalOpen
+  ]);
 
   const isAuthBlocked = !user.isLoggedIn && !PUBLIC_UNAUTH_TABS.has(activeTab);
 
@@ -283,6 +290,8 @@ const MainApp: React.FC = () => {
         return <D5Game />;
       case 'ewi-wingo':
         return <EwiWinGo />;
+      case 'all-chart':
+        return <AllCharts />;
       case 'game-statistics':
         return <GameStatistics />;
       default:

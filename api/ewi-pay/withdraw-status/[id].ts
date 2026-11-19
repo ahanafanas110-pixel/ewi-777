@@ -1,7 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-
-const EWI_PAY_BASE = 'https://ewi-pay.vercel.app';
-const EWI_PAY_API_KEY = process.env.EWI_PAY_API_KEY || 'ewi_live_ewi777_88789947264e';
+import { getEwiPayConfig, fillTemplateId } from '../_config';
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string | string[]>; url?: string },
@@ -26,16 +24,39 @@ export default async function handler(
   if (req.method !== 'GET') return sendJson(405, { success: false, message: 'Method not allowed' });
 
   const qId = Array.isArray(req.query?.id) ? req.query?.id[0] : req.query?.id;
+  const qMethod = Array.isArray(req.query?.method) ? req.query?.method[0] : req.query?.method;
   const pathPart = (req.url || '').split('?')[0].split('/').filter(Boolean).pop() || '';
   const id = String(qId || pathPart || '').trim();
+  const methodLower = String(qMethod || '').toLowerCase();
   if (!id) return sendJson(400, { success: false, message: 'withdrawal id required' });
 
+  const cfg = await getEwiPayConfig();
+  const unifiedUrl = fillTemplateId(cfg.unifiedWithdrawStatusUrl, id);
+  const methodUrl = methodLower.includes('bkash')
+    ? fillTemplateId(cfg.bkashWithdrawStatusUrl, id)
+    : methodLower.includes('nagad')
+    ? fillTemplateId(cfg.nagadWithdrawStatusUrl, id)
+    : '';
+
   try {
-    const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/withdrawals/${encodeURIComponent(id)}/status`, {
-      headers: { 'x-api-key': EWI_PAY_API_KEY }
+    let upRes = await fetch(unifiedUrl, {
+      headers: { 'x-api-key': cfg.apiKey }
     });
-    const json = await upRes.json().catch(() => ({}));
-    return sendJson(200, { success: upRes.ok, withdrawalId: id, gateway: json });
+    let json = upRes.ok ? await upRes.json().catch(() => ({})) : {};
+    const statusStr = String(json?.status || json?.withdrawal?.status || json?.data?.status || '').toLowerCase();
+    if ((!upRes.ok || !statusStr) && methodUrl) {
+      const mRes = await fetch(methodUrl, { headers: { 'x-api-key': cfg.apiKey } });
+      if (mRes.ok) {
+        upRes = mRes;
+        json = await mRes.json().catch(() => ({}));
+      }
+    }
+    return sendJson(200, {
+      ...(json && typeof json === 'object' ? json : {}),
+      success: upRes.ok,
+      withdrawalId: id,
+      gateway: json
+    });
   } catch (err: any) {
     return sendJson(502, { success: false, message: err?.message || 'Withdrawal status error' });
   }

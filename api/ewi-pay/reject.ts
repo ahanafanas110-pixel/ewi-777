@@ -1,7 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-
-const EWI_PAY_BASE = 'https://ewi-pay.vercel.app';
-const EWI_PAY_API_KEY = process.env.EWI_PAY_API_KEY || 'ewi_live_ewi777_88789947264e';
+import { getEwiPayConfig } from './_config';
 
 async function readBodyJson(req: any): Promise<any> {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -37,16 +35,30 @@ export default async function handler(req: IncomingMessage & { method?: string; 
     res.end(JSON.stringify(payload));
   };
   if (req.method !== 'POST') return sendJson(405, { success: false, message: 'Method not allowed' });
+  const cfg = await getEwiPayConfig();
   const body = await readBodyJson(req);
   const depositId = String(body.depositId || '').trim();
   const note = String(body.note || '').trim();
+  const methodLower = String(body.method || '').toLowerCase();
   if (!depositId) return sendJson(400, { success: false, message: 'depositId required' });
+  const primaryUrl = methodLower.includes('bkash')
+    ? `${cfg.baseUrl}/api/v1/bkash/transactions/${encodeURIComponent(depositId)}/reject`
+    : methodLower.includes('nagad')
+    ? `${cfg.baseUrl}/api/v1/nagad/transactions/${encodeURIComponent(depositId)}/reject`
+    : `${cfg.baseUrl}/api/v1/merchant/transactions/${encodeURIComponent(depositId)}/reject`;
   try {
-    const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/merchant/transactions/${encodeURIComponent(depositId)}/reject`, {
+    let upRes = await fetch(primaryUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': EWI_PAY_API_KEY },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.apiKey },
       body: JSON.stringify({ note })
     });
+    if (!upRes.ok && (methodLower.includes('bkash') || methodLower.includes('nagad'))) {
+      upRes = await fetch(`${cfg.baseUrl}/api/v1/merchant/transactions/${encodeURIComponent(depositId)}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.apiKey },
+        body: JSON.stringify({ note })
+      });
+    }
     const json = await upRes.json().catch(() => ({}));
     return sendJson(200, { success: upRes.ok, gateway: json });
   } catch (err: any) {

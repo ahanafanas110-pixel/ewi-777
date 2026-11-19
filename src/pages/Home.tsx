@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import {
   WingoBallsLogo,
-  BinaryMarketLogo,
   AviatorPlaneLogo,
   MinesGameLogo,
   GoldMarketLogo,
@@ -46,6 +45,7 @@ const ALLOWED_TABS = [
   'activity',
   'promotion',
   'salary',
+  'all-chart',
   'gifts',
   'attendence',
   'wallet',
@@ -69,7 +69,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     showToast
   } = useApp();
 
-  const [activeCategory, setActiveCategory] = useState<'all' | 'slots' | 'original' | 'lottery'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'slots' | 'original' | 'lottery' | 'hot' | 'casino'>('all');
   const [bannerIdx, setBannerIdx] = useState<number>(0);
   const [activeCustomGame, setActiveCustomGame] = useState<GameItem | null>(null);
 
@@ -263,13 +263,13 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     showToast(`${g.title} is ready`);
   };
 
-  const handleCategoryPress = (cat: 'slots' | 'original' | 'lottery') => {
+  const handleCategoryPress = (cat: 'slots' | 'original' | 'lottery' | 'hot' | 'casino') => {
     setActiveCategory((prev) => (prev === cat ? 'all' : cat));
   };
 
-  const showLotterySection = activeCategory === 'all' || activeCategory === 'lottery';
-  const showOriginalSection = activeCategory === 'all' || activeCategory === 'original';
-  const showSlotsSection = activeCategory === 'all' || activeCategory === 'slots';
+  const showLotterySection = activeCategory === 'all' || activeCategory === 'lottery' || activeCategory === 'hot';
+  const showOriginalSection = activeCategory === 'all' || activeCategory === 'original' || activeCategory === 'hot' || activeCategory === 'casino';
+  const showSlotsSection = activeCategory === 'all' || activeCategory === 'slots' || activeCategory === 'hot' || activeCategory === 'casino';
 
   return (
     <div className="min-h-screen bg-[#FFFDF7] pb-24">
@@ -335,62 +335,159 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </button>
         </div>
 
-        {/* 3-Icon Category Strip: Slots / Original / Lottery */}
-        <div className="bg-white rounded-3xl px-4 py-3 border border-amber-100 shadow-xs grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => handleCategoryPress('slots')}
-            className={`flex flex-col items-center gap-1.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
-              activeCategory === 'slots' ? 'bg-amber-50 ring-1 ring-amber-300' : 'hover:bg-amber-50/50'
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-100 border border-amber-200/70 flex items-center justify-center overflow-hidden shadow-2xs">
-              <EwiCoinBadgePair size={26} />
-            </div>
-            <span className={`text-xs font-extrabold ${activeCategory === 'slots' ? 'text-[#B45309]' : 'text-slate-800'}`}>
-              Slots
-            </span>
-          </button>
+        {/* 5-Icon Category Strip + Gold Trading & Binary Split Cards */}
+        <div className="space-y-2.5">
+          <div className="bg-gradient-to-b from-white to-[#FFFBEB] rounded-3xl px-2 py-2.5 border border-amber-200/80 shadow-xs grid grid-cols-5 gap-1">
+            <button
+              type="button"
+              onClick={() => handleCategoryPress('slots')}
+              className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-2xl transition-all active:scale-95 ${
+                activeCategory === 'slots' ? 'bg-amber-100/80 ring-1 ring-amber-400' : 'hover:bg-amber-50/60'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-100 border border-amber-200/80 flex items-center justify-center overflow-hidden shadow-2xs">
+                <EwiCoinBadgePair size={24} />
+              </div>
+              <span className={`text-[10.5px] font-extrabold whitespace-nowrap ${activeCategory === 'slots' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+                Slots
+              </span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => handleCategoryPress('original')}
-            className={`flex flex-col items-center gap-1.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
-              activeCategory === 'original' ? 'bg-amber-50 ring-1 ring-amber-300' : 'hover:bg-amber-50/50'
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-amber-300/40 flex items-center justify-center overflow-hidden shadow-2xs">
-              <img
-                src={aviatorGameIconImg}
-                alt="Original"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <span className={`text-xs font-extrabold ${activeCategory === 'original' ? 'text-[#B45309]' : 'text-slate-800'}`}>
-              Original
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleCategoryPress('original')}
+              className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-2xl transition-all active:scale-95 ${
+                activeCategory === 'original' ? 'bg-amber-100/80 ring-1 ring-amber-400' : 'hover:bg-amber-50/60'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-amber-300/50 flex items-center justify-center overflow-hidden shadow-2xs">
+                <img
+                  src={aviatorGameIconImg}
+                  alt="Original"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className={`text-[10.5px] font-extrabold whitespace-nowrap ${activeCategory === 'original' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+                Original
+              </span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => handleCategoryPress('lottery')}
-            className={`flex flex-col items-center gap-1.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
-              activeCategory === 'lottery' ? 'bg-amber-50 ring-1 ring-amber-300' : 'hover:bg-amber-50/50'
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200/70 flex items-center justify-center overflow-hidden shadow-2xs">
-              <img
-                src={lotteryGameIconImg}
-                alt="Lottery"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <span className={`text-xs font-extrabold ${activeCategory === 'lottery' ? 'text-[#B45309]' : 'text-slate-800'}`}>
-              Lottery
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleCategoryPress('lottery')}
+              className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-2xl transition-all active:scale-95 ${
+                activeCategory === 'lottery' ? 'bg-amber-100/80 ring-1 ring-amber-400' : 'hover:bg-amber-50/60'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200/80 flex items-center justify-center overflow-hidden shadow-2xs">
+                <img
+                  src={lotteryGameIconImg}
+                  alt="Lottery"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className={`text-[10.5px] font-extrabold whitespace-nowrap ${activeCategory === 'lottery' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+                Lottery
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleCategoryPress('hot')}
+              className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-2xl transition-all active:scale-95 ${
+                activeCategory === 'hot' ? 'bg-amber-100/80 ring-1 ring-amber-400' : 'hover:bg-amber-50/60'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-100 border border-amber-300/80 flex items-center justify-center overflow-hidden shadow-2xs">
+                <img
+                  src={luckyJetPilotImg}
+                  alt="Hot Slots"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className={`text-[10.5px] font-extrabold whitespace-nowrap ${activeCategory === 'hot' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+                Hot Slots
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleCategoryPress('casino')}
+              className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-2xl transition-all active:scale-95 ${
+                activeCategory === 'casino' ? 'bg-amber-100/80 ring-1 ring-amber-400' : 'hover:bg-amber-50/60'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-100 border border-amber-300/80 flex items-center justify-center overflow-hidden shadow-2xs">
+                <img
+                  src={minesGameIconImg}
+                  alt="Casino"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className={`text-[10.5px] font-extrabold whitespace-nowrap ${activeCategory === 'casino' ? 'text-[#B45309]' : 'text-slate-800'}`}>
+                Casino
+              </span>
+            </button>
+          </div>
+
+          {/* 2 Split Luxury Quick-Launch Cards: GOLD Trading & Binary */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={handleGoldMarketClick}
+              className="text-left bg-gradient-to-br from-white via-[#FFFBEB] to-[#FEF3C7] rounded-2xl p-3 border border-amber-200/90 shadow-xs hover:border-amber-400 active:scale-98 transition-all flex items-center justify-between gap-2 overflow-hidden"
+            >
+              <div className="min-w-0">
+                <div className="text-[13px] font-black tracking-tight text-[#B45309] leading-tight">
+                  GOLD
+                </div>
+                <div className="text-[13px] font-black tracking-tight text-slate-900 leading-tight">
+                  Trading
+                </div>
+                <div className="text-[10px] font-bold text-slate-500 mt-0.5 whitespace-nowrap">
+                  Real Market
+                </div>
+              </div>
+              <div className="w-13 h-12 rounded-xl overflow-hidden border border-amber-300/80 bg-[#1A1205] flex-shrink-0 shadow-xs">
+                <img
+                  src="/assets/aistudio/image_2c2d654f.png"
+                  alt="Gold Trading"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBinaryClick}
+              className="text-left bg-gradient-to-br from-white via-[#FFFDF7] to-amber-50/90 rounded-2xl p-3 border border-amber-200/90 shadow-xs hover:border-amber-400 active:scale-98 transition-all flex items-center justify-between gap-2 overflow-hidden"
+            >
+              <div className="min-w-0">
+                <div className="text-[13px] font-black tracking-tight text-slate-900 leading-tight">
+                  Binary
+                </div>
+                <div className="text-[10px] font-bold text-slate-500 mt-0.5 whitespace-nowrap">
+                  Higher · Lower
+                </div>
+                <div className="text-[10px] font-mono font-black text-emerald-700 mt-1 tabular-nums">
+                  Up to 92%
+                </div>
+              </div>
+              <div className="w-13 h-12 rounded-xl overflow-hidden bg-[#071121] border border-amber-300/80 flex items-center justify-center flex-shrink-0 shadow-xs">
+                <img
+                  src="/assets/aistudio/image_5d8112e0.png"
+                  alt="Binary Trading"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* SECTION 1: Win Go + EWI WinGo + EWI K3 + EWI 5D Lottery Suite */}
@@ -683,8 +780,13 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#FDE68A] to-[#F59E0B] border border-amber-300 flex items-center justify-center p-1 shadow-2xs flex-shrink-0">
-                    <BinaryMarketLogo size={34} />
+                  <div className="w-14 h-12 rounded-2xl overflow-hidden bg-[#071121] border border-amber-300 flex items-center justify-center shadow-2xs flex-shrink-0">
+                    <img
+                      src="/assets/aistudio/image_5d8112e0.png"
+                      alt="Binary Trading"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
@@ -708,7 +810,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               </div>
 
               <div className="flex flex-wrap gap-1.5 mb-3">
-                {['15s', '30s', '1m', '3m', '5m', '15m', '30m'].map((tf) => (
+                {['5s', '15s', '30s', '1m', '5m', '15m', '30m', '1h', '12h', '24h'].map((tf) => (
                   <span
                     key={tf}
                     className="px-2.5 py-1 rounded-xl bg-amber-50 text-[#92400E] font-mono text-[10px] font-extrabold border border-amber-200"
@@ -847,7 +949,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               {activeCategory !== 'all' && (
                 <button
                   onClick={() => setActiveCategory('all')}
-                  className="text-[11px] font-bold text-[#B45309] underline"
+                  className="text-[11px] font-bold text-[#B45309] underline whitespace-nowrap"
                 >
                   Show All
                 </button>

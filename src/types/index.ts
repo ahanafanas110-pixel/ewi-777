@@ -12,6 +12,7 @@ export interface User {
   avatar: string;
   balance: number;
   safeBalance: number;
+  lockedBalance?: number;
   vipLevel: number;
   exp: number;
   totalDeposited: number;
@@ -43,6 +44,12 @@ export interface User {
   lastSalaryClaimDate?: string;
   claimedActivityRewards?: Record<string, string>;
   claimedFirstDepositTiers?: Record<string, boolean>;
+  winGoStreakCount?: number;
+  lastWinGoStreakDate?: string;
+  claimedWinGoStreakDate?: string;
+  dailyReferQualifiersDate?: string;
+  dailyReferBonusTierAwarded?: number;
+  claimedWingoRefunds?: string[];
   minesRoundSeq?: number;
   attendanceState?: {
     claimedDays: number[];
@@ -169,6 +176,10 @@ export interface Transaction {
     | 'coinflip_win'
     | 'ewi_wingo_bet'
     | 'ewi_wingo_win'
+    | 'recharge_bonus'
+    | 'daily_refer_bonus'
+    | 'wingo_streak_bonus'
+    | 'wingo_refund'
     | 'turnover_penalty';
   title: string;
   detail?: string;
@@ -183,10 +194,13 @@ export interface Transaction {
 
 export interface DepositRequest {
   id: string;
+  orderId?: string;
   sessionId?: string;
+  checkoutUrl?: string;
   userId: string;
   userPhone: string;
   method: 'bKash' | 'Nagad' | 'USDT';
+  provider?: string;
   channel: string;
   amount: number;
   usdAmount?: number;
@@ -195,6 +209,7 @@ export interface DepositRequest {
   status: 'pending' | 'processing' | 'approved' | 'rejected';
   time: string;
   adminNote?: string;
+  rejectionReason?: string;
 }
 
 export interface WinGoResult {
@@ -376,6 +391,7 @@ export interface AppNotification {
 
 export interface WithdrawRequest {
   id: string;
+  orderId?: string;
   ewiPayWithdrawId?: string;
   userId: string;
   userName: string;
@@ -386,6 +402,9 @@ export interface WithdrawRequest {
   status: 'pending' | 'processing' | 'completed' | 'rejected';
   time: string;
   adminNote?: string;
+  payoutTrxId?: string;
+  userMessage?: string;
+  rejectionReason?: string;
 }
 
 export interface GameItem {
@@ -465,10 +484,31 @@ export interface AdminSettings {
   activeGiftCodes: GiftCodeItem[];
   games?: GameItem[];
   broadcasts?: BroadcastNotice[];
+  ewiPayConfig?: EwiPayApiConfig;
   adminPhone?: string;
   adminPassword?: string;
   adminPhoneHash?: string;
   adminPasswordHash?: string;
+}
+
+export interface EwiPayApiConfig {
+  baseUrl?: string;
+  siteSlug?: string;
+  apiKey?: string;
+  unifiedCheckoutUrl?: string;
+  memberStatusUrl?: string;
+  webhookUrl?: string;
+  bkashCheckoutUrl?: string;
+  bkashTransactionsUrl?: string;
+  bkashWithdrawUrl?: string;
+  bkashWithdrawStatusUrl?: string;
+  bkashDepositStatusUrl?: string;
+  nagadCheckoutUrl?: string;
+  nagadTransactionsUrl?: string;
+  nagadWithdrawUrl?: string;
+  nagadWithdrawStatusUrl?: string;
+  nagadDepositStatusUrl?: string;
+  checkoutStatusUrl?: string;
 }
 
 export interface AdminAccessLog {
@@ -543,6 +583,7 @@ export interface CrashPoolState {
   maxPayoutCap: number;
   forcedCrashMultiplier: number;
   forcedCrashedAtMs: number;
+  forcedReason?: string;
   bets: CrashRoundBetEntry[];
   updatedAt: number;
 }
@@ -558,6 +599,7 @@ export interface CoinFlipBet {
   status: 'pending' | 'won' | 'lost';
   time: string;
 }
+
 
 
 

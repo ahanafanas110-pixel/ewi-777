@@ -125,6 +125,7 @@ export const Admin: React.FC = () => {
     setUserTurnover,
     toggleUserBan,
     adminModifyUserBalance,
+    releaseLockedBalance,
     adminUpdateUserRole,
     adminDeleteUser,
     adminSendUserNotice,
@@ -215,6 +216,8 @@ export const Admin: React.FC = () => {
   const [balAction, setBalAction] = useState<'add' | 'deduct' | 'set'>('add');
   const [balAmount, setBalAmount] = useState('');
   const [balReason, setBalReason] = useState('');
+  const [balLocked, setBalLocked] = useState(false);
+  const [balTurnover, setBalTurnover] = useState('');
   const [txHistoryModalUser, setTxHistoryModalUser] = useState<User | null>(null);
   const [cardsModalUser, setCardsModalUser] = useState<User | null>(null);
   const [noticeModalUser, setNoticeModalUser] = useState<User | null>(null);
@@ -266,6 +269,7 @@ export const Admin: React.FC = () => {
   const [rejectWithdrawReason, setRejectWithdrawReason] = useState<string>(
     'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ'
   );
+  const [rejectTurnoverPenalty, setRejectTurnoverPenalty] = useState('');
 
   // =================== GIFT CODES STATE ===================
   const [giftSearch, setGiftSearch] = useState('');
@@ -305,6 +309,52 @@ export const Admin: React.FC = () => {
   const [minWd, setMinWd] = useState(String(Math.max(300, adminSettings.minWithdraw || 300)));
   const [referPct, setReferPct] = useState(String(adminSettings.referCommissionPercent ?? 10));
   const [depositInstr, setDepositInstr] = useState(adminSettings.depositInstructions);
+
+  // EWI-Pay Deposit & Withdraw API Configuration Drafts (Admin Editable)
+  const [ewiBaseUrl, setEwiBaseUrl] = useState(adminSettings.ewiPayConfig?.baseUrl || 'https://ewi-pay.vercel.app');
+  const [ewiSiteSlug, setEwiSiteSlug] = useState(adminSettings.ewiPayConfig?.siteSlug || 'ewi777');
+  const [ewiApiKey, setEwiApiKey] = useState(adminSettings.ewiPayConfig?.apiKey || '');
+  const [showEwiApiKey, setShowEwiApiKey] = useState(false);
+  const [ewiCheckoutStatusUrl, setEwiCheckoutStatusUrl] = useState(
+    adminSettings.ewiPayConfig?.checkoutStatusUrl || 'https://ewi-pay.vercel.app/api/v1/checkout/status/:sessionId'
+  );
+  const [ewiBkashCheckoutUrl, setEwiBkashCheckoutUrl] = useState(
+    adminSettings.ewiPayConfig?.bkashCheckoutUrl || 'https://ewi-pay.vercel.app/api/v1/bkash/checkout/create'
+  );
+  const [ewiBkashDepositStatusUrl, setEwiBkashDepositStatusUrl] = useState(
+    adminSettings.ewiPayConfig?.bkashDepositStatusUrl || 'https://ewi-pay.vercel.app/api/v1/bkash/deposits/:id/status'
+  );
+  const [ewiBkashTxUrl, setEwiBkashTxUrl] = useState(
+    adminSettings.ewiPayConfig?.bkashTransactionsUrl || 'https://ewi-pay.vercel.app/api/v1/bkash/transactions'
+  );
+  const [ewiBkashWithdrawUrl, setEwiBkashWithdrawUrl] = useState(
+    adminSettings.ewiPayConfig?.bkashWithdrawUrl || 'https://ewi-pay.vercel.app/api/v1/bkash/withdrawals/request'
+  );
+  const [ewiBkashWithdrawStatusUrl, setEwiBkashWithdrawStatusUrl] = useState(
+    adminSettings.ewiPayConfig?.bkashWithdrawStatusUrl || 'https://ewi-pay.vercel.app/api/v1/bkash/withdrawals/:id/status'
+  );
+  const [ewiNagadCheckoutUrl, setEwiNagadCheckoutUrl] = useState(
+    adminSettings.ewiPayConfig?.nagadCheckoutUrl || 'https://ewi-pay.vercel.app/api/v1/nagad/checkout/create'
+  );
+  const [ewiNagadDepositStatusUrl, setEwiNagadDepositStatusUrl] = useState(
+    adminSettings.ewiPayConfig?.nagadDepositStatusUrl || 'https://ewi-pay.vercel.app/api/v1/nagad/deposits/:id/status'
+  );
+  const [ewiNagadTxUrl, setEwiNagadTxUrl] = useState(
+    adminSettings.ewiPayConfig?.nagadTransactionsUrl || 'https://ewi-pay.vercel.app/api/v1/nagad/transactions'
+  );
+  const [ewiNagadWithdrawUrl, setEwiNagadWithdrawUrl] = useState(
+    adminSettings.ewiPayConfig?.nagadWithdrawUrl || 'https://ewi-pay.vercel.app/api/v1/nagad/withdrawals/request'
+  );
+  const [ewiNagadWithdrawStatusUrl, setEwiNagadWithdrawStatusUrl] = useState(
+    adminSettings.ewiPayConfig?.nagadWithdrawStatusUrl || 'https://ewi-pay.vercel.app/api/v1/nagad/withdrawals/:id/status'
+  );
+  const [ewiUnifiedCheckoutUrl, setEwiUnifiedCheckoutUrl] = useState(
+    adminSettings.ewiPayConfig?.unifiedCheckoutUrl || 'https://ewi-pay.vercel.app/api/v1/checkout/create'
+  );
+  const [ewiMemberStatusUrl, setEwiMemberStatusUrl] = useState(
+    adminSettings.ewiPayConfig?.memberStatusUrl || 'https://ewi-pay.vercel.app/api/v1/member/:siteUserId/status'
+  );
+  const [isSyncingWithdraws, setIsSyncingWithdraws] = useState(false);
 
   const [appNameDraft, setAppNameDraft] = useState(adminSettings.appName || 'EWI 777');
   const [appLogoDraft, setAppLogoDraft] = useState(adminSettings.appLogoUrl || '');
@@ -357,7 +407,8 @@ export const Admin: React.FC = () => {
     pMsg: adminSettings.popupMessage,
     pEn: adminSettings.enableSystemPopup,
     wPath: adminSettings.wingoSyncPath,
-    wPat: adminSettings.wingoPattern
+    wPat: adminSettings.wingoPattern,
+    ewiPay: adminSettings.ewiPayConfig
   });
   useEffect(() => {
     setBkashNum(adminSettings.bkashNumber || '');
@@ -367,6 +418,24 @@ export const Admin: React.FC = () => {
     setMinWd(String(Math.max(300, adminSettings.minWithdraw || 300)));
     setReferPct(String(adminSettings.referCommissionPercent ?? 10));
     setDepositInstr(adminSettings.depositInstructions || '');
+    const ep = adminSettings.ewiPayConfig;
+    const base = String(ep?.baseUrl || 'https://ewi-pay.vercel.app').trim().replace(/\/+$/, '') || 'https://ewi-pay.vercel.app';
+    setEwiBaseUrl(base);
+    setEwiSiteSlug(ep?.siteSlug || 'ewi777');
+    setEwiApiKey(ep?.apiKey || '');
+    setEwiCheckoutStatusUrl(ep?.checkoutStatusUrl || `${base}/api/v1/checkout/status/:sessionId`);
+    setEwiBkashCheckoutUrl(ep?.bkashCheckoutUrl || `${base}/api/v1/bkash/checkout/create`);
+    setEwiBkashDepositStatusUrl(ep?.bkashDepositStatusUrl || `${base}/api/v1/bkash/deposits/:id/status`);
+    setEwiBkashTxUrl(ep?.bkashTransactionsUrl || `${base}/api/v1/bkash/transactions`);
+    setEwiBkashWithdrawUrl(ep?.bkashWithdrawUrl || `${base}/api/v1/bkash/withdrawals/request`);
+    setEwiBkashWithdrawStatusUrl(ep?.bkashWithdrawStatusUrl || `${base}/api/v1/bkash/withdrawals/:id/status`);
+    setEwiNagadCheckoutUrl(ep?.nagadCheckoutUrl || `${base}/api/v1/nagad/checkout/create`);
+    setEwiNagadDepositStatusUrl(ep?.nagadDepositStatusUrl || `${base}/api/v1/nagad/deposits/:id/status`);
+    setEwiNagadTxUrl(ep?.nagadTransactionsUrl || `${base}/api/v1/nagad/transactions`);
+    setEwiNagadWithdrawUrl(ep?.nagadWithdrawUrl || `${base}/api/v1/nagad/withdrawals/request`);
+    setEwiNagadWithdrawStatusUrl(ep?.nagadWithdrawStatusUrl || `${base}/api/v1/nagad/withdrawals/:id/status`);
+    setEwiUnifiedCheckoutUrl(ep?.unifiedCheckoutUrl || `${base}/api/v1/checkout/create`);
+    setEwiMemberStatusUrl(ep?.memberStatusUrl || `${base}/api/v1/member/:siteUserId/status`);
     setAppNameDraft(adminSettings.appName || 'EWI 777');
     setAppLogoDraft(adminSettings.appLogoUrl || '');
     setSupportLinkDraft(adminSettings.supportLink || '');
@@ -1635,6 +1704,8 @@ export const Admin: React.FC = () => {
                                       setBalAction('add');
                                       setBalAmount('');
                                       setBalReason('');
+                                      setBalLocked(false);
+                                      setBalTurnover('');
                                     }}
                                     className="p-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white active:scale-95"
                                     title="Modify Balance"
@@ -2831,7 +2902,7 @@ export const Admin: React.FC = () => {
                   {([
                     { id: 'pending', label: 'Pending' },
                     { id: 'processing', label: 'Processing' },
-                    { id: 'approved', label: 'Complete' },
+                    { id: 'approved', label: 'Completed' },
                     { id: 'rejected', label: 'Rejected' },
                     { id: 'all', label: 'All' }
                   ] as const).map((tab) => (
@@ -2886,16 +2957,29 @@ export const Admin: React.FC = () => {
                             <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{d.time}</td>
                             <td className="px-4 py-3">
                               <span
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
                                   d.status === 'approved'
                                     ? 'bg-emerald-500/20 text-emerald-400'
                                     : d.status === 'rejected'
                                     ? 'bg-rose-500/20 text-rose-400'
+                                    : d.status === 'processing'
+                                    ? 'bg-cyan-500/20 text-cyan-300'
                                     : 'bg-amber-500/20 text-amber-400'
                                 }`}
                               >
-                                {d.status === 'approved' ? 'COMPLETE' : d.status}
+                                {d.status === 'approved'
+                                  ? 'Completed'
+                                  : d.status === 'rejected'
+                                  ? 'Rejected'
+                                  : d.status === 'processing'
+                                  ? 'Processing'
+                                  : 'Pending'}
                               </span>
+                              {d.status === 'rejected' && (d.rejectionReason || d.adminNote) && (
+                                <div className="text-[10px] text-rose-300/90 mt-1 max-w-[180px] break-words">
+                                  {d.rejectionReason || d.adminNote}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right">
                               {d.status === 'pending' || d.status === 'processing' ? (
@@ -2937,7 +3021,7 @@ export const Admin: React.FC = () => {
                   {([
                     { id: 'pending', label: 'Pending' },
                     { id: 'processing', label: 'Processing' },
-                    { id: 'completed', label: 'Complete' },
+                    { id: 'completed', label: 'Completed' },
                     { id: 'rejected', label: 'Rejected' },
                     { id: 'all', label: 'All' }
                   ] as const).map((tab) => (
@@ -2954,7 +3038,98 @@ export const Admin: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <span className="text-xs text-slate-400 font-mono">{filteredWithdraws.length} requests</span>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isSyncingWithdraws}
+                    onClick={async () => {
+                      setIsSyncingWithdraws(true);
+                      try {
+                        const processingItems = withdrawRequests.filter(
+                          (w) => (w.status === 'processing' || w.status === 'pending') && Boolean(w.ewiPayWithdrawId)
+                        );
+                        let updatedCount = 0;
+                        for (const w of processingItems) {
+                          if (!w.ewiPayWithdrawId) continue;
+                          const qs = `?method=${encodeURIComponent(w.method || 'bKash')}`;
+                          const res = await fetch(
+                            apiUrl(`/api/ewi-pay/withdraw-status/${encodeURIComponent(w.ewiPayWithdrawId)}${qs}`),
+                            { cache: 'no-store' }
+                          );
+                          const stData = res.ok ? await res.json().catch(() => null) : null;
+                          const gwObj = stData?.gateway && typeof stData.gateway === 'object' ? stData.gateway : stData;
+                          const rawStatus = String(
+                            gwObj?.status ||
+                              gwObj?.withdrawal?.status ||
+                              gwObj?.data?.status ||
+                              stData?.status ||
+                              ''
+                          )
+                            .trim()
+                            .toLowerCase();
+                          const displayRaw = String(gwObj?.displayStatus || stData?.displayStatus || '').trim().toLowerCase();
+                          const payoutTrxId = String(
+                            gwObj?.payoutTrxId || gwObj?.payout_trx_id || gwObj?.trxId || stData?.payoutTrxId || ''
+                          ).trim();
+                          if (
+                            rawStatus === 'completed' ||
+                            rawStatus === 'approved' ||
+                            rawStatus === 'paid' ||
+                            rawStatus === 'success' ||
+                            gwObj?.completed === true ||
+                            stData?.completed === true ||
+                            displayRaw.includes('completed')
+                          ) {
+                            updateWithdrawStatus(w.id, 'completed', undefined, undefined, {
+                              payoutTrxId: payoutTrxId || undefined
+                            });
+                            updatedCount += 1;
+                          } else if (
+                            rawStatus === 'rejected' ||
+                            rawStatus === 'failed' ||
+                            rawStatus === 'cancelled' ||
+                            gwObj?.rejected === true ||
+                            gwObj?.refundRequired === true ||
+                            stData?.rejected === true
+                          ) {
+                            const reason = String(
+                              gwObj?.rejectionReason ||
+                                gwObj?.reason ||
+                                gwObj?.withdrawal?.reason ||
+                                gwObj?.message ||
+                                'Rejected by EWI-Pay Gateway'
+                            ).trim();
+                            const usrMsg = String(gwObj?.userMessage || stData?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
+                            updateWithdrawStatus(w.id, 'rejected', reason || undefined, undefined, {
+                              userMessage: usrMsg,
+                              rejectionReason: reason || undefined
+                            });
+                            updatedCount += 1;
+                          }
+                        }
+                        await syncServerDataNow();
+                        showToast(
+                          updatedCount > 0
+                            ? `Synced ${updatedCount} withdrawal(s) from EWI-Pay`
+                            : processingItems.length > 0
+                            ? `Checked ${processingItems.length} processing withdrawal(s) — still in queue`
+                            : 'Refreshed withdrawal list'
+                        );
+                      } catch {
+                        showToast('Failed to check EWI-Pay withdrawal status');
+                      } finally {
+                        setIsSyncingWithdraws(false);
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 disabled:opacity-60 text-white text-xs font-black flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingWithdraws ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingWithdraws ? 'Checking...' : 'Sync EWI-Pay Withdraws'}</span>
+                  </button>
+                  <span className="text-xs text-slate-400 font-mono whitespace-nowrap">
+                    {filteredWithdraws.length} requests
+                  </span>
+                </div>
               </div>
 
               <div className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden">
@@ -2993,7 +3168,7 @@ export const Admin: React.FC = () => {
                             <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{w.time}</td>
                             <td className="px-4 py-3">
                               <span
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
                                   w.status === 'completed'
                                     ? 'bg-emerald-500/20 text-emerald-400'
                                     : w.status === 'rejected'
@@ -3003,30 +3178,47 @@ export const Admin: React.FC = () => {
                                     : 'bg-blue-500/20 text-blue-400'
                                 }`}
                               >
-                                {w.status}
+                                {w.status === 'completed'
+                                  ? 'Completed'
+                                  : w.status === 'rejected'
+                                  ? 'Rejected'
+                                  : w.status === 'processing'
+                                  ? 'Processing'
+                                  : 'Pending'}
                               </span>
-                              {w.status === 'rejected' && w.adminNote && (
+                              {w.ewiPayWithdrawId && (
+                                <div className="text-[10px] font-mono text-cyan-300/90 mt-1">
+                                  EWI-Pay: {w.ewiPayWithdrawId}
+                                </div>
+                              )}
+                              {w.payoutTrxId && (
+                                <div className="text-[10px] font-mono text-emerald-300/95 mt-0.5">
+                                  TrxID: {w.payoutTrxId}
+                                </div>
+                              )}
+                              {w.status === 'rejected' && (w.rejectionReason || w.adminNote) && (
                                 <div className="text-[10px] text-rose-300/90 mt-1 max-w-[180px] break-words">
-                                  {w.adminNote}
+                                  {w.rejectionReason || w.adminNote}
                                 </div>
                               )}
                             </td>
                             <td className="px-4 py-3 text-right">
                               {w.status === 'pending' || w.status === 'processing' ? (
                                 <div className="inline-flex gap-1">
-                                  {w.status === 'pending' && (
+                                  {(w.status === 'pending' || (w.status === 'processing' && !w.ewiPayWithdrawId)) && (
                                     <button
                                       type="button"
                                       onClick={() => updateWithdrawStatus(w.id, 'processing')}
-                                      className="px-2 py-1 rounded-md bg-blue-600/30 border border-blue-500/40 text-cyan-300 text-[10px] font-black"
+                                      title="Send withdrawal request to EWI-Pay & mark Processing"
+                                      className="px-2 py-1 rounded-md bg-blue-600/30 border border-blue-500/40 text-cyan-300 text-[10px] font-black whitespace-nowrap"
                                     >
-                                      PROC
+                                      {w.status === 'processing' ? 'RETRY EWI-PAY' : 'PROC → EWI-PAY'}
                                     </button>
                                   )}
                                   <button
                                     type="button"
                                     onClick={() => updateWithdrawStatus(w.id, 'completed')}
-                                    className="px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-black"
+                                    className="px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-black whitespace-nowrap"
                                   >
                                     PAY DONE
                                   </button>
@@ -3034,6 +3226,7 @@ export const Admin: React.FC = () => {
                                     type="button"
                                     onClick={() => {
                                       setRejectWithdrawReason('আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ');
+                                      setRejectTurnoverPenalty('');
                                       setRejectWithdrawModal({
                                         id: w.id,
                                         userName: w.userName,
@@ -3542,6 +3735,337 @@ export const Admin: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* EWI-Pay Deposit & Withdraw API Configuration */}
+              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-black text-cyan-400 tracking-wider flex items-center gap-1.5">
+                      <Globe className="w-4 h-4" />
+                      <span>EWI-PAY DEPOSIT &amp; WITHDRAW API SETTINGS</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Configure live bKash &amp; Nagad checkout, deposit verification, and auto-withdraw API endpoints.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const base = ewiBaseUrl.trim().replace(/\/+$/, '') || 'https://ewi-pay.vercel.app';
+                        setEwiBaseUrl(base);
+                        setEwiCheckoutStatusUrl(`${base}/api/v1/checkout/status/:sessionId`);
+                        setEwiBkashCheckoutUrl(`${base}/api/v1/bkash/checkout/create`);
+                        setEwiBkashDepositStatusUrl(`${base}/api/v1/bkash/deposits/:id/status`);
+                        setEwiBkashTxUrl(`${base}/api/v1/bkash/transactions`);
+                        setEwiBkashWithdrawUrl(`${base}/api/v1/bkash/withdrawals/request`);
+                        setEwiBkashWithdrawStatusUrl(`${base}/api/v1/bkash/withdrawals/:id/status`);
+                        setEwiNagadCheckoutUrl(`${base}/api/v1/nagad/checkout/create`);
+                        setEwiNagadDepositStatusUrl(`${base}/api/v1/nagad/deposits/:id/status`);
+                        setEwiNagadTxUrl(`${base}/api/v1/nagad/transactions`);
+                        setEwiNagadWithdrawUrl(`${base}/api/v1/nagad/withdrawals/request`);
+                        setEwiNagadWithdrawStatusUrl(`${base}/api/v1/nagad/withdrawals/:id/status`);
+                        setEwiUnifiedCheckoutUrl(`${base}/api/v1/checkout/create`);
+                        setEwiMemberStatusUrl(`${base}/api/v1/member/:siteUserId/status`);
+                        showToast('Generated all endpoint URLs from Base URL');
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-[11px] font-black whitespace-nowrap hover:bg-cyan-600/30"
+                    >
+                      Fill From Base URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defBase = 'https://ewi-pay.vercel.app';
+                        setEwiBaseUrl(defBase);
+                        setEwiSiteSlug('ewi777');
+                        setEwiCheckoutStatusUrl(`${defBase}/api/v1/checkout/status/:sessionId`);
+                        setEwiBkashCheckoutUrl(`${defBase}/api/v1/bkash/checkout/create`);
+                        setEwiBkashDepositStatusUrl(`${defBase}/api/v1/bkash/deposits/:id/status`);
+                        setEwiBkashTxUrl(`${defBase}/api/v1/bkash/transactions`);
+                        setEwiBkashWithdrawUrl(`${defBase}/api/v1/bkash/withdrawals/request`);
+                        setEwiBkashWithdrawStatusUrl(`${defBase}/api/v1/bkash/withdrawals/:id/status`);
+                        setEwiNagadCheckoutUrl(`${defBase}/api/v1/nagad/checkout/create`);
+                        setEwiNagadDepositStatusUrl(`${defBase}/api/v1/nagad/deposits/:id/status`);
+                        setEwiNagadTxUrl(`${defBase}/api/v1/nagad/transactions`);
+                        setEwiNagadWithdrawUrl(`${defBase}/api/v1/nagad/withdrawals/request`);
+                        setEwiNagadWithdrawStatusUrl(`${defBase}/api/v1/nagad/withdrawals/:id/status`);
+                        setEwiUnifiedCheckoutUrl(`${defBase}/api/v1/checkout/create`);
+                        setEwiMemberStatusUrl(`${defBase}/api/v1/member/:siteUserId/status`);
+                        showToast('Restored default EWI777 API endpoints (click Save to apply)');
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-300 text-[11px] font-black whitespace-nowrap hover:bg-amber-600/30"
+                    >
+                      Reset EWI777 Defaults
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">API Base URL</label>
+                    <input
+                      type="text"
+                      value={ewiBaseUrl}
+                      onChange={(e) => setEwiBaseUrl(e.target.value)}
+                      placeholder="https://ewi-pay.vercel.app"
+                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Merchant Site Slug</label>
+                    <input
+                      type="text"
+                      value={ewiSiteSlug}
+                      onChange={(e) => setEwiSiteSlug(e.target.value)}
+                      placeholder="ewi777"
+                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      Gateway x-api-key
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showEwiApiKey ? 'text' : 'password'}
+                        value={ewiApiKey}
+                        onChange={(e) => setEwiApiKey(e.target.value)}
+                        placeholder="Leave blank to keep default key"
+                        className="w-full pl-3 pr-9 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEwiApiKey((v) => !v)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                        aria-label="Toggle API key visibility"
+                      >
+                        {showEwiApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      Checkout Status URL
+                    </label>
+                    <input
+                      type="text"
+                      value={ewiCheckoutStatusUrl}
+                      onChange={(e) => setEwiCheckoutStatusUrl(e.target.value)}
+                      placeholder="https://.../api/v1/checkout/status/:sessionId"
+                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                  {/* bKash API Group */}
+                  <div className="p-3.5 rounded-xl bg-[#070E1B] border border-pink-500/25 space-y-2.5">
+                    <div className="text-[11px] font-black text-pink-400 tracking-wider uppercase">
+                      bKash Dedicated API Endpoints
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Create bKash Checkout (POST)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiBkashCheckoutUrl}
+                        onChange={(e) => setEwiBkashCheckoutUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Check bKash Deposit Status (GET)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiBkashDepositStatusUrl}
+                        onChange={(e) => setEwiBkashDepositStatusUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        bKash Transactions List (GET)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiBkashTxUrl}
+                        onChange={(e) => setEwiBkashTxUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        bKash Withdraw Request (POST)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiBkashWithdrawUrl}
+                        onChange={(e) => setEwiBkashWithdrawUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        bKash Withdraw Status (GET)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiBkashWithdrawStatusUrl}
+                        onChange={(e) => setEwiBkashWithdrawStatusUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Nagad API Group */}
+                  <div className="p-3.5 rounded-xl bg-[#070E1B] border border-orange-500/25 space-y-2.5">
+                    <div className="text-[11px] font-black text-orange-400 tracking-wider uppercase">
+                      Nagad Dedicated API Endpoints
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Create Nagad Checkout (POST)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiNagadCheckoutUrl}
+                        onChange={(e) => setEwiNagadCheckoutUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Check Nagad Deposit Status (GET)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiNagadDepositStatusUrl}
+                        onChange={(e) => setEwiNagadDepositStatusUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Nagad Transactions List (GET)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiNagadTxUrl}
+                        onChange={(e) => setEwiNagadTxUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Nagad Withdraw Request (POST)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiNagadWithdrawUrl}
+                        onChange={(e) => setEwiNagadWithdrawUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Nagad Withdraw Status (GET)
+                      </label>
+                      <input
+                        type="text"
+                        value={ewiNagadWithdrawStatusUrl}
+                        onChange={(e) => setEwiNagadWithdrawStatusUrl(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      Unified Checkout URL (POST)
+                    </label>
+                    <input
+                      type="text"
+                      value={ewiUnifiedCheckoutUrl}
+                      onChange={(e) => setEwiUnifiedCheckoutUrl(e.target.value)}
+                      placeholder="https://ewi-pay.vercel.app/api/v1/checkout/create"
+                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      Member Status Sync URL (GET)
+                    </label>
+                    <input
+                      type="text"
+                      value={ewiMemberStatusUrl}
+                      onChange={(e) => setEwiMemberStatusUrl(e.target.value)}
+                      placeholder="https://ewi-pay.vercel.app/api/v1/member/:siteUserId/status"
+                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      2-Way HTTPS Webhook Receiver (X-EWI-Signature)
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/api/ewi-pay/webhook`}
+                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-emerald-500/40 font-mono text-emerald-300 text-[11px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(`${window.location.origin}/api/ewi-pay/webhook`).catch(() => {});
+                          showToast('Webhook URL copied!');
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-black whitespace-nowrap"
+                      >
+                        COPY
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleanBase = ewiBaseUrl.trim().replace(/\/+$/, '') || 'https://ewi-pay.vercel.app';
+                    updateAdminSettings({
+                      ewiPayConfig: {
+                        baseUrl: cleanBase,
+                        siteSlug: ewiSiteSlug.trim() || 'ewi777',
+                        apiKey: ewiApiKey.trim(),
+                        unifiedCheckoutUrl: ewiUnifiedCheckoutUrl.trim() || `${cleanBase}/api/v1/checkout/create`,
+                        memberStatusUrl: ewiMemberStatusUrl.trim() || `${cleanBase}/api/v1/member/:siteUserId/status`,
+                        webhookUrl: `${window.location.origin}/api/ewi-pay/webhook`,
+                        checkoutStatusUrl: ewiCheckoutStatusUrl.trim() || `${cleanBase}/api/v1/checkout/status/:sessionId`,
+                        bkashCheckoutUrl: ewiBkashCheckoutUrl.trim() || `${cleanBase}/api/v1/bkash/checkout/create`,
+                        bkashDepositStatusUrl: ewiBkashDepositStatusUrl.trim() || `${cleanBase}/api/v1/bkash/deposits/:id/status`,
+                        bkashTransactionsUrl: ewiBkashTxUrl.trim() || `${cleanBase}/api/v1/bkash/transactions`,
+                        bkashWithdrawUrl: ewiBkashWithdrawUrl.trim() || `${cleanBase}/api/v1/bkash/withdrawals/request`,
+                        bkashWithdrawStatusUrl: ewiBkashWithdrawStatusUrl.trim() || `${cleanBase}/api/v1/bkash/withdrawals/:id/status`,
+                        nagadCheckoutUrl: ewiNagadCheckoutUrl.trim() || `${cleanBase}/api/v1/nagad/checkout/create`,
+                        nagadDepositStatusUrl: ewiNagadDepositStatusUrl.trim() || `${cleanBase}/api/v1/nagad/deposits/:id/status`,
+                        nagadTransactionsUrl: ewiNagadTxUrl.trim() || `${cleanBase}/api/v1/nagad/transactions`,
+                        nagadWithdrawUrl: ewiNagadWithdrawUrl.trim() || `${cleanBase}/api/v1/nagad/withdrawals/request`,
+                        nagadWithdrawStatusUrl: ewiNagadWithdrawStatusUrl.trim() || `${cleanBase}/api/v1/nagad/withdrawals/:id/status`
+                      }
+                    });
+                    showToast('Saved EWI-Pay Deposit & Withdraw API Configuration!');
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white font-black text-xs"
+                >
+                  SAVE EWI-PAY API CONFIG
+                </button>
               </div>
 
               {/* Secret Admin Panel Credentials */}
@@ -4231,6 +4755,28 @@ export const Admin: React.FC = () => {
                       Turnover: ৳{Number(liveUser.turnoverCompleted || 0).toFixed(0)} / ৳
                       {Number(liveUser.turnoverRequired || 0).toFixed(0)}
                     </div>
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 mt-1">
+                      <span>
+                        Locked Balance:{' '}
+                        <strong className={Number(liveUser.lockedBalance || 0) > 0 ? 'text-amber-400' : 'text-slate-300'}>
+                          ৳{Number(liveUser.lockedBalance || 0).toFixed(2)}
+                        </strong>
+                      </span>
+                      {Number(liveUser.lockedBalance || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            releaseLockedBalance(liveUser.id);
+                            setControlUser((prev) =>
+                              prev && prev.id === liveUser.id ? { ...prev, lockedBalance: 0 } : prev
+                            );
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] whitespace-nowrap active:scale-95"
+                        >
+                          Release Locked
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Inline Turnover Override */}
@@ -4260,6 +4806,8 @@ export const Admin: React.FC = () => {
                         setBalAction('add');
                         setBalAmount('');
                         setBalReason('');
+                        setBalLocked(false);
+                        setBalTurnover('');
                       }}
                       className="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black flex items-center justify-center gap-1.5"
                     >
@@ -4378,6 +4926,33 @@ export const Admin: React.FC = () => {
                 />
               </div>
               <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                  CUSTOM TURNOVER REQUIREMENT (৳ OPTIONAL)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={balTurnover}
+                  onChange={(e) => setBalTurnover(e.target.value)}
+                  placeholder="0 (adds extra turnover target)"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                />
+              </div>
+              <label className="flex items-start gap-2.5 p-2.5 rounded-xl bg-[#070E1B] border border-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={balLocked}
+                  onChange={(e) => setBalLocked(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded accent-amber-500"
+                />
+                <div>
+                  <div className="text-[11px] font-black text-amber-400">Locked (Non-Withdrawable)</div>
+                  <div className="text-[10px] text-slate-400">
+                    User can play games with this amount, but cannot withdraw until released.
+                  </div>
+                </div>
+              </label>
+              <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">REASON</label>
                 <input
                   type="text"
@@ -4395,7 +4970,11 @@ export const Admin: React.FC = () => {
                     showToast('Please enter a valid amount');
                     return;
                   }
-                  const res = adminModifyUserBalance(balanceModalUser.id, balAction, amt, balReason);
+                  const extraTurnover = Math.max(0, Number(balTurnover) || 0);
+                  const res = adminModifyUserBalance(balanceModalUser.id, balAction, amt, balReason, {
+                    locked: balLocked,
+                    turnover: extraTurnover > 0 ? extraTurnover : undefined
+                  });
                   if (!res.success) {
                     showToast(res.message);
                     return;
@@ -4404,13 +4983,30 @@ export const Admin: React.FC = () => {
                   setControlUser((prev) => {
                     if (!prev || prev.id !== balanceModalUser.id) return prev;
                     const cur = Number(prev.balance || 0);
+                    const curLocked = Number(prev.lockedBalance || 0);
                     const next =
                       balAction === 'add'
                         ? cur + amt
                         : balAction === 'deduct'
                         ? Math.max(0, cur - amt)
                         : amt;
-                    return { ...prev, balance: next };
+                    const nextLocked =
+                      balAction === 'add'
+                        ? balLocked
+                          ? curLocked + amt
+                          : curLocked
+                        : balAction === 'deduct'
+                        ? Math.min(curLocked, next)
+                        : balLocked
+                        ? next
+                        : Math.min(curLocked, next);
+                    const nextTurnover = Number(prev.turnoverRequired || 0) + extraTurnover;
+                    return {
+                      ...prev,
+                      balance: next,
+                      lockedBalance: nextLocked,
+                      turnoverRequired: nextTurnover
+                    };
                   });
                 }}
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs"
@@ -5369,6 +5965,19 @@ export const Admin: React.FC = () => {
                 className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white focus:outline-none focus:border-rose-400"
               />
             </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase">
+                Add Turnover Penalty (৳ Optional)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={rejectTurnoverPenalty}
+                onChange={(e) => setRejectTurnoverPenalty(e.target.value)}
+                placeholder="0 (no extra turnover)"
+                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-amber-400"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -5381,7 +5990,8 @@ export const Admin: React.FC = () => {
                 type="button"
                 onClick={() => {
                   const reason = rejectWithdrawReason.trim() || 'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ';
-                  updateWithdrawStatus(rejectWithdrawModal.id, 'rejected', reason);
+                  const penalty = Math.max(0, Number(rejectTurnoverPenalty) || 0);
+                  updateWithdrawStatus(rejectWithdrawModal.id, 'rejected', reason, penalty > 0 ? penalty : undefined);
                   setRejectWithdrawModal(null);
                 }}
                 className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs"

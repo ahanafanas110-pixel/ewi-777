@@ -16,7 +16,12 @@ import {
 import { Ewi777Logo, GoldMarketLogo } from '../components/BrandLogos';
 import { BINARY_MARKETS, BINARY_MARKET_MAP } from '../constants/markets';
 import { BinaryMarketCategory, BinaryMarketConfig } from '../types';
-import { formatTimeWithOffset, formatOffsetLabel } from '../utils/syncedMarkets';
+import {
+  formatTimeWithOffset,
+  formatOffsetLabel,
+  getSyncedBinaryCandlesForTimeframe,
+  formatCountdownClock
+} from '../utils/syncedMarkets';
 
 const BINARY_ONLY_CATEGORIES: Array<'All' | BinaryMarketCategory> = [
   'All',
@@ -26,13 +31,16 @@ const BINARY_ONLY_CATEGORIES: Array<'All' | BinaryMarketCategory> = [
 ];
 
 const TIMEFRAMES = [
+  { label: '5s', sec: 5 },
   { label: '15s', sec: 15 },
   { label: '30s', sec: 30 },
   { label: '1m', sec: 60 },
-  { label: '3m', sec: 180 },
   { label: '5m', sec: 300 },
   { label: '15m', sec: 900 },
-  { label: '30m', sec: 1800 }
+  { label: '30m', sec: 1800 },
+  { label: '1h', sec: 3600 },
+  { label: '12h', sec: 43200 },
+  { label: '24h', sec: 86400 }
 ];
 
 const QUICK_AMOUNTS = [10, 50, 100, 500, 1000];
@@ -53,7 +61,6 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
   const {
     user,
     binaryMarkets,
-    binaryCandleSecRemaining,
     binaryBets,
     placeBinaryTrade,
     setActiveTab,
@@ -111,7 +118,26 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     binaryMarkets[selectedAsset] ||
     (isGoldMode ? binaryMarkets['XAU/USD'] : binaryMarkets['BTC/USDT']);
   const assetPrice = activeQuote?.price ?? activeSpec.basePrice;
-  const assetCandles = activeQuote?.candles || [];
+  const currentSecEpoch = Math.floor(nowTime / 1000);
+  const tfSecRemaining = Math.max(1, selectedTimeframe - (currentSecEpoch % selectedTimeframe));
+  const tfCountdownLabel = formatCountdownClock(tfSecRemaining);
+
+  const assetCandles = useMemo(
+    () =>
+      getSyncedBinaryCandlesForTimeframe(
+        activeSpec,
+        selectedTimeframe,
+        nowTime,
+        adminSettings.binaryNextCandleBias || 'AUTO',
+        offsetMinutes,
+        96,
+        assetPrice
+      ),
+    // Rebuild aggregated OHLC candles cleanly every second or on timeframe/asset/bias switches
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeSpec, selectedTimeframe, currentSecEpoch, adminSettings.binaryNextCandleBias, offsetMinutes, assetPrice]
+  );
+
   const payoutPct = Math.round(activeSpec.payoutRate * 100);
 
   const activeOrders = useMemo(() => binaryBets.filter((b) => b.status === 'active'), [binaryBets]);
@@ -127,7 +153,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     price: assetPrice,
     spec: activeSpec,
     activeOrders: assetActiveOrders,
-    secRemaining: binaryCandleSecRemaining,
+    secRemaining: tfSecRemaining,
     timeframeSec: selectedTimeframe,
     offsetMinutes,
     visibleCount,
@@ -139,7 +165,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     price: assetPrice,
     spec: activeSpec,
     activeOrders: assetActiveOrders,
-    secRemaining: binaryCandleSecRemaining,
+    secRemaining: tfSecRemaining,
     timeframeSec: selectedTimeframe,
     offsetMinutes,
     visibleCount,
@@ -404,7 +430,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             ctx.fillText(formatTimeWithOffset(c.time, tzMin), tx, h - 7 * dpr);
           });
           ctx.fillStyle = '#B45309';
-          ctx.fillText(`00:0${secRemaining}s`, plotW + 6 * dpr, h - 7 * dpr);
+          ctx.fillText(formatCountdownClock(secRemaining), plotW + 6 * dpr, h - 7 * dpr);
         }
       }
       rafId = requestAnimationFrame(renderChart);
@@ -448,7 +474,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             >
               <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
             </button>
-            <div className="hidden xs:flex items-center">
+            <div className="flex items-center flex-shrink-0">
               <Ewi777Logo height={34} logoUrl={adminSettings.appLogoUrl} />
             </div>
             <button
@@ -623,6 +649,28 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
 
       {/* Main Trading Workspace */}
       <div className="p-3 space-y-3">
+        {!isGoldMode && (
+          <div className="relative rounded-2xl overflow-hidden border border-amber-200 shadow-xs bg-[#0B1120] h-24">
+            <img
+              src="/assets/aistudio/image_f9ecaae4.png"
+              alt="EWI Binary Options Trading"
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover object-center opacity-90"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/35 to-transparent flex flex-col justify-center px-4">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                Crypto · Forex · Indices
+              </span>
+              <span className="text-sm font-black text-white leading-tight mt-0.5">
+                EWI777 Binary Pro Market
+              </span>
+              <span className="text-[11px] font-semibold text-slate-200 mt-0.5">
+                Up to +92% instant payout · Tap asset above to switch
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Live Quote Header Strip */}
         <div className="bg-white rounded-2xl border border-slate-200 px-3.5 py-2.5 flex items-center justify-between shadow-2xs">
           <div className="flex items-center gap-2.5">
@@ -653,7 +701,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           <div className="text-right">
             <div className="text-[10px] font-bold text-slate-400 uppercase">Candle Close</div>
             <div className="text-base font-mono font-black text-[#D97706] tabular-nums">
-              00:0{binaryCandleSecRemaining}s
+              {tfCountdownLabel}
             </div>
           </div>
         </div>
@@ -924,13 +972,16 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           {/* Timer Grid */}
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Timer</div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-5 gap-1.5">
               {TIMEFRAMES.map((tf) => (
                 <button
                   key={tf.sec}
                   type="button"
-                  onClick={() => setSelectedTimeframe(tf.sec)}
-                  className={`py-2 rounded-lg text-xs font-black transition-all ${
+                  onClick={() => {
+                    setSelectedTimeframe(tf.sec);
+                    setPanOffset(0);
+                  }}
+                  className={`py-2 rounded-lg text-xs font-black transition-all tabular-nums ${
                     selectedTimeframe === tf.sec
                       ? 'bg-[#D97706] text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-700 hover:bg-amber-50'
@@ -1007,27 +1058,6 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Primary Buy / Sell Buttons */}
-          <div className="grid grid-cols-2 gap-2.5 pt-1">
-            <button
-              type="button"
-              onClick={() => handleTrade('UP')}
-              className="min-h-[52px] py-3 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-black text-sm shadow-sm active:scale-98 transition-all flex items-center justify-center gap-2"
-            >
-              <span>Buy ↑</span>
-              <TrendingUp className="w-4 h-4 stroke-[3]" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleTrade('DOWN')}
-              className="min-h-[52px] py-3 rounded-xl bg-[#EF4444] hover:bg-rose-600 text-white font-black text-sm shadow-sm active:scale-98 transition-all flex items-center justify-center gap-2"
-            >
-              <span>Sell ↓</span>
-              <TrendingDown className="w-4 h-4 stroke-[3]" />
-            </button>
           </div>
         </div>
       </div>

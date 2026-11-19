@@ -1,7 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-
-const EWI_PAY_BASE = 'https://ewi-pay.vercel.app';
-const EWI_PAY_API_KEY = process.env.EWI_PAY_API_KEY || 'ewi_live_ewi777_88789947264e';
+import { getEwiPayConfig, getRequestOrigin } from './_config';
 
 async function readBodyJson(req: any): Promise<any> {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -41,14 +39,30 @@ export default async function handler(req: IncomingMessage & { method?: string; 
 
   if (req.method !== 'POST') return sendJson(405, { success: false, message: 'Method not allowed' });
 
+  const cfg = await getEwiPayConfig();
   const body = await readBodyJson(req);
-  const { amount, usdAmount, user_id, userId, method, channel, senderNumber, returnUrl, return_url } = body || {};
-  const methodStr = String(method || 'bKash');
+  const {
+    amount,
+    usdAmount,
+    user_id,
+    userId,
+    siteUserId,
+    orderId: rawOrderId,
+    method,
+    provider: rawProvider,
+    channel,
+    senderNumber,
+    callbackUrl: rawCallbackUrl,
+    returnUrl,
+    return_url
+  } = body || {};
+
+  const methodStr = String(method || rawProvider || 'bKash');
   const isUsdt = methodStr.toUpperCase() === 'USDT';
   const usdtRate = 120;
   const numUsd = usdAmount !== undefined ? Number(usdAmount) : 0;
   const numAmt = isUsdt && numUsd > 0 ? +(numUsd * usdtRate).toFixed(2) : Number(amount) || 0;
-  const cleanUserId = String(user_id || userId || 'USER_1').trim();
+  const cleanUserId = String(siteUserId || user_id || userId || 'USER_1').trim();
 
   if (isUsdt) {
     const checkUsd = numUsd > 0 ? numUsd : +(numAmt / usdtRate).toFixed(2);
@@ -60,38 +74,56 @@ export default async function handler(req: IncomingMessage & { method?: string; 
   }
 
   const methodLower = methodStr.toLowerCase();
-  const gatewayEndpoint = methodLower.includes('bkash')
-    ? `${EWI_PAY_BASE}/api/v1/bkash/checkout/create`
+  const providerSlug = methodLower.includes('bkash')
+    ? 'bkash'
     : methodLower.includes('nagad')
-    ? `${EWI_PAY_BASE}/api/v1/nagad/checkout/create`
-    : `${EWI_PAY_BASE}/api/v1/checkout/create`;
-
-  const methodQuery = methodLower.includes('bkash')
-    ? '&method=bkash'
-    : methodLower.includes('nagad')
-    ? '&method=nagad'
+    ? 'nagad'
     : isUsdt
-    ? '&method=usdt'
+    ? 'usdt'
     : '';
 
-  const fallbackUrl = `${EWI_PAY_BASE}/payment/ewi777?amount=${encodeURIComponent(String(numAmt))}&user_id=${encodeURIComponent(cleanUserId)}${methodQuery}`;
-  const resolvedReturnUrl = returnUrl || return_url || undefined;
+  const gatewayEndpoint =
+    providerSlug === 'bkash'
+      ? cfg.bkashCheckoutUrl
+      : providerSlug === 'nagad'
+      ? cfg.nagadCheckoutUrl
+      : cfg.unifiedCheckoutUrl;
+
+  const uniqueOrderId =
+    String(rawOrderId || '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '_') ||
+    `DEP_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  const siteOrigin = getRequestOrigin(req);
+  const resolvedCallbackUrl =
+    String(rawCallbackUrl || cfg.webhookUrl || '').trim() || `${siteOrigin}/api/ewi-pay/webhook`;
+  const resolvedReturnUrl = String(returnUrl || return_url || `${siteOrigin}/#/transaction-history`).trim();
+
+  const methodQuery = providerSlug ? `&method=${encodeURIComponent(providerSlug)}` : '';
+  const fallbackUrl = `${cfg.baseUrl}/payment/${encodeURIComponent(cfg.siteSlug)}?amount=${encodeURIComponent(
+    String(numAmt)
+  )}&user_id=${encodeURIComponent(cleanUserId)}${methodQuery}`;
 
   let upstreamJson: any = null;
   let upstreamOk = false;
   try {
     const upRes = await fetch(gatewayEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': EWI_PAY_API_KEY },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.apiKey },
       body: JSON.stringify({
-        site: 'ewi777',
         amount: numAmt,
+        siteUserId: cleanUserId,
+        orderId: uniqueOrderId,
+        callbackUrl: resolvedCallbackUrl,
+        returnUrl: resolvedReturnUrl,
+        ...(providerSlug ? { provider: providerSlug } : {}),
         ...(isUsdt && numUsd > 0 ? { usdAmount: numUsd } : {}),
+        site: cfg.siteSlug,
         user_id: cleanUserId,
-        method: methodLower.includes('bkash') ? 'bkash' : methodLower.includes('nagad') ? 'nagad' : methodStr,
+        method: providerSlug || methodStr,
         channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
-        return_url: resolvedReturnUrl,
-        returnUrl: resolvedReturnUrl
+        return_url: resolvedReturnUrl
       })
     });
     upstreamOk = upRes.ok;
@@ -100,46 +132,59 @@ export default async function handler(req: IncomingMessage & { method?: string; 
     upstreamOk = false;
   }
 
-  const checkoutUrl =
-    upstreamJson?.checkout_url ||
-    upstreamJson?.checkoutUrl ||
+  const paymentUrl =
+    upstreamJson?.paymentUrl ||
     upstreamJson?.payment_url ||
-    upstreamJson?.data?.checkout_url ||
+    upstreamJson?.checkoutUrl ||
+    upstreamJson?.checkout_url ||
+    upstreamJson?.data?.paymentUrl ||
+    upstreamJson?.data?.payment_url ||
     upstreamJson?.data?.checkoutUrl ||
+    upstreamJson?.data?.checkout_url ||
     upstreamJson?.data?.url ||
     fallbackUrl;
 
   const sessionId =
-    upstreamJson?.session_id ||
     upstreamJson?.sessionId ||
-    upstreamJson?.data?.session_id ||
+    upstreamJson?.session_id ||
     upstreamJson?.data?.sessionId ||
+    upstreamJson?.data?.session_id ||
     '';
 
-  const depositId =
-    upstreamJson?.deposit_id ||
+  const returnedDepositId =
     upstreamJson?.depositId ||
+    upstreamJson?.deposit_id ||
+    upstreamJson?.orderId ||
     upstreamJson?.id ||
+    upstreamJson?.data?.depositId ||
     upstreamJson?.data?.id ||
-    (sessionId || `ewipay_${Date.now()}`);
+    '';
+
+  const recordId = uniqueOrderId;
 
   return sendJson(200, {
     success: true,
     upstreamSynced: upstreamOk,
-    checkoutUrl,
-    sessionId: String(sessionId || depositId),
-    depositId: String(depositId),
+    paymentUrl,
+    checkoutUrl: paymentUrl,
+    orderId: uniqueOrderId,
+    sessionId: String(sessionId || returnedDepositId || uniqueOrderId),
+    depositId: String(returnedDepositId || uniqueOrderId),
+    provider: providerSlug || methodLower,
     deposit: {
-      id: String(depositId),
-      sessionId: String(sessionId || depositId),
+      id: recordId,
+      orderId: uniqueOrderId,
+      sessionId: String(sessionId || returnedDepositId || uniqueOrderId),
+      checkoutUrl: paymentUrl,
       userId: cleanUserId,
       userPhone: String(senderNumber || cleanUserId),
       method: methodStr,
+      provider: providerSlug || methodLower,
       channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
       amount: numAmt,
       ...(isUsdt && numUsd > 0 ? { usdAmount: numUsd } : {}),
       senderNumber: String(senderNumber || cleanUserId),
-      trxId: String(upstreamJson?.trx_id || upstreamJson?.trxId || depositId).toUpperCase(),
+      trxId: String(upstreamJson?.trx_id || upstreamJson?.trxId || uniqueOrderId).toUpperCase(),
       status: 'pending',
       time: new Date().toLocaleString()
     },

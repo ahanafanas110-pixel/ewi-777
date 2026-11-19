@@ -5,7 +5,6 @@ import { getTranslation } from '../utils/i18n';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
 import {
-  BD_PHONE_RULE_MSG,
   isValidBdLocalTenDigits,
   normalizeBdDigitsInput
 } from '../utils/phoneAndApi';
@@ -52,7 +51,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
       return;
     }
     if (countryCode === '+880' && !isValidBdLocalTenDigits(phoneNumber)) {
-      showToast(BD_PHONE_RULE_MSG);
+      showToast('Please enter a valid 10-digit mobile number');
       return;
     }
     if (!PASSWORD_REGEX.test(password)) {
@@ -186,17 +185,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                           : e.target.value.replace(/\D/g, '').slice(0, 14);
                       setPhoneNumber(val);
                     }}
-                    placeholder={countryCode === '+880' ? '17XXXXXXXX (10 digits)' : getTranslation(language, 'pleaseEnterPhone')}
+                    placeholder={countryCode === '+880' ? '1XXXXXXXXX' : getTranslation(language, 'pleaseEnterPhone')}
                     className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     required
                   />
                 </div>
               </div>
-              {countryCode === '+880' && (
-                <div className="mt-1 text-[10px] font-semibold text-slate-500">
-                  Must start with <strong className="text-[#B45309]">18, 17, 13, 15, or 19</strong> (10 digits max)
-                </div>
-              )}
             </div>
 
             {/* Set Password */}

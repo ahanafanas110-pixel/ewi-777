@@ -317,6 +317,7 @@ export const FIRST_DEPOSIT_TIERS = [
 export const ExtraFirstDepositModal: React.FC = () => {
   const {
     user,
+    depositRequests,
     firstDepositModalOpen,
     setFirstDepositModalOpen,
     claimExtraFirstDepositBonus,
@@ -331,7 +332,13 @@ export const ExtraFirstDepositModal: React.FC = () => {
     }
   }, [firstDepositModalOpen]);
 
-  if (!user.isLoggedIn || !firstDepositModalOpen) return null;
+  const totalDep = Number(user.totalDeposited) || 0;
+  const hasCompletedAnyDeposit =
+    totalDep > 0 ||
+    Boolean(user.hasClaimedDepositBonus) ||
+    depositRequests.some((d) => d.userId === user.id && d.status === 'approved');
+
+  if (!user.isLoggedIn || !firstDepositModalOpen || hasCompletedAnyDeposit) return null;
 
   const handleClose = () => {
     if (noMoreToday) {
@@ -340,7 +347,6 @@ export const ExtraFirstDepositModal: React.FC = () => {
     setFirstDepositModalOpen(false);
   };
 
-  const totalDep = Number(user.totalDeposited) || 0;
   const claimedMap = user.claimedFirstDepositTiers || {};
 
   return (

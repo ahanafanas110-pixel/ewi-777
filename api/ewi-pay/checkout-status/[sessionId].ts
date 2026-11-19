@@ -1,7 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-
-const EWI_PAY_BASE = 'https://ewi-pay.vercel.app';
-const EWI_PAY_API_KEY = process.env.EWI_PAY_API_KEY || 'ewi_live_ewi777_88789947264e';
+import { getEwiPayConfig, fillTemplateId } from '../_config';
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string | string[]>; url?: string },
@@ -30,9 +28,11 @@ export default async function handler(
   const sessionId = String(qSession || pathPart || '').trim();
   if (!sessionId) return sendJson(400, { success: false, message: 'sessionId required' });
 
+  const cfg = await getEwiPayConfig();
   try {
-    const upRes = await fetch(`${EWI_PAY_BASE}/api/v1/checkout/status/${encodeURIComponent(sessionId)}`, {
-      headers: { 'x-api-key': EWI_PAY_API_KEY }
+    const targetUrl = fillTemplateId(cfg.checkoutStatusUrl, sessionId);
+    const upRes = await fetch(targetUrl, {
+      headers: { 'x-api-key': cfg.apiKey }
     });
     const json = await upRes.json().catch(() => ({}));
     return sendJson(200, { success: upRes.ok, sessionId, ...json, gateway: json });

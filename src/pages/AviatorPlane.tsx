@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowLeft, RefreshCw, Plane, History, CheckCircle2, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Plane, History, CheckCircle2, Users, X, WifiOff } from 'lucide-react';
 import { AviatorPlaneLogo, Ewi777Logo } from '../components/BrandLogos';
 import { AviatorServerState } from '../types';
 import { getSyncedAviatorState } from '../utils/syncedMarkets';
 import { apiUrl } from '../utils/phoneAndApi';
+import { loadTransparentSprite } from '../utils/spriteAlpha';
 
 type RoundPhase = 'waiting' | 'flying' | 'crashed';
 type SlotId = 1 | 2 | 3;
@@ -13,6 +14,7 @@ interface SlotState {
   betAmount: string;
   autoCashoutEnabled: boolean;
   autoCashoutVal: string;
+  queuedForNext: boolean;
   activeBetId: string | null;
   activeBetRoundId: string | null;
   activeBetAmount: number;
@@ -23,11 +25,13 @@ interface SlotState {
 const MAX_MULTIPLIER = 10000;
 const QUICK_CHIPS = [10, 50, 100, 500];
 const SLOT_IDS: SlotId[] = [1, 2, 3];
+const AVIATOR_PLANE_SPRITE_SRC = '/assets/aistudio/image_03b0df3a.png';
 
 const createInitialSlot = (defaultAmt = '100'): SlotState => ({
   betAmount: defaultAmt,
   autoCashoutEnabled: false,
   autoCashoutVal: '2.00',
+  queuedForNext: false,
   activeBetId: null,
   activeBetRoundId: null,
   activeBetAmount: 0,
@@ -41,6 +45,7 @@ export const AviatorPlane: React.FC = () => {
     aviatorBets,
     crashPoolStates,
     placeCrashBet,
+    cancelCrashBet,
     cashOutCrashBet,
     loseAviatorBet,
     setActiveTab,
@@ -53,8 +58,8 @@ export const AviatorPlane: React.FC = () => {
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [roundId, setRoundId] = useState<string>('AV000000');
   const [crashHistory, setCrashHistory] = useState<number[]>([2.41, 1.38, 6.82, 1.85, 11.2, 1.15, 3.04, 2.09]);
+  const [networkAlertMsg, setNetworkAlertMsg] = useState<string | null>(null);
 
-  // 3 Simultaneous Bet Slots
   const [slots, setSlots] = useState<Record<SlotId, SlotState>>({
     1: createInitialSlot('100'),
     2: createInitialSlot('50'),
@@ -62,6 +67,7 @@ export const AviatorPlane: React.FC = () => {
   });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const planeSpriteRef = useRef<HTMLCanvasElement | HTMLImageElement | null>(null);
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
 
@@ -75,6 +81,7 @@ export const AviatorPlane: React.FC = () => {
     phaseStartedAt: number;
     serverOffsetMs: number;
     crashPoint: number;
+    forcedReason?: string;
   }>({
     roundId: 'AV000000',
     phase: 'waiting',
@@ -85,8 +92,10 @@ export const AviatorPlane: React.FC = () => {
 
   const cashOutRef = useRef(cashOutCrashBet);
   const loseBetRef = useRef(loseAviatorBet);
+  const placeBetRef = useRef(placeCrashBet);
   cashOutRef.current = cashOutCrashBet;
   loseBetRef.current = loseAviatorBet;
+  placeBetRef.current = placeCrashBet;
 
   const updateSlot = (slotId: SlotId, patch: Partial<SlotState>) => {
     setSlots((prev) => ({
@@ -95,12 +104,42 @@ export const AviatorPlane: React.FC = () => {
     }));
   };
 
+  useEffect(() => {
+    let active = true;
+    loadTransparentSprite(AVIATOR_PLANE_SPRITE_SRC, 'dark-checker')
+      .then((dataUrl) => {
+        if (!active) return;
+        const img = new Image();
+        img.onload = () => {
+          if (active) planeSpriteRef.current = img;
+        };
+        img.src = dataUrl;
+      })
+      .catch(() => {
+        const img = new Image();
+        img.src = AVIATOR_PLANE_SPRITE_SRC;
+        planeSpriteRef.current = img;
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const pool = crashPoolStates.aviator;
+    if (pool?.roundId === roundId && pool.forcedReason) {
+      setNetworkAlertMsg(pool.forcedReason);
+    } else if (phase === 'waiting') {
+      setNetworkAlertMsg(null);
+    }
+  }, [crashPoolStates.aviator, roundId, phase]);
+
   // Poll authoritative crash engine from server (fallback identical epoch engine)
   useEffect(() => {
     let mounted = true;
     let useFallback = false;
 
-    const applyState = (st: AviatorServerState) => {
+    const applyState = (st: AviatorServerState & { forcedReason?: string }) => {
       if (!mounted) return;
       const clientNow = Date.now();
       const serverOffsetMs = (st.serverNow || clientNow) - clientNow;
@@ -111,16 +150,23 @@ export const AviatorPlane: React.FC = () => {
         phase: st.phase,
         phaseStartedAt: st.phaseStartedAt,
         serverOffsetMs,
-        crashPoint: st.crashPoint || 0
+        crashPoint: st.crashPoint || 0,
+        forcedReason: st.forcedReason
       };
 
       setRoundId(st.roundId);
       setPhase(st.phase);
+      if (st.forcedReason && st.phase === 'crashed') {
+        setNetworkAlertMsg(st.forcedReason);
+      } else if (st.phase === 'waiting') {
+        setNetworkAlertMsg(null);
+      }
       if (Array.isArray(st.crashHistory)) {
         setCrashHistory(st.crashHistory);
       }
 
-      if (st.phase === 'waiting' && st.roundId !== prevRoundId) {
+      const isNewWaiting = st.phase === 'waiting' && st.roundId !== prevRoundId;
+      if (isNewWaiting) {
         autoCashLockRef.current = { 1: false, 2: false, 3: false };
         setSlots((prev) => ({
           1: { ...prev[1], cashedOutInfo: null },
@@ -155,6 +201,31 @@ export const AviatorPlane: React.FC = () => {
         });
         toLoseIds.forEach((id) => loseBetRef.current(id));
       }
+
+      // Auto-submit any queued bets for the new waiting round
+      if (isNewWaiting) {
+        SLOT_IDS.forEach((sid) => {
+          const sl = curSlots[sid];
+          if (sl.queuedForNext && (!sl.activeBetId || clearSlotIds.includes(sid))) {
+            const amt = Math.max(10, Number(sl.betAmount) || 50);
+            const autoTarget = sl.autoCashoutEnabled
+              ? Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.autoCashoutVal) || 2.0))
+              : undefined;
+            updateSlot(sid, { queuedForNext: false });
+            placeBetRef.current('aviator', st.roundId, amt, autoTarget, sid).then((res) => {
+              if (res.success && res.betId && mounted) {
+                autoCashLockRef.current[sid] = false;
+                updateSlot(sid, {
+                  activeBetId: res.betId,
+                  activeBetRoundId: st.roundId,
+                  activeBetAmount: amt,
+                  queuedForNext: false
+                });
+              }
+            });
+          }
+        });
+      }
     };
 
     const pollState = async () => {
@@ -184,16 +255,57 @@ export const AviatorPlane: React.FC = () => {
     };
 
     pollState();
-    const poll = setInterval(pollState, 220);
+    const poll = setInterval(pollState, 200);
     return () => {
       mounted = false;
       clearInterval(poll);
     };
   }, []);
 
-  // 60fps Spribe Sunburst Stage & Shared 30% Pool Force-Crash Enforcement
+  // 60fps Sunburst Stage + Transparent Red Aviator Plane Sprite
   useEffect(() => {
     let rafId = 0;
+
+    const drawPlaneSprite = (
+      ctx: CanvasRenderingContext2D,
+      dpr: number,
+      x: number,
+      y: number,
+      angleRad: number,
+      isFlying: boolean,
+      isCrashed: boolean,
+      widthPx = 96
+    ) => {
+      const sprite = planeSpriteRef.current;
+      const wPx = widthPx * dpr;
+      const hPx = widthPx * 0.62 * dpr;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angleRad);
+
+      if (isFlying) {
+        const exGrad = ctx.createLinearGradient(-wPx * 0.68, 0, -wPx * 0.3, 0);
+        exGrad.addColorStop(0, 'rgba(225, 29, 72, 0)');
+        exGrad.addColorStop(1, 'rgba(251, 113, 133, 0.85)');
+        ctx.fillStyle = exGrad;
+        ctx.beginPath();
+        ctx.moveTo(-wPx * 0.25, -5 * dpr);
+        ctx.lineTo(-wPx * 0.7, 0);
+        ctx.lineTo(-wPx * 0.25, 5 * dpr);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (sprite && ('width' in sprite ? sprite.width > 0 : (sprite as HTMLImageElement).complete)) {
+        // Flip horizontally because image_03b0df3a faces left; scale(-1, 1) makes nose fly right-up!
+        ctx.scale(-1, 1);
+        ctx.shadowColor = isCrashed ? 'rgba(225, 29, 72, 0.6)' : 'rgba(244, 63, 94, 0.5)';
+        ctx.shadowBlur = 14 * dpr;
+        ctx.drawImage(sprite, -wPx * 0.5, -hPx * 0.5, wPx, hPx);
+      }
+      ctx.restore();
+    };
 
     const drawSpribeStage = (currentPhase: RoundPhase, elapsedSec: number) => {
       const canvas = canvasRef.current;
@@ -233,7 +345,7 @@ export const AviatorPlane: React.FC = () => {
           ctx.lineTo(Math.cos(a1) * maxRadius, Math.sin(a1) * maxRadius);
           ctx.lineTo(Math.cos(a2) * maxRadius, Math.sin(a2) * maxRadius);
           ctx.closePath();
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.028)';
           ctx.fill();
         }
       }
@@ -248,24 +360,26 @@ export const AviatorPlane: React.FC = () => {
       ctx.stroke();
 
       if (currentPhase === 'waiting') {
+        const hoverY = originY - 24 * dpr + Math.sin(elapsedSec * 3.5) * 2 * dpr;
+        drawPlaneSprite(ctx, dpr, originX + 52 * dpr, hoverY, -0.08, false, false, 78);
         return;
       }
 
       const progress = Math.min(1, Math.max(0, elapsedSec / 7.5));
       const startX = originX + 6 * dpr;
-      const startY = originY - 4 * dpr;
-      const endX = startX + (w - 76 * dpr) * (currentPhase === 'crashed' ? Math.min(1.12, progress + 0.18) : progress);
+      const startY = originY - 6 * dpr;
+      const endX = startX + (w - 108 * dpr) * (currentPhase === 'crashed' ? Math.min(1.16, progress + 0.14) : progress);
       const endY =
         startY -
-        (h - 68 * dpr) *
-          Math.pow(currentPhase === 'crashed' ? Math.min(1.08, progress + 0.16) : progress, 0.82);
+        (h - 86 * dpr) *
+          Math.pow(currentPhase === 'crashed' ? Math.min(1.08, progress + 0.14) : progress, 0.82);
 
       const bobY =
-        currentPhase === 'flying' && progress > 0.85
-          ? Math.sin((elapsedSec - 6) * 3.2) * (6 * dpr)
+        currentPhase === 'flying' && progress > 0.82
+          ? Math.sin((elapsedSec - 5.8) * 3.2) * (6 * dpr)
           : 0;
       const tipX = endX;
-      const tipY = Math.max(24 * dpr, endY + bobY);
+      const tipY = Math.max(38 * dpr, endY + bobY);
 
       const cpX = startX + (tipX - startX) * 0.56;
       const cpY = startY - (startY - tipY) * 0.12;
@@ -280,7 +394,7 @@ export const AviatorPlane: React.FC = () => {
         ctx.quadraticCurveTo(cpX, cpY, tipX, tipY);
         ctx.lineTo(tipX, startY);
         ctx.closePath();
-        ctx.fillStyle = areaGrad;
+        ctx.fillStyle = fillGradOrFallback(areaGrad);
         ctx.fill();
 
         ctx.beginPath();
@@ -291,47 +405,8 @@ export const AviatorPlane: React.FC = () => {
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        ctx.save();
-        ctx.translate(tipX, tipY);
-        const angle = -Math.atan2(startY - tipY, Math.max(40, tipX - startX)) * 0.65;
-        ctx.rotate(angle);
-
-        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
-        ctx.lineWidth = 2 * dpr;
-        ctx.beginPath();
-        ctx.moveTo(18 * dpr, -9 * dpr);
-        ctx.lineTo(18 * dpr, 9 * dpr);
-        ctx.stroke();
-
-        const exGrad = ctx.createLinearGradient(-26 * dpr, 0, -6 * dpr, 0);
-        exGrad.addColorStop(0, 'rgba(225, 29, 72, 0)');
-        exGrad.addColorStop(1, '#FB7185');
-        ctx.fillStyle = exGrad;
-        ctx.beginPath();
-        ctx.moveTo(-8 * dpr, -4 * dpr);
-        ctx.lineTo(-26 * dpr, 0);
-        ctx.lineTo(-8 * dpr, 4 * dpr);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.fillStyle = '#E11D48';
-        ctx.beginPath();
-        ctx.moveTo(19 * dpr, 0);
-        ctx.lineTo(2 * dpr, -7 * dpr);
-        ctx.lineTo(-14 * dpr, -11 * dpr);
-        ctx.lineTo(-10 * dpr, -2 * dpr);
-        ctx.lineTo(-17 * dpr, 2 * dpr);
-        ctx.lineTo(-10 * dpr, 6 * dpr);
-        ctx.lineTo(6 * dpr, 7 * dpr);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.fillStyle = '#FFF1F2';
-        ctx.beginPath();
-        ctx.ellipse(5 * dpr, -1.5 * dpr, 5 * dpr, 2.2 * dpr, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.restore();
+        const angle = -Math.atan2(startY - tipY, Math.max(45 * dpr, tipX - startX)) * 0.45;
+        drawPlaneSprite(ctx, dpr, tipX, tipY - 6 * dpr, angle, true, false, 96);
       } else if (currentPhase === 'crashed') {
         ctx.strokeStyle = 'rgba(225, 29, 72, 0.55)';
         ctx.lineWidth = 2 * dpr;
@@ -341,8 +416,25 @@ export const AviatorPlane: React.FC = () => {
         ctx.quadraticCurveTo(cpX, cpY, Math.min(w - 10 * dpr, tipX), tipY);
         ctx.stroke();
         ctx.setLineDash([]);
+
+        const flyOff = Math.min(1, elapsedSec * 0.35);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0.25, 1 - flyOff * 0.55);
+        drawPlaneSprite(
+          ctx,
+          dpr,
+          Math.min(w - 24 * dpr, tipX + flyOff * 42 * dpr),
+          Math.max(24 * dpr, tipY - flyOff * 24 * dpr),
+          -0.25,
+          false,
+          true,
+          86
+        );
+        ctx.restore();
       }
     };
+
+    const fillGradOrFallback = (g: CanvasGradient) => g;
 
     const tick = () => {
       const st = serverStateRef.current;
@@ -367,6 +459,9 @@ export const AviatorPlane: React.FC = () => {
           const forcedMult = Number(pool.forcedCrashMultiplier);
           st.phase = 'crashed';
           st.crashPoint = forcedMult;
+          if (pool.forcedReason) {
+            setNetworkAlertMsg(pool.forcedReason);
+          }
           setPhase('crashed');
           setMultiplier(forcedMult);
           drawSpribeStage('crashed', elapsedSec);
@@ -395,7 +490,6 @@ export const AviatorPlane: React.FC = () => {
           setMultiplier(curMult);
           drawSpribeStage('flying', elapsedSec);
 
-          // Per-slot auto cashout checks
           const curSlots = slotsRef.current;
           SLOT_IDS.forEach((sid) => {
             const sl = curSlots[sid];
@@ -444,10 +538,6 @@ export const AviatorPlane: React.FC = () => {
   const handlePlaceBet = async (slotId: SlotId) => {
     const sl = slots[slotId];
     if (sl.isPlacing) return;
-    if (phase !== 'waiting') {
-      showToast('Wait for current flight to finish before betting!');
-      return;
-    }
     if (sl.activeBetId) {
       showToast(`Slot #${slotId} already has an active bet for this flight!`);
       return;
@@ -457,6 +547,13 @@ export const AviatorPlane: React.FC = () => {
       showToast('Minimum Aviator bet is ৳10');
       return;
     }
+
+    if (phase !== 'waiting') {
+      updateSlot(slotId, { queuedForNext: !sl.queuedForNext });
+      showToast(!sl.queuedForNext ? `Slot #${slotId} queued for next round` : `Slot #${slotId} queue cancelled`);
+      return;
+    }
+
     const autoTarget = sl.autoCashoutEnabled
       ? Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.autoCashoutVal) || 2.0))
       : undefined;
@@ -469,7 +566,30 @@ export const AviatorPlane: React.FC = () => {
           activeBetId: res.betId,
           activeBetRoundId: roundId,
           activeBetAmount: amt,
-          cashedOutInfo: null
+          cashedOutInfo: null,
+          queuedForNext: false
+        });
+      } else {
+        showToast(res.message);
+      }
+    } finally {
+      updateSlot(slotId, { isPlacing: false });
+    }
+  };
+
+  const handleCancelActiveBet = async (slotId: SlotId) => {
+    const sl = slots[slotId];
+    if (!sl.activeBetId || phase !== 'waiting') return;
+    const idToCancel = sl.activeBetId;
+    updateSlot(slotId, { isPlacing: true });
+    try {
+      const res = await cancelCrashBet('aviator', idToCancel);
+      if (res.success) {
+        updateSlot(slotId, {
+          activeBetId: null,
+          activeBetRoundId: null,
+          activeBetAmount: 0,
+          queuedForNext: false
         });
       } else {
         showToast(res.message);
@@ -567,7 +687,7 @@ export const AviatorPlane: React.FC = () => {
         </div>
 
         {/* Spribe #0E0E10 Sunburst Stage */}
-        <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#0E0E10] shadow-xl h-64">
+        <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#0E0E10] shadow-xl h-72">
           <canvas ref={canvasRef} className="w-full h-full block" />
 
           <div className="absolute top-3 left-3.5 right-3.5 flex items-center justify-between pointer-events-none">
@@ -630,19 +750,25 @@ export const AviatorPlane: React.FC = () => {
             )}
 
             {phase === 'crashed' && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="text-xs font-black uppercase tracking-widest text-rose-300">
                   FLEW AWAY!
                 </div>
                 <div className="text-5xl font-black font-mono tabular-nums text-[#E11D48]">
                   {multiplier.toFixed(2)}x
                 </div>
+                {networkAlertMsg && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-950/90 border border-rose-500/60 text-rose-200 text-[11px] font-black shadow-lg">
+                    <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                    <span>{networkAlertMsg}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* 3 Independent Simultaneous Trade Slots */}
+        {/* 3 Independent Simultaneous Trade Slots (Queue Next Round + Cancel before takeoff) */}
         <div className="space-y-2.5">
           {SLOT_IDS.map((slotId) => {
             const sl = slots[slotId];
@@ -663,6 +789,10 @@ export const AviatorPlane: React.FC = () => {
                     <span className="text-emerald-300 font-bold font-mono">
                       Locked: ৳{sl.activeBetAmount.toFixed(0)}
                     </span>
+                  ) : sl.queuedForNext ? (
+                    <span className="text-amber-300 font-black font-mono">
+                      Queued for Next Flight · ৳{(Number(sl.betAmount) || 0).toFixed(0)}
+                    </span>
                   ) : (
                     <span className="text-slate-400 font-semibold">Min ৳10</span>
                   )}
@@ -674,7 +804,7 @@ export const AviatorPlane: React.FC = () => {
                     <input
                       type="number"
                       min={10}
-                      disabled={Boolean(sl.activeBetId)}
+                      disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                       value={sl.betAmount}
                       onChange={(e) => updateSlot(slotId, { betAmount: e.target.value })}
                       className="w-full bg-transparent text-center font-mono font-black text-sm text-white focus:outline-none tabular-nums disabled:opacity-60"
@@ -682,7 +812,7 @@ export const AviatorPlane: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    disabled={Boolean(sl.activeBetId)}
+                    disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                     onClick={() =>
                       updateSlot(slotId, {
                         betAmount: String(Math.max(10, Math.floor((Number(sl.betAmount) || 20) / 2)))
@@ -694,7 +824,7 @@ export const AviatorPlane: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    disabled={Boolean(sl.activeBetId)}
+                    disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                     onClick={() =>
                       updateSlot(slotId, {
                         betAmount: String(Math.min(50000, (Number(sl.betAmount) || 10) * 2))
@@ -711,7 +841,7 @@ export const AviatorPlane: React.FC = () => {
                     <button
                       key={chip}
                       type="button"
-                      disabled={Boolean(sl.activeBetId)}
+                      disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                       onClick={() => updateSlot(slotId, { betAmount: String(chip) })}
                       className={`min-h-[34px] rounded-xl text-[11px] font-black font-mono tabular-nums border transition-all active:scale-95 disabled:opacity-50 ${
                         Number(sl.betAmount) === chip
@@ -762,22 +892,38 @@ export const AviatorPlane: React.FC = () => {
                     </span>
                   </button>
                 ) : sl.activeBetId && phase === 'waiting' ? (
-                  <div className="w-full min-h-[46px] py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-black text-xs flex items-center justify-center gap-2">
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Slot #{slotId} Locked: ৳{sl.activeBetAmount.toFixed(2)} · Ready</span>
-                  </div>
+                  <button
+                    type="button"
+                    disabled={sl.isPlacing}
+                    onClick={() => handleCancelActiveBet(slotId)}
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/85 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all disabled:opacity-60"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>CANCEL BET #{slotId} (REFUND ৳{sl.activeBetAmount.toFixed(0)})</span>
+                  </button>
+                ) : sl.queuedForNext ? (
+                  <button
+                    type="button"
+                    onClick={() => handlePlaceBet(slotId)}
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>CANCEL QUEUED BET (#{slotId} · ৳{(Number(sl.betAmount) || 0).toFixed(0)})</span>
+                  </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => handlePlaceBet(slotId)}
-                    disabled={phase !== 'waiting' || sl.isPlacing}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-[#22C55E] hover:bg-emerald-500 text-slate-950 font-black text-sm shadow-lg active:scale-97 transition-all disabled:opacity-45 disabled:cursor-not-allowed"
+                    disabled={sl.isPlacing}
+                    className={`w-full min-h-[46px] py-2.5 rounded-xl font-black text-sm shadow-lg active:scale-97 transition-all disabled:opacity-45 ${
+                      phase === 'waiting'
+                        ? 'bg-[#22C55E] hover:bg-emerald-500 text-slate-950'
+                        : 'bg-amber-500/90 hover:bg-amber-500 text-slate-950'
+                    }`}
                   >
                     {phase === 'waiting'
                       ? `BET SLOT #${slotId} · ৳${(Number(sl.betAmount) || 0).toFixed(2)}`
-                      : phase === 'flying'
-                      ? 'FLIGHT IN PROGRESS...'
-                      : 'NEXT ROUND STARTING...'}
+                      : `QUEUE NEXT ROUND #${slotId} · ৳${(Number(sl.betAmount) || 0).toFixed(2)}`}
                   </button>
                 )}
               </div>
@@ -841,7 +987,7 @@ export const AviatorPlane: React.FC = () => {
 
           {myRecentBets.length === 0 ? (
             <div className="text-center py-6 text-xs text-slate-500">
-              No Aviator bets placed yet. Place up to 3 simultaneous bets during the countdown!
+              No Aviator bets placed yet. Place up to 3 simultaneous bets or queue for next round!
             </div>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">

@@ -296,13 +296,14 @@ const AVIATOR_CRASH_HOLD_MS = 3000;
 export function getSyncedAviatorCrashPoint(hourBucket: number, seqIdx: number): number {
   const rng = createSeededRng(`aviator:${hourBucket}:${seqIdx}`);
   const r = rng();
-  if (r < 0.04) return +(1.02 + rng() * 0.09).toFixed(2);
-  if (r > 0.9985) {
-    const mega = 120 + rng() * (AVIATOR_MAX_MULTIPLIER - 120);
+  if (r < 0.28) return +(1.01 + rng() * 0.14).toFixed(2);
+  if (r < 0.62) return +(1.16 + rng() * 0.28).toFixed(2);
+  if (r > 0.999) {
+    const mega = 50 + rng() * (AVIATOR_MAX_MULTIPLIER - 50);
     return +Math.min(AVIATOR_MAX_MULTIPLIER, mega).toFixed(2);
   }
-  const raw = 0.97 / (1 - Math.min(r, 0.9999));
-  return +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.06, raw)).toFixed(2);
+  const raw = 0.72 / (1 - Math.min(r, 0.9999));
+  return +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.03, raw)).toFixed(2);
 }
 
 function aviatorFlyDurationMs(crashPoint: number): number {
@@ -331,20 +332,23 @@ export function getSyncedCrashEngineState(
 
   let cursor = hourStart;
   let seq = 0;
-  let currentRoundCrash = 1.5;
+  let currentRoundCrash = 1.25;
   let currentRoundStart = hourStart;
-  let currentFlyMs = 4500;
+  let currentFlyMs = 2600;
   const completedCrashes: number[] = [];
 
   while (seq < 600) {
     const rng = createSeededRng(`${saltPrefix}:${hourBucket}:${seq}`);
     const r = rng();
     let crashPt: number;
-    if (r < 0.04) crashPt = +(1.02 + rng() * 0.09).toFixed(2);
-    else if (r > 0.9985) {
-      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, 120 + rng() * (AVIATOR_MAX_MULTIPLIER - 120)).toFixed(2);
+    if (r < 0.28) {
+      crashPt = +(1.01 + rng() * 0.14).toFixed(2);
+    } else if (r < 0.62) {
+      crashPt = +(1.16 + rng() * 0.28).toFixed(2);
+    } else if (r > 0.999) {
+      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, 50 + rng() * (AVIATOR_MAX_MULTIPLIER - 50)).toFixed(2);
     } else {
-      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.06, 0.97 / (1 - Math.min(r, 0.9999)))).toFixed(2);
+      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.03, 0.72 / (1 - Math.min(r, 0.9999)))).toFixed(2);
     }
     const flyMs = aviatorFlyDurationMs(crashPt);
     const roundTotalMs = AVIATOR_WAIT_MS + flyMs + AVIATOR_CRASH_HOLD_MS;
@@ -406,12 +410,10 @@ export function getSyncedCrashEngineState(
 }
 
 /**
- * Evaluates the 30% Pool Payout Cap Rule across Aviator & Lucky Jet.
- * Rule:
- * - maxPayoutCap = totalPool * 0.30
- * - Solo high-bet (>=1000 or dominant solo stake) waiting for >=30% profit crashes before cashout.
- * - Group bets: once cumulative payouts reach 30% of totalPool (or requested cashout exceeds cap),
- *   the server forces an immediate crash across all clients.
+ * Strict 30% Max Payout / 70% Company Profit Rule across Aviator & Lucky Jet:
+ * - Out of ৳1,000 collective bets, max total payouts = ৳300 (30%), keeping ৳700 (70%) company profit.
+ * - Any cashout pushing totalPaidOut + potentialPayout > payoutCap forces immediate crash.
+ * - Solo/dominant stakes are capped tightly to <= 1.25x profit unless collective pool covers 30%.
  */
 export function evaluateCrash30Cap(params: {
   totalPool: number;
@@ -437,34 +439,34 @@ export function evaluateCrash30Cap(params: {
     return { shouldForceCrash: false, potentialPayout, payoutCap };
   }
 
-  // Solo player & 1-4 small-pool guard:
-  // A single bet (or 1-4 simultaneous players) cannot extract >30% net profit (1.30x)
-  // or push collective payouts past 30% of round pool; 1-4 high stakes burst right away at 1.00x-1.05x.
-  const isSmallGroupOrSolo = params.activePlayerCount <= 4;
+  // Once 30% of pool is already paid out (e.g. ৳300 out of ৳1000), force crash immediately
+  if (totalPaidOut >= payoutCap && totalPaidOut > 0) {
+    return {
+      shouldForceCrash: true,
+      reason: '30% pool payout cap reached — 70% company profit secured',
+      potentialPayout,
+      payoutCap
+    };
+  }
+
+  // Collective multi-bet pool: total cashouts cannot exceed 30% of totalPool (৳300 per ৳1000 bet)
+  if (totalPool >= activeBetAmount * 2 || params.activePlayerCount > 1) {
+    if (totalPaidOut + potentialPayout > payoutCap) {
+      return {
+        shouldForceCrash: true,
+        reason: '30% pool payout cap reached — 70% company profit secured',
+        potentialPayout,
+        payoutCap
+      };
+    }
+  }
+
+  // Solo/dominant stake guard: tight 25% profit ceiling (max 1.25x) so house retains strong margin
   const isDominantSolo = params.activePlayerCount <= 1 || activeBetAmount >= totalPool * 0.55;
-  if (isDominantSolo && (mult >= 1.30 || profit > activeBetAmount * 0.30)) {
+  if (isDominantSolo && (mult >= 1.26 || profit > activeBetAmount * 0.25)) {
     return {
       shouldForceCrash: true,
-      reason: '30% solo payout cap reached — instant crash',
-      potentialPayout,
-      payoutCap
-    };
-  }
-
-  if (isSmallGroupOrSolo && profit > totalPool * 0.30) {
-    return {
-      shouldForceCrash: true,
-      reason: '1-4 player 30% pool protection triggered — instant burst',
-      potentialPayout,
-      payoutCap
-    };
-  }
-
-  // Group pool cap check: collective cashouts cannot push totalPaidOut past 30% of round pool
-  if (totalPaidOut + potentialPayout > payoutCap && totalPaidOut + profit > payoutCap) {
-    return {
-      shouldForceCrash: true,
-      reason: '30% collective pool cap reached — instant round termination',
+      reason: '30% solo payout protection triggered',
       potentialPayout,
       payoutCap
     };
@@ -621,6 +623,176 @@ export function getNextBinaryCandlePreview(
     timeLabel: candle.timeStr,
     secUntilNext: snap.candleSecRemaining
   };
+}
+
+export function formatCountdownClock(secRemaining: number): string {
+  const s = Math.max(0, Math.floor(secRemaining));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) {
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+const BASE_5S_MS = 5000;
+
+function getDeterministic5sDelta(
+  symbol: string,
+  volatility: number,
+  bucket5sIdx: number,
+  bias: 'AUTO' | 'BULL' | 'BEAR' = 'AUTO'
+): { delta: number; highJitter: number; lowJitter: number; vol: number } {
+  const rng = createSeededRng(`bin5s:${symbol}:${bucket5sIdx}`);
+  const wave = Math.sin(bucket5sIdx * 0.19 + fnv1aSeed(symbol) % 17) * volatility * 0.22;
+  const macro = Math.cos(bucket5sIdx * 0.045) * volatility * 0.16;
+  const biasShift = bias === 'BULL' ? volatility * 0.26 : bias === 'BEAR' ? -volatility * 0.26 : 0;
+  const delta = (rng() - 0.5) * volatility * 0.72 + wave + macro + biasShift;
+  const highJitter = Math.abs(rng() * volatility * 0.28);
+  const lowJitter = Math.abs(rng() * volatility * 0.28);
+  const vol = Math.floor(rng() * 14) + 4;
+  return { delta, highJitter, lowJitter, vol };
+}
+
+/**
+ * Generates timeframe-consistent OHLC candlesticks for Binary & Gold Market.
+ * - Base resolution is 5s ticks.
+ * - For 5s, 15s, 30s, 1m (60s), 5m (300s): every candle literally aggregates
+ *   all underlying 5s steps inside that exact time bucket (so two 30s candles
+ *   combine directly into one 1m candle, five 1m candles into 5m, etc.).
+ * - For larger timeframes (15m, 30m, 1h, 12h, 24h): scales smoothly from
+ *   coarse deterministic sub-candles with live anchor continuity.
+ */
+export function getSyncedBinaryCandlesForTimeframe(
+  spec: Pick<BinaryMarketConfig, 'symbol' | 'basePrice' | 'decimals' | 'volatility'>,
+  timeframeSec: number,
+  nowMs = Date.now(),
+  bias: 'AUTO' | 'BULL' | 'BEAR' = 'AUTO',
+  offsetMinutes = 360,
+  count = 96,
+  livePriceOverride?: number
+): Candle[] {
+  const tfSec = Math.max(5, Math.round(timeframeSec));
+  const tfMs = tfSec * 1000;
+  const currentBucket = Math.floor(nowMs / tfMs);
+  const startBucket = currentBucket - (count - 1);
+
+  // Fine aggregation path for 5s .. 5m: exact sum of underlying 5s ticks
+  if (tfSec <= 300) {
+    const start5s = Math.floor((startBucket * tfMs) / BASE_5S_MS);
+    const current5s = Math.floor(nowMs / BASE_5S_MS);
+    const anchorRng = createSeededRng(`bin5s_anchor:${spec.symbol}:${Math.floor(start5s / 120)}`);
+    let cur = +(spec.basePrice + (anchorRng() - 0.5) * spec.volatility * 6).toFixed(spec.decimals);
+    cur = Math.max(spec.volatility * 5, cur);
+
+    const candleMap = new Map<number, Candle>();
+    for (let s5 = start5s; s5 <= current5s; s5++) {
+      const tMs = s5 * BASE_5S_MS;
+      const bIdx = Math.floor(tMs / tfMs);
+      const isLiveTick = s5 === current5s;
+      const step = getDeterministic5sDelta(spec.symbol, spec.volatility, s5, isLiveTick ? bias : 'AUTO');
+      const open = cur;
+      const nextRaw = Math.max(spec.volatility * 5, +(open + step.delta).toFixed(spec.decimals));
+      const meanRev = ((spec.basePrice - nextRaw) / Math.max(spec.basePrice * 0.02, spec.volatility * 8)) * spec.volatility * 0.08;
+      const close = +(nextRaw + meanRev).toFixed(spec.decimals);
+      const hi = +Math.max(open, close, Math.max(open, close) + step.highJitter).toFixed(spec.decimals);
+      const lo = +Math.max(spec.volatility * 4, Math.min(open, close, Math.min(open, close) - step.lowJitter)).toFixed(spec.decimals);
+      cur = close;
+
+      const existing = candleMap.get(bIdx);
+      if (!existing) {
+        const bStart = bIdx * tfMs;
+        candleMap.set(bIdx, {
+          time: bStart,
+          timeStr: formatTimeWithOffset(bStart, offsetMinutes),
+          open,
+          high: hi,
+          low: lo,
+          close,
+          volume: step.vol
+        });
+      } else {
+        existing.high = Math.max(existing.high, hi);
+        existing.low = Math.min(existing.low, lo);
+        existing.close = close;
+        existing.volume = (existing.volume || 0) + step.vol;
+      }
+    }
+
+    const out: Candle[] = [];
+    for (let b = startBucket; b <= currentBucket; b++) {
+      const c = candleMap.get(b);
+      if (c) out.push(c);
+    }
+    if (out.length > 0 && typeof livePriceOverride === 'number' && !isNaN(livePriceOverride)) {
+      const last = { ...out[out.length - 1] };
+      const px = +livePriceOverride.toFixed(spec.decimals);
+      last.close = px;
+      last.high = Math.max(last.high, px);
+      last.low = Math.min(last.low, px);
+      out[out.length - 1] = last;
+    }
+    return out;
+  }
+
+  // Coarse multi-substep aggregation path for 15m .. 24h
+  const scaleFactor = Math.sqrt(tfSec / 60);
+  const subStepsPerCandle = tfSec >= 43200 ? 12 : tfSec >= 3600 ? 8 : 6;
+  const anchorRng = createSeededRng(`bin_macro_anchor:${spec.symbol}:${Math.floor(startBucket / 16)}`);
+  let cur = +(spec.basePrice + (anchorRng() - 0.5) * spec.volatility * 4 * Math.min(6, scaleFactor)).toFixed(spec.decimals);
+  cur = Math.max(spec.volatility * 5, cur);
+
+  const candles: Candle[] = [];
+  for (let b = startBucket; b <= currentBucket; b++) {
+    const bStart = b * tfMs;
+    const isCur = b === currentBucket;
+    const open = cur;
+    let high = open;
+    let low = open;
+    let volume = 0;
+
+    const activeSubs = isCur
+      ? Math.max(1, Math.min(subStepsPerCandle, Math.ceil(((nowMs - bStart) / tfMs) * subStepsPerCandle)))
+      : subStepsPerCandle;
+
+    for (let sub = 0; sub < activeSubs; sub++) {
+      const rng = createSeededRng(`bin_macro:${spec.symbol}:${tfSec}:${b}:${sub}`);
+      const driftBack = ((spec.basePrice - cur) / Math.max(spec.basePrice * 0.03, spec.volatility * 10)) * spec.volatility * 0.2;
+      const biasDrift = isCur
+        ? bias === 'BULL'
+          ? spec.volatility * 0.45 * scaleFactor * 0.35
+          : bias === 'BEAR'
+          ? -spec.volatility * 0.45 * scaleFactor * 0.35
+          : 0
+        : 0;
+      const stepDelta = (rng() - 0.5) * spec.volatility * 0.72 * Math.min(4.5, scaleFactor * 0.65) + driftBack + biasDrift;
+      cur = +Math.max(spec.volatility * 5, cur + stepDelta).toFixed(spec.decimals);
+      if (cur > high) high = cur;
+      if (cur < low) low = cur;
+      volume += Math.floor(rng() * 35) + 12;
+    }
+
+    candles.push({
+      time: bStart,
+      timeStr: formatTimeWithOffset(bStart, offsetMinutes),
+      open,
+      high: +Math.max(high, open, cur).toFixed(spec.decimals),
+      low: +Math.min(low, open, cur).toFixed(spec.decimals),
+      close: cur,
+      volume
+    });
+  }
+
+  if (candles.length > 0 && typeof livePriceOverride === 'number' && !isNaN(livePriceOverride)) {
+    const last = { ...candles[candles.length - 1] };
+    const px = +livePriceOverride.toFixed(spec.decimals);
+    last.close = px;
+    last.high = Math.max(last.high, px);
+    last.low = Math.min(last.low, px);
+    candles[candles.length - 1] = last;
+  }
+  return candles;
 }
 
 // ================= MINES SYNCHRONIZED GLOBAL ROUND ENGINE =================
@@ -903,4 +1075,5 @@ export function resolveCoinFlipOutcome(
   }
   return randomSide;
 }
+
 

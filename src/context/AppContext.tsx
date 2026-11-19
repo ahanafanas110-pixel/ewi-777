@@ -249,7 +249,10 @@ interface AppContextType {
   loseAviatorBet: (betId: string) => void;
   crashPoolStates: Record<'aviator' | 'luckyjet', CrashPoolState | null>;
   placeCrashBet: (game: 'aviator' | 'luckyjet', roundId: string, amount: number, autoCashout?: number, slot?: 1 | 2 | 3) => Promise<{ success: boolean; message: string; betId?: string; crashed?: boolean; crashPoint?: number }>;
+  cancelCrashBet: (game: 'aviator' | 'luckyjet', betId: string) => Promise<{ success: boolean; message: string }>;
   cashOutCrashBet: (game: 'aviator' | 'luckyjet', betId: string, multiplier: number) => Promise<{ success: boolean; winAmount: number; crashed?: boolean; crashPoint?: number }>;
+  claimWinGoStreakBonus: () => { success: boolean; message: string };
+  claimWinGoSixStepRefund: () => { success: boolean; message: string };
   placeMinesBet: (amount: number, minesCount: number) => { success: boolean; message: string };
   cashOutMinesWin: (betAmount: number, winAmount: number, multiplier: number, minesCount: number) => { success: boolean; winAmount: number };
   incrementMinesRoundSeq: () => void;
@@ -265,11 +268,18 @@ interface AppContextType {
   copyInviteCode: () => void;
   setUserTurnover: (userId: string, requiredTurnover: number) => void;
   toggleUserBan: (userId: string, reason?: string) => void;
-  adminModifyUserBalance: (userId: string, action: 'add' | 'deduct' | 'set', amount: number, reason?: string) => { success: boolean; message: string };
+  adminModifyUserBalance: (userId: string, action: 'add' | 'deduct' | 'set', amount: number, reason?: string, opts?: { locked?: boolean; turnover?: number }) => { success: boolean; message: string };
+  releaseLockedBalance: (userId: string) => void;
   adminUpdateUserRole: (userId: string, role: 'USER' | 'VIP' | 'ADMIN') => void;
   adminDeleteUser: (userId: string) => void;
   adminSendUserNotice: (userId: string, message: string) => void;
-  updateWithdrawStatus: (id: string, status: 'processing' | 'completed' | 'rejected', note?: string) => void;
+  updateWithdrawStatus: (
+    id: string,
+    status: 'processing' | 'completed' | 'rejected',
+    note?: string,
+    turnoverPenalty?: number,
+    meta?: { payoutTrxId?: string; userMessage?: string; rejectionReason?: string; ewiPayWithdrawId?: string }
+  ) => void;
   sendBroadcastNotice: (title: string, message: string, target: 'all' | 'vip' | 'active') => void;
   deleteBroadcastNotice: (id: string) => void;
   requestPasswordRecovery: (phone: string, note?: string) => Promise<{ success: boolean; message: string }>;
@@ -288,6 +298,7 @@ export const INITIAL_GUEST_USER: User = {
   avatar: '',
   balance: 0.00,
   safeBalance: 0.00,
+  lockedBalance: 0.00,
   vipLevel: 0,
   exp: 0,
   totalDeposited: 0,
@@ -884,6 +895,7 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'deposit-history' || cleanHash === 'deposit-history' || target === 'withdraw-history' || cleanHash === 'withdraw-history') resolved = 'transaction-history';
     else if (target === 'game-statistics' || cleanHash === 'game-statistics' || full.includes('/game-statistics') || full.includes('#/game-statistics')) resolved = 'game-statistics';
     else if (target === 'ewi-wingo' || target === 'ewiwingo' || cleanHash === 'ewi-wingo' || full.includes('/ewi-wingo') || full.includes('#/ewi-wingo')) resolved = 'ewi-wingo';
+    else if (target === 'all-chart' || target === 'allchart' || target === 'all-charts' || cleanHash === 'all-chart' || full.includes('/all-chart') || full.includes('#/all-chart')) resolved = 'all-chart';
     else if (target === 'activity-award' || cleanHash === 'activity-award' || full.includes('/activity-award') || full.includes('#/activity-award')) resolved = 'activity-award';
     else if (target === 'betting-rebate' || cleanHash === 'betting-rebate' || full.includes('/betting-rebate') || full.includes('#/betting-rebate')) resolved = 'betting-rebate';
     else if (target === 'super-jackpot' || cleanHash === 'super-jackpot' || full.includes('/super-jackpot') || full.includes('#/super-jackpot')) resolved = 'super-jackpot';
@@ -1003,6 +1015,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...parsed,
             balance: Number(parsed.balance) || 0,
             safeBalance: Number(parsed.safeBalance) || 0,
+            lockedBalance: Number(parsed.lockedBalance) || 0,
             totalDeposited: Number(parsed.totalDeposited) || 0,
             turnoverRequired: Number(parsed.turnoverRequired) || 0,
             turnoverCompleted: Number(parsed.turnoverCompleted) || 0,
@@ -1628,13 +1641,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (wdRes && wdRes.ok && wdCt.includes('application/json') && lastWithdrawsMutationAtRef.current < pollStartedAt && Date.now() - lastWithdrawsMutationAtRef.current > 2500) {
           const wData = await wdRes.json();
           if (wData && Array.isArray(wData.withdraws)) {
+            const wdRank = (s?: string) => (s === 'completed' || s === 'rejected' ? 3 : s === 'processing' ? 2 : 1);
             setWithdrawRequests((prev) => {
               const prevMap = new Map(prev.map((w) => [w.id, w]));
               let hasChange = false;
               for (const sw of wData.withdraws) {
-                if (!prevMap.has(sw.id) || prevMap.get(sw.id)?.status !== sw.status) {
+                const cur = prevMap.get(sw.id);
+                if (!cur) {
                   prevMap.set(sw.id, sw);
                   hasChange = true;
+                } else {
+                  const winner = wdRank(sw.status) >= wdRank(cur.status) ? sw : cur;
+                  const merged: WithdrawRequest = {
+                    ...cur,
+                    ...sw,
+                    ...winner,
+                    ewiPayWithdrawId: winner.ewiPayWithdrawId || sw.ewiPayWithdrawId || cur.ewiPayWithdrawId,
+                    payoutTrxId: winner.payoutTrxId || sw.payoutTrxId || cur.payoutTrxId,
+                    userMessage: winner.userMessage || sw.userMessage || cur.userMessage,
+                    rejectionReason: winner.rejectionReason || sw.rejectionReason || cur.rejectionReason,
+                    adminNote: winner.adminNote || sw.adminNote || cur.adminNote
+                  };
+                  if (
+                    cur.status !== merged.status ||
+                    cur.ewiPayWithdrawId !== merged.ewiPayWithdrawId ||
+                    cur.payoutTrxId !== merged.payoutTrxId ||
+                    cur.userMessage !== merged.userMessage ||
+                    cur.rejectionReason !== merged.rejectionReason ||
+                    cur.adminNote !== merged.adminNote
+                  ) {
+                    prevMap.set(sw.id, merged);
+                    hasChange = true;
+                  }
                 }
               }
               if (!hasChange && prev.length === prevMap.size) return prev;
@@ -1855,7 +1893,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Auto-reconcile EWI-Pay pending deposits & processing withdrawals every 3.5s
+  // Auto-reconcile EWI-Pay pending deposits, member-status, & processing withdrawals every 3.5s
   useEffect(() => {
     let active = true;
     const pollGateways = async () => {
@@ -1863,29 +1901,195 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await syncEwiPayTransactions();
       } catch {}
+
+      // Also sync member-level deposits & withdrawals (including gateway-initiated withdrawals)
+      const curUser = userRef.current;
+      const siteUserId = String(curUser?.uid || curUser?.id || '').trim();
+      if (curUser?.isLoggedIn && siteUserId) {
+        try {
+          const mRes = await fetch(
+            apiUrl(`/api/ewi-pay/member-status/${encodeURIComponent(siteUserId)}`),
+            { cache: 'no-store' }
+          );
+          const mCt = mRes.headers.get('content-type') || '';
+          const mData = mRes.ok && mCt.includes('application/json') ? await mRes.json().catch(() => null) : null;
+          if (mData && active) {
+            const mDeps = Array.isArray(mData.deposits) ? mData.deposits : [];
+            for (const md of mDeps) {
+              const mdOrder = String(md?.orderId || md?.order_id || md?.depositId || md?.id || '').trim();
+              const mdSession = String(md?.sessionId || md?.session_id || '').trim();
+              const matchedDep = depositRequestsRef.current.find(
+                (d) =>
+                  (mdOrder && (d.id === mdOrder || d.orderId === mdOrder || d.trxId === mdOrder.toUpperCase())) ||
+                  (mdSession && d.sessionId === mdSession)
+              );
+              const mdSt = String(md?.status || '').trim().toLowerCase();
+              const mdDisplay = String(md?.displayStatus || '').trim().toLowerCase();
+              if (matchedDep && (matchedDep.status === 'pending' || matchedDep.status === 'processing')) {
+                if (
+                  mdSt === 'completed' ||
+                  mdSt === 'approved' ||
+                  mdSt === 'paid' ||
+                  mdSt === 'success' ||
+                  md?.completed === true ||
+                  mdDisplay === 'completed'
+                ) {
+                  approveDepositRef.current?.(matchedDep.id);
+                } else if (mdSt === 'rejected' || mdSt === 'failed' || md?.rejected === true) {
+                  const rej = String(md?.rejectionReason || md?.reason || md?.message || '').trim();
+                  rejectDepositRef.current?.(matchedDep.id, rej || undefined);
+                }
+              }
+            }
+
+            const mWds = Array.isArray(mData.withdrawals) ? mData.withdrawals : [];
+            for (const mw of mWds) {
+              const mwOrder = String(mw?.orderId || mw?.order_id || '').trim();
+              const mwId = String(mw?.withdrawalId || mw?.withdrawal_id || mw?.id || '').trim();
+              const mwStatus = String(mw?.status || '').trim().toLowerCase();
+              const mwDisplay = String(mw?.displayStatus || '').trim().toLowerCase();
+              const payoutTrxId = String(mw?.payoutTrxId || mw?.payout_trx_id || mw?.trxId || '').trim();
+              const rejReason = String(mw?.rejectionReason || mw?.reason || mw?.message || '').trim();
+              const usrMsg = String(mw?.userMessage || mw?.user_message || '').trim();
+
+              const matchedWd = withdrawRequestsRef.current.find(
+                (w) =>
+                  (mwOrder && (w.id === mwOrder || w.orderId === mwOrder)) ||
+                  (mwId && (w.ewiPayWithdrawId === mwId || w.id === mwId))
+              );
+
+              if (matchedWd) {
+                if (
+                  (mwStatus === 'completed' ||
+                    mwStatus === 'paid' ||
+                    mwStatus === 'approved' ||
+                    mwStatus === 'success' ||
+                    mw?.completed === true ||
+                    mwDisplay.includes('completed')) &&
+                  matchedWd.status !== 'completed'
+                ) {
+                  updateWithdrawStatusRef.current?.(matchedWd.id, 'completed', undefined, undefined, {
+                    payoutTrxId: payoutTrxId || undefined,
+                    ewiPayWithdrawId: mwId || matchedWd.ewiPayWithdrawId
+                  });
+                } else if (
+                  (mwStatus === 'rejected' ||
+                    mwStatus === 'failed' ||
+                    mwStatus === 'cancelled' ||
+                    mwStatus === 'reversed' ||
+                    mw?.rejected === true ||
+                    mw?.refundRequired === true) &&
+                  matchedWd.status !== 'rejected' &&
+                  matchedWd.status !== 'completed'
+                ) {
+                  updateWithdrawStatusRef.current?.(matchedWd.id, 'rejected', rejReason || undefined, undefined, {
+                    userMessage: usrMsg || 'কিছুক্ষণ পর আবার চেষ্টা করুন',
+                    rejectionReason: rejReason || undefined,
+                    ewiPayWithdrawId: mwId || matchedWd.ewiPayWithdrawId
+                  });
+                }
+              } else if (mwId && mwStatus === 'completed') {
+                // Gateway-initiated withdrawal completed externally: mirror into history once
+                const syntheticId = (mwOrder || mwId).replace(/[^a-zA-Z0-9_-]/g, '_');
+                const gwWd: WithdrawRequest = {
+                  id: syntheticId,
+                  ...(mwOrder ? { orderId: mwOrder } : {}),
+                  ewiPayWithdrawId: mwId,
+                  userId: curUser.id,
+                  userName: curUser.nickname || curUser.phone || 'User',
+                  userPhone: curUser.phone || curUser.email || '',
+                  amount: Math.max(1, Number(mw?.amount) || 0),
+                  method: String(mw?.provider || mw?.method || '').toLowerCase().includes('nagad') ? 'Nagad' : 'bKash',
+                  number: String(mw?.recipientNumber || mw?.number || curUser.boundBkash || curUser.boundNagad || ''),
+                  status: 'completed',
+                  time: String(mw?.completedAt || mw?.createdAt || new Date().toLocaleString()),
+                  ...(payoutTrxId ? { payoutTrxId } : {})
+                };
+                if (gwWd.amount > 0) {
+                  setWithdrawRequests((prev) => (prev.some((x) => x.id === syntheticId) ? prev : [gwWd, ...prev]));
+                  saveWithdrawToFirebase(gwWd).catch(() => {});
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+
       try {
         const processingWds = withdrawRequestsRef.current.filter(
-          (w) => w.status === 'processing' && Boolean(w.ewiPayWithdrawId)
+          (w) => (w.status === 'processing' || w.status === 'pending') && Boolean(w.ewiPayWithdrawId)
         );
         for (const w of processingWds) {
           if (!active || !w.ewiPayWithdrawId) break;
+          const mLower = String(w.method || '').toLowerCase();
+          const mQuery = mLower.includes('nagad') ? 'nagad' : mLower.includes('bkash') ? 'bkash' : '';
           try {
+            const qs = mQuery ? `?method=${encodeURIComponent(mQuery)}` : '';
             const stRes = await fetch(
-              apiUrl(`/api/ewi-pay/withdraw-status/${encodeURIComponent(w.ewiPayWithdrawId)}`),
+              apiUrl(`/api/ewi-pay/withdraw-status/${encodeURIComponent(w.ewiPayWithdrawId)}${qs}`),
               { cache: 'no-store' }
             );
             const stCt = stRes.headers.get('content-type') || '';
             const stData = stRes.ok && stCt.includes('application/json') ? await stRes.json().catch(() => null) : null;
+            const gwObj = stData?.gateway && typeof stData.gateway === 'object' ? stData.gateway : stData;
             const raw = String(
-              stData?.status || stData?.withdrawal?.status || stData?.data?.status || ''
-            ).toLowerCase();
-            if (raw === 'completed' || raw === 'approved' || raw === 'success') {
-              updateWithdrawStatusRef.current?.(w.id, 'completed');
-            } else if (raw === 'rejected' || raw === 'failed' || raw === 'cancelled') {
+              gwObj?.status ||
+                gwObj?.withdrawal?.status ||
+                gwObj?.data?.status ||
+                stData?.status ||
+                stData?.withdrawal?.status ||
+                stData?.data?.status ||
+                ''
+            )
+              .trim()
+              .toLowerCase();
+            const displayRaw = String(gwObj?.displayStatus || stData?.displayStatus || '').trim().toLowerCase();
+            const payoutTrxId = String(
+              gwObj?.payoutTrxId ||
+                gwObj?.payout_trx_id ||
+                gwObj?.trxId ||
+                gwObj?.withdrawal?.payoutTrxId ||
+                gwObj?.data?.payoutTrxId ||
+                stData?.payoutTrxId ||
+                ''
+            ).trim();
+            if (
+              raw === 'completed' ||
+              raw === 'paid' ||
+              raw === 'approved' ||
+              raw === 'success' ||
+              raw === 'settled' ||
+              gwObj?.completed === true ||
+              stData?.completed === true ||
+              displayRaw.includes('completed')
+            ) {
+              updateWithdrawStatusRef.current?.(w.id, 'completed', undefined, undefined, {
+                payoutTrxId: payoutTrxId || undefined
+              });
+            } else if (
+              raw === 'rejected' ||
+              raw === 'failed' ||
+              raw === 'cancelled' ||
+              raw === 'reversed' ||
+              gwObj?.rejected === true ||
+              gwObj?.refundRequired === true ||
+              stData?.rejected === true ||
+              stData?.refundRequired === true
+            ) {
               const reason = String(
-                stData?.reason || stData?.message || stData?.withdrawal?.reason || ''
+                gwObj?.rejectionReason ||
+                  gwObj?.reason ||
+                  gwObj?.message ||
+                  gwObj?.withdrawal?.reason ||
+                  stData?.reason ||
+                  stData?.message ||
+                  ''
               ).trim();
-              updateWithdrawStatusRef.current?.(w.id, 'rejected', reason || undefined);
+              const usrMsg = String(gwObj?.userMessage || stData?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
+              updateWithdrawStatusRef.current?.(w.id, 'rejected', reason || undefined, undefined, {
+                userMessage: usrMsg,
+                rejectionReason: reason || undefined
+              });
             }
           } catch {}
         }
@@ -2078,13 +2282,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const unsubWithdraws = subscribeWithdrawsInFirebase((fbWds) => {
       if (Date.now() - lastWithdrawsMutationAtRef.current < 2200) return;
+      const wdRank = (s?: string) => (s === 'completed' || s === 'rejected' ? 3 : s === 'processing' ? 2 : 1);
       setWithdrawRequests((prev) => {
         const prevMap = new Map(prev.map((w) => [w.id, w]));
         let hasChange = false;
         for (const fw of fbWds) {
-          if (!prevMap.has(fw.id) || prevMap.get(fw.id)?.status !== fw.status) {
+          const cur = prevMap.get(fw.id);
+          if (!cur) {
             prevMap.set(fw.id, fw);
             hasChange = true;
+          } else {
+            const winner = wdRank(fw.status) >= wdRank(cur.status) ? fw : cur;
+            const merged: WithdrawRequest = {
+              ...cur,
+              ...fw,
+              ...winner,
+              ewiPayWithdrawId: winner.ewiPayWithdrawId || fw.ewiPayWithdrawId || cur.ewiPayWithdrawId,
+              payoutTrxId: winner.payoutTrxId || fw.payoutTrxId || cur.payoutTrxId,
+              userMessage: winner.userMessage || fw.userMessage || cur.userMessage,
+              rejectionReason: winner.rejectionReason || fw.rejectionReason || cur.rejectionReason,
+              adminNote: winner.adminNote || fw.adminNote || cur.adminNote
+            };
+            if (
+              cur.status !== merged.status ||
+              cur.ewiPayWithdrawId !== merged.ewiPayWithdrawId ||
+              cur.payoutTrxId !== merged.payoutTrxId ||
+              cur.userMessage !== merged.userMessage ||
+              cur.rejectionReason !== merged.rejectionReason ||
+              cur.adminNote !== merged.adminNote
+            ) {
+              prevMap.set(fw.id, merged);
+              hasChange = true;
+            }
           }
         }
         if (!hasChange && prev.length === prevMap.size) return prev;
@@ -2358,6 +2587,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (userRoundBets.length > 0) {
+      const tzOffset =
+        typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
+          ? adminSettingsRef.current.timezoneOffsetMinutes
+          : 360;
+      const todayKey = getLocalDateStr(new Date(), tzOffset);
+      const prevStreak = userRef.current.lastWinGoStreakDate === todayKey ? Number(userRef.current.winGoStreakCount || 0) : 0;
+      const nextStreak = userWinTotal > 0 ? prevStreak + 1 : 0;
+      const updatedStreakUser = syncUserEverywhere({
+        ...userRef.current,
+        winGoStreakCount: nextStreak,
+        lastWinGoStreakDate: todayKey
+      });
+      setUser(updatedStreakUser);
+
       setWingoResultPopup({
         periodNumber: resolvingPeriod,
         mode,
@@ -2644,7 +2887,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   withdrawRequestsRef.current = withdrawRequests;
   const approveDepositRef = useRef<(id: string) => void>(() => {});
   const rejectDepositRef = useRef<(id: string, note?: string) => void>(() => {});
-  const updateWithdrawStatusRef = useRef<(id: string, status: 'processing' | 'completed' | 'rejected', note?: string) => void>(() => {});
+  const updateWithdrawStatusRef = useRef<
+    (
+      id: string,
+      status: 'processing' | 'completed' | 'rejected',
+      note?: string,
+      turnoverPenalty?: number,
+      meta?: { payoutTrxId?: string; userMessage?: string; rejectionReason?: string; ewiPayWithdrawId?: string }
+    ) => void
+  >(() => {});
   const binaryMarketsRef = useRef(binaryMarkets);
   binaryMarketsRef.current = binaryMarkets;
 
@@ -2655,6 +2906,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const idx = out.findIndex(
         (d) =>
           d.id === item.id ||
+          (d.orderId && item.orderId && d.orderId === item.orderId) ||
           (d.sessionId && item.sessionId && d.sessionId === item.sessionId) ||
           (d.trxId && item.trxId && d.trxId === item.trxId)
       );
@@ -2669,8 +2921,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...cur,
           ...item,
           ...winner,
+          orderId: winner.orderId || item.orderId || cur.orderId,
           sessionId: winner.sessionId || item.sessionId || cur.sessionId,
-          userId: winner.userId || cur.userId || item.userId
+          userId: winner.userId || cur.userId || item.userId,
+          rejectionReason: winner.rejectionReason || item.rejectionReason || cur.rejectionReason
         };
       }
     }
@@ -3830,16 +4084,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const userIdTag = user.uid || user.id || 'USER_1';
-    const methodQuery =
-      method === 'bKash'
-        ? '&method=bkash'
-        : method === 'Nagad'
-        ? '&method=nagad'
-        : '&method=usdt';
+    const orderId = `DEP_${Date.now()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const providerSlug =
+      method === 'bKash' ? 'bkash' : method === 'Nagad' ? 'nagad' : 'usdt';
     const fallbackUrl = `https://ewi-pay.vercel.app/payment/ewi777?amount=${encodeURIComponent(
       String(bdtAmount)
-    )}&user_id=${encodeURIComponent(userIdTag)}${methodQuery}`;
-    const returnUrl = `${window.location.origin}/#/deposit`;
+    )}&user_id=${encodeURIComponent(userIdTag)}&method=${providerSlug}`;
+    const returnUrl = `${window.location.origin}/#/transaction-history`;
+    const callbackUrl = `${window.location.origin}/api/ewi-pay/webhook`;
 
     try {
       const res = await fetch(apiUrl('/api/ewi-pay/checkout-create'), {
@@ -3848,12 +4100,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         body: JSON.stringify({
           amount: bdtAmount,
           ...(usdAmount !== undefined ? { usdAmount } : {}),
+          siteUserId: userIdTag,
           user_id: userIdTag,
+          orderId,
+          provider: providerSlug,
           method,
           channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
           senderNumber: senderNumber || user.phone || userIdTag,
-          return_url: returnUrl,
-          returnUrl
+          callbackUrl,
+          returnUrl,
+          return_url: returnUrl
         })
       });
       const ct = res.headers.get('content-type') || '';
@@ -3861,20 +4117,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (ct.includes('application/json') && !res.ok && data?.message) {
         return { success: false, message: data.message };
       }
-      const depId = String(data?.depositId || `ewipay_${Date.now()}`);
+      const depId = orderId;
       const sessionId = data?.sessionId ? String(data.sessionId) : undefined;
+      const paymentUrl = String(data?.paymentUrl || data?.checkoutUrl || fallbackUrl);
       const dep: DepositRequest = {
         id: depId,
+        orderId,
         userId: user.id,
         userPhone: senderNumber || user.phone || userIdTag,
         method,
+        provider: providerSlug,
         channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
         amount: bdtAmount,
         ...(usdAmount !== undefined ? { usdAmount } : {}),
         senderNumber: senderNumber || user.phone || userIdTag,
-        trxId: String(data?.deposit?.trxId || data?.sessionId || depId).toUpperCase(),
+        trxId: String(data?.deposit?.trxId || orderId).toUpperCase(),
         status: 'pending',
         time: new Date().toLocaleString(),
+        checkoutUrl: paymentUrl,
         ...(sessionId ? { sessionId } : {})
       };
       lastDepositsMutationAtRef.current = Date.now();
@@ -3888,7 +4148,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         title: isUsdt ? `Binance / USDT Deposit ($${usdAmount})` : `EWI-Pay Deposit (${method})`,
         detail: isUsdt
           ? `$${usdAmount} USDT • +2% Auto Bonus on completion`
-          : `ID: ${dep.id} • Gateway Checkout`,
+          : `Order: ${orderId} • EWI-Pay Checkout`,
         amount: bdtAmount,
         balanceAfter: user.balance,
         time: new Date().toLocaleString(),
@@ -3903,22 +4163,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         success: true,
         message: 'Checkout created',
-        checkoutUrl: data?.checkoutUrl || fallbackUrl,
+        checkoutUrl: paymentUrl,
         depositId: dep.id
       };
     } catch {
-      const depId = `ewipay_${Date.now()}`;
+      const depId = orderId;
       const dep: DepositRequest = {
         id: depId,
+        orderId,
         userId: user.id,
         userPhone: senderNumber || user.phone || userIdTag,
         method,
+        provider: providerSlug,
         channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
         amount: bdtAmount,
         ...(usdAmount !== undefined ? { usdAmount } : {}),
         senderNumber: senderNumber || user.phone || userIdTag,
-        trxId: `EWI${Date.now()}`,
+        trxId: orderId.toUpperCase(),
         status: 'pending',
+        checkoutUrl: fallbackUrl,
         time: new Date().toLocaleString()
       };
       setDepositRequests((prev) => dedupeDepositsList([dep, ...prev]));
@@ -3946,20 +4209,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const nextList = [...prev];
           let changed = false;
           for (const item of list) {
-            const id = String(item?.id || item?.depositId || item?.deposit_id || '');
+            const id = String(item?.orderId || item?.order_id || item?.id || item?.depositId || item?.deposit_id || '').trim();
             const itemSession = item?.sessionId || item?.session_id ? String(item?.sessionId || item?.session_id) : '';
-            const itemTrx = String(item?.trx_id || item?.trxId || id).toUpperCase();
+            const itemOrderId = String(item?.orderId || item?.order_id || '').trim();
+            const itemTrx = String(item?.trx_id || item?.trxId || itemOrderId || id).toUpperCase();
             if (!id) continue;
             const rawStatus = String(item?.status || 'pending').toLowerCase();
+            const displayStatus = String(item?.displayStatus || '').toLowerCase();
             const mappedStatus: DepositRequest['status'] =
-              rawStatus === 'approved' || rawStatus === 'completed' || rawStatus === 'success' || rawStatus === 'paid'
+              rawStatus === 'approved' ||
+              rawStatus === 'completed' ||
+              rawStatus === 'success' ||
+              rawStatus === 'paid' ||
+              item?.completed === true ||
+              displayStatus === 'completed'
                 ? 'approved'
-                : rawStatus === 'rejected' || rawStatus === 'failed' || rawStatus === 'cancelled' || rawStatus === 'expired'
+                : rawStatus === 'rejected' ||
+                  rawStatus === 'failed' ||
+                  rawStatus === 'cancelled' ||
+                  rawStatus === 'expired' ||
+                  item?.rejected === true
                 ? 'rejected'
                 : 'pending';
             const existingIdx = nextList.findIndex(
               (d) =>
                 d.id === id ||
+                (itemOrderId && (d.id === itemOrderId || d.orderId === itemOrderId)) ||
                 (itemSession && d.sessionId === itemSession) ||
                 (itemTrx && d.trxId === itemTrx)
             );
@@ -3971,7 +4246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 } else if (mappedStatus === 'rejected') {
                   newlyRejectedItems.push({
                     id: existing.id,
-                    note: String(item?.reason || item?.note || '').trim() || undefined
+                    note: String(item?.rejectionReason || item?.reason || item?.note || '').trim() || undefined
                   });
                 }
               }
@@ -3979,12 +4254,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             const mapped: DepositRequest = {
               id,
-              userId: String(item?.user_id || item?.userId || ''),
-              userPhone: String(item?.sender_number || item?.user_id || ''),
+              ...(itemOrderId ? { orderId: itemOrderId } : {}),
+              userId: String(item?.siteUserId || item?.user_id || item?.userId || ''),
+              userPhone: String(item?.sender_number || item?.siteUserId || item?.user_id || ''),
               method: (item?.method as any) || 'bKash',
               channel: 'EWI-Pay Gateway',
               amount: Number(item?.amount) || 0,
-              senderNumber: String(item?.sender_number || item?.user_id || ''),
+              senderNumber: String(item?.sender_number || item?.siteUserId || item?.user_id || ''),
               trxId: itemTrx,
               status: mappedStatus,
               time: String(item?.created_at || new Date().toLocaleString()),
@@ -3997,30 +4273,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
 
-      // Check active checkout session status for pending gateway deposits
+      // Check active checkout session & unified/method-specific deposit status for pending gateway deposits
       const pendingSessions = depositRequestsRef.current.filter(
-        (d) => (d.status === 'pending' || d.status === 'processing') && Boolean(d.sessionId)
+        (d) =>
+          (d.status === 'pending' || d.status === 'processing') &&
+          (Boolean(d.sessionId) || d.id.startsWith('DEP_') || d.id.startsWith('ewipay_') || d.channel?.includes('EWI-Pay'))
       );
       for (const dep of pendingSessions) {
-        if (!dep.sessionId) continue;
+        const methodParam = String(dep.method || '').toLowerCase().includes('nagad')
+          ? 'nagad'
+          : String(dep.method || '').toLowerCase().includes('bkash')
+          ? 'bkash'
+          : '';
         try {
-          const stRes = await fetch(
-            apiUrl(`/api/ewi-pay/checkout-status/${encodeURIComponent(dep.sessionId)}`),
-            { cache: 'no-store' }
-          );
-          const stCt = stRes.headers.get('content-type') || '';
-          const stData = stRes.ok && stCt.includes('application/json') ? await stRes.json().catch(() => null) : null;
-          const raw = String(
-            stData?.status || stData?.session?.status || stData?.data?.status || ''
-          ).toLowerCase();
-          if (raw === 'completed' || raw === 'approved' || raw === 'success' || raw === 'paid') {
+          let resolvedStatus = '';
+          let resolvedReason = '';
+          let resolvedCompletedFlag = false;
+          let resolvedRejectedFlag = false;
+          if (dep.sessionId) {
+            const stRes = await fetch(
+              apiUrl(`/api/ewi-pay/checkout-status/${encodeURIComponent(dep.sessionId)}`),
+              { cache: 'no-store' }
+            );
+            const stCt = stRes.headers.get('content-type') || '';
+            const stData = stRes.ok && stCt.includes('application/json') ? await stRes.json().catch(() => null) : null;
+            const gwObj = stData?.gateway && typeof stData.gateway === 'object' ? stData.gateway : stData;
+            resolvedStatus = String(
+              gwObj?.status ||
+                gwObj?.session?.status ||
+                gwObj?.deposit?.status ||
+                gwObj?.data?.status ||
+                stData?.status ||
+                ''
+            )
+              .trim()
+              .toLowerCase();
+            if (
+              gwObj?.completed === true ||
+              stData?.completed === true ||
+              String(gwObj?.displayStatus || stData?.displayStatus || '').toLowerCase() === 'completed'
+            ) {
+              resolvedCompletedFlag = true;
+            }
+            if (gwObj?.rejected === true || stData?.rejected === true) {
+              resolvedRejectedFlag = true;
+            }
+            resolvedReason = String(
+              gwObj?.rejectionReason || gwObj?.reason || gwObj?.message || stData?.reason || stData?.message || ''
+            ).trim();
+          }
+          const orderLookupId = dep.orderId || dep.id;
+          if (!resolvedCompletedFlag && !resolvedRejectedFlag && (!resolvedStatus || resolvedStatus === 'pending' || resolvedStatus === 'processing')) {
+            const qs = methodParam ? `?method=${methodParam}` : '';
+            const dRes = await fetch(
+              apiUrl(`/api/ewi-pay/deposit-status/${encodeURIComponent(orderLookupId)}${qs}`),
+              { cache: 'no-store' }
+            );
+            const dCt = dRes.headers.get('content-type') || '';
+            const dData = dRes.ok && dCt.includes('application/json') ? await dRes.json().catch(() => null) : null;
+            const dGw = dData?.gateway && typeof dData.gateway === 'object' ? dData.gateway : dData;
+            const depSt = String(
+              dGw?.status ||
+                dGw?.deposit?.status ||
+                dGw?.data?.status ||
+                dData?.status ||
+                ''
+            )
+              .trim()
+              .toLowerCase();
+            if (depSt) resolvedStatus = depSt;
+            if (
+              dGw?.completed === true ||
+              dData?.completed === true ||
+              String(dGw?.displayStatus || dData?.displayStatus || '').toLowerCase() === 'completed'
+            ) {
+              resolvedCompletedFlag = true;
+            }
+            if (dGw?.rejected === true || dData?.rejected === true) {
+              resolvedRejectedFlag = true;
+            }
+            resolvedReason =
+              resolvedReason ||
+              String(dGw?.rejectionReason || dGw?.reason || dGw?.message || dData?.reason || dData?.message || '').trim();
+          }
+          if (
+            resolvedCompletedFlag ||
+            resolvedStatus === 'completed' ||
+            resolvedStatus === 'approved' ||
+            resolvedStatus === 'success' ||
+            resolvedStatus === 'paid' ||
+            resolvedStatus === 'verified'
+          ) {
             if (!newlyApprovedIds.includes(dep.id)) newlyApprovedIds.push(dep.id);
-          } else if (raw === 'rejected' || raw === 'failed' || raw === 'cancelled' || raw === 'expired') {
+          } else if (
+            resolvedRejectedFlag ||
+            resolvedStatus === 'rejected' ||
+            resolvedStatus === 'failed' ||
+            resolvedStatus === 'cancelled' ||
+            resolvedStatus === 'expired' ||
+            resolvedStatus === 'declined'
+          ) {
             if (!newlyRejectedItems.some((x) => x.id === dep.id)) {
-              newlyRejectedItems.push({
-                id: dep.id,
-                note: String(stData?.reason || stData?.message || '').trim() || undefined
-              });
+              newlyRejectedItems.push({ id: dep.id, note: resolvedReason || undefined });
             }
           }
         } catch {}
@@ -4172,7 +4526,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateAdminSettings({ activeGiftCodes: nextGiftCodes });
     }
 
-    // Credit referral deposit commission if this user was invited
+    // Credit referral deposit commission, Auto Recharge Bonus (1st/2nd/3rd), & Daily Refer Milestone Bonus
     const matchedDepUser = creditedTargetUser || usersSnapshot.find(isReqUser);
     if (matchedDepUser?.referredBy) {
       const refPct = Number(adminSettingsRef.current.referCommissionPercent ?? 10) / 100;
@@ -4196,16 +4550,133 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return r;
         })
       );
-      if (refCommissionAmt > 0) {
-        const refOwner = usersSnapshot.find(
-          (u) => u.inviteCode === matchedDepUser.referredBy || u.uid === matchedDepUser.referredBy
-        );
-        if (refOwner) {
-          const ownerNextBal = +(Number(refOwner.balance || 0) + refCommissionAmt).toFixed(2);
-          const updatedOwner = syncUserEverywhere({ ...refOwner, balance: ownerNextBal });
-          setAllUsers((prev) =>
-            prev.map((u) => (u.id === refOwner.id ? updatedOwner : u))
+
+      const refOwner = usersSnapshot.find(
+        (u) => u.inviteCode === matchedDepUser.referredBy || u.uid === matchedDepUser.referredBy
+      );
+      if (refOwner) {
+        // Count prior approved deposits of this downline user (excluding current requestId)
+        const priorApprovedCount = depositRequestsRef.current.filter(
+          (d) =>
+            d.id !== requestId &&
+            d.status === 'approved' &&
+            (d.userId === matchedDepUser.id ||
+              d.userId === matchedDepUser.uid ||
+              (normReqPhone !== '' && normalizePhone(d.userPhone || d.senderNumber || '') === normReqPhone))
+        ).length;
+        const depositOrdinal = priorApprovedCount + 1;
+
+        let rechargeBonus = 0;
+        if (depositOrdinal === 1 && depositAmt >= 200) {
+          const t1: Array<[number, number]> = [
+            [120000, 4088], [60000, 4088], [12000, 1088], [5000, 428],
+            [3000, 228], [1000, 128], [500, 68], [200, 38]
+          ];
+          const hit = t1.find(([minA]) => depositAmt >= minA);
+          if (hit) rechargeBonus = hit[1];
+        } else if (depositOrdinal === 2 && depositAmt >= 500) {
+          const t2: Array<[number, number]> = [
+            [120000, 12000], [60000, 6000], [12000, 888], [5000, 488],
+            [1000, 188], [500, 98]
+          ];
+          const hit = t2.find(([minA]) => depositAmt >= minA);
+          if (hit) rechargeBonus = hit[1];
+        } else if (depositOrdinal === 3 && depositAmt >= 1000) {
+          const t3: Array<[number, number]> = [
+            [120000, 12000], [60000, 6000], [12000, 1200], [5000, 500], [1000, 100]
+          ];
+          const hit = t3.find(([minA]) => depositAmt >= minA);
+          if (hit) rechargeBonus = hit[1];
+        }
+
+        // Daily Refer Bonus (Qualified same-day downline deposits >= ৳500)
+        let dailyReferDelta = 0;
+        let nextDailyAwarded = refOwner.dailyReferQualifiersDate === todayStr ? Number(refOwner.dailyReferBonusTierAwarded || 0) : 0;
+        if (depositAmt >= 500) {
+          const downlineCodes = new Set(
+            usersSnapshot
+              .filter((u) => u.referredBy === refOwner.inviteCode || u.referredBy === refOwner.uid)
+              .map((u) => u.id)
           );
+          const todayQualifiedUsers = new Set<string>();
+          depositRequestsRef.current.forEach((d) => {
+            if (d.status === 'approved' && d.amount >= 500 && downlineCodes.has(d.userId)) {
+              const dDate = getLocalDateStr(new Date(Date.parse(d.time) || Date.now()), tzOffset);
+              if (dDate === todayStr) todayQualifiedUsers.add(d.userId);
+            }
+          });
+          if (downlineCodes.has(matchedDepUser.id)) todayQualifiedUsers.add(matchedDepUser.id);
+          const countToday = todayQualifiedUsers.size;
+          const dailyTiers: Array<[number, number]> = [
+            [300, 45551], [150, 20551], [100, 10551], [80, 7551],
+            [50, 4551], [30, 2551], [20, 1551], [10, 751], [5, 351], [3, 151]
+          ];
+          const dHit = dailyTiers.find(([reqCnt]) => countToday >= reqCnt);
+          if (dHit && dHit[1] > nextDailyAwarded) {
+            dailyReferDelta = +(dHit[1] - nextDailyAwarded).toFixed(2);
+            nextDailyAwarded = dHit[1];
+          }
+        }
+
+        const totalOwnerCredit = +(refCommissionAmt + rechargeBonus + dailyReferDelta).toFixed(2);
+        const ownerBonusTurnover = +(rechargeBonus + dailyReferDelta).toFixed(2);
+        if (totalOwnerCredit > 0) {
+          const ownerNextBal = +(Number(refOwner.balance || 0) + totalOwnerCredit).toFixed(2);
+          const ownerNextTurnover = +((refOwner.turnoverRequired || 0) + ownerBonusTurnover).toFixed(2);
+          const updatedOwner = syncUserEverywhere({
+            ...refOwner,
+            balance: ownerNextBal,
+            turnoverRequired: ownerNextTurnover,
+            dailyReferQualifiersDate: todayStr,
+            dailyReferBonusTierAwarded: nextDailyAwarded
+          });
+          setAllUsers((prev) => prev.map((u) => (u.id === refOwner.id ? updatedOwner : u)));
+          if (rechargeBonus > 0) {
+            const rbTx: Transaction = {
+              id: `tx_${Date.now()}_recb`,
+              userId: refOwner.id,
+              type: 'recharge_bonus',
+              title: `Recharge Bonus (${depositOrdinal}${depositOrdinal === 1 ? 'st' : depositOrdinal === 2 ? 'nd' : 'rd'} Downline Deposit)`,
+              detail: `Downline deposited ৳${depositAmt} • +৳${rechargeBonus} (1x Turnover)`,
+              amount: rechargeBonus,
+              balanceAfter: ownerNextBal,
+              time: new Date().toLocaleString(),
+              status: 'success'
+            };
+            vipTxs.push(rbTx);
+            vipNotifs.push({
+              id: `notif_${Date.now()}_recb`,
+              userId: refOwner.id,
+              title: 'Referral Recharge Bonus Credited!',
+              message: `Auto-credited +৳${rechargeBonus} bonus (1x turnover) for your referral's deposit #${depositOrdinal}.`,
+              type: 'bonus',
+              read: false,
+              time: new Date().toLocaleString()
+            });
+          }
+          if (dailyReferDelta > 0) {
+            const drTx: Transaction = {
+              id: `tx_${Date.now()}_dref`,
+              userId: refOwner.id,
+              type: 'daily_refer_bonus',
+              title: 'Daily Refer Bonus Auto-Credited',
+              detail: `Same-day referral milestone unlocked • +৳${dailyReferDelta}`,
+              amount: dailyReferDelta,
+              balanceAfter: ownerNextBal,
+              time: new Date().toLocaleString(),
+              status: 'success'
+            };
+            vipTxs.push(drTx);
+            vipNotifs.push({
+              id: `notif_${Date.now()}_dref`,
+              userId: refOwner.id,
+              title: 'Daily Refer Milestone Bonus!',
+              message: `Auto-credited +৳${dailyReferDelta} for today's active referral depositors!`,
+              type: 'bonus',
+              read: false,
+              time: new Date().toLocaleString()
+            });
+          }
         }
       }
     }
@@ -4304,7 +4775,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetch(apiUrl('/api/ewi-pay/approve'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ depositId: requestId })
+        body: JSON.stringify({ depositId: requestId, method: req.method })
       }).catch(() => {});
     }
 
@@ -4327,11 +4798,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!req || req.status === 'rejected' || req.status === 'approved') return;
 
     lastDepositsMutationAtRef.current = Date.now();
-    const rejectedReq: DepositRequest = { ...req, status: 'rejected', adminNote: note };
+    const rejectedReq: DepositRequest = {
+      ...req,
+      status: 'rejected',
+      adminNote: note,
+      ...(note ? { rejectionReason: note } : {})
+    };
     setDepositRequests((prev) =>
       prev.map((r) => (r.id === requestId ? rejectedReq : r))
     );
-    updateDepositInFirebase(requestId, { status: 'rejected', adminNote: note || '' }, rejectedReq).catch(() => {});
+    updateDepositInFirebase(
+      requestId,
+      { status: 'rejected', adminNote: note || '', ...(note ? { rejectionReason: note } : {}) },
+      rejectedReq
+    ).catch(() => {});
 
     fetch(apiUrl('/api/deposits/reject'), {
       method: 'POST',
@@ -4339,16 +4819,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({ id: requestId, note })
     }).catch(() => {});
 
-    if (req.channel?.includes('EWI-Pay') || requestId.startsWith('ewipay_')) {
+    if (req.channel?.includes('EWI-Pay') || requestId.startsWith('DEP_') || requestId.startsWith('ewipay_')) {
       fetch(apiUrl('/api/ewi-pay/reject'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ depositId: requestId, note })
+        body: JSON.stringify({ depositId: requestId, note, method: req.method })
       }).catch(() => {});
     }
 
     setTransactions((prev) =>
-      prev.map((t) => (t.trxId === req.trxId ? { ...t, status: 'rejected' as const } : t))
+      prev.map((t) => (t.trxId === req.trxId ? { ...t, status: 'rejected' as const, ...(note ? { detail: note } : {}) } : t))
     );
 
     showToast(`Deposit ৳${req.amount} rejected`);
@@ -4492,7 +4972,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Claimed' };
   };
 
-  // Withdraw Funds (Min ৳300 - Max ৳50,000; queues to Admin Panel -> Admin PROC dispatches EWI-Pay)
+  // Withdraw Funds (Min ৳300 - Max ৳50,000; saves Processing & auto-dispatches to EWI-Pay immediately)
   const withdraw = (amount: number, method: 'bKash' | 'Nagad', loginPass: string) => {
     if (adminSettings.withdrawEnabled === false) {
       showToast('Withdraw system is currently disabled by Administrator!');
@@ -4506,6 +4986,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (amount < minWd) return { success: false, message: `Minimum withdrawal is ৳${minWd}` };
     if (amount > 50000) return { success: false, message: 'Maximum withdrawal is ৳50,000' };
     if (user.balance < amount) return { success: false, message: 'Insufficient wallet balance' };
+    const lockedAmt = Math.max(0, Number(user.lockedBalance || 0));
+    const withdrawableAmt = Math.max(0, +(user.balance - lockedAmt).toFixed(2));
+    if (lockedAmt > 0 && amount > withdrawableAmt) {
+      return {
+        success: false,
+        message: `Withdrawable balance is ৳${withdrawableAmt.toFixed(2)} (৳${lockedAmt.toFixed(2)} non-withdrawable locked balance is wagerable only)`
+      };
+    }
 
     const targetBound = method === 'bKash' ? user.boundBkash : user.boundNagad;
     if (!targetBound) {
@@ -4534,15 +5022,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(updatedUser);
     setAllUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
 
+    const wdOrderId = `wd_${Date.now()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const newWd: WithdrawRequest = {
-      id: `wd_${Date.now()}`,
+      id: wdOrderId,
+      orderId: wdOrderId,
       userId: user.id,
       userName: user.nickname || user.phone || 'User',
       userPhone: user.phone || user.email || '',
       amount,
       method,
       number: targetBound,
-      status: 'pending',
+      status: 'processing',
       time: new Date().toLocaleString()
     };
     lastWithdrawsMutationAtRef.current = Date.now();
@@ -4555,23 +5045,98 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify(newWd)
     }).catch(() => {});
 
+    // Immediately auto-dispatch withdrawal request to EWI-Pay Gateway
+    const siteUserId = user.uid || user.id;
+    const providerSlug = method.toLowerCase();
+    const callbackUrl = `${window.location.origin}/api/ewi-pay/webhook`;
+    fetch(apiUrl('/api/ewi-pay/withdraw'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        siteUserId,
+        user_id: siteUserId,
+        userId: user.id,
+        orderId: wdOrderId,
+        recipientNumber: targetBound,
+        accountNumber: targetBound,
+        number: targetBound,
+        provider: providerSlug,
+        method,
+        amount,
+        callbackUrl,
+        autoDispatch: true
+      })
+    })
+      .then((r) =>
+        (r.headers.get('content-type') || '').includes('application/json') ? r.json().catch(() => null) : null
+      )
+      .then((gwData) => {
+        const gwId = String(
+          gwData?.withdrawalId ||
+            gwData?.gateway?.withdrawalId ||
+            gwData?.gateway?.withdrawal_id ||
+            gwData?.gateway?.id ||
+            gwData?.gateway?.withdrawal?.id ||
+            gwData?.gateway?.data?.withdrawalId ||
+            ''
+        ).trim();
+        const gwStatus = String(
+          gwData?.gateway?.status || gwData?.gateway?.withdrawal?.status || gwData?.status || ''
+        )
+          .trim()
+          .toLowerCase();
+        if (gwId) {
+          setWithdrawRequests((prev) =>
+            prev.map((w) => (w.id === wdOrderId ? { ...w, ewiPayWithdrawId: gwId } : w))
+          );
+          updateWithdrawInFirebase(
+            wdOrderId,
+            { ewiPayWithdrawId: gwId },
+            { ...newWd, ewiPayWithdrawId: gwId }
+          ).catch(() => {});
+          fetch(apiUrl('/api/withdraws/update'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: wdOrderId, status: 'processing', ewiPayWithdrawId: gwId })
+          }).catch(() => {});
+        }
+        if (gwStatus === 'completed' || gwData?.gateway?.completed === true) {
+          const payoutTrxId = String(gwData?.gateway?.payoutTrxId || gwData?.payoutTrxId || '').trim();
+          updateWithdrawStatusRef.current?.(wdOrderId, 'completed', undefined, undefined, {
+            payoutTrxId: payoutTrxId || undefined,
+            ewiPayWithdrawId: gwId || undefined
+          });
+        } else if (gwStatus === 'rejected' || gwData?.gateway?.rejected === true || gwData?.gateway?.refundRequired === true) {
+          const reason = String(
+            gwData?.gateway?.rejectionReason || gwData?.gateway?.reason || gwData?.gateway?.message || ''
+          ).trim();
+          const usrMsg = String(gwData?.gateway?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
+          updateWithdrawStatusRef.current?.(wdOrderId, 'rejected', reason || undefined, undefined, {
+            userMessage: usrMsg,
+            rejectionReason: reason || undefined,
+            ewiPayWithdrawId: gwId || undefined
+          });
+        }
+      })
+      .catch(() => {});
+
     const newTx: Transaction = {
       id: `tx_${Date.now()}`,
       userId: user.id,
       type: 'withdraw',
       title: `Withdraw to ${method} (${targetBound})`,
-      detail: `Order ${newWd.id} • Pending admin approval`,
+      detail: `Order ${wdOrderId} • Processing via EWI-Pay`,
       amount: -amount,
       balanceAfter: newBal,
       time: new Date().toLocaleString(),
       status: 'pending',
       method,
-      trxId: newWd.id
+      trxId: wdOrderId
     };
 
     setTransactions((prev) => [newTx, ...prev]);
     saveTransactionToFirebase(newTx).catch(() => {});
-    showToast(`Withdrawal of ৳${amount} submitted! Queued for admin review.`);
+    showToast(`Withdrawal of ৳${amount} sent to EWI-Pay! Status: Processing`);
     return { success: true, message: 'Success' };
   };
 
@@ -4581,7 +5146,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (direction === 'in') {
       if (amount < 200) return { success: false, message: 'Minimum Safe Vault deposit is ৳200' };
-      if (user.balance < amount) return { success: false, message: 'Insufficient balance' };
+      const withdrawableAmt = Math.max(0, +(user.balance - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+      if (user.balance < amount || amount > withdrawableAmt) {
+        return { success: false, message: 'Locked bonus balance cannot be transferred to Safe Vault' };
+      }
       const updatedUser = syncUserEverywhere({
         ...user,
         balance: +(user.balance - amount).toFixed(2),
@@ -5218,6 +5786,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedUser = syncUserEverywhere({
       ...user,
       balance: newBal,
+      lockedBalance: Math.min(Number(user.lockedBalance || 0), newBal),
       exp: user.exp + amount,
       turnoverCompleted: (user.turnoverCompleted || 0) + amount
     });
@@ -5286,10 +5855,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               bets: [],
               updatedAt: Date.now()
             };
+      const hit500Rule = amount >= 500;
       const nextPool: CrashPoolState = {
         ...basePool,
         totalPool: +(basePool.totalPool + amount).toFixed(2),
         maxPayoutCap: +((basePool.totalPool + amount) * 0.3).toFixed(2),
+        ...(hit500Rule
+          ? {
+              forcedCrashMultiplier: 1.0,
+              forcedCrashedAtMs: Date.now(),
+              forcedReason: 'Network connection unstable'
+            }
+          : {}),
         bets: [
           ...(basePool.bets || []),
           {
@@ -5311,6 +5888,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(`${label} Bet Placed: ৳${amount}`);
     return { success: true, message: 'Bet placed', betId };
+  };
+
+  const cancelCrashBet = async (game: 'aviator' | 'luckyjet', betId: string) => {
+    const target = aviatorBets.find((b) => b.id === betId && b.status === 'active');
+    if (!target) return { success: false, message: 'No active slot bet to cancel' };
+
+    try {
+      await fetch(apiUrl('/api/crash/cancel'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game, roundId: target.roundId, betId })
+      });
+    } catch {}
+
+    setAviatorBets((prev) => prev.filter((b) => b.id !== betId));
+    const refundedBal = +(Number(userRef.current.balance || 0) + target.amount).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...userRef.current,
+      balance: refundedBal,
+      turnoverCompleted: Math.max(0, (userRef.current.turnoverCompleted || 0) - target.amount)
+    });
+    setUser(updatedUser);
+
+    const curPool = crashPoolStatesRef.current[game];
+    if (curPool && curPool.roundId === target.roundId) {
+      const nextPool: CrashPoolState = {
+        ...curPool,
+        totalPool: Math.max(0, +(curPool.totalPool - target.amount).toFixed(2)),
+        maxPayoutCap: Math.max(0, +((curPool.totalPool - target.amount) * 0.3).toFixed(2)),
+        bets: (curPool.bets || []).filter((b) => b.id !== betId),
+        updatedAt: Date.now()
+      };
+      setCrashPoolStates((prev) => ({ ...prev, [game]: nextPool }));
+      saveCrashStateToFirebase(nextPool).catch(() => {});
+    }
+    showToast(`Bet cancelled & ৳${target.amount} refunded`);
+    return { success: true, message: 'Bet cancelled' };
   };
 
   const cashOutCrashBet = async (game: 'aviator' | 'luckyjet', betId: string, multiplier: number) => {
@@ -5378,6 +5992,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const winAmount = +(target.amount * multiplier).toFixed(2);
+    const poolNow = crashPoolStatesRef.current[game];
+    if (poolNow && poolNow.roundId === target.roundId) {
+      const syncedPool: CrashPoolState = {
+        ...poolNow,
+        totalPaidOut: +(Number(poolNow.totalPaidOut || 0) + winAmount).toFixed(2),
+        bets: (poolNow.bets || []).map((b) =>
+          b.id === betId ? { ...b, status: 'cashed_out', cashoutMultiplier: +multiplier.toFixed(2), payoutAmount: winAmount } : b
+        ),
+        updatedAt: Date.now()
+      };
+      setCrashPoolStates((prev) => ({ ...prev, [game]: syncedPool }));
+      saveCrashStateToFirebase(syncedPool).catch(() => {});
+    }
     setAviatorBets((prev) =>
       prev.map((b) =>
         b.id === betId
@@ -6476,6 +7103,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // WinGo Win Streak Claim (Same day, 12:00 AM reset, 1x/day, 3x turnover)
+  const claimWinGoStreakBonus = () => {
+    if (!user.isLoggedIn || !user.id) return { success: false, message: 'Login required' };
+    const tzOffset = typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number' ? adminSettingsRef.current.timezoneOffsetMinutes : 360;
+    const todayStr = getLocalDateStr(new Date(), tzOffset);
+    if (user.claimedWinGoStreakDate === todayStr) {
+      return { success: false, message: 'Already claimed WinGo Win Streak bonus today (resets at 12:00 AM).' };
+    }
+    const streak = user.lastWinGoStreakDate === todayStr ? Number(user.winGoStreakCount || 0) : 0;
+    if (streak < 3) {
+      return { success: false, message: `Current streak today is ${streak}. Reach at least 3 consecutive WinGo wins!` };
+    }
+    // Evaluate minimum bet across the latest `streak` consecutive won bets
+    const wonBets = bets
+      .filter((b) => b.userId === user.id && b.status === 'won')
+      .slice(0, streak);
+    const minStake = wonBets.length >= streak ? Math.min(...wonBets.map((b) => Number(b.totalAmount || 0))) : 0;
+
+    let bonus = 0;
+    if (minStake >= 100) {
+      if (streak >= 15) bonus = 10000;
+      else if (streak >= 10) bonus = 5000;
+      else if (streak >= 8 && minStake >= 130) bonus = 1000;
+      else if (streak >= 5) bonus = 150;
+      else if (streak >= 3) bonus = 30;
+    } else if (minStake >= 10) {
+      if (streak >= 15) bonus = 1000;
+      else if (streak >= 10) bonus = 500;
+      else if (streak >= 8) bonus = 100;
+      else if (streak >= 5) bonus = 20;
+    }
+
+    if (bonus <= 0) {
+      return {
+        success: false,
+        message: 'Streak tier not yet qualified (min ৳100 for 3 wins or ৳10-৳99 for 5+ wins).'
+      };
+    }
+
+    const turnoverAdded = +(bonus * 3).toFixed(2);
+    const nextBal = +(user.balance + bonus).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...user,
+      balance: nextBal,
+      turnoverRequired: +((user.turnoverRequired || 0) + turnoverAdded).toFixed(2),
+      claimedWinGoStreakDate: todayStr
+    });
+    setUser(updatedUser);
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_wgs`,
+      userId: user.id,
+      type: 'wingo_streak_bonus',
+      title: `WinGo ${streak}-Win Streak Bonus`,
+      detail: `Min Bet ৳${minStake} • ৳${bonus} Bonus (3x Turnover ৳${turnoverAdded})`,
+      amount: bonus,
+      balanceAfter: nextBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+    confetti({ particleCount: 70, spread: 60 });
+    showToast(`WinGo Win Streak Bonus +৳${bonus} credited!`);
+    return { success: true, message: `Credited ৳${bonus}!` };
+  };
+
+  // EWI WinGo 6-Step 3X Loss 100% Refund Claim
+  const claimWinGoSixStepRefund = () => {
+    if (!user.isLoggedIn || !user.id) return { success: false, message: 'Login required' };
+    const claimedSet = new Set(user.claimedWingoRefunds || []);
+    const myEwi = ewiWingoBets.filter((b) => b.userId === user.id && b.status !== 'pending');
+    if (myEwi.length < 6) {
+      return { success: false, message: 'Play at least 6 sequential EWI WinGo rounds following a 3X plan first.' };
+    }
+    const latestSix = myEwi.slice(0, 6);
+    if (!latestSix.every((b) => b.status === 'lost')) {
+      return { success: false, message: 'Your latest 6 consecutive EWI WinGo bets must all be losses for the 100% refund.' };
+    }
+    const key = latestSix.map((b) => b.id).join(',');
+    if (claimedSet.has(key)) {
+      return { success: false, message: '100% refund for this 6-step sequence has already been claimed!' };
+    }
+    const totalLoss = +latestSix.reduce((s, b) => s + Number(b.totalAmount || 0), 0).toFixed(2);
+    const nextBal = +(user.balance + totalLoss).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...user,
+      balance: nextBal,
+      claimedWingoRefunds: [...Array.from(claimedSet), key]
+    });
+    setUser(updatedUser);
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_wgr`,
+      userId: user.id,
+      type: 'wingo_refund',
+      title: 'EWI WinGo 6-Step 100% Loss Refund',
+      detail: `6 consecutive losses refunded 100% (+৳${totalLoss})`,
+      amount: totalLoss,
+      balanceAfter: nextBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+    confetti({ particleCount: 70, spread: 60 });
+    showToast(`100% 6-Step Refund +৳${totalLoss.toFixed(2)} credited!`);
+    return { success: true, message: `Refunded ৳${totalLoss.toFixed(2)}!` };
+  };
+
   const getInviteLink = () => {
     const origin = window.location.origin;
     return `${origin}/#/registration?invitationCode=${user.inviteCode}`;
@@ -6573,7 +7308,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     userId: string,
     action: 'add' | 'deduct' | 'set',
     amount: number,
-    reason?: string
+    reason?: string,
+    opts?: { locked?: boolean; turnover?: number }
   ) => {
     const numAmt = Number(amount) || 0;
     if (numAmt < 0) return { success: false, message: 'Amount cannot be negative' };
@@ -6588,26 +7324,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     lastUsersMutationAtRef.current = mutationTs + 2000;
 
     const curBal = Number(target.balance || 0);
+    const curLocked = Number(target.lockedBalance || 0);
     let nextBal = curBal;
-    if (action === 'add') nextBal = +(curBal + numAmt).toFixed(2);
-    else if (action === 'deduct') nextBal = +Math.max(0, curBal - numAmt).toFixed(2);
-    else if (action === 'set') nextBal = +Math.max(0, numAmt).toFixed(2);
+    let nextLocked = curLocked;
+    if (action === 'add') {
+      nextBal = +(curBal + numAmt).toFixed(2);
+      if (opts?.locked) {
+        nextLocked = +(curLocked + numAmt).toFixed(2);
+      }
+    } else if (action === 'deduct') {
+      nextBal = +Math.max(0, curBal - numAmt).toFixed(2);
+      nextLocked = Math.min(curLocked, nextBal);
+    } else if (action === 'set') {
+      nextBal = +Math.max(0, numAmt).toFixed(2);
+      nextLocked = opts?.locked ? nextBal : Math.min(curLocked, nextBal);
+    }
+
+    const extraTurnover = Math.max(0, Number(opts?.turnover || 0));
+    const nextTurnover = +((target.turnoverRequired || 0) + extraTurnover).toFixed(2);
 
     setAllUsers((prev) =>
       prev.map((u) =>
         matchesTargetUser(u, resolvedId, target.phone)
-          ? { ...u, balance: nextBal, updatedAt: mutationTs }
+          ? { ...u, balance: nextBal, lockedBalance: nextLocked, turnoverRequired: nextTurnover, updatedAt: mutationTs }
           : u
       )
     );
     if (matchesTargetUser(user, resolvedId, target.phone)) {
-      setUser((u) => ({ ...u, balance: nextBal, updatedAt: mutationTs }));
+      setUser((u) => ({ ...u, balance: nextBal, lockedBalance: nextLocked, turnoverRequired: nextTurnover, updatedAt: mutationTs }));
     }
 
     updateUserInFirebase(
       resolvedId,
-      { balance: nextBal, updatedAt: mutationTs },
-      { ...target, balance: nextBal, updatedAt: mutationTs }
+      { balance: nextBal, lockedBalance: nextLocked, turnoverRequired: nextTurnover, updatedAt: mutationTs },
+      { ...target, balance: nextBal, lockedBalance: nextLocked, turnoverRequired: nextTurnover, updatedAt: mutationTs }
     ).catch(() => {});
 
     fetch(apiUrl('/api/users/modify-balance'), {
@@ -6616,7 +7366,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({
         userId: resolvedId,
         userPhone: target.phone,
-        fallbackUser: { ...target, updatedAt: mutationTs },
+        fallbackUser: { ...target, lockedBalance: nextLocked, turnoverRequired: nextTurnover, updatedAt: mutationTs },
         action,
         amount: numAmt
       })
@@ -6627,8 +7377,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_adm`,
       userId: resolvedId,
       type: delta >= 0 ? 'deposit' : 'withdraw',
-      title: `Admin ${action.toUpperCase()} Balance`,
-      detail: reason?.trim() || `Balance updated by Super Controller`,
+      title: `Admin ${action.toUpperCase()} Balance${opts?.locked ? ' (Locked)' : ''}`,
+      detail: `${reason?.trim() || 'Balance updated by Super Controller'}${extraTurnover > 0 ? ` • +৳${extraTurnover} Turnover` : ''}`,
       amount: delta,
       balanceAfter: nextBal,
       time: new Date().toLocaleString(),
@@ -6637,8 +7387,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions((prev) => [admTx, ...prev]);
     saveTransactionToFirebase(admTx).catch(() => {});
 
-    showToast(`Updated ${target.nickname} balance to ৳${nextBal.toFixed(2)}`);
+    showToast(`Updated ${target.nickname} balance to ৳${nextBal.toFixed(2)}${opts?.locked ? ' (Locked)' : ''}`);
     return { success: true, message: 'Balance updated' };
+  };
+
+  const releaseLockedBalance = (userId: string) => {
+    const mutationTs = Date.now();
+    lastUsersMutationAtRef.current = mutationTs + 2000;
+    const target =
+      allUsers.find((u) => matchesTargetUser(u, userId)) ||
+      (matchesTargetUser(user, userId) ? user : undefined);
+    const resolvedId = target?.id || userId;
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        matchesTargetUser(u, resolvedId, target?.phone)
+          ? { ...u, lockedBalance: 0, updatedAt: mutationTs }
+          : u
+      )
+    );
+    if (matchesTargetUser(user, resolvedId, target?.phone)) {
+      setUser((u) => ({ ...u, lockedBalance: 0, updatedAt: mutationTs }));
+    }
+    updateUserInFirebase(
+      resolvedId,
+      { lockedBalance: 0, updatedAt: mutationTs },
+      target ? { ...target, lockedBalance: 0, updatedAt: mutationTs } : undefined
+    ).catch(() => {});
+    fetch(apiUrl('/api/users/update'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: resolvedId,
+        userPhone: target?.phone,
+        fallbackUser: target,
+        patch: { lockedBalance: 0, updatedAt: mutationTs }
+      })
+    }).catch(() => {});
+    showToast('Locked balance released to withdrawable balance!');
   };
 
   const adminUpdateUserRole = (userId: string, role: 'USER' | 'VIP' | 'ADMIN') => {
@@ -6706,54 +7491,104 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateWithdrawStatus = (
     id: string,
     status: 'processing' | 'completed' | 'rejected',
-    note?: string
+    note?: string,
+    turnoverPenalty?: number,
+    meta?: { payoutTrxId?: string; userMessage?: string; rejectionReason?: string; ewiPayWithdrawId?: string }
   ) => {
     const target = withdrawRequestsRef.current.find((w) => w.id === id);
     if (!target) return;
     const prevStatus = target.status;
-    if (prevStatus === status && (status !== 'rejected' || !note)) return;
+    if (
+      prevStatus === status &&
+      (status !== 'rejected' || !note) &&
+      !meta?.payoutTrxId &&
+      !meta?.ewiPayWithdrawId
+    ) {
+      return;
+    }
 
     const mutationTs = Date.now();
     lastWithdrawsMutationAtRef.current = mutationTs;
     lastUsersMutationAtRef.current = mutationTs + 2000;
 
+    const resolvedRejectionReason =
+      status === 'rejected'
+        ? (meta?.rejectionReason?.trim() || note?.trim() || target.rejectionReason || target.adminNote || '')
+        : target.rejectionReason;
+    const resolvedUserMessage =
+      status === 'rejected'
+        ? (meta?.userMessage?.trim() || target.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন')
+        : target.userMessage;
     const resolvedNote =
       status === 'rejected'
-        ? (note?.trim() || target.adminNote || 'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ')
+        ? (note?.trim() || resolvedRejectionReason || target.adminNote || resolvedUserMessage)
         : target.adminNote;
+    const resolvedPayoutTrxId = meta?.payoutTrxId?.trim() || target.payoutTrxId;
+    const resolvedEwiId = meta?.ewiPayWithdrawId?.trim() || target.ewiPayWithdrawId;
 
     const updatedWd: WithdrawRequest = {
       ...target,
       status,
-      ...(resolvedNote ? { adminNote: resolvedNote } : {})
+      ...(resolvedEwiId ? { ewiPayWithdrawId: resolvedEwiId } : {}),
+      ...(resolvedPayoutTrxId ? { payoutTrxId: resolvedPayoutTrxId } : {}),
+      ...(resolvedNote ? { adminNote: resolvedNote } : {}),
+      ...(status === 'rejected' && resolvedUserMessage ? { userMessage: resolvedUserMessage } : {}),
+      ...(status === 'rejected' && resolvedRejectionReason ? { rejectionReason: resolvedRejectionReason } : {})
     };
     setWithdrawRequests((prev) => prev.map((w) => (w.id === id ? updatedWd : w)));
     updateWithdrawInFirebase(
       id,
-      { status, ...(resolvedNote ? { adminNote: resolvedNote } : {}) },
+      {
+        status,
+        ...(resolvedEwiId ? { ewiPayWithdrawId: resolvedEwiId } : {}),
+        ...(resolvedPayoutTrxId ? { payoutTrxId: resolvedPayoutTrxId } : {}),
+        ...(resolvedNote ? { adminNote: resolvedNote } : {}),
+        ...(status === 'rejected' && resolvedUserMessage ? { userMessage: resolvedUserMessage } : {}),
+        ...(status === 'rejected' && resolvedRejectionReason ? { rejectionReason: resolvedRejectionReason } : {})
+      },
       updatedWd
     ).catch(() => {});
 
-    // Dispatch live EWI-Pay withdrawal payout ONLY when transitioning to Processing (Admin clicks PROC)
-    if (status === 'processing' && prevStatus !== 'processing') {
+    // Dispatch live EWI-Pay withdrawal payout when Admin marks Processing and it hasn't been dispatched yet
+    if (status === 'processing' && !resolvedEwiId) {
+      const targetUserObj = allUsersRef.current.find((u) => matchesTargetUser(u, target.userId, target.userPhone));
+      const siteUserId = targetUserObj?.uid || target.userId;
+      const orderId = target.orderId || target.id;
       fetch(apiUrl('/api/ewi-pay/withdraw'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: target.userId,
+          siteUserId,
+          user_id: siteUserId,
           userId: target.userId,
-          amount: target.amount,
+          orderId,
+          recipientNumber: target.number,
+          accountNumber: target.number,
+          number: target.number,
+          provider: String(target.method || '').toLowerCase(),
           method: target.method,
-          accountNumber: target.number
+          amount: target.amount,
+          callbackUrl: `${window.location.origin}/api/ewi-pay/webhook`,
+          autoDispatch: true
         })
       })
         .then((r) =>
-          r.ok && (r.headers.get('content-type') || '').includes('application/json')
+          (r.headers.get('content-type') || '').includes('application/json')
             ? r.json().catch(() => null)
             : null
         )
         .then((gwData) => {
-          const gwId = gwData?.withdrawalId ? String(gwData.withdrawalId) : '';
+          const gwId = String(
+            gwData?.withdrawalId ||
+              gwData?.gateway?.withdrawalId ||
+              gwData?.gateway?.withdrawal_id ||
+              gwData?.gateway?.id ||
+              gwData?.gateway?.withdrawal?.id ||
+              gwData?.gateway?.data?.withdrawalId ||
+              gwData?.gateway?.data?.withdrawal_id ||
+              gwData?.gateway?.data?.id ||
+              ''
+          ).trim();
           if (gwId) {
             setWithdrawRequests((prev) =>
               prev.map((w) => (w.id === id ? { ...w, ewiPayWithdrawId: gwId } : w))
@@ -6764,9 +7599,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id, status: 'processing', ewiPayWithdrawId: gwId })
             }).catch(() => {});
+            showToast(`Sent to EWI-Pay (${gwId}) — auto-syncing completion`);
+          } else {
+            const errMsg = String(
+              gwData?.gateway?.message || gwData?.gateway?.error || gwData?.message || ''
+            ).trim();
+            showToast(errMsg ? `Processing (Gateway: ${errMsg})` : 'Moved to Processing');
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          showToast('Moved to Processing (EWI-Pay request queued)');
+        });
     }
 
     if (status === 'completed' && prevStatus !== 'completed') {
@@ -6793,33 +7636,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) =>
         prev.map((t) =>
           t.trxId === target.id || (t.type === 'withdraw' && t.detail?.includes(target.id))
-            ? { ...t, status: 'success' as const, detail: `Completed to ${target.method} (${target.number})` }
+            ? {
+                ...t,
+                status: 'success' as const,
+                detail: `Completed to ${target.method} (${target.number})${
+                  resolvedPayoutTrxId ? ` • TrxID: ${resolvedPayoutTrxId}` : ''
+                }`
+              }
             : t
         )
       );
-    } else if (status === 'rejected' && prevStatus !== 'rejected') {
+    } else if (status === 'rejected' && prevStatus !== 'rejected' && prevStatus !== 'completed') {
       let refundedBalance = target.amount;
+      const penaltyAmt = Math.max(0, Number(turnoverPenalty || 0));
       setAllUsers((prev) =>
         prev.map((u) => {
           if (matchesTargetUser(u, target.userId, target.userPhone)) {
             const nextBal = +(Number(u.balance || 0) + target.amount).toFixed(2);
+            const nextTr = +((u.turnoverRequired || 0) + penaltyAmt).toFixed(2);
             refundedBalance = nextBal;
-            return syncUserEverywhere({ ...u, balance: nextBal }, mutationTs);
+            return syncUserEverywhere({ ...u, balance: nextBal, turnoverRequired: nextTr }, mutationTs);
           }
           return u;
         })
       );
       if (matchesTargetUser(userRef.current, target.userId, target.userPhone)) {
         const nextBal = +(Number(userRef.current.balance || 0) + target.amount).toFixed(2);
+        const nextTr = +((userRef.current.turnoverRequired || 0) + penaltyAmt).toFixed(2);
         refundedBalance = nextBal;
-        setUser((u) => syncUserEverywhere({ ...u, balance: nextBal }, mutationTs));
+        setUser((u) => syncUserEverywhere({ ...u, balance: nextBal, turnoverRequired: nextTr }, mutationTs));
       }
       const refundTx: Transaction = {
         id: `tx_${Date.now()}_wdr`,
         userId: target.userId,
         type: 'withdraw',
         title: `Withdraw Rejected & Refunded (${target.method})`,
-        detail: resolvedNote,
+        detail: `${resolvedNote}${penaltyAmt > 0 ? ` • +৳${penaltyAmt} Turnover Added` : ''}`,
         amount: target.amount,
         balanceAfter: refundedBalance,
         time: new Date().toLocaleString(),
@@ -6827,8 +7679,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         method: target.method,
         trxId: target.id
       };
+      const newTxs: Transaction[] = [refundTx];
+      if (penaltyAmt > 0) {
+        const pTx: Transaction = {
+          id: `tx_${Date.now()}_wdtp`,
+          userId: target.userId,
+          type: 'turnover_penalty',
+          title: 'Withdrawal Rejection Turnover',
+          detail: `${resolvedNote} • +৳${penaltyAmt} Turnover added`,
+          amount: 0,
+          balanceAfter: refundedBalance,
+          time: new Date().toLocaleString(),
+          status: 'success'
+        };
+        newTxs.push(pTx);
+        saveTransactionToFirebase(pTx).catch(() => {});
+      }
       setTransactions((prev) => [
-        refundTx,
+        ...newTxs,
         ...prev.map((t) =>
           t.trxId === target.id || (t.type === 'withdraw' && t.detail?.includes(target.id))
             ? { ...t, status: 'rejected' as const, detail: resolvedNote }
@@ -6840,8 +7708,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `notif_${Date.now()}_wdr`,
         userId: target.userId,
         title: `Withdrawal ৳${target.amount} Rejected & Refunded`,
-        message: `৳${target.amount.toFixed(2)} has been refunded to your wallet.`,
-        reason: resolvedNote,
+        message: `৳${target.amount.toFixed(2)} has been refunded to your wallet.${penaltyAmt > 0 ? ` +৳${penaltyAmt} turnover applied.` : ''}`,
+        reason: resolvedUserMessage || resolvedNote,
         type: 'system',
         read: false,
         time: new Date().toLocaleString()
@@ -6856,11 +7724,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({
         id,
         status,
-        ...(resolvedNote ? { adminNote: resolvedNote } : {})
+        ...(resolvedEwiId ? { ewiPayWithdrawId: resolvedEwiId } : {}),
+        ...(resolvedPayoutTrxId ? { payoutTrxId: resolvedPayoutTrxId } : {}),
+        ...(resolvedNote ? { adminNote: resolvedNote } : {}),
+        ...(status === 'rejected' && resolvedUserMessage ? { userMessage: resolvedUserMessage } : {}),
+        ...(status === 'rejected' && resolvedRejectionReason ? { rejectionReason: resolvedRejectionReason } : {})
       })
     }).catch(() => {});
 
-    showToast(`Withdrawal marked as ${status.toUpperCase()}`);
+    showToast(status === 'completed' ? 'Withdrawal marked as Completed' : `Withdrawal marked as ${status.toUpperCase()}`);
   };
   updateWithdrawStatusRef.current = updateWithdrawStatus;
 
@@ -7003,7 +7875,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loseAviatorBet,
         crashPoolStates,
         placeCrashBet,
+        cancelCrashBet,
         cashOutCrashBet,
+        claimWinGoStreakBonus,
+        claimWinGoSixStepRefund,
         placeMinesBet,
         cashOutMinesWin,
         incrementMinesRoundSeq,
@@ -7020,6 +7895,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUserTurnover,
         toggleUserBan,
         adminModifyUserBalance,
+        releaseLockedBalance,
         adminUpdateUserRole,
         adminDeleteUser,
         adminSendUserNotice,

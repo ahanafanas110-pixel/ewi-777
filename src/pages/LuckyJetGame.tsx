@@ -5,15 +5,15 @@ import {
   RefreshCw,
   HelpCircle,
   CheckCircle2,
-  ShieldCheck,
   X,
-  Rocket
+  Rocket,
+  WifiOff
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { AviatorServerState } from '../types';
 import { getSyncedCrashEngineState } from '../utils/syncedMarkets';
 import { apiUrl } from '../utils/phoneAndApi';
-import luckyJetPilotImg from '../assets/images/lucky_jet_pilot_1794905505516.jpg';
+import { loadTransparentSprite } from '../utils/spriteAlpha';
 
 type RoundPhase = 'waiting' | 'flying' | 'crashed';
 type SlotId = 1 | 2 | 3;
@@ -23,6 +23,7 @@ interface LuckySlotState {
   autoBetEnabled: boolean;
   autoCashoutEnabled: boolean;
   autoCashoutVal: string;
+  queuedForNext: boolean;
   activeBetId: string | null;
   activeBetRoundId: string | null;
   activeBetAmount: number;
@@ -33,12 +34,14 @@ interface LuckySlotState {
 const MAX_MULTIPLIER = 10000;
 const QUICK_CHIPS = [10, 50, 100, 500];
 const SLOT_IDS: SlotId[] = [1, 2, 3];
+const LUCKY_JET_SPRITE_SRC = '/assets/aistudio/image_ae596394.png';
 
 const createInitialSlot = (defaultAmt = '50'): LuckySlotState => ({
   betAmount: defaultAmt,
   autoBetEnabled: false,
   autoCashoutEnabled: false,
   autoCashoutVal: '2.00',
+  queuedForNext: false,
   activeBetId: null,
   activeBetRoundId: null,
   activeBetAmount: 0,
@@ -52,6 +55,7 @@ export const LuckyJetGame: React.FC = () => {
     aviatorBets,
     crashPoolStates,
     placeCrashBet,
+    cancelCrashBet,
     cashOutCrashBet,
     loseAviatorBet,
     setActiveTab,
@@ -64,8 +68,9 @@ export const LuckyJetGame: React.FC = () => {
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [roundId, setRoundId] = useState<string>('LJ000000');
   const [crashHistory, setCrashHistory] = useState<number[]>([3.12, 1.44, 8.95, 1.92, 14.5, 1.19, 2.75, 4.18]);
+  const [networkAlertMsg, setNetworkAlertMsg] = useState<string | null>(null);
+  const [cleanAvatarUrl, setCleanAvatarUrl] = useState<string>(LUCKY_JET_SPRITE_SRC);
 
-  // 3 Simultaneous Bet Slots
   const [slots, setSlots] = useState<Record<SlotId, LuckySlotState>>({
     1: createInitialSlot('50'),
     2: createInitialSlot('20'),
@@ -76,7 +81,7 @@ export const LuckyJetGame: React.FC = () => {
   const [betsTab, setBetsTab] = useState<'all' | 'my' | 'top'>('all');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pilotSpriteRef = useRef<HTMLImageElement | null>(null);
+  const pilotSpriteRef = useRef<HTMLCanvasElement | HTMLImageElement | null>(null);
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
 
@@ -90,6 +95,7 @@ export const LuckyJetGame: React.FC = () => {
     phaseStartedAt: number;
     serverOffsetMs: number;
     crashPoint: number;
+    forcedReason?: string;
   }>({
     roundId: 'LJ000000',
     phase: 'waiting',
@@ -113,17 +119,42 @@ export const LuckyJetGame: React.FC = () => {
   };
 
   useEffect(() => {
-    const img = new Image();
-    img.src = luckyJetPilotImg;
-    pilotSpriteRef.current = img;
+    let active = true;
+    loadTransparentSprite(LUCKY_JET_SPRITE_SRC, 'light-checker')
+      .then((dataUrl) => {
+        if (!active) return;
+        setCleanAvatarUrl(dataUrl);
+        const img = new Image();
+        img.onload = () => {
+          if (active) pilotSpriteRef.current = img;
+        };
+        img.src = dataUrl;
+      })
+      .catch(() => {
+        const img = new Image();
+        img.src = LUCKY_JET_SPRITE_SRC;
+        pilotSpriteRef.current = img;
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Poll /api/crash/state?game=luckyjet (identical deterministic fallback on static host)
+  useEffect(() => {
+    const pool = crashPoolStates.luckyjet;
+    if (pool?.roundId === roundId && pool.forcedReason) {
+      setNetworkAlertMsg(pool.forcedReason);
+    } else if (phase === 'waiting') {
+      setNetworkAlertMsg(null);
+    }
+  }, [crashPoolStates.luckyjet, roundId, phase]);
+
+  // Poll /api/crash/state?game=luckyjet (with identical deterministic fallback on static hosts)
   useEffect(() => {
     let mounted = true;
     let useFallback = false;
 
-    const applyState = (st: AviatorServerState) => {
+    const applyState = (st: AviatorServerState & { forcedReason?: string }) => {
       if (!mounted) return;
       const clientNow = Date.now();
       const serverOffsetMs = (st.serverNow || clientNow) - clientNow;
@@ -134,11 +165,17 @@ export const LuckyJetGame: React.FC = () => {
         phase: st.phase,
         phaseStartedAt: st.phaseStartedAt,
         serverOffsetMs,
-        crashPoint: st.crashPoint || 0
+        crashPoint: st.crashPoint || 0,
+        forcedReason: st.forcedReason
       };
 
       setRoundId(st.roundId);
       setPhase(st.phase);
+      if (st.forcedReason && st.phase === 'crashed') {
+        setNetworkAlertMsg(st.forcedReason);
+      } else if (st.phase === 'waiting') {
+        setNetworkAlertMsg(null);
+      }
       if (Array.isArray(st.crashHistory)) {
         setCrashHistory(st.crashHistory);
       }
@@ -180,22 +217,27 @@ export const LuckyJetGame: React.FC = () => {
         toLoseIds.forEach((id) => loseBetRef.current(id));
       }
 
-      // Per-slot Autobet trigger at start of new waiting round
+      // Trigger queued next-round bets OR per-slot Autobet at start of new waiting round
       if (isNewWaiting) {
         SLOT_IDS.forEach((sid) => {
           const sl = curSlots[sid];
-          if (sl.autoBetEnabled && (!sl.activeBetId || clearSlotIds.includes(sid))) {
+          const wantsBet = sl.queuedForNext || sl.autoBetEnabled;
+          if (wantsBet && (!sl.activeBetId || clearSlotIds.includes(sid))) {
             const amt = Math.max(10, Number(sl.betAmount) || 50);
             const autoTarget = sl.autoCashoutEnabled
               ? Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.autoCashoutVal) || 2.0))
               : undefined;
+            if (sl.queuedForNext) {
+              updateSlot(sid, { queuedForNext: false });
+            }
             placeBetRef.current('luckyjet', st.roundId, amt, autoTarget, sid).then((res) => {
               if (res.success && res.betId && mounted) {
                 autoCashLockRef.current[sid] = false;
                 updateSlot(sid, {
                   activeBetId: res.betId,
                   activeBetRoundId: st.roundId,
-                  activeBetAmount: amt
+                  activeBetAmount: amt,
+                  queuedForNext: false
                 });
               }
             });
@@ -231,16 +273,102 @@ export const LuckyJetGame: React.FC = () => {
     };
 
     pollState();
-    const poll = setInterval(pollState, 220);
+    const poll = setInterval(pollState, 200);
     return () => {
       mounted = false;
       clearInterval(poll);
     };
   }, []);
 
-  // 60fps #141029 Indigo Arena + Lucky Joe Jetpack Curve + Forced Pool Cap Check
+  // 60fps Indigo Arena + Large Transparent Lucky Joe Jetpack + Dynamic Thruster Flame
   useEffect(() => {
     let rafId = 0;
+
+    const drawThrusterFlame = (
+      ctx: CanvasRenderingContext2D,
+      dpr: number,
+      timeSec: number,
+      originX: number,
+      originY: number,
+      scale: number
+    ) => {
+      const flicker = 0.85 + Math.sin(timeSec * 36) * 0.16 + Math.cos(timeSec * 52) * 0.08;
+      const len = 34 * dpr * scale * flicker;
+
+      ctx.save();
+      ctx.translate(originX, originY);
+
+      // Soft orange radial glow
+      const glow = ctx.createRadialGradient(0, 6 * dpr, 2 * dpr, 0, 12 * dpr, len * 1.15);
+      glow.addColorStop(0, 'rgba(254, 240, 138, 0.95)');
+      glow.addColorStop(0.4, 'rgba(249, 115, 22, 0.72)');
+      glow.addColorStop(1, 'rgba(239, 68, 68, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 10 * dpr, len * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Outer fire cone
+      const outerGrad = ctx.createLinearGradient(0, 0, -len * 0.45, len);
+      outerGrad.addColorStop(0, '#FB923C');
+      outerGrad.addColorStop(0.55, '#F97316');
+      outerGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+      ctx.fillStyle = outerGrad;
+      ctx.beginPath();
+      ctx.moveTo(-7 * dpr, -2 * dpr);
+      ctx.lineTo(7 * dpr, 0);
+      ctx.lineTo(-len * 0.48, len);
+      ctx.closePath();
+      ctx.fill();
+
+      // Inner bright core
+      ctx.fillStyle = '#FEF08A';
+      ctx.beginPath();
+      ctx.moveTo(-4 * dpr, 0);
+      ctx.lineTo(4 * dpr, 1 * dpr);
+      ctx.lineTo(-len * 0.25, len * 0.58);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    };
+
+    const drawPilotSprite = (
+      ctx: CanvasRenderingContext2D,
+      dpr: number,
+      x: number,
+      y: number,
+      tiltRad: number,
+      timeSec: number,
+      isFlying: boolean,
+      isCrashed: boolean,
+      spriteSize = 94
+    ) => {
+      const sprite = pilotSpriteRef.current;
+      const size = spriteSize * dpr;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(tiltRad);
+
+      if (isFlying) {
+        // Thruster exhaust burns brightly beneath the jetpack while flying
+        drawThrusterFlame(ctx, dpr, timeSec, -size * 0.16, size * 0.26, 1.0);
+      } else if (isCrashed) {
+        // Blast / Extinguished smoke ring on crash (fire turns off)
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
+        ctx.beginPath();
+        ctx.arc(-size * 0.16, size * 0.26, 12 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (sprite && ('width' in sprite ? sprite.width > 0 : (sprite as HTMLImageElement).complete)) {
+        ctx.shadowColor = isCrashed ? 'rgba(244, 63, 94, 0.55)' : 'rgba(167, 139, 250, 0.55)';
+        ctx.shadowBlur = 16 * dpr;
+        ctx.drawImage(sprite, -size * 0.5, -size * 0.54, size, size);
+      }
+      ctx.restore();
+    };
 
     const drawArena = (currentPhase: RoundPhase, elapsedSec: number) => {
       const canvas = canvasRef.current;
@@ -262,13 +390,14 @@ export const LuckyJetGame: React.FC = () => {
 
       const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
       bgGrad.addColorStop(0, '#1D153A');
-      bgGrad.addColorStop(1, '#141029');
+      bgGrad.addColorStop(1, '#120D24');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, w, h);
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-      for (let i = 0; i < 18; i++) {
-        const sx = (i * 73 + Math.floor(elapsedSec * 12)) % w;
+      // Animated stars
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+      for (let i = 0; i < 22; i++) {
+        const sx = (i * 73 + Math.floor(elapsedSec * 16)) % w;
         const sy = ((i * 47) % (h - 24 * dpr)) + 8 * dpr;
         ctx.fillRect(sx, sy, 1.5 * dpr, 1.5 * dpr);
       }
@@ -285,30 +414,33 @@ export const LuckyJetGame: React.FC = () => {
       ctx.stroke();
 
       if (currentPhase === 'waiting') {
+        // Ready hover preview on launch pad (small idle flame flicker disabled until takeoff)
+        const hoverY = originY - 38 * dpr + Math.sin(elapsedSec * 4) * 3 * dpr;
+        drawPilotSprite(ctx, dpr, originX + 46 * dpr, hoverY, -0.06, elapsedSec, false, false, 76);
         return;
       }
 
       const progress = Math.min(1, Math.max(0, elapsedSec / 7.5));
-      const startX = originX + 4 * dpr;
-      const startY = originY - 4 * dpr;
-      const endX = startX + (w - 82 * dpr) * (currentPhase === 'crashed' ? Math.min(1.12, progress + 0.18) : progress);
+      const startX = originX + 8 * dpr;
+      const startY = originY - 8 * dpr;
+      const endX = startX + (w - 110 * dpr) * (currentPhase === 'crashed' ? Math.min(1.16, progress + 0.14) : progress);
       const endY =
         startY -
-        (h - 70 * dpr) *
-          Math.pow(currentPhase === 'crashed' ? Math.min(1.08, progress + 0.16) : progress, 0.8);
+        (h - 92 * dpr) *
+          Math.pow(currentPhase === 'crashed' ? Math.min(1.1, progress + 0.14) : progress, 0.8);
 
       const bobY =
-        currentPhase === 'flying' && progress > 0.85
-          ? Math.sin((elapsedSec - 6) * 3.5) * (6 * dpr)
+        currentPhase === 'flying' && progress > 0.82
+          ? Math.sin((elapsedSec - 5.8) * 3.5) * (6 * dpr)
           : 0;
       const tipX = endX;
-      const tipY = Math.max(26 * dpr, endY + bobY);
+      const tipY = Math.max(46 * dpr, endY + bobY);
       const cpX = startX + (tipX - startX) * 0.56;
       const cpY = startY - (startY - tipY) * 0.14;
 
       if (currentPhase === 'flying') {
         const fillGrad = ctx.createLinearGradient(0, tipY, 0, startY);
-        fillGrad.addColorStop(0, 'rgba(139, 92, 246, 0.44)');
+        fillGrad.addColorStop(0, 'rgba(139, 92, 246, 0.42)');
         fillGrad.addColorStop(1, 'rgba(139, 92, 246, 0.02)');
 
         ctx.beginPath();
@@ -331,34 +463,8 @@ export const LuckyJetGame: React.FC = () => {
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        ctx.save();
-        ctx.translate(tipX, tipY);
-        const flameGrad = ctx.createRadialGradient(-8 * dpr, 12 * dpr, 2 * dpr, -8 * dpr, 12 * dpr, 16 * dpr);
-        flameGrad.addColorStop(0, '#FBBF24');
-        flameGrad.addColorStop(1, 'rgba(245, 158, 11, 0)');
-        ctx.fillStyle = flameGrad;
-        ctx.beginPath();
-        ctx.arc(-8 * dpr, 12 * dpr, 15 * dpr, 0, Math.PI * 2);
-        ctx.fill();
-
-        const r = 18 * dpr;
-        ctx.beginPath();
-        ctx.arc(0, 0, r, 0, Math.PI * 2);
-        ctx.fillStyle = '#F59E0B';
-        ctx.fill();
-        ctx.lineWidth = 2 * dpr;
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.stroke();
-
-        if (pilotSpriteRef.current && pilotSpriteRef.current.complete) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(0, 0, r - 2 * dpr, 0, Math.PI * 2);
-          ctx.clip();
-          ctx.drawImage(pilotSpriteRef.current, -r + 2 * dpr, -r + 2 * dpr, (r - 2 * dpr) * 2, (r - 2 * dpr) * 2);
-          ctx.restore();
-        }
-        ctx.restore();
+        const angle = -Math.atan2(startY - tipY, Math.max(45 * dpr, tipX - startX)) * 0.35;
+        drawPilotSprite(ctx, dpr, tipX, tipY - 8 * dpr, angle, elapsedSec, true, false, 94);
       } else if (currentPhase === 'crashed') {
         ctx.strokeStyle = 'rgba(244, 63, 94, 0.5)';
         ctx.lineWidth = 2 * dpr;
@@ -368,6 +474,15 @@ export const LuckyJetGame: React.FC = () => {
         ctx.quadraticCurveTo(cpX, cpY, Math.min(w - 10 * dpr, tipX), tipY);
         ctx.stroke();
         ctx.setLineDash([]);
+
+        // Blast / Fly away with flame extinguished
+        const flyOffProgress = Math.min(1, elapsedSec * 0.35);
+        const crashX = Math.min(w - 26 * dpr, tipX + flyOffProgress * 45 * dpr);
+        const crashY = Math.max(24 * dpr, tipY - flyOffProgress * 28 * dpr);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0.25, 1 - flyOffProgress * 0.5);
+        drawPilotSprite(ctx, dpr, crashX, crashY, 0.25, elapsedSec, false, true, 84);
+        ctx.restore();
       }
     };
 
@@ -394,6 +509,9 @@ export const LuckyJetGame: React.FC = () => {
           const forcedMult = Number(pool.forcedCrashMultiplier);
           st.phase = 'crashed';
           st.crashPoint = forcedMult;
+          if (pool.forcedReason) {
+            setNetworkAlertMsg(pool.forcedReason);
+          }
           setPhase('crashed');
           setMultiplier(forcedMult);
           drawArena('crashed', elapsedSec);
@@ -470,12 +588,8 @@ export const LuckyJetGame: React.FC = () => {
   const handlePlaceBet = async (slotId: SlotId) => {
     const sl = slots[slotId];
     if (sl.isPlacing) return;
-    if (phase !== 'waiting') {
-      showToast('Wait for current flight to land before placing bet');
-      return;
-    }
     if (sl.activeBetId) {
-      showToast(`Slot #${slotId} bet already locked for this round`);
+      showToast(`Slot #${slotId} bet already placed for this round`);
       return;
     }
     const amt = Number(sl.betAmount);
@@ -483,6 +597,14 @@ export const LuckyJetGame: React.FC = () => {
       showToast('Minimum Lucky Jet bet is ৳10');
       return;
     }
+
+    // Queue for Next Round if mid-flight or crashed
+    if (phase !== 'waiting') {
+      updateSlot(slotId, { queuedForNext: !sl.queuedForNext });
+      showToast(!sl.queuedForNext ? `Slot #${slotId} queued for next flight` : `Slot #${slotId} queue cancelled`);
+      return;
+    }
+
     const autoTarget = sl.autoCashoutEnabled
       ? Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.autoCashoutVal) || 2.0))
       : undefined;
@@ -495,7 +617,30 @@ export const LuckyJetGame: React.FC = () => {
           activeBetId: res.betId,
           activeBetRoundId: roundId,
           activeBetAmount: amt,
-          cashedOutInfo: null
+          cashedOutInfo: null,
+          queuedForNext: false
+        });
+      } else {
+        showToast(res.message);
+      }
+    } finally {
+      updateSlot(slotId, { isPlacing: false });
+    }
+  };
+
+  const handleCancelActiveBet = async (slotId: SlotId) => {
+    const sl = slots[slotId];
+    if (!sl.activeBetId || phase !== 'waiting') return;
+    const betIdToCancel = sl.activeBetId;
+    updateSlot(slotId, { isPlacing: true });
+    try {
+      const res = await cancelCrashBet('luckyjet', betIdToCancel);
+      if (res.success) {
+        updateSlot(slotId, {
+          activeBetId: null,
+          activeBetRoundId: null,
+          activeBetAmount: 0,
+          queuedForNext: false
         });
       } else {
         showToast(res.message);
@@ -578,10 +723,10 @@ export const LuckyJetGame: React.FC = () => {
         <div className="flex items-center justify-between bg-[#1D163A] rounded-2xl px-3.5 py-2 border border-violet-500/20">
           <div className="flex items-center gap-2">
             <img
-              src={luckyJetPilotImg}
+              src={cleanAvatarUrl}
               alt="Lucky Jet"
               referrerPolicy="no-referrer"
-              className="w-7 h-7 rounded-full object-cover border border-amber-400"
+              className="w-8 h-8 object-contain"
             />
             <span className="font-black text-xs tracking-wider text-white">LUCKY JET · 3 SLOTS</span>
           </div>
@@ -614,7 +759,7 @@ export const LuckyJetGame: React.FC = () => {
         </div>
 
         {/* Deep Indigo Flight Canvas Stage */}
-        <div className="relative rounded-2xl overflow-hidden border border-violet-500/30 bg-[#141029] shadow-xl h-64">
+        <div className="relative rounded-2xl overflow-hidden border border-violet-500/30 bg-[#141029] shadow-xl h-72">
           <canvas ref={canvasRef} className="w-full h-full block" />
 
           <div className="absolute top-3 left-3.5 right-3.5 flex items-center justify-between pointer-events-none">
@@ -677,19 +822,25 @@ export const LuckyJetGame: React.FC = () => {
             )}
 
             {phase === 'crashed' && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="text-xs font-black uppercase tracking-widest text-rose-300">
                   FLEW AWAY!
                 </div>
                 <div className="text-5xl font-black font-mono tabular-nums text-rose-400">
                   {multiplier.toFixed(2)}x
                 </div>
+                {networkAlertMsg && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-950/90 border border-rose-500/60 text-rose-200 text-[11px] font-black shadow-lg">
+                    <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                    <span>{networkAlertMsg}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* 3 Independent Simultaneous Trade Slots */}
+        {/* 3 Independent Simultaneous Trade Slots (Bet Next Round + Cancel before takeoff) */}
         <div className="space-y-2.5">
           {SLOT_IDS.map((slotId) => {
             const sl = slots[slotId];
@@ -709,6 +860,10 @@ export const LuckyJetGame: React.FC = () => {
                   ) : sl.activeBetId ? (
                     <span className="text-emerald-300 font-bold font-mono">
                       Locked: ৳{sl.activeBetAmount.toFixed(0)}
+                    </span>
+                  ) : sl.queuedForNext ? (
+                    <span className="text-amber-300 font-black font-mono">
+                      Queued for Next Round · ৳{(Number(sl.betAmount) || 0).toFixed(0)}
                     </span>
                   ) : (
                     <span className="text-violet-300/75 font-semibold">Min ৳10</span>
@@ -760,7 +915,7 @@ export const LuckyJetGame: React.FC = () => {
                     <input
                       type="number"
                       min={10}
-                      disabled={Boolean(sl.activeBetId)}
+                      disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                       value={sl.betAmount}
                       onChange={(e) => updateSlot(slotId, { betAmount: e.target.value })}
                       className="w-full bg-transparent text-center font-mono font-black text-sm text-white focus:outline-none tabular-nums disabled:opacity-60"
@@ -768,7 +923,7 @@ export const LuckyJetGame: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    disabled={Boolean(sl.activeBetId)}
+                    disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                     onClick={() =>
                       updateSlot(slotId, {
                         betAmount: String(Math.max(10, Math.floor((Number(sl.betAmount) || 20) / 2)))
@@ -780,7 +935,7 @@ export const LuckyJetGame: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    disabled={Boolean(sl.activeBetId)}
+                    disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                     onClick={() =>
                       updateSlot(slotId, {
                         betAmount: String(Math.min(50000, (Number(sl.betAmount) || 10) * 2))
@@ -797,7 +952,7 @@ export const LuckyJetGame: React.FC = () => {
                     <button
                       key={chip}
                       type="button"
-                      disabled={Boolean(sl.activeBetId)}
+                      disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                       onClick={() => updateSlot(slotId, { betAmount: String(chip) })}
                       className={`min-h-[34px] rounded-xl text-[11px] font-black font-mono tabular-nums border transition-all disabled:opacity-50 ${
                         Number(sl.betAmount) === chip
@@ -822,22 +977,38 @@ export const LuckyJetGame: React.FC = () => {
                     </span>
                   </button>
                 ) : sl.activeBetId && phase === 'waiting' ? (
-                  <div className="w-full min-h-[46px] py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-black text-xs flex items-center justify-center gap-2">
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Slot #{slotId} Locked: ৳{sl.activeBetAmount.toFixed(2)} · Takeoff Ready</span>
-                  </div>
+                  <button
+                    type="button"
+                    disabled={sl.isPlacing}
+                    onClick={() => handleCancelActiveBet(slotId)}
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/85 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all disabled:opacity-60"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>CANCEL BET #{slotId} (REFUND ৳{sl.activeBetAmount.toFixed(0)})</span>
+                  </button>
+                ) : sl.queuedForNext ? (
+                  <button
+                    type="button"
+                    onClick={() => handlePlaceBet(slotId)}
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>CANCEL QUEUED BET (#{slotId} · ৳{(Number(sl.betAmount) || 0).toFixed(0)})</span>
+                  </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => handlePlaceBet(slotId)}
-                    disabled={phase !== 'waiting' || sl.isPlacing}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-gradient-to-r from-[#7C3AED] via-[#8B5CF6] to-[#A855F7] hover:brightness-110 text-white font-black text-sm shadow-lg active:scale-97 transition-all disabled:opacity-45 disabled:cursor-not-allowed"
+                    disabled={sl.isPlacing}
+                    className={`w-full min-h-[46px] py-2.5 rounded-xl font-black text-sm shadow-lg active:scale-97 transition-all disabled:opacity-45 ${
+                      phase === 'waiting'
+                        ? 'bg-gradient-to-r from-[#7C3AED] via-[#8B5CF6] to-[#A855F7] hover:brightness-110 text-white'
+                        : 'bg-amber-500/90 hover:bg-amber-500 text-slate-950'
+                    }`}
                   >
                     {phase === 'waiting'
                       ? `BET SLOT #${slotId} · ৳${(Number(sl.betAmount) || 0).toFixed(2)}`
-                      : phase === 'flying'
-                      ? 'FLIGHT IN PROGRESS...'
-                      : 'NEXT ROUND STARTING...'}
+                      : `QUEUE NEXT ROUND #${slotId} · ৳${(Number(sl.betAmount) || 0).toFixed(2)}`}
                   </button>
                 )}
               </div>
@@ -976,9 +1147,9 @@ export const LuckyJetGame: React.FC = () => {
               </button>
             </div>
             <div className="p-4 text-xs text-violet-100 space-y-2.5 leading-relaxed">
-              <p>1. Place up to 3 simultaneous bets (minimum ৳10 per slot) during the 5-second countdown before Lucky Joe takes off.</p>
-              <p>2. Watch the multiplier climb in real time synchronized across every connected device.</p>
-              <p>3. Tap WITHDRAW on each slot before Lucky Joe flies away to multiply your stake up to 10,000x!</p>
+              <p>1. Place up to 3 simultaneous bets or queue for the upcoming flight before takeoff. You can cancel anytime before launch.</p>
+              <p>2. Watch Lucky Joe soar with the multiplier rising in real time.</p>
+              <p>3. Tap WITHDRAW before Lucky Joe flies away to lock your win up to 10,000x!</p>
             </div>
           </div>
         </div>
