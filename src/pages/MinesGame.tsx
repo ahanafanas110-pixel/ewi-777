@@ -143,7 +143,6 @@ export const MinesGame: React.FC = () => {
     let isBombTile = mineIndices.has(idx);
 
     if (tileControl === 'FORCE_BOMB' && !isBombTile) {
-      // Swap an existing unrevealed mine into idx so total mines count remains accurate
       const nextMines = new Set(mineIndices);
       let swapOut: number | null = null;
       for (const m of nextMines) {
@@ -160,7 +159,6 @@ export const MinesGame: React.FC = () => {
         isBombTile = true;
       }
     } else if (tileControl === 'FORCE_SAFE' && isBombTile) {
-      // Move the bomb at idx to an unrevealed safe tile so total mines count stays accurate
       const nextMines = new Set(mineIndices);
       let swapIn: number | null = null;
       for (let i = 0; i < GRID_SIZE; i++) {
@@ -221,9 +219,8 @@ export const MinesGame: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#141008] text-white pb-16">
-      {/* Luxury Gold Vault Header */}
-      <div className="bg-gradient-to-r from-[#78350F] via-[#B45309] to-[#D97706] px-4 py-2.5 relative flex items-center justify-between min-h-[62px] shadow-lg sticky top-0 z-30 border-b border-amber-400/25">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
+      <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] px-4 py-2.5 relative flex items-center justify-between min-h-[62px] shadow-lg sticky top-0 z-30 border-b border-cyan-400/25 text-white">
         <button
           onClick={() => {
             setActiveTab('home');
@@ -244,52 +241,50 @@ export const MinesGame: React.FC = () => {
             syncServerDataNow();
             showToast('Wallet balance synced');
           }}
-          className="relative z-10 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/35 backdrop-blur-xs border border-amber-300/30 text-xs font-black tabular-nums active:scale-95"
+          className="relative z-10 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/30 backdrop-blur-xs border border-cyan-300/35 text-xs font-black tabular-nums active:scale-95"
         >
           <span>৳{user.balance.toFixed(2)}</span>
-          <RefreshCw className="w-3 h-3 text-amber-300" />
+          <RefreshCw className="w-3 h-3 text-cyan-300" />
         </button>
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Game Mode Strip */}
-        <div className="flex items-center justify-between bg-[#1F180D] rounded-2xl px-3.5 py-2 border border-amber-500/25">
+        <div className="flex items-center justify-between bg-white rounded-2xl px-3.5 py-2 border border-slate-200 shadow-2xs">
           <div className="flex items-center gap-2">
             <MinesGameLogo size={22} />
-            <span className="font-black text-xs tracking-wider italic text-amber-100">MINES 777</span>
+            <span className="font-black text-xs tracking-wider italic text-[#0891B2]">MINES 777</span>
           </div>
           <div className="flex items-center gap-2 text-[10px] font-bold font-mono">
-            <span className="text-emerald-400">#{gameActive ? activeRoundId : minesEpoch.roundId}</span>
-            <span className="text-amber-300/80 uppercase">
+            <span className="text-emerald-600">#{gameActive ? activeRoundId : minesEpoch.roundId}</span>
+            <span className="text-slate-500 uppercase">
               • 5×5 ({minesCount} Mines) • {minesEpoch.secondsRemaining}s
             </span>
           </div>
         </div>
 
-        {/* Live Multiplier Bar */}
-        <div className="grid grid-cols-3 gap-2 bg-[#1F180D] rounded-2xl p-3 border border-amber-500/25 text-center tabular-nums">
+        <div className="grid grid-cols-3 gap-2 bg-white rounded-2xl p-3 border border-slate-200 text-center tabular-nums shadow-2xs">
           <div>
-            <div className="text-[10px] font-bold text-amber-200/70 uppercase">Diamonds</div>
-            <div className="text-sm font-black text-emerald-400">
+            <div className="text-[10px] font-bold text-slate-500 uppercase">Diamonds</div>
+            <div className="text-sm font-black text-emerald-600">
               {safeHits} / {maxSafeTiles}
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-bold text-amber-200/70 uppercase">Next Tile</div>
-            <div className="text-sm font-black text-amber-300 font-mono">
+            <div className="text-[10px] font-bold text-slate-500 uppercase">Next Tile</div>
+            <div className="text-sm font-black text-[#0891B2] font-mono">
               {nextMultiplier.toFixed(2)}x
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-bold text-amber-200/70 uppercase">Current Win</div>
-            <div className="text-sm font-black text-white font-mono">
+            <div className="text-[10px] font-bold text-slate-500 uppercase">Current Win</div>
+            <div className="text-sm font-black text-slate-900 font-mono">
               ৳{gameActive && safeHits > 0 ? currentCashoutValue.toFixed(2) : '0.00'}
             </div>
           </div>
         </div>
 
-        {/* 5x5 Mines Vault Grid */}
-        <div className="bg-[#1C160B] rounded-3xl p-3.5 border border-amber-500/30 shadow-[0_0_30px_rgba(217,119,6,0.18)]">
+        {/* Dark 5x5 Mines Vault Grid kept dark for diamond & bomb contrast */}
+        <div className="bg-[#0A1C2C] rounded-3xl p-3.5 border border-cyan-400/30 shadow-[0_12px_30px_rgba(8,145,178,0.18)]">
           <div className="grid grid-cols-5 gap-2">
             {Array.from({ length: GRID_SIZE }).map((_, idx) => {
               const isRevealed = revealedIndices.has(idx);
@@ -305,7 +300,7 @@ export const MinesGame: React.FC = () => {
                   onClick={() => handleTileClick(idx)}
                   className={`aspect-square rounded-2xl flex items-center justify-center overflow-hidden p-1.5 transition-all duration-150 select-none ${
                     isHitMine
-                      ? 'bg-gradient-to-br from-rose-600 to-red-900 border-2 border-amber-300 shadow-lg scale-95'
+                      ? 'bg-gradient-to-br from-rose-600 to-red-900 border-2 border-cyan-300 shadow-lg scale-95'
                       : isRevealed
                       ? 'bg-gradient-to-br from-emerald-500/25 to-emerald-800/40 border border-emerald-400/70 shadow-inner'
                       : showAll && isMine
@@ -313,8 +308,8 @@ export const MinesGame: React.FC = () => {
                       : showAll && !isMine
                       ? 'bg-emerald-950/50 border border-emerald-500/25 opacity-60'
                       : gameActive
-                      ? 'bg-gradient-to-b from-[#3B2E18] to-[#231A0C] hover:from-[#4E3D20] border border-amber-400/35 shadow-md active:scale-92 cursor-pointer'
-                      : 'bg-[#251D0F] border border-amber-500/15 opacity-80'
+                      ? 'bg-gradient-to-b from-[#133554] to-[#0B2235] hover:from-[#18446B] border border-cyan-400/35 shadow-md active:scale-92 cursor-pointer'
+                      : 'bg-[#0F2A42] border border-cyan-500/20 opacity-85'
                   }`}
                 >
                   {isHitMine || (showAll && isMine) ? (
@@ -332,7 +327,7 @@ export const MinesGame: React.FC = () => {
                       className="w-full h-full object-cover rounded-xl drop-shadow-[0_0_8px_rgba(52,211,153,0.75)]"
                     />
                   ) : (
-                    <span className="w-3 h-3 rounded-full bg-amber-400/30 ring-2 ring-amber-300/20" />
+                    <span className="w-3 h-3 rounded-full bg-cyan-400/35 ring-2 ring-cyan-300/20" />
                   )}
                 </button>
               );
@@ -340,18 +335,16 @@ export const MinesGame: React.FC = () => {
           </div>
         </div>
 
-        {/* Bet & Mine Controls */}
-        <div className="bg-[#1C160B] rounded-3xl p-4 border border-amber-500/25 space-y-3.5">
-          {/* Bet Amount */}
+        <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3.5 shadow-2xs">
           <div>
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-bold text-amber-200">Bet Amount (৳) • Min ৳10</span>
+              <span className="font-bold text-slate-700">Bet Amount (৳) • Min ৳10</span>
               <div className="flex gap-1.5">
                 <button
                   type="button"
                   disabled={gameActive}
                   onClick={() => setBetAmount(String(Math.max(10, Math.round((Number(betAmount) || 50) / 2))))}
-                  className="px-2 py-0.5 rounded-lg bg-white/10 text-[10px] font-black text-amber-100 disabled:opacity-40"
+                  className="px-2 py-0.5 rounded-lg bg-cyan-50 border border-cyan-200 text-[10px] font-black text-[#0891B2] disabled:opacity-40"
                 >
                   1/2
                 </button>
@@ -359,7 +352,7 @@ export const MinesGame: React.FC = () => {
                   type="button"
                   disabled={gameActive}
                   onClick={() => setBetAmount(String(Math.min(50000, Math.round((Number(betAmount) || 50) * 2))))}
-                  className="px-2 py-0.5 rounded-lg bg-white/10 text-[10px] font-black text-amber-100 disabled:opacity-40"
+                  className="px-2 py-0.5 rounded-lg bg-cyan-50 border border-cyan-200 text-[10px] font-black text-[#0891B2] disabled:opacity-40"
                 >
                   2X
                 </button>
@@ -371,7 +364,7 @@ export const MinesGame: React.FC = () => {
               disabled={gameActive}
               value={betAmount}
               onChange={(e) => setBetAmount(e.target.value)}
-              className="w-full bg-[#141008] border border-amber-500/35 rounded-2xl px-4 py-3 text-sm font-black font-mono text-white focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-60"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-black font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#0891B2] disabled:opacity-60"
             />
             <div className="grid grid-cols-5 gap-1.5 mt-2">
               {BET_PRESETS.map((amt) => (
@@ -382,8 +375,8 @@ export const MinesGame: React.FC = () => {
                   onClick={() => setBetAmount(String(amt))}
                   className={`py-1.5 rounded-xl text-[11px] font-black border transition-all disabled:opacity-40 ${
                     Number(betAmount) === amt
-                      ? 'bg-gradient-to-r from-[#D97706] to-[#F59E0B] border-amber-300 text-slate-950'
-                      : 'bg-white/5 border-white/10 text-amber-100'
+                      ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] border-[#0891B2] text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
                   }`}
                 >
                   ৳{amt}
@@ -392,9 +385,8 @@ export const MinesGame: React.FC = () => {
             </div>
           </div>
 
-          {/* Mines Count */}
           <div>
-            <div className="text-xs font-bold text-amber-200 mb-1.5">Number of Mines</div>
+            <div className="text-xs font-bold text-slate-700 mb-1.5">Number of Mines</div>
             <div className="grid grid-cols-6 gap-1.5">
               {MINE_PRESETS.map((cnt) => (
                 <button
@@ -404,8 +396,8 @@ export const MinesGame: React.FC = () => {
                   onClick={() => setMinesCount(cnt)}
                   className={`py-2 rounded-xl text-xs font-black border transition-all disabled:opacity-40 ${
                     minesCount === cnt
-                      ? 'bg-amber-400 border-amber-300 text-slate-950'
-                      : 'bg-white/5 border-white/10 text-slate-200'
+                      ? 'bg-[#0891B2] border-[#0891B2] text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
                   }`}
                 >
                   {cnt}
@@ -414,12 +406,11 @@ export const MinesGame: React.FC = () => {
             </div>
           </div>
 
-          {/* Primary Action Button */}
           {!gameActive ? (
             <button
               type="button"
               onClick={startRound}
-              className="w-full min-h-[50px] py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-lg active:scale-98 transition-all"
+              className="w-full min-h-[50px] py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-sm shadow-lg active:scale-98 transition-all"
             >
               Start Game (Bet ৳{Math.max(10, Number(betAmount) || 10)})
             </button>
@@ -428,7 +419,7 @@ export const MinesGame: React.FC = () => {
               <button
                 type="button"
                 onClick={handleRandomTile}
-                className="py-3.5 rounded-full bg-white/10 border border-amber-400/30 text-amber-100 font-bold text-xs flex items-center justify-center gap-1 active:scale-95"
+                className="py-3.5 rounded-full bg-cyan-50 border border-cyan-300 text-[#0891B2] font-bold text-xs flex items-center justify-center gap-1 active:scale-95"
               >
                 <Shuffle className="w-3.5 h-3.5" />
                 <span>Pick</span>
@@ -437,7 +428,7 @@ export const MinesGame: React.FC = () => {
                 type="button"
                 disabled={safeHits < 1}
                 onClick={() => finishCashOut(safeHits, currentMultiplier)}
-                className="col-span-2 py-3.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black text-sm shadow-lg active:scale-98 disabled:opacity-45"
+                className="col-span-2 py-3.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-sm shadow-lg active:scale-98 disabled:opacity-45"
               >
                 {safeHits < 1
                   ? 'Tap a Tile to Reveal'
@@ -447,14 +438,13 @@ export const MinesGame: React.FC = () => {
           )}
         </div>
 
-        {/* Recent Mines History */}
-        <div className="bg-[#1C160B] rounded-3xl p-4 border border-amber-500/20 space-y-2.5">
-          <div className="flex items-center gap-2 text-xs font-black text-amber-100">
-            <History className="w-4 h-4 text-amber-400" />
+        <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-2.5 shadow-2xs">
+          <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+            <History className="w-4 h-4 text-[#0891B2]" />
             <span>Recent Rounds</span>
           </div>
           {history.length === 0 ? (
-            <div className="py-4 text-center text-xs text-amber-200/60">
+            <div className="py-4 text-center text-xs text-slate-500">
               Tap Start Game and uncover emerald diamonds while avoiding hidden mines.
             </div>
           ) : (
@@ -462,19 +452,19 @@ export const MinesGame: React.FC = () => {
               {history.map((item) => (
                 <div
                   key={item.id}
-                  className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between text-xs tabular-nums"
+                  className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs tabular-nums"
                 >
                   <div>
-                    <div className="font-bold text-white">
+                    <div className="font-bold text-slate-900">
                       {item.minesCount} Mines · {item.safeHits} Gems
                     </div>
-                    <div className="text-[10px] text-amber-200/60">{item.time}</div>
+                    <div className="text-[10px] text-slate-500">{item.time}</div>
                   </div>
                   <div className="text-right">
-                    <div className={`font-black font-mono ${item.won ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <div className={`font-black font-mono ${item.won ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {item.won ? `+৳${item.payout.toFixed(2)}` : `-৳${item.bet.toFixed(2)}`}
                     </div>
-                    <div className="text-[10px] text-amber-300 font-mono">
+                    <div className="text-[10px] text-[#0891B2] font-mono">
                       {item.won ? `${item.multiplier.toFixed(2)}x` : 'BOOM'}
                     </div>
                   </div>

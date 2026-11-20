@@ -114,9 +114,9 @@ export const Salary: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC] text-slate-800 pb-24">
-      {/* Light-Mode Top Navbar */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-amber-200/70 px-4 py-3 flex items-center justify-between shadow-2xs">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
+      {/* Top Navbar */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-2xs">
         <button
           onClick={() => {
             setActiveTab('promotion');
@@ -135,7 +135,7 @@ export const Salary: React.FC = () => {
             setActiveTab('promotion');
             window.location.hash = '#/promotion';
           }}
-          className="text-[11px] font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 hover:bg-amber-100 whitespace-nowrap"
+          className="text-[11px] font-black text-cyan-700 bg-cyan-50 px-2.5 py-1 rounded-lg border border-cyan-200 hover:bg-cyan-100 whitespace-nowrap"
         >
           Invite Team
         </button>
@@ -143,9 +143,9 @@ export const Salary: React.FC = () => {
 
       <div className="p-4 space-y-4">
         {/* Midnight 12:00 AM Auto-Collect Status Banner */}
-        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-2xl p-4 text-white shadow-sm flex items-center justify-between gap-3">
+        <div className="bg-gradient-to-br from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-2xl p-4 text-white shadow-sm flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-wider text-amber-100">
+            <div className="text-[10px] font-black uppercase tracking-wider text-cyan-200">
               Auto-Collect Active • Midnight 12:00 AM
             </div>
             <div className="text-xs font-extrabold mt-0.5">
@@ -154,8 +154,8 @@ export const Salary: React.FC = () => {
                 : 'Eligible salary settles automatically at 12:00 AM'}
             </div>
           </div>
-          <div className="text-right flex-shrink-0 bg-black/20 px-3 py-1.5 rounded-xl border border-white/20">
-            <div className="text-[9px] uppercase font-bold text-amber-100">Reset In</div>
+          <div className="text-right flex-shrink-0 bg-white/10 px-3 py-1.5 rounded-xl border border-white/20">
+            <div className="text-[9px] uppercase font-bold text-cyan-100">Reset In</div>
             <div className="text-sm font-mono font-black tabular-nums">{midnightCountdown}</div>
           </div>
         </div>
@@ -167,43 +167,43 @@ export const Salary: React.FC = () => {
             setActiveTab('all-chart');
             window.location.hash = '#/all-chart';
           }}
-          className="w-full py-3.5 px-4 rounded-2xl bg-white border-2 border-amber-300 text-[#B45309] font-black text-xs uppercase tracking-wider shadow-xs hover:bg-amber-50 active:scale-98 transition-all flex items-center justify-between"
+          className="w-full py-3.5 px-4 rounded-2xl bg-white border border-slate-200 text-slate-900 font-black text-xs uppercase tracking-wider shadow-xs hover:bg-slate-50 active:scale-98 transition-all flex items-center justify-between"
         >
           <span className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-[#D97706]" />
+            <Award className="w-4 h-4 text-cyan-600" />
             <span>View All Chart (Weekly, Streak, Refer &amp; 6-Step Refund)</span>
           </span>
-          <span className="px-2.5 py-1 rounded-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white text-[10px]">
+          <span className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white text-[10px] whitespace-nowrap">
             All Chart →
           </span>
         </button>
 
-        {/* Today's Progress Summary Card (Light Mode) */}
-        <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs space-y-3">
+        {/* Today's Progress Summary Card */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black text-amber-600 tracking-wide">
+            <h2 className="text-sm font-black text-cyan-700 tracking-wide">
               Today&apos;s progress
             </h2>
-            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tabular-nums">
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md tabular-nums">
               {today}
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-y-2.5 gap-x-3 text-xs pt-1 tabular-nums">
-            <div className="bg-[#FFF9EB] rounded-xl px-3 py-2 border border-amber-100 text-slate-600">
-              <div className="text-[10px] font-semibold text-slate-400">Recharge members</div>
+            <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-200 text-slate-600">
+              <div className="text-[10px] font-semibold text-slate-500">Recharge members</div>
               <strong className="text-sm text-slate-900 font-black">{rechargeMembersCount}</strong>
             </div>
-            <div className="bg-[#FFF9EB] rounded-xl px-3 py-2 border border-amber-100 text-slate-600">
-              <div className="text-[10px] font-semibold text-slate-400">Team recharge</div>
+            <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-200 text-slate-600">
+              <div className="text-[10px] font-semibold text-slate-500">Team recharge</div>
               <strong className="text-sm text-slate-900 font-black">৳{teamRechargeTotal.toLocaleString()}</strong>
             </div>
-            <div className="bg-[#FFF9EB] rounded-xl px-3 py-2 border border-amber-100 text-slate-600">
-              <div className="text-[10px] font-semibold text-slate-400">Team bets</div>
+            <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-200 text-slate-600">
+              <div className="text-[10px] font-semibold text-slate-500">Team bets</div>
               <strong className="text-sm text-slate-900 font-black">৳{teamBetsTotal.toLocaleString()}</strong>
             </div>
-            <div className="bg-[#FFF9EB] rounded-xl px-3 py-2 border border-amber-100 text-slate-600">
-              <div className="text-[10px] font-semibold text-slate-400">Your deposit</div>
+            <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-200 text-slate-600">
+              <div className="text-[10px] font-semibold text-slate-500">Your deposit</div>
               <strong className="text-sm text-slate-900 font-black">৳{yourDeposit.toLocaleString()}</strong>
             </div>
           </div>
@@ -222,7 +222,7 @@ export const Salary: React.FC = () => {
                 <span>You are active today (bet placed ✓)</span>
               </p>
             ) : (
-              <p className="text-xs font-bold text-amber-600">
+              <p className="text-xs font-bold text-cyan-700">
                 You haven&apos;t placed a bet today yet.
               </p>
             )}
@@ -232,10 +232,10 @@ export const Salary: React.FC = () => {
             <button
               onClick={handleClaim}
               disabled={alreadyClaimedToday}
-              className={`w-full mt-2 py-3 rounded-full font-black text-xs transition-all active:scale-98 flex items-center justify-center gap-1.5 ${
+              className={`w-full mt-2 py-3 rounded-xl font-black text-xs transition-all active:scale-98 flex items-center justify-center gap-1.5 ${
                 alreadyClaimedToday
                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white shadow-md hover:brightness-105'
+                  : 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm hover:brightness-105'
               }`}
             >
               <Award className="w-4 h-4" />
@@ -248,9 +248,9 @@ export const Salary: React.FC = () => {
           )}
         </div>
 
-        {/* Agent Salary Tier Table (Light Mode) */}
-        <div className="bg-white rounded-2xl overflow-hidden border border-amber-200/80 shadow-xs">
-          <div className="bg-gradient-to-r from-[#F59E0B] via-[#FBBF24] to-[#EAB308] text-slate-950 grid grid-cols-2 text-center py-3 px-4 text-xs font-black tracking-wide uppercase">
+        {/* Agent Salary Tier Table */}
+        <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs">
+          <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white grid grid-cols-2 text-center py-3 px-4 text-xs font-black tracking-wide uppercase">
             <div>RECHARGE MEMBER</div>
             <div>AGENT SALARY</div>
           </div>
@@ -262,9 +262,9 @@ export const Salary: React.FC = () => {
                   key={row.members}
                   className={`grid grid-cols-2 text-center py-3 px-4 text-sm font-semibold transition-colors ${
                     reached
-                      ? 'bg-amber-50 text-amber-700'
+                      ? 'bg-cyan-50 text-cyan-800'
                       : index % 2 === 1
-                      ? 'bg-[#FAFAFC] text-slate-700'
+                      ? 'bg-slate-50 text-slate-700'
                       : 'bg-white text-slate-700'
                   }`}
                 >
@@ -276,16 +276,16 @@ export const Salary: React.FC = () => {
           </div>
         </div>
 
-        {/* Terms and Conditions (Light Mode, Exact 1-8 rules with EWI777 branding) */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3">
-          <h3 className="text-sm font-black text-amber-600 tracking-wide flex items-center gap-2">
+        {/* Terms and Conditions */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
+          <h3 className="text-sm font-black text-cyan-700 tracking-wide flex items-center gap-2">
             <Users className="w-4 h-4" />
             <span>Terms and Conditions</span>
           </h3>
           <div className="space-y-2.5">
             {SALARY_TERMS.map((term, idx) => (
               <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-600 leading-relaxed">
-                <span className="w-5 h-5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 tabular-nums">
+                <span className="w-5 h-5 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-700 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 tabular-nums">
                   {idx + 1}
                 </span>
                 <span>{term}</span>
@@ -294,9 +294,9 @@ export const Salary: React.FC = () => {
           </div>
         </div>
 
-        {/* Salary History (Light Mode) */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3">
-          <h3 className="text-sm font-black text-amber-600 tracking-wide flex items-center gap-2">
+        {/* Salary History */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
+          <h3 className="text-sm font-black text-cyan-700 tracking-wide flex items-center gap-2">
             <Clock className="w-4 h-4" />
             <span>Salary history</span>
           </h3>
@@ -310,7 +310,7 @@ export const Salary: React.FC = () => {
               {salaryHistory.map((item) => (
                 <div
                   key={item.id}
-                  className="p-3 rounded-xl bg-[#F8FAFC] border border-slate-100 flex items-center justify-between text-xs"
+                  className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                 >
                   <div>
                     <div className="font-bold text-slate-800">{item.title}</div>

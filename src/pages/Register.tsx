@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp, PASSWORD_REGEX, PASSWORD_RULE_MSG } from '../context/AppContext';
 import { ArrowLeft, Smartphone, Lock, Eye, EyeOff, Gift, Check, AlertCircle } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
-import { Ewi777Logo } from '../components/BrandLogos';
+import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
 import {
   isValidBdLocalTenDigits,
@@ -94,9 +94,9 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
   const showPwLiveError = password.length > 0 && !PASSWORD_REGEX.test(password);
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-24">
-      {/* Luxury Gold Header */}
-      <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col pb-24">
+      {/* Light Cyan-Teal Header */}
+      <div className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           <button
             onClick={() => {
@@ -130,7 +130,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
           <h2 className="text-2xl font-black tracking-tight mb-2">
             {getTranslation(language, 'register')}
           </h2>
-          <p className="text-xs text-amber-100 leading-relaxed font-normal">
+          <p className="text-xs text-cyan-50 leading-relaxed font-normal">
             Please register by phone number
           </p>
         </div>
@@ -138,14 +138,14 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
 
       {/* Main Card Content */}
       <div className="px-4 -mt-3">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200">
-          <div className="border-b border-amber-100 mb-6 flex justify-center">
-            <div className="pb-3 flex flex-col items-center gap-1 text-sm font-bold relative text-[#D97706]">
-              <div className="w-7 h-7 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-cyan-100">
+          <div className="border-b border-slate-100 mb-6 flex justify-center">
+            <div className="pb-3 flex flex-col items-center gap-1 text-sm font-bold relative text-cyan-700">
+              <div className="w-7 h-7 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center">
                 <Smartphone className="w-4 h-4 stroke-[2.5]" />
               </div>
               <span>Register your phone</span>
-              <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#D97706] rounded-full" />
+              <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-cyan-600 rounded-full" />
             </div>
           </div>
 
@@ -153,7 +153,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             {/* Phone Number */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-cyan-50 text-cyan-600 flex items-center justify-center">
                   <Smartphone className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'phoneNumber')}</span>
@@ -163,7 +163,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   <select
                     value={countryCode}
                     onChange={(e) => setCountryCode(e.target.value)}
-                    className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 appearance-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 appearance-none"
                   >
                     <option value="+880">+880</option>
                     <option value="+91">+91</option>
@@ -186,7 +186,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                       setPhoneNumber(val);
                     }}
                     placeholder={countryCode === '+880' ? '1XXXXXXXXX' : getTranslation(language, 'pleaseEnterPhone')}
-                    className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                     required
                   />
                 </div>
@@ -196,7 +196,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             {/* Set Password */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-cyan-50 text-cyan-600 flex items-center justify-center">
                   <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'password')}</span>
@@ -210,7 +210,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                     if (passwordError) setPasswordError('');
                   }}
                   placeholder={getTranslation(language, 'password')}
-                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   required
                 />
                 <button
@@ -232,7 +232,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             {/* Confirm Password */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-cyan-50 text-cyan-600 flex items-center justify-center">
                   <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'confirmPassword')}</span>
@@ -243,7 +243,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder={getTranslation(language, 'confirmPassword')}
-                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 pr-10 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   required
                 />
                 <button
@@ -259,7 +259,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             {/* Invite code */}
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-cyan-50 text-cyan-600 flex items-center justify-center">
                   <Gift className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'inviteCode')}</span>
@@ -272,8 +272,8 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   if (inviteError) setInviteError('');
                 }}
                 placeholder={getTranslation(language, 'pleaseEnterInvite')}
-                className={`w-full bg-[#FFFDF7] border rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 ${
-                  inviteError ? 'border-rose-400 focus:ring-rose-500' : 'border-amber-200 focus:ring-amber-500'
+                className={`w-full bg-slate-50 border rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 ${
+                  inviteError ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-200 focus:ring-cyan-500'
                 }`}
               />
               {inviteError && (
@@ -296,14 +296,14 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 <div
                   onClick={() => setAgreePrivacy(!agreePrivacy)}
                   className={`w-4 h-4 rounded-full mt-0.5 flex items-center justify-center transition-colors flex-shrink-0 ${
-                    agreePrivacy ? 'bg-[#D97706] text-white' : 'border border-slate-300'
+                    agreePrivacy ? 'bg-cyan-600 text-white' : 'border border-slate-300'
                   }`}
                 >
                   {agreePrivacy && <Check className="w-3 h-3 stroke-[3]" />}
                 </div>
                 <span className="text-xs text-slate-600 leading-tight">
                   I have read and agree{' '}
-                  <span className="text-[#D97706] font-semibold">【Privacy Agreement】</span>
+                  <span className="text-cyan-700 font-semibold">【Privacy Agreement】</span>
                 </span>
               </label>
             </div>
@@ -318,7 +318,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
               <button
                 type="submit"
                 disabled={registrationDisabled || isSubmitting}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-50"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-50"
               >
                 {registrationDisabled ? 'Registration Paused' : getTranslation(language, 'register')}
               </button>
@@ -329,10 +329,22 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   setActiveTab('login');
                   window.location.hash = '#/login';
                 }}
-                className="w-full py-3.5 rounded-full border border-amber-300 text-[#B45309] font-bold text-sm hover:bg-amber-50 active:scale-98 transition-all flex items-center justify-center gap-1"
+                className="w-full py-3.5 rounded-full border border-cyan-300 text-cyan-700 font-bold text-sm hover:bg-cyan-50 active:scale-98 transition-all flex items-center justify-center gap-1"
               >
                 <span>I have an account</span>
                 <span className="font-extrabold underline">Login</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('customer-service');
+                  window.location.hash = '#/customer-service';
+                }}
+                className="w-full py-2.5 rounded-full bg-slate-50 hover:bg-cyan-50 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+              >
+                <CustomerServiceLogo size={24} />
+                <span>24/7 Customer Service</span>
               </button>
             </div>
           </form>

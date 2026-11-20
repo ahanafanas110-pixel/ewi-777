@@ -781,7 +781,8 @@ export function subscribeCrashStateInFirebase(
 
 export async function saveCrashStateToFirebase(state: CrashPoolState): Promise<void> {
   if (!state?.game) return;
-  const gameId = state.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+  if (state.game !== 'aviator' && state.game !== 'luckyjet') return;
+  const gameId = state.game;
   const path = `crashState/${gameId}`;
   try {
     await setDoc(

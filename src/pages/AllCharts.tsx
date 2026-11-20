@@ -170,17 +170,17 @@ export const AllCharts: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] text-slate-900 pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-28">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-amber-200/80 px-4 py-2.5 flex items-center justify-between shadow-2xs">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 flex items-center justify-between shadow-2xs">
         <button
           type="button"
           onClick={() => {
-            setActiveTab('salary');
-            window.location.hash = '#/salary';
+            setActiveTab('home');
+            window.location.hash = '#/';
           }}
-          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-amber-50 active:scale-95"
-          aria-label="Back to Salary"
+          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-slate-100 active:scale-95"
+          aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
         </button>
@@ -193,7 +193,7 @@ export const AllCharts: React.FC = () => {
         <button
           type="button"
           onClick={goCustomerCare}
-          className="px-2.5 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-[#B45309] font-black text-[11px] flex items-center gap-1 whitespace-nowrap"
+          className="px-2.5 py-1.5 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-700 font-black text-[11px] flex items-center gap-1 whitespace-nowrap"
         >
           <Headphones className="w-3.5 h-3.5" />
           <span>Support</span>
@@ -201,7 +201,7 @@ export const AllCharts: React.FC = () => {
       </div>
 
       {/* 6-Tab Horizontal Chart Switcher */}
-      <div className="bg-white border-b border-amber-100 px-3 py-2.5 sticky top-[55px] z-20">
+      <div className="bg-white border-b border-slate-200 px-3 py-2.5 sticky top-[55px] z-20">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           {CHART_TABS.map((t) => (
             <button
@@ -210,8 +210,8 @@ export const AllCharts: React.FC = () => {
               onClick={() => setActiveChart(t.id)}
               className={`px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap flex-shrink-0 transition-all ${
                 activeChart === t.id
-                  ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-sm'
-                  : 'bg-[#FFF9EB] text-slate-700 border border-amber-200/70 hover:bg-amber-100/70'
+                  ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 border border-slate-200'
               }`}
             >
               {t.label}
@@ -224,37 +224,37 @@ export const AllCharts: React.FC = () => {
         {/* 1. WEEKLY DEPOSIT BONUS */}
         {activeChart === 'weekly_deposit' && (
           <div className="space-y-3.5">
-            <div className="bg-gradient-to-r from-[#1F160A] via-[#78350F] to-[#B45309] rounded-3xl p-4 text-white shadow-md">
-              <div className="text-[10px] font-black uppercase tracking-widest text-amber-200">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
+              <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                 EWI777 WEEKLY REWARD
               </div>
               <h2 className="text-lg font-black mt-0.5">Weekly Deposit Bonus Chart</h2>
-              <p className="text-xs text-amber-100 mt-1 leading-relaxed">
+              <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
                 Meet weekly deposit milestones to unlock massive bonuses. Weekly deposit rewards are verified manually via Customer Care.
               </p>
             </div>
 
-            <div className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs">
-              <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white grid grid-cols-2 text-center py-3 px-4 text-xs font-black uppercase tracking-wider">
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
+              <div className="bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white grid grid-cols-2 text-center py-3 px-4 text-xs font-black uppercase tracking-wider">
                 <div>WEEKLY DEPOSIT</div>
                 <div>CASH BONUS</div>
               </div>
-              <div className="divide-y divide-amber-100 tabular-nums">
+              <div className="divide-y divide-slate-100 tabular-nums">
                 {WEEKLY_DEPOSIT_ROWS.map((r, i) => (
                   <div
                     key={r.deposit}
                     className={`grid grid-cols-2 text-center py-3.5 px-4 text-sm font-bold ${
-                      i % 2 === 1 ? 'bg-[#FFFDF7]' : 'bg-white'
+                      i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'
                     }`}
                   >
                     <div className="text-slate-800">৳{r.deposit.toLocaleString()}</div>
-                    <div className="font-black text-[#B45309]">+৳{r.bonus.toLocaleString()}</div>
+                    <div className="font-black text-cyan-700">+৳{r.bonus.toLocaleString()}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-amber-200 space-y-3">
+            <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3 shadow-xs">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-600">Your Total Deposited</span>
                 <span className="font-mono font-black text-slate-900 tabular-nums">
@@ -264,7 +264,7 @@ export const AllCharts: React.FC = () => {
               <button
                 type="button"
                 onClick={goCustomerCare}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
               >
                 <Headphones className="w-4 h-4" />
                 <span>Contact Customer Care to Claim</span>
@@ -273,15 +273,15 @@ export const AllCharts: React.FC = () => {
           </div>
         )}
 
-        {/* 2. RECHARGE BONUS (1st / 2nd / 3rd Downline Auto Credit + 1x Turnover) */}
+        {/* 2. RECHARGE BONUS */}
         {activeChart === 'recharge_bonus' && (
           <div className="space-y-3.5">
-            <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-4 text-white shadow-md">
-              <div className="text-[10px] font-black uppercase tracking-widest text-amber-100">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
+              <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                 AUTO-CREDIT • 1X TURNOVER
               </div>
               <h2 className="text-lg font-black mt-0.5">Invitation Recharge Bonus</h2>
-              <p className="text-xs text-amber-50 mt-1 leading-relaxed">
+              <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
                 Credits automatically to your wallet whenever an invited member completes their 1st, 2nd, or 3rd deposit (e.g. ৳200 deposit → ৳38 bonus with ৳38 turnover).
               </p>
             </div>
@@ -291,21 +291,21 @@ export const AllCharts: React.FC = () => {
               { title: '2nd Downline Deposit', rows: RECHARGE_SECOND_ROWS },
               { title: '3rd Downline Deposit', rows: RECHARGE_THIRD_ROWS }
             ].map((group) => (
-              <div key={group.title} className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs">
-                <div className="bg-gradient-to-r from-[#1E1B4B] to-[#92400E] text-white px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center justify-between">
+              <div key={group.title} className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
+                <div className="bg-gradient-to-r from-[#0B2235] to-[#0E314A] text-white px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center justify-between">
                   <span>{group.title}</span>
-                  <span className="text-[10px] text-amber-300">Auto-Added ✓</span>
+                  <span className="text-[10px] text-cyan-300">Auto-Added ✓</span>
                 </div>
-                <div className="grid grid-cols-3 text-center py-2 px-3 bg-amber-50 text-[10px] font-black text-slate-600 uppercase border-b border-amber-100">
+                <div className="grid grid-cols-3 text-center py-2 px-3 bg-slate-50 text-[10px] font-black text-slate-600 uppercase border-b border-slate-200">
                   <div>Deposit</div>
                   <div>Bonus</div>
                   <div>Turnover</div>
                 </div>
-                <div className="divide-y divide-amber-50 tabular-nums">
+                <div className="divide-y divide-slate-100 tabular-nums">
                   {group.rows.map((r) => (
                     <div key={`${group.title}-${r.dep}`} className="grid grid-cols-3 text-center py-2.5 px-3 text-xs font-bold">
                       <div className="text-slate-800">৳{r.dep.toLocaleString()}</div>
-                      <div className="font-black text-emerald-600">+৳{r.bonus.toLocaleString()}</div>
+                      <div className="font-black text-emerald-700">+৳{r.bonus.toLocaleString()}</div>
                       <div className="text-slate-500">৳{r.turnover.toLocaleString()}</div>
                     </div>
                   ))}
@@ -315,29 +315,29 @@ export const AllCharts: React.FC = () => {
           </div>
         )}
 
-        {/* 3. WINGO WINSTREAK BONUS (100+ & 10-99, 12 AM Daily Reset, 3x Turnover) */}
+        {/* 3. WINGO WINSTREAK BONUS */}
         {activeChart === 'wingo_streak' && (
           <div className="space-y-3.5">
-            <div className="bg-gradient-to-r from-[#78350F] via-[#D97706] to-[#F59E0B] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-3">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-3">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-amber-100">
+                <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                   3X TURNOVER • RESETS 12:00 AM
                 </div>
                 <h2 className="text-lg font-black mt-0.5">WinGo Win Streak Bonus</h2>
-                <div className="text-xs text-amber-50 mt-1 font-bold flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-yellow-200" />
+                <div className="text-xs text-cyan-100 mt-1 font-bold flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-cyan-300" />
                   <span>Today&apos;s Streak: {todayStreak} Consecutive Wins</span>
                 </div>
               </div>
               <div className="bg-black/25 px-3 py-1.5 rounded-xl border border-white/20 text-right flex-shrink-0">
-                <div className="text-[9px] uppercase font-bold text-amber-100">Reset In</div>
+                <div className="text-[9px] uppercase font-bold text-cyan-200">Reset In</div>
                 <div className="text-xs font-mono font-black tabular-nums">{midnightCountdown}</div>
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-amber-200 shadow-xs flex items-center justify-between gap-3">
+            <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs font-black text-slate-800">Claim Eligible Daily Streak</div>
+                <div className="text-xs font-black text-slate-900">Claim Eligible Daily Streak</div>
                 <div className="text-[11px] text-slate-500">
                   {streakAlreadyClaimed
                     ? 'Today’s WinGo Streak Bonus claimed ✓'
@@ -351,38 +351,38 @@ export const AllCharts: React.FC = () => {
                 className={`px-4 py-2.5 rounded-full text-xs font-black whitespace-nowrap ${
                   streakAlreadyClaimed
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white shadow-sm active:scale-95'
+                    : 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-sm active:scale-95'
                 }`}
               >
                 {streakAlreadyClaimed ? 'Claimed ✓' : 'Claim Streak'}
               </button>
             </div>
 
-            <div className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs">
-              <div className="bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white px-4 py-2.5 text-xs font-black uppercase">
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
+              <div className="bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white px-4 py-2.5 text-xs font-black uppercase">
                 Bet Amount ৳100 &amp; Above
               </div>
-              <div className="divide-y divide-amber-100 tabular-nums">
+              <div className="divide-y divide-slate-100 tabular-nums">
                 {WINGO_STREAK_HIGH.map((r) => (
                   <div key={r.wins} className="grid grid-cols-3 text-center py-3 px-3 text-xs font-bold">
                     <div className="text-slate-900 font-black">{r.wins}</div>
                     <div className="text-slate-500">{r.minBet}</div>
-                    <div className="text-[#B45309] font-black">+৳{r.bonus.toLocaleString()}</div>
+                    <div className="text-cyan-700 font-black">+৳{r.bonus.toLocaleString()}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs">
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
               <div className="bg-slate-800 text-white px-4 py-2.5 text-xs font-black uppercase">
                 Bet Amount ৳10 – ৳99
               </div>
-              <div className="divide-y divide-amber-100 tabular-nums">
+              <div className="divide-y divide-slate-100 tabular-nums">
                 {WINGO_STREAK_LOW.map((r) => (
                   <div key={r.wins} className="grid grid-cols-3 text-center py-3 px-3 text-xs font-bold">
                     <div className="text-slate-900 font-black">{r.wins}</div>
                     <div className="text-slate-500">{r.minBet}</div>
-                    <div className="text-[#B45309] font-black">+৳{r.bonus.toLocaleString()}</div>
+                    <div className="text-cyan-700 font-black">+৳{r.bonus.toLocaleString()}</div>
                   </div>
                 ))}
               </div>
@@ -393,40 +393,40 @@ export const AllCharts: React.FC = () => {
         {/* 4. AGENT WEEKLY SALARY */}
         {activeChart === 'agent_weekly' && (
           <div className="space-y-3.5">
-            <div className="bg-gradient-to-r from-[#1F160A] via-[#78350F] to-[#B45309] rounded-3xl p-4 text-white shadow-md">
-              <div className="text-[10px] font-black uppercase tracking-widest text-amber-200">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
+              <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                 7-DAY INVITE PERFORMANCE
               </div>
               <h2 className="text-lg font-black mt-0.5">Agent Weekly Salary Chart</h2>
-              <p className="text-xs text-amber-100 mt-1 leading-relaxed">
+              <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
                 Grow your active team over 7 days and apply with EWI777 Customer Care every Monday for weekly agent salary payout.
               </p>
             </div>
 
-            <div className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs">
-              <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white grid grid-cols-2 text-center py-3 px-4 text-xs font-black uppercase">
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
+              <div className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white grid grid-cols-2 text-center py-3 px-4 text-xs font-black uppercase">
                 <div>7-DAY ACTIVE INVITES</div>
                 <div>WEEKLY SALARY</div>
               </div>
-              <div className="divide-y divide-amber-100 tabular-nums">
+              <div className="divide-y divide-slate-100 tabular-nums">
                 {AGENT_WEEKLY_SALARY_ROWS.map((r, i) => (
                   <div
                     key={r.invites}
                     className={`grid grid-cols-2 text-center py-3.5 px-4 text-sm font-bold ${
-                      i % 2 === 1 ? 'bg-[#FFFDF7]' : 'bg-white'
+                      i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'
                     }`}
                   >
                     <div className="text-slate-800">{r.invites} Invites</div>
-                    <div className="font-black text-[#B45309]">৳{r.salary.toLocaleString()}</div>
+                    <div className="font-black text-cyan-700">৳{r.salary.toLocaleString()}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-amber-200 space-y-3">
+            <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3 shadow-xs">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-600 flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-[#D97706]" />
+                  <Users className="w-4 h-4 text-cyan-600" />
                   <span>Your Total Team Members</span>
                 </span>
                 <span className="font-mono font-black text-slate-900 tabular-nums">{userReferrals.length}</span>
@@ -434,7 +434,7 @@ export const AllCharts: React.FC = () => {
               <button
                 type="button"
                 onClick={goCustomerCare}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
               >
                 <Headphones className="w-4 h-4" />
                 <span>Contact Customer Care for Weekly Salary</span>
@@ -443,23 +443,23 @@ export const AllCharts: React.FC = () => {
           </div>
         )}
 
-        {/* 5. DAILY REFER BONUS (Min ৳500 Deposit Referrals, Auto-Added) */}
+        {/* 5. DAILY REFER BONUS */}
         {activeChart === 'daily_refer' && (
           <div className="space-y-3.5">
-            <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-4 text-white shadow-md">
-              <div className="text-[10px] font-black uppercase tracking-widest text-amber-100">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
+              <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                 AUTO-ADDED • MIN ৳500 DEPOSIT
               </div>
               <h2 className="text-lg font-black mt-0.5">Daily Refer Milestone Bonus</h2>
-              <p className="text-xs text-amber-50 mt-1 leading-relaxed">
+              <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
                 Each invited friend who recharges at least ৳500 today advances your milestone. Bonuses credit automatically as each tier unlocks!
               </p>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-amber-200 shadow-xs flex items-center justify-between text-xs">
+            <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs flex items-center justify-between text-xs">
               <div>
                 <div className="text-slate-500 font-semibold flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-[#D97706]" />
+                  <Calendar className="w-3.5 h-3.5 text-cyan-600" />
                   <span>Qualified Invites (৳500+ Deposit)</span>
                 </div>
                 <div className="text-lg font-black text-slate-900 mt-0.5 tabular-nums">
@@ -468,30 +468,34 @@ export const AllCharts: React.FC = () => {
               </div>
               <div className="text-right">
                 <div className="text-[10px] font-bold text-emerald-700 uppercase">Status</div>
-                <div className="text-xs font-black text-emerald-600 flex items-center gap-1">
+                <div className="text-xs font-black text-emerald-700 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Auto-Credited</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs">
-              <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white grid grid-cols-2 text-center py-3 px-4 text-xs font-black uppercase">
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
+              <div className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white grid grid-cols-2 text-center py-3 px-4 text-xs font-black uppercase">
                 <div>QUALIFIED REFERS</div>
                 <div>AUTO BONUS</div>
               </div>
-              <div className="divide-y divide-amber-100 tabular-nums">
+              <div className="divide-y divide-slate-100 tabular-nums">
                 {DAILY_REFER_ROWS.map((r, i) => {
                   const unlocked = qualifiedDailyRefers >= r.members;
                   return (
                     <div
                       key={r.members}
                       className={`grid grid-cols-2 text-center py-3 px-4 text-sm font-bold ${
-                        unlocked ? 'bg-amber-50 text-[#B45309]' : i % 2 === 1 ? 'bg-[#FFFDF7]' : 'bg-white'
+                        unlocked
+                          ? 'bg-cyan-50 text-cyan-800'
+                          : i % 2 === 1
+                          ? 'bg-slate-50/70 text-slate-800'
+                          : 'bg-white text-slate-800'
                       }`}
                     >
                       <div>{r.members} Members</div>
-                      <div className="font-black">+৳{r.bonus.toLocaleString()}</div>
+                      <div className="font-black text-cyan-700">+৳{r.bonus.toLocaleString()}</div>
                     </div>
                   );
                 })}
@@ -503,21 +507,21 @@ export const AllCharts: React.FC = () => {
         {/* 6. EWI WINGO 6-STEP 3X LOSS 100% REFUND MATRIX */}
         {activeChart === 'wingo_refund' && (
           <div className="space-y-3.5">
-            <div className="bg-gradient-to-r from-[#7F1D1D] via-[#B45309] to-[#D97706] rounded-3xl p-4 text-white shadow-md">
-              <div className="text-[10px] font-black uppercase tracking-widest text-amber-200">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
+              <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                 WIN GO 100% CAPITAL PROTECTION
               </div>
               <h2 className="text-lg font-black mt-0.5">EWI WinGo 6-Step 3X Loss Refund</h2>
-              <p className="text-xs text-amber-50 mt-1 leading-relaxed">
+              <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
                 Follow the official 6-Step 3× martingale table strictly on WinGo. If all 6 consecutive steps lose, claim 100% of your capital back immediately!
               </p>
             </div>
 
-            <div className="bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs">
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-center text-[11px] tabular-nums">
                   <thead>
-                    <tr className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black uppercase">
+                    <tr className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black uppercase">
                       <th className="py-2.5 px-2 text-left">Start From</th>
                       {SIX_STEP_STARTS.map((s) => (
                         <th key={s} className="py-2.5 px-2">
@@ -526,10 +530,10 @@ export const AllCharts: React.FC = () => {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-amber-100 font-bold text-slate-800">
+                  <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
                     {SIX_STEP_MATRIX.map((row, idx) => (
-                      <tr key={row.level} className={idx % 2 === 1 ? 'bg-[#FFFDF7]' : 'bg-white'}>
-                        <td className="py-2.5 px-2 text-left font-black text-[#B45309] whitespace-nowrap">
+                      <tr key={row.level} className={idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}>
+                        <td className="py-2.5 px-2 text-left font-black text-cyan-700 whitespace-nowrap">
                           {row.level}
                         </td>
                         {row.values.map((v, cIdx) => (
@@ -539,7 +543,7 @@ export const AllCharts: React.FC = () => {
                         ))}
                       </tr>
                     ))}
-                    <tr className="bg-amber-100/80 font-black text-[#92400E] border-t-2 border-amber-300">
+                    <tr className="bg-cyan-50 font-black text-cyan-800 border-t-2 border-cyan-300">
                       <td className="py-3 px-2 text-left uppercase whitespace-nowrap">Total Refund</td>
                       {SIX_STEP_TOTALS.map((tot, idx) => (
                         <td key={`tot-${idx}`} className="py-3 px-2">
@@ -552,9 +556,9 @@ export const AllCharts: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-amber-200 space-y-3">
+            <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3 shadow-xs">
               <div className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
-                <RotateCcw className="w-4 h-4 text-[#D97706] flex-shrink-0 mt-0.5" />
+                <RotateCcw className="w-4 h-4 text-cyan-600 flex-shrink-0 mt-0.5" />
                 <span>
                   Verifies your latest 6 consecutive lost WinGo / EWI WinGo trades against the exact 3× step progression above and refunds 100% instantly.
                 </span>
@@ -562,7 +566,7 @@ export const AllCharts: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSixStepRefund}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
               >
                 <Gift className="w-4 h-4" />
                 <span>Verify &amp; Claim 100% 6-Step Loss Refund</span>

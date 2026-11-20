@@ -117,8 +117,8 @@ export const GameStatistics: React.FC = () => {
     },
     {
       key: 'video',
-      title: 'Video / Crash',
-      subtitle: 'Aviator · Lucky Jet · Coin Flip',
+      title: 'Casino & Crash',
+      subtitle: 'PLANE · Roulette · Aviator · Lucky Jet · Coin Flip',
       icon: Flame,
       data: stats.video
     },
@@ -146,16 +146,16 @@ export const GameStatistics: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] text-slate-800 pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-amber-100 px-4 py-3 flex items-center justify-between shadow-2xs">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-cyan-100 px-4 py-3 flex items-center justify-between shadow-2xs">
         <button
           type="button"
           onClick={() => {
             setActiveTab('account');
             window.location.hash = '#/account';
           }}
-          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full text-slate-700 hover:bg-amber-50 active:scale-95"
+          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full text-slate-700 hover:bg-cyan-50 active:scale-95"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.3]" />
@@ -176,8 +176,8 @@ export const GameStatistics: React.FC = () => {
                 onClick={() => setPeriod(t.id)}
                 className={`py-2 px-1.5 rounded-xl text-[11px] font-black transition-all active:scale-95 truncate ${
                   active
-                    ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md shadow-amber-500/20'
-                    : 'bg-white text-slate-600 border border-amber-100 hover:border-amber-300'
+                    ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:border-cyan-300'
                 }`}
               >
                 {t.label}
@@ -187,9 +187,8 @@ export const GameStatistics: React.FC = () => {
         </div>
 
         {/* Total Bet Hero Card */}
-        <div className="bg-white rounded-3xl py-7 px-4 border border-amber-200/80 shadow-sm text-center relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-amber-100/50 blur-xl pointer-events-none" />
-          <div className="text-3xl font-black text-[#D97706] tracking-tight tabular-nums relative z-10">
+        <div className="bg-white rounded-3xl py-7 px-4 border border-cyan-100 shadow-sm text-center relative overflow-hidden">
+          <div className="text-3xl font-black text-cyan-700 tracking-tight tabular-nums relative z-10">
             ৳{stats.totalBet.toFixed(2)}
           </div>
           <div className="text-xs font-bold text-slate-500 mt-1.5 relative z-10">
@@ -198,14 +197,14 @@ export const GameStatistics: React.FC = () => {
         </div>
 
         {/* Category Breakdown List Card */}
-        <div className="bg-white rounded-3xl p-4 border border-amber-200/80 shadow-sm divide-y divide-amber-100">
+        <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm divide-y divide-slate-100">
           {sections.map((sec) => {
             const Icon = sec.icon;
             return (
               <div key={sec.key} className="py-3.5 first:pt-1 last:pb-1 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FDE68A] via-[#F59E0B] to-[#B45309] flex items-center justify-center text-white shadow-xs">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center text-white shadow-xs">
                       <Icon className="w-4 h-4" />
                     </div>
                     <div>
@@ -219,17 +218,16 @@ export const GameStatistics: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 3 Metric Rows with Concentric Gold Dots & Vertical Dotted Line */}
                 <div className="pl-2 relative space-y-2.5">
                   <div
-                    className="absolute left-[14px] top-3 bottom-3 w-px border-l border-dashed border-amber-300 pointer-events-none"
+                    className="absolute left-[14px] top-3 bottom-3 w-px border-l border-dashed border-cyan-300 pointer-events-none"
                     aria-hidden="true"
                   />
 
                   <div className="flex items-center justify-between text-xs relative">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-3.5 h-3.5 rounded-full bg-amber-100 border border-amber-400 flex items-center justify-center relative z-10">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                      <span className="w-3.5 h-3.5 rounded-full bg-cyan-50 border border-cyan-400 flex items-center justify-center relative z-10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-600" />
                       </span>
                       <span className="text-slate-500 font-semibold">Total bet</span>
                     </div>
@@ -240,8 +238,8 @@ export const GameStatistics: React.FC = () => {
 
                   <div className="flex items-center justify-between text-xs relative">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-3.5 h-3.5 rounded-full bg-amber-50 border border-amber-300 flex items-center justify-center relative z-10">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
+                      <span className="w-3.5 h-3.5 rounded-full bg-sky-50 border border-sky-300 flex items-center justify-center relative z-10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                       </span>
                       <span className="text-slate-500 font-semibold">Number of bets</span>
                     </div>
@@ -252,12 +250,12 @@ export const GameStatistics: React.FC = () => {
 
                   <div className="flex items-center justify-between text-xs relative">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-3.5 h-3.5 rounded-full bg-amber-50 border border-amber-300 flex items-center justify-center relative z-10">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#B45309]" />
+                      <span className="w-3.5 h-3.5 rounded-full bg-teal-50 border border-teal-300 flex items-center justify-center relative z-10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
                       </span>
                       <span className="text-slate-500 font-semibold">Winning amount</span>
                     </div>
-                    <span className="font-black text-[#D97706] tabular-nums">
+                    <span className="font-black text-cyan-700 tabular-nums">
                       ৳{sec.data.win.toFixed(2)}
                     </span>
                   </div>

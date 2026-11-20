@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   * {
@@ -7,21 +8,26 @@
     box-sizing: border-box;
   }
 
-  input, textarea {
+  input, textarea, select {
     user-select: text;
   }
 
   body {
-    background-color: #0c0f1d;
-    color: #1e293b;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
   }
+
+  .dark body {
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
 }
 
-/* Custom scrollbars in luxury gold accent */
+/* Custom scrollbars in crisp EWI cyan accent */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -30,11 +36,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.35);
+  background: rgba(8, 145, 178, 0.35);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(212, 175, 55, 0.65);
+  background: rgba(8, 145, 178, 0.65);
 }
 
 /* Ticker Marquee Animation */
@@ -53,13 +59,13 @@
   animation-play-state: paused;
 }
 
-/* Gold pulse glow for center buttons and highlights */
+/* Cyan pulse glow for highlights */
 @keyframes goldPulseGlow {
   0%, 100% {
-    box-shadow: 0 0 14px rgba(217, 119, 6, 0.45);
+    box-shadow: 0 0 14px rgba(8, 145, 178, 0.35);
   }
   50% {
-    box-shadow: 0 0 26px rgba(245, 158, 11, 0.78);
+    box-shadow: 0 0 24px rgba(6, 182, 212, 0.65);
   }
 }
 
@@ -78,7 +84,7 @@
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(90deg, #fef3c7 25%, #fffbeb 50%, #fef3c7 75%);
+  background: linear-gradient(90deg, #e2e8f0 25%, #f8fafc 50%, #e2e8f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }

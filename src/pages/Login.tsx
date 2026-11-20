@@ -76,9 +76,9 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
   const activeBanText = banAlert || banNotice;
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] flex flex-col pb-24">
-      {/* Luxury Gold Gradient Header */}
-      <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col pb-24">
+      {/* Light Cyan-Teal Gradient Header */}
+      <div className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           {user.isLoggedIn ? (
             <button
@@ -91,8 +91,8 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
               <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
             </button>
           ) : (
-            <div className="relative z-10 w-7 h-7 rounded-full bg-white/15 flex items-center justify-center">
-              <ShieldCheck className="w-4 h-4 text-amber-200" />
+            <div className="relative z-10 w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4 text-white" />
             </div>
           )}
 
@@ -113,7 +113,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
           <h2 className="text-2xl font-black tracking-tight mb-2">
             {getTranslation(language, 'login')}
           </h2>
-          <p className="text-xs text-amber-100 leading-relaxed font-normal">
+          <p className="text-xs text-cyan-50 leading-relaxed font-normal">
             Please log in with your phone number or email
             <br />
             If you forget your password, please contact customer service
@@ -123,7 +123,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
 
       {/* Main Card Content */}
       <div className="px-4 -mt-3">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-cyan-100">
           {activeBanText && (
             <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2 shadow-2xs">
               <div className="flex items-start gap-2 text-xs font-black">
@@ -145,30 +145,30 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
             </div>
           )}
 
-          <div className="mb-4 px-3 py-2 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-[#B45309] flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-            <span>Account login or registration is required to enter WinGo, Aviator &amp; Gold Markets.</span>
+          <div className="mb-4 px-3 py-2 rounded-2xl bg-cyan-50 border border-cyan-200 text-[11px] font-bold text-cyan-800 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 flex-shrink-0 text-cyan-600" />
+            <span>Account login or registration is required to enter WinGo, Casino, Slots &amp; Markets.</span>
           </div>
 
           {/* Tabs: Phone Number vs Email */}
-          <div className="grid grid-cols-2 border-b border-amber-100 mb-6">
+          <div className="grid grid-cols-2 border-b border-slate-100 mb-6">
             <button
               type="button"
               onClick={() => setAuthMode('phone')}
               className={`pb-3 flex flex-col items-center gap-1 text-sm font-bold relative transition-colors ${
-                authMode === 'phone' ? 'text-[#D97706]' : 'text-slate-400 hover:text-slate-600'
+                authMode === 'phone' ? 'text-cyan-700' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <div
                 className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                  authMode === 'phone' ? 'bg-amber-50 text-[#D97706]' : 'text-slate-400'
+                  authMode === 'phone' ? 'bg-cyan-50 text-cyan-600' : 'text-slate-400'
                 }`}
               >
                 <Smartphone className="w-4 h-4 stroke-[2.5]" />
               </div>
               <span>{getTranslation(language, 'phoneNumber')}</span>
               {authMode === 'phone' && (
-                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#D97706] rounded-full" />
+                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-cyan-600 rounded-full" />
               )}
             </button>
 
@@ -176,19 +176,19 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
               type="button"
               onClick={() => setAuthMode('email')}
               className={`pb-3 flex flex-col items-center gap-1 text-sm font-bold relative transition-colors ${
-                authMode === 'email' ? 'text-[#B45309]' : 'text-slate-400 hover:text-slate-600'
+                authMode === 'email' ? 'text-cyan-700' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <div
                 className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                  authMode === 'email' ? 'bg-amber-50 text-[#B45309]' : 'text-slate-400'
+                  authMode === 'email' ? 'bg-cyan-50 text-cyan-600' : 'text-slate-400'
                 }`}
               >
                 <Mail className="w-4 h-4 stroke-[2.5]" />
               </div>
               <span>{getTranslation(language, 'email')}</span>
               {authMode === 'email' && (
-                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#B45309] rounded-full" />
+                <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-cyan-600 rounded-full" />
               )}
             </button>
           </div>
@@ -197,7 +197,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
             {authMode === 'phone' ? (
               <div>
                 <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                  <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
+                  <div className="w-5 h-5 rounded bg-cyan-50 text-cyan-600 flex items-center justify-center">
                     <Smartphone className="w-3.5 h-3.5 stroke-[2.5]" />
                   </div>
                   <span>{getTranslation(language, 'phoneNumber')}</span>
@@ -207,7 +207,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 appearance-none"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 appearance-none"
                     >
                       <option value="+880">+880</option>
                       <option value="+91">+91</option>
@@ -232,7 +232,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                       setPhoneNumber(val);
                     }}
                     placeholder={countryCode === '+880' ? '17XXXXXXXX (10 digits)' : getTranslation(language, 'pleaseEnterPhone')}
-                    className="flex-1 bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                     required
                   />
                 </div>
@@ -240,7 +240,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
             ) : (
               <div>
                 <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                  <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
+                  <div className="w-5 h-5 rounded bg-cyan-50 text-cyan-600 flex items-center justify-center">
                     <Mail className="w-3.5 h-3.5 stroke-[2.5]" />
                   </div>
                   <span>{getTranslation(language, 'email')}</span>
@@ -250,7 +250,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={getTranslation(language, 'pleaseEnterEmail')}
-                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   required
                 />
               </div>
@@ -258,7 +258,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
 
             <div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-2">
-                <div className="w-5 h-5 rounded bg-amber-50 text-[#D97706] flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-cyan-50 text-cyan-600 flex items-center justify-center">
                   <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
                 </div>
                 <span>{getTranslation(language, 'password')}</span>
@@ -269,7 +269,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={getTranslation(language, 'pleaseEnterPassword')}
-                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-xl px-3 py-3 pr-10 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 pr-10 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   required
                 />
                 <button
@@ -287,7 +287,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                 <div
                   onClick={() => setRememberPassword(!rememberPassword)}
                   className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors ${
-                    rememberPassword ? 'bg-[#D97706] text-white' : 'border border-slate-300'
+                    rememberPassword ? 'bg-cyan-600 text-white' : 'border border-slate-300'
                   }`}
                 >
                   {rememberPassword && <Check className="w-3 h-3 stroke-[3]" />}
@@ -303,7 +303,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   setActiveTab('customer-service');
                   window.location.hash = '#/customer-service';
                 }}
-                className="text-[#D97706] font-semibold hover:underline"
+                className="text-cyan-700 font-semibold hover:underline"
               >
                 {getTranslation(language, 'forgotPassword')}
               </button>
@@ -313,7 +313,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-60"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-60"
               >
                 {isSubmitting ? 'Logging in...' : getTranslation(language, 'login')}
               </button>
@@ -324,7 +324,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   setActiveTab('register');
                   window.location.hash = '#/registration';
                 }}
-                className="w-full py-3.5 rounded-full border border-amber-300 text-[#B45309] font-bold text-sm hover:bg-amber-50 active:scale-98 transition-all"
+                className="w-full py-3.5 rounded-full border border-cyan-300 text-cyan-700 font-bold text-sm hover:bg-cyan-50 active:scale-98 transition-all"
               >
                 {getTranslation(language, 'register')}
               </button>
@@ -335,7 +335,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   setActiveTab('customer-service');
                   window.location.hash = '#/customer-service';
                 }}
-                className="w-full py-2.5 rounded-full bg-slate-50 hover:bg-amber-50/70 border border-slate-200 text-slate-600 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+                className="w-full py-2.5 rounded-full bg-slate-50 hover:bg-cyan-50 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
               >
                 <CustomerServiceLogo size={24} />
                 <span>24/7 Customer Service</span>

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowLeft, RefreshCw, Plane, History, CheckCircle2, Users, X, WifiOff } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Plane, History, CheckCircle2, Users, X } from 'lucide-react';
 import { AviatorPlaneLogo, Ewi777Logo } from '../components/BrandLogos';
 import { AviatorServerState } from '../types';
 import { getSyncedAviatorState } from '../utils/syncedMarkets';
 import { apiUrl } from '../utils/phoneAndApi';
 import { loadTransparentSprite } from '../utils/spriteAlpha';
+import aviatorPlaneSpriteImg from '../assets/images/aviator_red_plane_clean_1795168517074.jpg';
 
 type RoundPhase = 'waiting' | 'flying' | 'crashed';
 type SlotId = 1 | 2 | 3;
@@ -25,7 +26,7 @@ interface SlotState {
 const MAX_MULTIPLIER = 10000;
 const QUICK_CHIPS = [10, 50, 100, 500];
 const SLOT_IDS: SlotId[] = [1, 2, 3];
-const AVIATOR_PLANE_SPRITE_SRC = '/assets/aistudio/image_03b0df3a.png';
+const AVIATOR_PLANE_SPRITE_SRC = aviatorPlaneSpriteImg;
 
 const createInitialSlot = (defaultAmt = '100'): SlotState => ({
   betAmount: defaultAmt,
@@ -58,7 +59,6 @@ export const AviatorPlane: React.FC = () => {
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [roundId, setRoundId] = useState<string>('AV000000');
   const [crashHistory, setCrashHistory] = useState<number[]>([2.41, 1.38, 6.82, 1.85, 11.2, 1.15, 3.04, 2.09]);
-  const [networkAlertMsg, setNetworkAlertMsg] = useState<string | null>(null);
 
   const [slots, setSlots] = useState<Record<SlotId, SlotState>>({
     1: createInitialSlot('100'),
@@ -81,13 +81,14 @@ export const AviatorPlane: React.FC = () => {
     phaseStartedAt: number;
     serverOffsetMs: number;
     crashPoint: number;
-    forcedReason?: string;
+    crashedAtMs: number;
   }>({
     roundId: 'AV000000',
     phase: 'waiting',
     phaseStartedAt: Date.now(),
     serverOffsetMs: 0,
-    crashPoint: 1.0
+    crashPoint: 1.0,
+    crashedAtMs: 0
   });
 
   const cashOutRef = useRef(cashOutCrashBet);
@@ -106,7 +107,7 @@ export const AviatorPlane: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    loadTransparentSprite(AVIATOR_PLANE_SPRITE_SRC, 'dark-checker')
+    loadTransparentSprite(AVIATOR_PLANE_SPRITE_SRC, 'light-checker')
       .then((dataUrl) => {
         if (!active) return;
         const img = new Image();
@@ -125,25 +126,17 @@ export const AviatorPlane: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const pool = crashPoolStates.aviator;
-    if (pool?.roundId === roundId && pool.forcedReason) {
-      setNetworkAlertMsg(pool.forcedReason);
-    } else if (phase === 'waiting') {
-      setNetworkAlertMsg(null);
-    }
-  }, [crashPoolStates.aviator, roundId, phase]);
-
   // Poll authoritative crash engine from server (fallback identical epoch engine)
   useEffect(() => {
     let mounted = true;
     let useFallback = false;
 
-    const applyState = (st: AviatorServerState & { forcedReason?: string }) => {
+    const applyState = (st: AviatorServerState) => {
       if (!mounted) return;
       const clientNow = Date.now();
       const serverOffsetMs = (st.serverNow || clientNow) - clientNow;
       const prevRoundId = serverStateRef.current.roundId;
+      const wasCrashed = serverStateRef.current.phase === 'crashed';
 
       serverStateRef.current = {
         roundId: st.roundId,
@@ -151,16 +144,16 @@ export const AviatorPlane: React.FC = () => {
         phaseStartedAt: st.phaseStartedAt,
         serverOffsetMs,
         crashPoint: st.crashPoint || 0,
-        forcedReason: st.forcedReason
+        crashedAtMs:
+          st.phase === 'crashed'
+            ? wasCrashed
+              ? serverStateRef.current.crashedAtMs || performance.now()
+              : performance.now()
+            : 0
       };
 
       setRoundId(st.roundId);
       setPhase(st.phase);
-      if (st.forcedReason && st.phase === 'crashed') {
-        setNetworkAlertMsg(st.forcedReason);
-      } else if (st.phase === 'waiting') {
-        setNetworkAlertMsg(null);
-      }
       if (Array.isArray(st.crashHistory)) {
         setCrashHistory(st.crashHistory);
       }
@@ -417,9 +410,32 @@ export const AviatorPlane: React.FC = () => {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        const flyOff = Math.min(1, elapsedSec * 0.35);
+        const sinceCrash = serverStateRef.current.crashedAtMs
+          ? Math.max(0, (performance.now() - serverStateRef.current.crashedAtMs) / 1000)
+          : 0.35;
+
+        if (sinceCrash < 0.85) {
+          const ringR = (10 + sinceCrash * 120) * dpr;
+          const alpha = Math.max(0, 1 - sinceCrash / 0.85);
+          ctx.strokeStyle = `rgba(251, 146, 60, ${alpha * 0.85})`;
+          ctx.lineWidth = 3 * dpr;
+          ctx.beginPath();
+          ctx.arc(tipX, tipY - 6 * dpr, ringR, 0, Math.PI * 2);
+          ctx.stroke();
+
+          const flash = ctx.createRadialGradient(tipX, tipY - 6 * dpr, 2, tipX, tipY - 6 * dpr, ringR * 0.65);
+          flash.addColorStop(0, `rgba(254, 240, 138, ${alpha * 0.72})`);
+          flash.addColorStop(0.5, `rgba(225, 29, 72, ${alpha * 0.45})`);
+          flash.addColorStop(1, 'rgba(225, 29, 72, 0)');
+          ctx.fillStyle = flash;
+          ctx.beginPath();
+          ctx.arc(tipX, tipY - 6 * dpr, ringR * 0.65, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const flyOff = Math.min(1, sinceCrash * 1.1);
         ctx.save();
-        ctx.globalAlpha = Math.max(0.25, 1 - flyOff * 0.55);
+        ctx.globalAlpha = Math.max(0.2, 1 - flyOff * 0.6);
         drawPlaneSprite(
           ctx,
           dpr,
@@ -459,9 +475,7 @@ export const AviatorPlane: React.FC = () => {
           const forcedMult = Number(pool.forcedCrashMultiplier);
           st.phase = 'crashed';
           st.crashPoint = forcedMult;
-          if (pool.forcedReason) {
-            setNetworkAlertMsg(pool.forcedReason);
-          }
+          if (!st.crashedAtMs) st.crashedAtMs = performance.now();
           setPhase('crashed');
           setMultiplier(forcedMult);
           drawSpribeStage('crashed', elapsedSec);
@@ -627,16 +641,16 @@ export const AviatorPlane: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#0E0E10] text-white pb-16">
-      {/* Spribe Dark Header with Luxury Gold Brand Accent */}
-      <div className="bg-[#1B1B1E] border-b border-white/10 px-4 py-2.5 relative flex items-center justify-between min-h-[60px] shadow-md sticky top-0 z-30">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
+      {/* Header */}
+      <div className="bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 relative flex items-center justify-between min-h-[60px] shadow-xs sticky top-0 z-30">
         <button
           type="button"
           onClick={() => {
             setActiveTab('home');
             window.location.hash = '#/';
           }}
-          className="relative z-10 p-2 -ml-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 transition-all"
+          className="relative z-10 p-2 -ml-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 active:scale-95 transition-all"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
@@ -646,24 +660,26 @@ export const AviatorPlane: React.FC = () => {
           <Ewi777Logo height={50} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
-        <button
-          type="button"
-          onClick={() => showToast('Balance synced')}
-          className="relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0E0E10] border border-amber-500/35 text-xs font-black font-mono tabular-nums text-amber-300 active:scale-95"
-        >
-          <span>৳{user.balance.toFixed(2)}</span>
-          <RefreshCw className="w-3 h-3 text-amber-400" />
-        </button>
+        <div className="relative z-10 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => showToast('Balance synced')}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-50 border border-cyan-200 text-xs font-black font-mono tabular-nums text-cyan-800 active:scale-95"
+          >
+            <span>৳{user.balance.toFixed(0)}</span>
+            <RefreshCw className="w-3 h-3 text-cyan-600" />
+          </button>
+        </div>
       </div>
 
       <div className="p-3.5 space-y-3.5">
         {/* Title Strip */}
-        <div className="flex items-center justify-between bg-[#1B1B1E] rounded-2xl px-3.5 py-2 border border-white/10">
+        <div className="flex items-center justify-between bg-white rounded-2xl px-3.5 py-2 border border-slate-200 shadow-2xs">
           <div className="flex items-center gap-2">
             <AviatorPlaneLogo size={22} />
-            <span className="font-black text-xs tracking-wider italic text-white">AVIATOR · 3 SLOTS</span>
+            <span className="font-black text-xs tracking-wider italic text-slate-900">AVIATOR · 3 SLOTS</span>
           </div>
-          <span className="text-[11px] font-bold text-slate-400 font-mono tabular-nums">
+          <span className="text-[11px] font-bold text-cyan-700 font-mono tabular-nums">
             #{roundId}
           </span>
         </div>
@@ -675,10 +691,10 @@ export const AviatorPlane: React.FC = () => {
               key={`${m}-${idx}`}
               className={`px-2.5 py-1 rounded-full text-[11px] font-black font-mono tabular-nums flex-shrink-0 border ${
                 m >= 10
-                  ? 'bg-rose-500/20 border-rose-400/50 text-rose-300'
+                  ? 'bg-rose-100 border-rose-300 text-rose-900'
                   : m >= 2
-                  ? 'bg-purple-500/25 border-purple-400/50 text-purple-200'
-                  : 'bg-sky-500/20 border-sky-400/40 text-sky-200'
+                  ? 'bg-purple-100 border-purple-300 text-purple-900'
+                  : 'bg-sky-100 border-sky-300 text-sky-900'
               }`}
             >
               {m.toFixed(2)}x
@@ -687,14 +703,14 @@ export const AviatorPlane: React.FC = () => {
         </div>
 
         {/* Spribe #0E0E10 Sunburst Stage */}
-        <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#0E0E10] shadow-xl h-72">
+        <div className="relative rounded-2xl overflow-hidden border border-slate-300 bg-[#0E0E10] shadow-xl h-72">
           <canvas ref={canvasRef} className="w-full h-full block" />
 
           <div className="absolute top-3 left-3.5 right-3.5 flex items-center justify-between pointer-events-none">
             <div className="px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-[10px] font-mono text-slate-300">
               Round #{roundId.slice(-5)} · Provably Synced
             </div>
-            <div className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-400/40 text-amber-300 text-[10px] font-black font-mono">
+            <div className="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-[10px] font-black font-mono">
               MAX 10,000X
             </div>
           </div>
@@ -757,57 +773,51 @@ export const AviatorPlane: React.FC = () => {
                 <div className="text-5xl font-black font-mono tabular-nums text-[#E11D48]">
                   {multiplier.toFixed(2)}x
                 </div>
-                {networkAlertMsg && (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-950/90 border border-rose-500/60 text-rose-200 text-[11px] font-black shadow-lg">
-                    <WifiOff className="w-3.5 h-3.5 text-rose-400" />
-                    <span>{networkAlertMsg}</span>
-                  </div>
-                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* 3 Independent Simultaneous Trade Slots (Queue Next Round + Cancel before takeoff) */}
+        {/* 3 Independent Simultaneous Trade Slots */}
         <div className="space-y-2.5">
           {SLOT_IDS.map((slotId) => {
             const sl = slots[slotId];
             return (
               <div
                 key={slotId}
-                className="bg-[#1B1B1E] rounded-2xl p-3.5 border border-white/10 space-y-2.5"
+                className="bg-white rounded-2xl p-3.5 border border-slate-200 space-y-2.5 shadow-xs"
               >
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-black text-amber-300 tracking-wider uppercase">
+                  <span className="font-black text-cyan-700 tracking-wider uppercase">
                     Trade Slot #{slotId}
                   </span>
                   {sl.cashedOutInfo ? (
-                    <span className="text-emerald-400 font-black font-mono">
+                    <span className="text-emerald-700 font-black font-mono">
                       Won +৳{sl.cashedOutInfo.win.toFixed(2)} @ {sl.cashedOutInfo.mult.toFixed(2)}x
                     </span>
                   ) : sl.activeBetId ? (
-                    <span className="text-emerald-300 font-bold font-mono">
+                    <span className="text-emerald-700 font-bold font-mono">
                       Locked: ৳{sl.activeBetAmount.toFixed(0)}
                     </span>
                   ) : sl.queuedForNext ? (
-                    <span className="text-amber-300 font-black font-mono">
+                    <span className="text-amber-700 font-black font-mono">
                       Queued for Next Flight · ৳{(Number(sl.betAmount) || 0).toFixed(0)}
                     </span>
                   ) : (
-                    <span className="text-slate-400 font-semibold">Min ৳10</span>
+                    <span className="text-slate-500 font-semibold">Min ৳10</span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-[#0E0E10] border border-white/10 rounded-xl px-3 py-1.5 flex items-center justify-between">
-                    <span className="text-xs font-black text-amber-400">৳</span>
+                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex items-center justify-between">
+                    <span className="text-xs font-black text-cyan-700">৳</span>
                     <input
                       type="number"
                       min={10}
                       disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                       value={sl.betAmount}
                       onChange={(e) => updateSlot(slotId, { betAmount: e.target.value })}
-                      className="w-full bg-transparent text-center font-mono font-black text-sm text-white focus:outline-none tabular-nums disabled:opacity-60"
+                      className="w-full bg-transparent text-center font-mono font-black text-sm text-slate-900 focus:outline-none tabular-nums disabled:opacity-60"
                     />
                   </div>
                   <button
@@ -818,7 +828,7 @@ export const AviatorPlane: React.FC = () => {
                         betAmount: String(Math.max(10, Math.floor((Number(sl.betAmount) || 20) / 2)))
                       })
                     }
-                    className="min-h-[38px] px-3 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
+                    className="min-h-[38px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-xs active:scale-95 disabled:opacity-50"
                   >
                     1/2
                   </button>
@@ -830,7 +840,7 @@ export const AviatorPlane: React.FC = () => {
                         betAmount: String(Math.min(50000, (Number(sl.betAmount) || 10) * 2))
                       })
                     }
-                    className="min-h-[38px] px-3 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
+                    className="min-h-[38px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-xs active:scale-95 disabled:opacity-50"
                   >
                     2X
                   </button>
@@ -845,8 +855,8 @@ export const AviatorPlane: React.FC = () => {
                       onClick={() => updateSlot(slotId, { betAmount: String(chip) })}
                       className={`min-h-[34px] rounded-xl text-[11px] font-black font-mono tabular-nums border transition-all active:scale-95 disabled:opacity-50 ${
                         Number(sl.betAmount) === chip
-                          ? 'bg-[#D97706] border-amber-400 text-white'
-                          : 'bg-[#0E0E10] border-white/10 text-slate-200 hover:bg-white/10'
+                          ? 'bg-gradient-to-r from-[#0891B2] to-[#06B6D4] border-cyan-600 text-white'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                       }`}
                     >
                       ৳{chip}
@@ -854,15 +864,15 @@ export const AviatorPlane: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between bg-[#0E0E10] rounded-xl px-3 py-2 border border-white/10">
+                <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={sl.autoCashoutEnabled}
                       onChange={(e) => updateSlot(slotId, { autoCashoutEnabled: e.target.checked })}
-                      className="w-4 h-4 accent-[#22C55E]"
+                      className="w-4 h-4 accent-cyan-600"
                     />
-                    <span className="text-[11px] font-bold text-slate-200">Auto Cash Out</span>
+                    <span className="text-[11px] font-bold text-slate-700">Auto Cash Out</span>
                   </label>
 
                   <div className="flex items-center gap-1">
@@ -874,9 +884,9 @@ export const AviatorPlane: React.FC = () => {
                       disabled={!sl.autoCashoutEnabled}
                       value={sl.autoCashoutVal}
                       onChange={(e) => updateSlot(slotId, { autoCashoutVal: e.target.value })}
-                      className="w-16 bg-[#1B1B1E] border border-white/15 rounded-lg px-2 py-1 text-right font-mono font-black text-xs text-amber-300 focus:outline-none disabled:opacity-40"
+                      className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-right font-mono font-black text-xs text-cyan-800 focus:outline-none disabled:opacity-40"
                     />
-                    <span className="text-xs font-black text-slate-400">x</span>
+                    <span className="text-xs font-black text-slate-500">x</span>
                   </div>
                 </div>
 
@@ -884,7 +894,7 @@ export const AviatorPlane: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleCashOut(slotId)}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-gradient-to-r from-[#D97706] via-[#F59E0B] to-[#FBBF24] text-slate-950 font-black text-sm shadow-lg active:scale-97 transition-all flex items-center justify-center gap-2"
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-sm shadow-md active:scale-97 transition-all flex items-center justify-center gap-2"
                   >
                     <span>CASH OUT #{slotId}</span>
                     <span className="font-mono tabular-nums">
@@ -896,7 +906,7 @@ export const AviatorPlane: React.FC = () => {
                     type="button"
                     disabled={sl.isPlacing}
                     onClick={() => handleCancelActiveBet(slotId)}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/85 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all disabled:opacity-60"
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all disabled:opacity-60"
                   >
                     <X className="w-4 h-4" />
                     <span>CANCEL BET #{slotId} (REFUND ৳{sl.activeBetAmount.toFixed(0)})</span>
@@ -905,7 +915,7 @@ export const AviatorPlane: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handlePlaceBet(slotId)}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all"
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all"
                   >
                     <X className="w-4 h-4" />
                     <span>CANCEL QUEUED BET (#{slotId} · ৳{(Number(sl.betAmount) || 0).toFixed(0)})</span>
@@ -915,10 +925,10 @@ export const AviatorPlane: React.FC = () => {
                     type="button"
                     onClick={() => handlePlaceBet(slotId)}
                     disabled={sl.isPlacing}
-                    className={`w-full min-h-[46px] py-2.5 rounded-xl font-black text-sm shadow-lg active:scale-97 transition-all disabled:opacity-45 ${
+                    className={`w-full min-h-[46px] py-2.5 rounded-xl font-black text-sm shadow-md active:scale-97 transition-all disabled:opacity-45 ${
                       phase === 'waiting'
                         ? 'bg-[#22C55E] hover:bg-emerald-500 text-slate-950'
-                        : 'bg-amber-500/90 hover:bg-amber-500 text-slate-950'
+                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
                     }`}
                   >
                     {phase === 'waiting'
@@ -933,13 +943,13 @@ export const AviatorPlane: React.FC = () => {
 
         {/* Live Round Pool Bettors */}
         {livePoolBets.length > 0 && (
-          <div className="bg-[#1B1B1E] rounded-2xl p-4 border border-white/10 space-y-2.5">
-            <div className="flex items-center justify-between text-xs font-black text-slate-200">
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-black text-slate-800">
               <span className="flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-amber-400" />
+                <Users className="w-4 h-4 text-cyan-600" />
                 <span>Live Flight Players ({livePoolBets.length})</span>
               </span>
-              <span className="font-mono text-amber-300 tabular-nums">
+              <span className="font-mono text-cyan-700 tabular-nums">
                 Pool: ৳{(crashPoolStates.aviator?.totalPool || 0).toFixed(0)}
               </span>
             </div>
@@ -947,17 +957,17 @@ export const AviatorPlane: React.FC = () => {
               {livePoolBets.slice(0, 12).map((pb) => (
                 <div
                   key={pb.betId || pb.id}
-                  className="px-3 py-2 rounded-xl bg-[#0E0E10] border border-white/5 flex items-center justify-between text-xs"
+                  className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                 >
-                  <span className="font-bold text-slate-200 truncate">{pb.nickname}</span>
+                  <span className="font-bold text-slate-800 truncate">{pb.nickname}</span>
                   <div className="flex items-center gap-2 font-mono tabular-nums">
-                    <span className="text-slate-300">৳{pb.amount.toFixed(0)}</span>
+                    <span className="text-slate-600">৳{pb.amount.toFixed(0)}</span>
                     {pb.status === 'cashed_out' ? (
-                      <span className="text-emerald-400 font-black">{pb.cashoutMultiplier?.toFixed(2)}x</span>
+                      <span className="text-emerald-700 font-black">{pb.cashoutMultiplier?.toFixed(2)}x</span>
                     ) : pb.status === 'lost' ? (
-                      <span className="text-rose-400 font-bold">Lost</span>
+                      <span className="text-rose-600 font-bold">Lost</span>
                     ) : (
-                      <span className="text-amber-300 font-bold">In Flight</span>
+                      <span className="text-cyan-700 font-bold">In Flight</span>
                     )}
                   </div>
                 </div>
@@ -967,10 +977,10 @@ export const AviatorPlane: React.FC = () => {
         )}
 
         {/* My Aviator Bets History */}
-        <div className="bg-[#1B1B1E] rounded-2xl p-4 border border-white/10 space-y-3">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2">
-            <h3 className="font-black text-xs text-slate-200 flex items-center gap-1.5">
-              <History className="w-4 h-4 text-amber-400" />
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h3 className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+              <History className="w-4 h-4 text-cyan-600" />
               <span>My Aviator Bets ({myRecentBets.length})</span>
             </h3>
             <button
@@ -979,7 +989,7 @@ export const AviatorPlane: React.FC = () => {
                 setActiveTab('deposit');
                 window.location.hash = '#/deposit';
               }}
-              className="text-[11px] font-black text-amber-400 hover:underline"
+              className="text-[11px] font-black text-cyan-700 hover:underline"
             >
               + Deposit
             </button>
@@ -994,27 +1004,27 @@ export const AviatorPlane: React.FC = () => {
               {myRecentBets.slice(0, 15).map((b) => (
                 <div
                   key={b.id}
-                  className="p-3 rounded-xl bg-[#0E0E10] border border-white/10 flex items-center justify-between text-xs"
+                  className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                 >
                   <div>
-                    <div className="font-bold text-white flex items-center gap-2">
-                      <span className="font-mono text-amber-300">#{b.roundId.slice(-5)}</span>
-                      {b.slot ? <span className="text-[10px] text-slate-400">S{b.slot}</span> : null}
+                    <div className="font-bold text-slate-900 flex items-center gap-2">
+                      <span className="font-mono text-cyan-700">#{b.roundId.slice(-5)}</span>
+                      {b.slot ? <span className="text-[10px] text-slate-500">S{b.slot}</span> : null}
                       <span className="tabular-nums">Bet: ৳{b.amount.toFixed(2)}</span>
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">{b.time}</div>
                   </div>
                   <div className="text-right font-mono tabular-nums">
                     {b.status === 'cashed_out' ? (
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-black text-[11px]">
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-black text-[11px]">
                         {b.cashoutMultiplier?.toFixed(2)}x · +৳{b.winAmount?.toFixed(2)}
                       </span>
                     ) : b.status === 'lost' ? (
-                      <span className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 font-black text-[11px]">
+                      <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 font-black text-[11px]">
                         Crashed
                       </span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-black text-[11px]">
+                      <span className="px-2.5 py-1 rounded-lg bg-cyan-100 text-cyan-800 font-black text-[11px]">
                         Flying
                       </span>
                     )}

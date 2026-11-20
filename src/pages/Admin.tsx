@@ -43,7 +43,10 @@ import {
   Eye,
   EyeOff,
   Globe,
-  Clock
+  Clock,
+  ShieldAlert,
+  Wifi,
+  Rocket
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
@@ -111,7 +114,6 @@ export const Admin: React.FC = () => {
     adminSettings,
     isAdminLoggedIn,
     adminLogin,
-    verifyAdmin2FA,
     adminLogout,
     updateAdminSettings,
     depositRequests,
@@ -146,12 +148,10 @@ export const Admin: React.FC = () => {
     heartbeatAdminAccess
   } = useApp();
 
-  // Admin Login Form (2-Step Verification)
+  // Admin Login Form (Direct 1-Step Verification)
   const [adminPhone, setAdminPhone] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [showAdminPass, setShowAdminPass] = useState(false);
-  const [loginStep, setLoginStep] = useState<1 | 2>(1);
-  const [twoFactorCode, setTwoFactorCode] = useState('');
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -306,6 +306,10 @@ export const Admin: React.FC = () => {
   const [nagadNum, setNagadNum] = useState(adminSettings.nagadNumber);
   const [rocketNum, setRocketNum] = useState(adminSettings.rocketNumber || '');
   const [usdtAddr, setUsdtAddr] = useState(adminSettings.usdtAddress || '');
+  const [binancePayIdDraft, setBinancePayIdDraft] = useState(adminSettings.binancePayId || '');
+  const [firstDepBonusDraft, setFirstDepBonusDraft] = useState(
+    String(adminSettings.firstDepositBonusAmount ?? 50)
+  );
   const [minWd, setMinWd] = useState(String(Math.max(300, adminSettings.minWithdraw || 300)));
   const [referPct, setReferPct] = useState(String(adminSettings.referCommissionPercent ?? 10));
   const [depositInstr, setDepositInstr] = useState(adminSettings.depositInstructions);
@@ -363,6 +367,23 @@ export const Admin: React.FC = () => {
   const [adminLoginPhoneDraft, setAdminLoginPhoneDraft] = useState('');
   const [adminLoginPassDraft, setAdminLoginPassDraft] = useState('');
   const [ipSearch, setIpSearch] = useState('');
+  const [ipReport, setIpReport] = useState<{
+    multiIpGroups: Array<{
+      ip: string;
+      count: number;
+      hasVpn: boolean;
+      country: string;
+      isp: string;
+      users: any[];
+    }>;
+    vpnUsers: any[];
+    totalTrackedUsers: number;
+  } | null>(null);
+  const [isLoadingIpReport, setIsLoadingIpReport] = useState(false);
+  const [confirmBanIp, setConfirmBanIp] = useState<string | null>(null);
+  const [crashControlGame, setCrashControlGame] = useState<'aviator' | 'luckyjet' | 'plane'>('aviator');
+  const [crashLiveData, setCrashLiveData] = useState<{ state: any; pool: any } | null>(null);
+  const [isCrashForcing, setIsCrashForcing] = useState(false);
 
   const [depEnabled, setDepEnabled] = useState(adminSettings.depositEnabled !== false);
   const [wdEnabled, setWdEnabled] = useState(adminSettings.withdrawEnabled !== false);
@@ -385,6 +406,8 @@ export const Admin: React.FC = () => {
     nagad: adminSettings.nagadNumber,
     rocket: adminSettings.rocketNumber,
     usdt: adminSettings.usdtAddress,
+    binancePayId: adminSettings.binancePayId,
+    firstDepBonus: adminSettings.firstDepositBonusAmount,
     minWd: adminSettings.minWithdraw,
     refer: adminSettings.referCommissionPercent,
     instr: adminSettings.depositInstructions,
@@ -415,6 +438,8 @@ export const Admin: React.FC = () => {
     setNagadNum(adminSettings.nagadNumber || '');
     setRocketNum(adminSettings.rocketNumber || '');
     setUsdtAddr(adminSettings.usdtAddress || '');
+    setBinancePayIdDraft(adminSettings.binancePayId || '');
+    setFirstDepBonusDraft(String(adminSettings.firstDepositBonusAmount ?? 50));
     setMinWd(String(Math.max(300, adminSettings.minWithdraw || 300)));
     setReferPct(String(adminSettings.referCommissionPercent ?? 10));
     setDepositInstr(adminSettings.depositInstructions || '');
@@ -581,56 +606,223 @@ export const Admin: React.FC = () => {
     }
   }, [selectedChatUserId, supportThreads]);
 
+  const fetchIpSecurityReport = React.useCallback(async () => {
+    setIsLoadingIpReport(true);
+    try {
+      const res = await fetch(apiUrl('/api/security/ip-report'), { cache: 'no-store' });
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
+        const data = await res.json().catch(() => null);
+        if (data?.success) {
+          setIpReport({
+            multiIpGroups: Array.isArray(data.multiIpGroups) ? data.multiIpGroups : [],
+            vpnUsers: Array.isArray(data.vpnUsers) ? data.vpnUsers : [],
+            totalTrackedUsers: Number(data.totalTrackedUsers) || 0
+          });
+        }
+      }
+    } catch {
+      // fallback derived cleanly from allUsers below
+    } finally {
+      setIsLoadingIpReport(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn) return;
+    fetchIpSecurityReport();
+  }, [isAdminLoggedIn, fetchIpSecurityReport]);
+
+  useEffect(() => {
+    if (isAdminLoggedIn && (navTab === 'access_logs' || navTab === 'users')) {
+      fetchIpSecurityReport();
+    }
+  }, [isAdminLoggedIn, navTab, fetchIpSecurityReport]);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn || navTab !== 'wingo') return;
+    let active = true;
+    const pollCrash = async () => {
+      try {
+        const res = await fetch(apiUrl(`/api/crash/state?game=${crashControlGame}`), {
+          cache: 'no-store'
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (active && data?.success) {
+            setCrashLiveData({ state: data.state, pool: data.pool });
+          }
+        }
+      } catch {}
+    };
+    pollCrash();
+    const timer = setInterval(pollCrash, 1500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [isAdminLoggedIn, navTab, crashControlGame]);
+
+  const effectiveIpReport = useMemo(() => {
+    const ipBuckets = new Map<string, any[]>();
+    const vpnMap = new Map<string, any>();
+
+    const upsertUserIntoBuckets = (raw: any) => {
+      if (!raw || !raw.id) return;
+      const liveMatch = allUsers.find(
+        (x) => x.id === raw.id || (raw.uid && x.uid === raw.uid) || (raw.phone && x.phone === raw.phone)
+      );
+      const merged = liveMatch ? { ...raw, ...liveMatch } : raw;
+      const primaryIp = String(merged.lastIp || merged.registeredIp || '').trim();
+      const regIp = String(merged.registeredIp || '').trim();
+      const summary = {
+        id: merged.id,
+        uid: merged.uid || 'N/A',
+        nickname: merged.nickname || 'Member',
+        phone: merged.phone || merged.email || '',
+        balance: Number(merged.balance) || 0,
+        registeredIp: regIp || primaryIp || 'Unknown',
+        lastIp: primaryIp || 'Unknown',
+        isVpn: Boolean(merged.isVpn || merged.vpnDetected),
+        vpnReason: merged.vpnReason || '',
+        ipCountry: merged.ipCountry || '',
+        ipIsp: merged.ipIsp || '',
+        isBanned: Boolean(merged.isBanned),
+        lastLogin: merged.lastLogin || ''
+      };
+      if (summary.isVpn) {
+        vpnMap.set(summary.id, summary);
+      }
+      const ips = new Set<string>();
+      if (primaryIp && primaryIp !== 'Unknown') ips.add(primaryIp);
+      if (regIp && regIp !== 'Unknown') ips.add(regIp);
+      ips.forEach((ipAddr) => {
+        const list = ipBuckets.get(ipAddr) || [];
+        if (!list.some((x) => x.id === summary.id)) {
+          list.push(summary);
+          ipBuckets.set(ipAddr, list);
+        }
+      });
+    };
+
+    allUsers.forEach(upsertUserIntoBuckets);
+    (ipReport?.vpnUsers || []).forEach(upsertUserIntoBuckets);
+    (ipReport?.multiIpGroups || []).forEach((g) => (g.users || []).forEach(upsertUserIntoBuckets));
+
+    const multiIpGroups = Array.from(ipBuckets.entries())
+      .filter(([, usersList]) => usersList.length >= 2)
+      .map(([ip, usersList]) => ({
+        ip,
+        count: usersList.length,
+        hasVpn: usersList.some((x) => x.isVpn),
+        country: usersList.find((x) => x.ipCountry)?.ipCountry || '',
+        isp: usersList.find((x) => x.ipIsp)?.ipIsp || '',
+        users: usersList
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      ipBuckets,
+      multiIpGroups,
+      vpnUsers: Array.from(vpnMap.values()),
+      totalTrackedUsers: Math.max(allUsers.length, ipReport?.totalTrackedUsers || 0)
+    };
+  }, [allUsers, ipReport]);
+
+  const getUserIpClusterCount = (u: Partial<User>): number => {
+    const ips = [u.lastIp, u.registeredIp].filter((x): x is string => Boolean(x && x !== 'Unknown'));
+    let maxCount = 0;
+    ips.forEach((ipAddr) => {
+      const len = effectiveIpReport.ipBuckets.get(ipAddr)?.length || 0;
+      if (len > maxCount) maxCount = len;
+    });
+    return maxCount;
+  };
+
+  const handleInspectSecurityUser = (summary: any) => {
+    const found =
+      allUsers.find(
+        (u) =>
+          u.id === summary.id ||
+          (summary.uid && u.uid === summary.uid) ||
+          (summary.phone && u.phone === summary.phone)
+      ) || ({
+        ...summary,
+        safeBalance: 0,
+        vipLevel: 0,
+        exp: 0,
+        totalDeposited: 0,
+        inviteCode: '',
+        avatar: '',
+        isLoggedIn: false,
+        turnoverRequired: 0,
+        turnoverCompleted: 0
+      } as User);
+    setControlUser(found);
+    setTurnoverDraft(String(found.turnoverRequired || 0));
+  };
+
+  const handleBanAllOnIp = (ipAddr: string, clusterUsers: any[]) => {
+    const unbannedTargets = clusterUsers.filter((cu) => {
+      const live = allUsers.find((u) => u.id === cu.id || (cu.uid && u.uid === cu.uid));
+      return live ? !live.isBanned : !cu.isBanned;
+    });
+    if (unbannedTargets.length === 0) {
+      showToast(`All accounts on ${ipAddr} are already banned`);
+      setConfirmBanIp(null);
+      return;
+    }
+    unbannedTargets.forEach((cu) => {
+      toggleUserBan(cu.id, `Multi-account cluster detected on IP ${ipAddr}`);
+    });
+    setConfirmBanIp(null);
+    showToast(`Banned ${unbannedTargets.length} accounts sharing IP ${ipAddr}`);
+    setTimeout(() => fetchIpSecurityReport(), 400);
+  };
+
+  const handleForceCrashNow = async () => {
+    if (isCrashForcing) return;
+    setIsCrashForcing(true);
+    try {
+      const res = await fetch(apiUrl('/api/crash/admin-force'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game: crashControlGame })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showToast(data?.message || 'Unable to force crash right now');
+      } else {
+        setCrashLiveData({ state: data.state, pool: data.pool });
+        showToast(`${crashControlGame.toUpperCase()} crashed at ${Number(data.state?.crashPoint || 1).toFixed(2)}x`);
+      }
+    } catch {
+      showToast('Crash server unavailable');
+    } finally {
+      setIsCrashForcing(false);
+    }
+  };
+
   // =================== HANDLERS ===================
   const handleAdminLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isVerifyingLogin) return;
     setLoginError(null);
 
-    if (loginStep === 1) {
-      if (!adminPhone.trim() || !adminPass.trim()) {
-        setLoginError('Please enter both Admin Phone and Password');
-        return;
-      }
-      setIsVerifyingLogin(true);
-      try {
-        const res = await adminLogin(adminPhone.trim(), adminPass.trim());
-        if (!res.success) {
-          setLoginError(res.message);
-        } else if (res.requires2FA) {
-          setLoginStep(2);
-          setTwoFactorCode('');
-          showToast('Step 1 OK — Enter 8-digit Authenticator Code');
-        } else {
-          setAdminPhone('');
-          setAdminPass('');
-          setLoginStep(1);
-        }
-      } finally {
-        setIsVerifyingLogin(false);
-      }
-      return;
-    }
-
-    if (!twoFactorCode.trim()) {
-      setLoginError('Please enter the 2-Step Verification code');
+    if (!adminPhone.trim() || !adminPass.trim()) {
+      setLoginError('Please enter both Admin Phone and Password');
       return;
     }
     setIsVerifyingLogin(true);
     try {
-      const res = await verifyAdmin2FA(
-        adminPhone.trim(),
-        adminPass.trim(),
-        twoFactorCode.trim().toUpperCase()
-      );
+      const res = await adminLogin(adminPhone.trim(), adminPass.trim());
       if (!res.success) {
         setLoginError(res.message);
       } else {
         setLoginError(null);
         setAdminPhone('');
         setAdminPass('');
-        setTwoFactorCode('');
-        setLoginStep(1);
       }
     } finally {
       setIsVerifyingLogin(false);
@@ -946,20 +1138,20 @@ export const Admin: React.FC = () => {
   // =================== LOGIN VIEW ===================
   if (!isAdminLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#070E1B] text-slate-100 flex flex-col justify-center items-center p-4">
-        <div className="w-full max-w-md bg-[#0E172A] rounded-3xl p-6 shadow-2xl border border-slate-800 space-y-5">
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col justify-center items-center p-4">
+        <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-5">
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => setActiveTab(user.isLoggedIn ? 'home' : 'login')}
-              className="p-2 rounded-xl bg-slate-800/80 text-slate-300 hover:text-white active:scale-95"
+              className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 active:scale-95"
               title="Back"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[11px] font-bold text-emerald-400">Protected Route</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+              <span className="text-[11px] font-bold text-emerald-700">Protected Route</span>
             </div>
           </div>
 
@@ -967,106 +1159,61 @@ export const Admin: React.FC = () => {
             <div className="inline-flex mx-auto">
               <Ewi777Logo height={68} logoUrl={adminSettings.appLogoUrl} />
             </div>
-            <h1 className="font-black text-xl tracking-tight text-white">SUPER CONTROLLER</h1>
-            <p className="text-xs text-slate-400">
-              {loginStep === 1
-                ? 'Step 1 of 2 • Enter Administrator Phone & Password'
-                : 'Step 2 of 2 • Enter Live 30s 2FA Authenticator Code'}
+            <h1 className="font-black text-xl tracking-tight text-slate-900">SUPER CONTROLLER</h1>
+            <p className="text-xs text-slate-500">
+              Enter Administrator Phone &amp; Password to open EWI 777 Control Center
             </p>
           </div>
 
           <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
-            {loginStep === 1 ? (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Admin Mobile Number</span>
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={adminPhone}
-                    onChange={(e) => {
-                      setAdminPhone(e.target.value);
-                      if (loginError) setLoginError(null);
-                    }}
-                    placeholder="Enter Admin Phone"
-                    className="w-full px-4 py-3 rounded-xl bg-[#070E1B] border border-slate-700 text-sm font-mono font-bold text-white outline-none focus:border-cyan-400"
-                  />
-                </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-cyan-600" />
+                <span>Admin Mobile Number</span>
+              </label>
+              <input
+                type="tel"
+                required
+                value={adminPhone}
+                onChange={(e) => {
+                  setAdminPhone(e.target.value);
+                  if (loginError) setLoginError(null);
+                }}
+                placeholder="Enter Admin Phone"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono font-bold text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-500/20"
+              />
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Admin Password</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showAdminPass ? 'text' : 'password'}
-                      required
-                      value={adminPass}
-                      onChange={(e) => {
-                        setAdminPass(e.target.value);
-                        if (loginError) setLoginError(null);
-                      }}
-                      placeholder="Enter Admin Password"
-                      className="w-full px-4 pr-11 py-3 rounded-xl bg-[#070E1B] border border-slate-700 text-sm font-mono font-bold text-white outline-none focus:border-cyan-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowAdminPass((p) => !p)}
-                      aria-label={showAdminPass ? 'Hide password' : 'Show password'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
-                    >
-                      {showAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-700/50 text-xs text-emerald-300 font-bold flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>Step 1 Verified ({adminPhone})</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginStep(1);
-                      setLoginError(null);
-                    }}
-                    className="text-[11px] text-cyan-300 hover:underline"
-                  >
-                    Change
-                  </button>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                    <span>8-Character Authenticator Code (30s)</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    maxLength={8}
-                    value={twoFactorCode}
-                    onChange={(e) => {
-                      setTwoFactorCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
-                      if (loginError) setLoginError(null);
-                    }}
-                    placeholder="XXXXXXXX"
-                    className="w-full px-4 py-3.5 rounded-xl bg-[#070E1B] border border-amber-500/60 text-lg font-mono font-black tracking-[0.3em] text-center uppercase text-amber-300 outline-none focus:border-amber-400"
-                  />
-                </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-cyan-600" />
+                <span>Admin Password</span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showAdminPass ? 'text' : 'password'}
+                  required
+                  value={adminPass}
+                  onChange={(e) => {
+                    setAdminPass(e.target.value);
+                    if (loginError) setLoginError(null);
+                  }}
+                  placeholder="Enter Admin Password"
+                  className="w-full px-4 pr-11 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono font-bold text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-500/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPass((p) => !p)}
+                  aria-label={showAdminPass ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1"
+                >
+                  {showAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-            )}
+            </div>
 
             {loginError && (
-              <div className="p-3 rounded-xl bg-red-950/60 border border-red-700/60 text-xs font-bold text-red-300 text-center">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 text-center">
                 {loginError}
               </div>
             )}
@@ -1074,13 +1221,9 @@ export const Admin: React.FC = () => {
             <button
               type="submit"
               disabled={isVerifyingLogin}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-lg active:scale-98 transition-all hover:brightness-110 disabled:opacity-60"
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-sm shadow-sm active:scale-98 transition-all hover:brightness-105 disabled:opacity-60"
             >
-              {isVerifyingLogin
-                ? 'Verifying...'
-                : loginStep === 1
-                ? 'Continue to 2FA Verification →'
-                : 'Verify 2FA & Open Controller'}
+              {isVerifyingLogin ? 'Verifying...' : 'Open Super Controller'}
             </button>
           </form>
         </div>
@@ -1096,7 +1239,11 @@ export const Admin: React.FC = () => {
       (u.nickname || '').toLowerCase().includes(q) ||
       (u.phone || '').toLowerCase().includes(q) ||
       (u.email || '').toLowerCase().includes(q) ||
-      (u.uid || '').includes(q);
+      (u.uid || '').toLowerCase().includes(q) ||
+      (u.lastIp || '').toLowerCase().includes(q) ||
+      (u.registeredIp || '').toLowerCase().includes(q) ||
+      (u.ipCountry || '').toLowerCase().includes(q) ||
+      (u.ipIsp || '').toLowerCase().includes(q);
     if (!matchesSearch) return false;
     const role = u.role || (u.vipLevel > 0 ? 'VIP' : 'USER');
     if (userRoleFilter === 'ALL') return true;
@@ -1118,7 +1265,10 @@ export const Admin: React.FC = () => {
       !q ||
       (d.userPhone || '').toLowerCase().includes(q) ||
       (d.trxId || '').toLowerCase().includes(q) ||
-      (d.senderNumber || '').toLowerCase().includes(q);
+      (d.senderNumber || '').toLowerCase().includes(q) ||
+      (d.orderId || '').toLowerCase().includes(q) ||
+      (d.sessionId || '').toLowerCase().includes(q) ||
+      (d.id || '').toLowerCase().includes(q);
     if (!matchesQ) return false;
     if (depFilter === 'all') return true;
     return d.status === depFilter;
@@ -1189,20 +1339,20 @@ export const Admin: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070E1B] text-slate-100 flex flex-col md:flex-row font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col md:flex-row font-sans">
       {/* =================== LEFT FIXED SIDEBAR (DESKTOP) =================== */}
-      <aside className="hidden md:flex md:w-60 md:flex-col md:fixed md:inset-y-0 bg-[#0B1222] border-r border-slate-800/80 z-30">
+      <aside className="hidden md:flex md:w-60 md:flex-col md:fixed md:inset-y-0 bg-white border-r border-slate-200 z-30">
         {/* Brand Box */}
-        <div className="p-4 border-b border-slate-800/80">
+        <div className="p-4 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
             <div className="flex-shrink-0">
               <Ewi777Logo height={44} logoUrl={adminSettings.appLogoUrl} />
             </div>
             <div className="min-w-0">
-              <div className="text-[11px] font-black tracking-wider text-white truncate">
+              <div className="text-[11px] font-black tracking-wider text-slate-900 truncate">
                 CONTROLLER
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 mt-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 mt-0.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 <span>Synced Live</span>
               </div>
@@ -1220,8 +1370,8 @@ export const Admin: React.FC = () => {
                 onClick={() => setNavTab(item.id)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                   active
-                    ? 'bg-gradient-to-r from-blue-600/30 to-cyan-500/15 text-cyan-300 border border-blue-500/40 shadow-xs'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
+                    ? 'bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -1239,11 +1389,11 @@ export const Admin: React.FC = () => {
         </nav>
 
         {/* Footer Actions */}
-        <div className="p-3 border-t border-slate-800/80 space-y-2">
+        <div className="p-3 border-t border-slate-200 space-y-2">
           <button
             type="button"
             onClick={() => setActiveTab(user.isLoggedIn ? 'home' : 'login')}
-            className="w-full py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center gap-2"
+            className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to App</span>
@@ -1251,7 +1401,7 @@ export const Admin: React.FC = () => {
           <button
             type="button"
             onClick={adminLogout}
-            className="w-full py-2.5 px-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-700/40 text-rose-300 text-xs font-black flex items-center justify-center gap-2"
+            className="w-full py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-black flex items-center justify-center gap-2"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Logout</span>
@@ -1262,26 +1412,26 @@ export const Admin: React.FC = () => {
       {/* =================== MAIN CONTENT AREA =================== */}
       <div className="flex-1 md:pl-60 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-20 bg-[#0B1222]/95 backdrop-blur-md border-b border-slate-800/80 px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setActiveTab(user.isLoggedIn ? 'home' : 'login')}
-              className="md:hidden p-1.5 rounded-lg bg-slate-800 text-slate-300"
+              className="md:hidden p-1.5 rounded-lg bg-slate-100 text-slate-700"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <h1 className="text-base md:text-lg font-black tracking-wider bg-gradient-to-r from-amber-300 via-yellow-400 to-cyan-400 bg-clip-text text-transparent">
+            <h1 className="text-base md:text-lg font-black tracking-wider bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] bg-clip-text text-transparent">
               {tabTitles[navTab]}
             </h1>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">{nowStr}</span>
+            <span className="text-[11px] font-mono text-slate-500 hidden sm:inline">{nowStr}</span>
             <button
               type="button"
               onClick={adminLogout}
-              className="md:hidden px-2.5 py-1.5 rounded-lg bg-rose-950/70 text-rose-300 text-[11px] font-bold flex items-center gap-1"
+              className="md:hidden px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Logout</span>
@@ -1290,15 +1440,15 @@ export const Admin: React.FC = () => {
         </header>
 
         {/* Mobile Horizontal Nav Strip */}
-        <div className="md:hidden flex gap-1.5 overflow-x-auto px-3 py-2 bg-[#0B1222] border-b border-slate-800/80 no-scrollbar">
+        <div className="md:hidden flex gap-1.5 overflow-x-auto px-3 py-2 bg-white border-b border-slate-200 no-scrollbar">
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setNavTab(item.id)}
               className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold ${
                 navTab === item.id
-                  ? 'bg-blue-600/30 text-cyan-300 border border-blue-500/40'
-                  : 'bg-slate-800/50 text-slate-400'
+                  ? 'bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white'
+                  : 'bg-slate-100 text-slate-500'
               }`}
             >
               {item.icon}
@@ -1319,58 +1469,58 @@ export const Admin: React.FC = () => {
             <div className="space-y-5">
               {/* Row 1 KPIs */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">TOTAL USERS</div>
-                  <div className="text-2xl font-black text-cyan-400 font-mono mt-1">{allUsers.length}</div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">TOTAL USERS</div>
+                  <div className="text-2xl font-black text-cyan-700 font-mono mt-1">{allUsers.length}</div>
                 </div>
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">TOTAL GAMES</div>
-                  <div className="text-2xl font-black text-blue-400 font-mono mt-1">{gamesList.length}</div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">TOTAL GAMES</div>
+                  <div className="text-2xl font-black text-cyan-700 font-mono mt-1">{gamesList.length}</div>
                 </div>
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">TOTAL BALANCE</div>
-                  <div className="text-2xl font-black text-emerald-400 font-mono mt-1">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">TOTAL BALANCE</div>
+                  <div className="text-2xl font-black text-emerald-600 font-mono mt-1">
                     ৳{totalUserBalance.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">BANNED USERS</div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">BANNED USERS</div>
                   <div className="text-2xl font-black text-rose-500 font-mono mt-1">{bannedCount}</div>
                 </div>
               </div>
 
               {/* Row 2 KPIs */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">PENDING DEP</div>
-                  <div className="text-2xl font-black text-amber-400 font-mono mt-1">{pendingDepCount}</div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">PENDING DEP</div>
+                  <div className="text-2xl font-black text-cyan-700 font-mono mt-1">{pendingDepCount}</div>
                 </div>
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">PENDING WD</div>
-                  <div className="text-2xl font-black text-rose-400 font-mono mt-1">{pendingWdCount}</div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">PENDING WD</div>
+                  <div className="text-2xl font-black text-rose-600 font-mono mt-1">{pendingWdCount}</div>
                 </div>
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">GIFT CLAIMED ৳</div>
-                  <div className="text-2xl font-black text-amber-400 font-mono mt-1">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">GIFT CLAIMED ৳</div>
+                  <div className="text-2xl font-black text-cyan-700 font-mono mt-1">
                     ৳{giftClaimedTotal.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                  <div className="text-[10px] font-bold text-slate-400 tracking-wider">ACTIVE BANNERS</div>
-                  <div className="text-2xl font-black text-cyan-400 font-mono mt-1">{activeBannersCount}</div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[10px] font-bold text-slate-500 tracking-wider">ACTIVE BANNERS</div>
+                  <div className="text-2xl font-black text-cyan-700 font-mono mt-1">{activeBannersCount}</div>
                 </div>
               </div>
 
               {/* Row 3 Recent Activity Columns */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Recent Deposits */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black text-cyan-400 tracking-wider">↘ RECENT DEPOSITS</h3>
+                    <h3 className="text-xs font-black text-cyan-700 tracking-wider">↘ RECENT DEPOSITS</h3>
                     <button
                       type="button"
                       onClick={() => setNavTab('deposits')}
-                      className="text-[10px] text-slate-400 hover:text-white font-bold"
+                      className="text-[10px] text-slate-500 hover:text-slate-900 font-bold"
                     >
                       View All →
                     </button>
@@ -1382,21 +1532,21 @@ export const Admin: React.FC = () => {
                       depositRequests.slice(0, 8).map((d) => (
                         <div
                           key={d.id}
-                          className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800/80 flex items-center justify-between text-xs"
+                          className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                         >
                           <div>
-                            <div className="font-bold text-slate-200">{d.userPhone || d.senderNumber}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">
+                            <div className="font-bold text-slate-800">{d.userPhone || d.senderNumber}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">
                               ৳{d.amount.toFixed(2)} • {d.method}
                             </div>
                           </div>
                           <span
                             className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
                               d.status === 'approved'
-                                ? 'bg-emerald-500/20 text-emerald-400'
+                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                 : d.status === 'rejected'
-                                ? 'bg-rose-500/20 text-rose-400'
-                                : 'bg-amber-500/20 text-amber-400'
+                                ? 'bg-rose-50 border border-rose-200 text-rose-600'
+                                : 'bg-cyan-50 text-cyan-700'
                             }`}
                           >
                             {d.status === 'approved' ? 'COMPLETE' : d.status}
@@ -1408,13 +1558,13 @@ export const Admin: React.FC = () => {
                 </div>
 
                 {/* Recent Withdraws */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black text-rose-400 tracking-wider">↗ RECENT WITHDRAWS</h3>
+                    <h3 className="text-xs font-black text-rose-600 tracking-wider">↗ RECENT WITHDRAWS</h3>
                     <button
                       type="button"
                       onClick={() => setNavTab('withdraws')}
-                      className="text-[10px] text-slate-400 hover:text-white font-bold"
+                      className="text-[10px] text-slate-500 hover:text-slate-900 font-bold"
                     >
                       View All →
                     </button>
@@ -1426,23 +1576,23 @@ export const Admin: React.FC = () => {
                       withdrawRequests.slice(0, 8).map((w) => (
                         <div
                           key={w.id}
-                          className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800/80 flex items-center justify-between text-xs"
+                          className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                         >
                           <div>
-                            <div className="font-bold text-slate-200">{w.userName || w.userPhone}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">
+                            <div className="font-bold text-slate-800">{w.userName || w.userPhone}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">
                               ৳{w.amount.toFixed(2)} • {w.method}
                             </div>
                           </div>
                           <span
                             className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
                               w.status === 'completed'
-                                ? 'bg-emerald-500/20 text-emerald-400'
+                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                 : w.status === 'rejected'
-                                ? 'bg-rose-500/20 text-rose-400'
+                                ? 'bg-rose-50 border border-rose-200 text-rose-600'
                                 : w.status === 'processing'
-                                ? 'bg-cyan-500/20 text-cyan-300'
-                                : 'bg-blue-500/20 text-blue-400'
+                                ? 'bg-cyan-500/20 text-cyan-700'
+                                : 'bg-blue-500/20 text-cyan-700'
                             }`}
                           >
                             {w.status}
@@ -1454,13 +1604,13 @@ export const Admin: React.FC = () => {
                 </div>
 
                 {/* Recent Gift Claims */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black text-amber-400 tracking-wider">🎁 RECENT GIFT CLAIMS</h3>
+                    <h3 className="text-xs font-black text-cyan-700 tracking-wider">🎁 RECENT GIFT CLAIMS</h3>
                     <button
                       type="button"
                       onClick={() => setNavTab('giftcodes')}
-                      className="text-[10px] text-slate-400 hover:text-white font-bold"
+                      className="text-[10px] text-slate-500 hover:text-slate-900 font-bold"
                     >
                       View All →
                     </button>
@@ -1472,13 +1622,13 @@ export const Admin: React.FC = () => {
                       recentGiftClaims.map((rc, i) => (
                         <div
                           key={`${rc.code}_${i}`}
-                          className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800/80 flex items-center justify-between text-xs"
+                          className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                         >
                           <div>
-                            <div className="font-bold text-slate-200">{rc.nickname || rc.contact}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{rc.code}</div>
+                            <div className="font-bold text-slate-800">{rc.nickname || rc.contact}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">{rc.code}</div>
                           </div>
-                          <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-black font-mono">
+                          <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-700 text-[10px] font-black font-mono">
                             +৳{rc.amount.toFixed(2)}
                           </span>
                         </div>
@@ -1489,18 +1639,18 @@ export const Admin: React.FC = () => {
               </div>
 
               {/* Row 4: Live Admin Panel Visitor IP & Entry Duration Feed */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-cyan-400" />
-                    <h3 className="text-xs font-black text-cyan-400 tracking-wider uppercase">
+                    <Globe className="w-4 h-4 text-cyan-700" />
+                    <h3 className="text-xs font-black text-cyan-700 tracking-wider uppercase">
                       RECENT ADMIN VISITORS (IP & ENTRY TIME)
                     </h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setNavTab('access_logs')}
-                    className="text-[10px] text-slate-300 hover:text-cyan-300 font-bold px-2.5 py-1 rounded-lg bg-[#070E1B] border border-slate-700"
+                    className="text-[10px] text-slate-700 hover:text-cyan-700 font-bold px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200"
                   >
                     Open Full IP Monitor ({adminAccessLogs.length}) →
                   </button>
@@ -1514,13 +1664,13 @@ export const Admin: React.FC = () => {
                     adminAccessLogs.slice(0, 6).map((log) => (
                       <div
                         key={log.id}
-                        className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2 text-xs"
                       >
                         <div className="min-w-0">
-                          <div className="font-mono font-black text-white flex items-center gap-1.5">
-                            <span className="text-cyan-400">{log.ip}</span>
+                          <div className="font-mono font-black text-slate-900 flex items-center gap-1.5">
+                            <span className="text-cyan-700">{log.ip}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5">
+                          <div className="text-[10px] text-slate-500 font-mono truncate mt-0.5">
                             Entry: {log.enteredAt}
                           </div>
                         </div>
@@ -1528,17 +1678,17 @@ export const Admin: React.FC = () => {
                           <span
                             className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                               log.action === 'login_success'
-                                ? 'bg-emerald-500/20 text-emerald-400'
+                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                 : log.action === 'login_failed'
-                                ? 'bg-rose-500/20 text-rose-400'
+                                ? 'bg-rose-50 border border-rose-200 text-rose-600'
                                 : log.action === 'login_step1'
-                                ? 'bg-amber-500/20 text-amber-300'
-                                : 'bg-blue-500/20 text-cyan-300'
+                                ? 'bg-cyan-50 text-cyan-700'
+                                : 'bg-blue-500/20 text-cyan-700'
                             }`}
                           >
                             {log.action.replace('_', ' ')}
                           </span>
-                          <div className="text-[10px] text-amber-300 font-mono font-bold mt-1">
+                          <div className="text-[10px] text-cyan-700 font-mono font-bold mt-1">
                             {formatElapsedDuration(log.enteredAtMs, nowMs)} • Stay {formatStaySeconds(log.staySeconds, log.lastSeenAtMs, log.enteredAtMs)}
                           </div>
                         </div>
@@ -1554,7 +1704,7 @@ export const Admin: React.FC = () => {
           {navTab === 'users' && (
             <div className="space-y-4">
               {/* Filter & Actions Bar */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2.5 flex-1">
                   <div className="relative flex-1 min-w-[200px] max-w-xs">
                     <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1563,13 +1713,13 @@ export const Admin: React.FC = () => {
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
                       placeholder="Search user..."
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white outline-none focus:border-cyan-400"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 outline-none focus:border-cyan-400"
                     />
                   </div>
                   <select
                     value={userRoleFilter}
                     onChange={(e) => setUserRoleFilter(e.target.value as any)}
-                    className="px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-bold text-slate-200 outline-none"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none"
                   >
                     <option value="ALL">All Users</option>
                     <option value="USER">USER</option>
@@ -1577,23 +1727,23 @@ export const Admin: React.FC = () => {
                     <option value="ADMIN">ADMIN</option>
                     <option value="BANNED">BANNED</option>
                   </select>
-                  <span className="text-xs text-slate-400 font-mono">{filteredUsers.length} registered</span>
+                  <span className="text-xs text-slate-500 font-mono">{filteredUsers.length} registered</span>
                 </div>
 
                 <button
                   onClick={handleExportUsersCsv}
-                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-black text-white flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-black text-slate-900 flex items-center gap-1.5"
                 >
-                  <Download className="w-3.5 h-3.5 text-cyan-400" />
+                  <Download className="w-3.5 h-3.5 text-cyan-700" />
                   <span>EXPORT CSV</span>
                 </button>
               </div>
 
               {/* Users Table */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#070E1B] text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3">USER</th>
                         <th className="px-4 py-3">UID</th>
@@ -1606,7 +1756,7 @@ export const Admin: React.FC = () => {
                         <th className="px-4 py-3 text-right">ACTION</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-200">
                       {filteredUsers.length === 0 ? (
                         <tr>
                           <td colSpan={9} className="py-10 text-center text-slate-500">
@@ -1617,10 +1767,10 @@ export const Admin: React.FC = () => {
                         filteredUsers.map((u) => {
                           const role = u.role || (u.vipLevel > 0 ? 'VIP' : 'USER');
                           return (
-                            <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
+                            <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-[#D97706] text-white font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
                                     {u.avatar ? (
                                       <img src={u.avatar} alt="" className="w-full h-full object-cover" />
                                     ) : (
@@ -1628,21 +1778,40 @@ export const Admin: React.FC = () => {
                                     )}
                                   </div>
                                   <div>
-                                    <div className="font-bold text-white flex items-center gap-1.5">
+                                    <div className="font-bold text-slate-900 flex flex-wrap items-center gap-1.5">
                                       <span>{u.nickname}</span>
                                       {u.isBanned && (
                                         <span className="px-1.5 py-0.2 rounded bg-rose-600 text-[9px] text-white font-black">
                                           BANNED
                                         </span>
                                       )}
+                                      {u.isVpn && (
+                                        <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 border border-rose-500/50 text-[9px] text-rose-700 font-black">
+                                          VPN
+                                        </span>
+                                      )}
+                                      {(() => {
+                                        const ipCount = getUserIpClusterCount(u);
+                                        if (ipCount < 2) return null;
+                                        return (
+                                          <span className="px-1.5 py-0.2 rounded bg-cyan-50 border border-cyan-300 text-[9px] text-cyan-700 font-black tabular-nums">
+                                            {ipCount} IDs on IP
+                                          </span>
+                                        );
+                                      })()}
                                     </div>
-                                    <div className="text-[10px] text-slate-400 font-mono">
+                                    <div className="text-[10px] text-slate-500 font-mono">
                                       {u.phone || u.email || u.id}
+                                      {(u.lastIp || u.registeredIp) && (
+                                        <span className="ml-1.5 text-cyan-700/80">
+                                          · {u.lastIp || u.registeredIp}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 font-mono text-slate-300">{u.uid}</td>
+                              <td className="px-4 py-3 font-mono text-slate-700">{u.uid}</td>
                               <td className="px-4 py-3 font-mono">
                                 {u.loginPassword ? (
                                   <button
@@ -1651,7 +1820,7 @@ export const Admin: React.FC = () => {
                                       navigator.clipboard?.writeText(u.loginPassword || '').catch(() => {});
                                       showToast(`Copied password for ${u.uid}`);
                                     }}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-cyan-700 text-[11px] font-bold"
                                     title="Click to copy password"
                                   >
                                     <span>{u.loginPassword}</span>
@@ -1661,29 +1830,29 @@ export const Admin: React.FC = () => {
                                   <span className="text-slate-600">—</span>
                                 )}
                               </td>
-                              <td className="px-4 py-3 font-mono font-black text-cyan-400">
+                              <td className="px-4 py-3 font-mono font-black text-cyan-700">
                                 ৳{Number(u.balance || 0).toFixed(2)}
                               </td>
-                              <td className="px-4 py-3 font-mono font-bold text-emerald-400">
+                              <td className="px-4 py-3 font-mono font-bold text-emerald-600">
                                 ৳{Number(u.totalDeposited || 0).toFixed(2)}
                               </td>
-                              <td className="px-4 py-3 font-mono font-bold text-rose-400">
+                              <td className="px-4 py-3 font-mono font-bold text-rose-600">
                                 ৳{Number(u.totalWithdrawn || 0).toFixed(2)}
                               </td>
                               <td className="px-4 py-3">
                                 <span
                                   className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
                                     role === 'ADMIN'
-                                      ? 'bg-rose-500/20 text-rose-300'
+                                      ? 'bg-rose-50 border border-rose-200 text-rose-700'
                                       : role === 'VIP'
-                                      ? 'bg-amber-500/20 text-amber-300'
-                                      : 'bg-emerald-500/20 text-emerald-300'
+                                      ? 'bg-cyan-50 text-cyan-700'
+                                      : 'bg-emerald-50 border border-emerald-200 text-emerald-700'
                                   }`}
                                 >
                                   {role}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 font-mono text-[11px] text-slate-400">
+                              <td className="px-4 py-3 font-mono text-[11px] text-slate-500">
                                 {(u.createdAt || u.lastLogin || '').slice(0, 10) || '—'}
                               </td>
                               <td className="px-4 py-3 text-right">
@@ -1693,7 +1862,7 @@ export const Admin: React.FC = () => {
                                       setControlUser(u);
                                       setTurnoverDraft(String(u.turnoverRequired || 0));
                                     }}
-                                    className="p-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white active:scale-95"
+                                    className="p-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white active:scale-95"
                                     title="User Control"
                                   >
                                     <Sliders className="w-3.5 h-3.5" />
@@ -1728,7 +1897,7 @@ export const Admin: React.FC = () => {
           {/* ---------------- 3. GAMES MANAGEMENT ---------------- */}
           {navTab === 'games' && (
             <div className="space-y-4">
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="relative flex-1 max-w-xs">
                     <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1737,10 +1906,10 @@ export const Admin: React.FC = () => {
                       value={gameSearch}
                       onChange={(e) => setGameSearch(e.target.value)}
                       placeholder="Search game..."
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white outline-none focus:border-cyan-400"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 outline-none focus:border-cyan-400"
                     />
                   </div>
-                  <span className="text-xs text-slate-400 font-mono">{filteredGames.length} games</span>
+                  <span className="text-xs text-slate-500 font-mono">{filteredGames.length} games</span>
                 </div>
 
                 <button
@@ -1758,17 +1927,17 @@ export const Admin: React.FC = () => {
                       featured: false
                     })
                   }
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black flex items-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
                   <span>ADD GAME</span>
                 </button>
               </div>
 
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#070E1B] text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3">LOGO</th>
                         <th className="px-4 py-3">NAME</th>
@@ -1778,11 +1947,11 @@ export const Admin: React.FC = () => {
                         <th className="px-4 py-3 text-right">ACTIONS</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-200">
                       {filteredGames.map((g) => (
-                        <tr key={g.id} className="hover:bg-slate-800/30">
+                        <tr key={g.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#D97706]/30 to-blue-600/30 border border-slate-700 flex items-center justify-center overflow-hidden font-black text-xs text-white">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-50 to-teal-50 border border-slate-200 flex items-center justify-center overflow-hidden font-black text-xs text-slate-900">
                               {g.imageUrl ? (
                                 <img src={g.imageUrl} alt={g.title} className="w-full h-full object-cover" />
                               ) : (
@@ -1791,7 +1960,7 @@ export const Admin: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="font-bold text-white">{g.title}</div>
+                            <div className="font-bold text-slate-900">{g.title}</div>
                             <div className="text-[10px] text-slate-500 font-mono">/{g.slug}</div>
                           </td>
                           <td className="px-4 py-3">
@@ -1803,8 +1972,8 @@ export const Admin: React.FC = () => {
                             <span
                               className={`px-2.5 py-0.5 rounded-md text-[10px] font-black ${
                                 g.active
-                                  ? 'bg-emerald-500/20 text-emerald-400'
-                                  : 'bg-rose-500/20 text-rose-400'
+                                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                                  : 'bg-rose-50 border border-rose-200 text-rose-600'
                               }`}
                             >
                               {g.active ? 'LIVE' : 'OFFLINE'}
@@ -1812,7 +1981,7 @@ export const Admin: React.FC = () => {
                           </td>
                           <td className="px-4 py-3">
                             {g.featured ? (
-                              <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-black">
+                              <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-700 text-[10px] font-black">
                                 ★ FEATURED
                               </span>
                             ) : (
@@ -1823,14 +1992,14 @@ export const Admin: React.FC = () => {
                             <div className="inline-flex items-center gap-1.5">
                               <button
                                 onClick={() => setHtmlModalGame(g)}
-                                className="p-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white"
+                                className="p-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white"
                                 title="View HTML Source"
                               >
                                 <Code2 className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setEditGameModal({ ...g })}
-                                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+                                className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
                                 title="Edit Game"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -1845,8 +2014,8 @@ export const Admin: React.FC = () => {
                                 }}
                                 className={`p-2 rounded-lg ${
                                   g.featured
-                                    ? 'bg-amber-500/25 text-amber-300'
-                                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                                    ? 'bg-cyan-100 text-cyan-700'
+                                    : 'bg-slate-100 text-slate-500 hover:text-slate-900'
                                 }`}
                                 title="Toggle Featured"
                               >
@@ -1862,8 +2031,8 @@ export const Admin: React.FC = () => {
                                 }}
                                 className={`p-2 rounded-lg ${
                                   g.active
-                                    ? 'bg-emerald-600/25 text-emerald-300'
-                                    : 'bg-rose-600/25 text-rose-300'
+                                    ? 'bg-emerald-600/25 text-emerald-700'
+                                    : 'bg-rose-600/25 text-rose-700'
                                 }`}
                                 title="Toggle Live / Offline"
                               >
@@ -1875,7 +2044,7 @@ export const Admin: React.FC = () => {
                                   updateAdminSettings({ games: next });
                                   showToast('Game deleted');
                                 }}
-                                className="p-2 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-400"
+                                className="p-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
                                 title="Delete Game"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1895,9 +2064,9 @@ export const Admin: React.FC = () => {
           {navTab === 'wingo' && (
             <div className="space-y-4">
               {/* Top Sync Path Card */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-black text-cyan-400 tracking-wider">⚡ USER APP SYNC PATH</div>
-                <div className="text-[11px] text-slate-400">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="text-xs font-black text-cyan-700 tracking-wider">⚡ USER APP SYNC PATH</div>
+                <div className="text-[11px] text-slate-500">
                   Live market synchronization for WinGo 30s, 1m, 3m, and 5m. Set instant or queued outcomes below.
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1905,7 +2074,7 @@ export const Admin: React.FC = () => {
                     type="text"
                     value={wingoSyncPath}
                     onChange={(e) => setWingoSyncPath(e.target.value)}
-                    className="flex-1 min-w-[180px] px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-mono text-white"
+                    className="flex-1 min-w-[180px] px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900"
                   />
                   <button
                     type="button"
@@ -1913,7 +2082,7 @@ export const Admin: React.FC = () => {
                       updateAdminSettings({ wingoSyncPath });
                       showToast('Sync path saved!');
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black"
+                    className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black"
                   >
                     SAVE PATH
                   </button>
@@ -1930,14 +2099,14 @@ export const Admin: React.FC = () => {
                         showToast('Sync endpoint unreachable');
                       }
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-xs font-black"
+                    className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-500/40 text-emerald-700 text-xs font-black"
                   >
                     TEST WRITE
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowSyncDataModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-black"
+                    className="px-3.5 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-700 text-xs font-black"
                   >
                     VIEW DATA
                   </button>
@@ -1946,7 +2115,7 @@ export const Admin: React.FC = () => {
                   {['wingo/30s', 'wingo/1m', 'wingo/3m', 'wingo/5m', 'wingo/data'].map((p) => (
                     <span
                       key={p}
-                      className="px-2 py-0.5 rounded bg-blue-950/60 border border-blue-800/60 text-cyan-300"
+                      className="px-2 py-0.5 rounded bg-cyan-50 border border-blue-800/60 text-cyan-700"
                     >
                       {p}
                     </span>
@@ -1955,13 +2124,13 @@ export const Admin: React.FC = () => {
               </div>
 
               {/* Mode Selector Bar */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-black text-slate-400">WINGO TYPE:</span>
+                  <span className="text-xs font-black text-slate-500">WINGO TYPE:</span>
                   <select
                     value={selectedWingoMode}
                     onChange={(e) => setSelectedWingoMode(e.target.value as WinGoMode)}
-                    className="px-3 py-1.5 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-bold text-white outline-none"
+                    className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 outline-none"
                   >
                     <option value="30s">Wingo 30s</option>
                     <option value="1m">Wingo 1 Minute</option>
@@ -1971,29 +2140,29 @@ export const Admin: React.FC = () => {
                   <span
                     className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
                       forcedSetting === 'AUTO'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-amber-500/20 text-amber-400'
+                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                        : 'bg-cyan-50 text-cyan-700'
                     }`}
                   >
                     {forcedSetting === 'AUTO' ? 'AUTO' : `FORCED: ${forcedSetting}`}
                   </span>
                 </div>
-                <span className="text-xs font-mono text-slate-400">Tick: {tickStr}</span>
+                <span className="text-xs font-mono text-slate-500">Tick: {tickStr}</span>
               </div>
 
               {/* Dual Column: Force Result Now + Queue Next Result */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Left: Force Result Now */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-black text-white">⚡ FORCE RESULT NOW</div>
-                    <span className="text-[10px] text-slate-400">Instant Sync to App</span>
+                    <div className="text-xs font-black text-slate-900">⚡ FORCE RESULT NOW</div>
+                    <span className="text-[10px] text-slate-500">Instant Sync to App</span>
                   </div>
 
-                  <div className="bg-[#070E1B] border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">CURRENT RESULT</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">CURRENT RESULT</div>
                         <div
                           className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-black text-white shadow-lg ${getBallBg(
                             latestWingoResult?.number ?? 0
@@ -2003,11 +2172,11 @@ export const Admin: React.FC = () => {
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase">PERIOD ID</div>
-                        <div className="text-sm font-mono font-black text-cyan-400">{activePeriod}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">PERIOD ID</div>
+                        <div className="text-sm font-mono font-black text-cyan-700">{activePeriod}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">
                           NEXT IN:{' '}
-                          <span className="text-rose-400 font-black">
+                          <span className="text-rose-600 font-black">
                             {String(Math.floor(activeRem / 60)).padStart(2, '0')}:
                             {String(activeRem % 60).padStart(2, '0')}
                           </span>
@@ -2015,9 +2184,9 @@ export const Admin: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="px-3 py-2 rounded-xl bg-purple-950/40 border border-purple-700/40 text-center min-w-[72px]">
-                      <div className="text-[9px] font-black text-purple-300 uppercase">QUEUED</div>
-                      <div className="text-sm font-mono font-black text-white mt-0.5">
+                    <div className="px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 text-center min-w-[72px]">
+                      <div className="text-[9px] font-black text-purple-700 uppercase">QUEUED</div>
+                      <div className="text-sm font-mono font-black text-slate-900 mt-0.5">
                         {activeQueue.length > 0 ? activeQueue[0] : '—'}
                       </div>
                     </div>
@@ -2059,7 +2228,7 @@ export const Admin: React.FC = () => {
 
                   {/* Force Exact Number */}
                   <div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase mb-2">
                       FORCE EXACT NUMBER (OR RESET AUTO)
                     </div>
                     <div className="grid grid-cols-5 gap-2">
@@ -2069,8 +2238,8 @@ export const Admin: React.FC = () => {
                           onClick={() => handleForceOutcome(n)}
                           className={`py-2.5 rounded-xl font-mono font-black text-sm border transition-all ${
                             forcedSetting === n
-                              ? 'bg-blue-600 border-cyan-300 text-white shadow-md'
-                              : 'bg-[#070E1B] border-slate-700 text-slate-200 hover:border-cyan-500'
+                              ? 'bg-cyan-600 border-cyan-300 text-white shadow-md'
+                              : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-cyan-500'
                           }`}
                         >
                           {n}
@@ -2081,8 +2250,8 @@ export const Admin: React.FC = () => {
                       onClick={() => handleForceOutcome('AUTO')}
                       className={`mt-2 w-full py-2 rounded-xl font-black text-xs border transition-all ${
                         forcedSetting === 'AUTO'
-                          ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
-                          : 'bg-[#070E1B] border-slate-700 text-slate-300 hover:border-emerald-500'
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500'
                       }`}
                     >
                       ↺ RESET TO AUTO (LEAST-BET / LIVE ENGINE)
@@ -2091,10 +2260,10 @@ export const Admin: React.FC = () => {
                 </div>
 
                 {/* Right: Queue Next Result */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-black text-white">⏱ QUEUE NEXT RESULT</div>
-                    <span className="text-[10px] text-slate-400">Auto Applies on Next Shift</span>
+                    <div className="text-xs font-black text-slate-900">⏱ QUEUE NEXT RESULT</div>
+                    <span className="text-[10px] text-slate-500">Auto Applies on Next Shift</span>
                   </div>
 
                   <div className="grid grid-cols-5 gap-2">
@@ -2102,7 +2271,7 @@ export const Admin: React.FC = () => {
                       <button
                         key={n}
                         onClick={() => handleQueueNumber(n)}
-                        className="py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 hover:border-purple-400 font-mono font-black text-sm text-white active:scale-95"
+                        className="py-2.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-purple-400 font-mono font-black text-sm text-slate-900 active:scale-95"
                       >
                         {n}
                       </button>
@@ -2110,8 +2279,8 @@ export const Admin: React.FC = () => {
                   </div>
 
                   {activeQueue.length > 0 && (
-                    <div className="p-2.5 rounded-xl bg-purple-950/40 border border-purple-700/40 flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-purple-300 mr-1">QUEUE:</span>
+                    <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-purple-700 mr-1">QUEUE:</span>
                       {activeQueue.map((qNum, i) => (
                         <span
                           key={i}
@@ -2127,14 +2296,14 @@ export const Admin: React.FC = () => {
 
                   <button
                     onClick={handleClearQueue}
-                    className="w-full py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-700/50 text-rose-300 text-xs font-black"
+                    className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-black"
                   >
                     ✕ CLEAR QUEUE
                   </button>
 
                   <div className="space-y-3 pt-1">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">MODE</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">MODE</label>
                       <select
                         value={forcedSetting === 'AUTO' ? 'Auto' : 'Manual'}
                         onChange={(e) => {
@@ -2144,31 +2313,31 @@ export const Admin: React.FC = () => {
                             handleForceOutcome('GREEN');
                           }
                         }}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-bold text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900"
                       >
                         <option value="Auto">Auto</option>
                         <option value="Manual">Manual</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
                         PERIOD (sec)
                       </label>
                       <input
                         type="text"
                         readOnly
                         value={activeMarket?.durationSeconds || 60}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-mono font-bold text-slate-300"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-bold text-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">PATTERN</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">PATTERN</label>
                       <input
                         type="text"
                         value={wingoPattern}
                         onChange={(e) => setWingoPattern(e.target.value)}
                         onBlur={() => updateAdminSettings({ wingoPattern })}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-mono text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900"
                       />
                     </div>
                   </div>
@@ -2210,23 +2379,23 @@ export const Admin: React.FC = () => {
                 const smartLeastNum = getLeastBetWinningNumber(roundBets);
 
                 return (
-                  <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3.5">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-xs font-black text-cyan-400">
+                        <div className="text-xs font-black text-cyan-700">
                           LIVE BET POOL — WINGO {selectedWingoMode.toUpperCase()} (৳{totalRoundPool.toFixed(2)})
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
+                        <div className="text-[10px] text-slate-500 mt-0.5">
                           {roundBets.length} live bets across all mobile devices • Period {activePeriod}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black">
+                        <span className="px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-black">
                           {totalRoundPool === 0 ? 'Random (৳0 Pool)' : `Smart Least Target: #${smartLeastNum}`}
                         </span>
                         <button
                           onClick={() => syncServerDataNow()}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300"
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-cyan-700"
                           title="Sync Live Bets Now"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
@@ -2236,35 +2405,35 @@ export const Admin: React.FC = () => {
 
                     {/* Color Pool Breakdown */}
                     <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-                      <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-700/40 flex flex-col">
-                        <span className="text-[10px] font-bold text-emerald-300">GREEN ({greenBets.length})</span>
-                        <span className="font-black text-white text-sm mt-0.5">৳{greenAmt.toFixed(0)}</span>
+                      <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col">
+                        <span className="text-[10px] font-bold text-emerald-700">GREEN ({greenBets.length})</span>
+                        <span className="font-black text-slate-900 text-sm mt-0.5">৳{greenAmt.toFixed(0)}</span>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-purple-950/40 border border-purple-700/40 flex flex-col">
-                        <span className="text-[10px] font-bold text-purple-300">VIOLET ({violetBets.length})</span>
-                        <span className="font-black text-white text-sm mt-0.5">৳{violetAmt.toFixed(0)}</span>
+                      <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex flex-col">
+                        <span className="text-[10px] font-bold text-purple-700">VIOLET ({violetBets.length})</span>
+                        <span className="font-black text-slate-900 text-sm mt-0.5">৳{violetAmt.toFixed(0)}</span>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/40 flex flex-col">
-                        <span className="text-[10px] font-bold text-rose-300">RED ({redBets.length})</span>
-                        <span className="font-black text-white text-sm mt-0.5">৳{redAmt.toFixed(0)}</span>
+                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex flex-col">
+                        <span className="text-[10px] font-bold text-rose-700">RED ({redBets.length})</span>
+                        <span className="font-black text-slate-900 text-sm mt-0.5">৳{redAmt.toFixed(0)}</span>
                       </div>
                     </div>
 
                     {/* Big / Small Pool Breakdown */}
                     <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                      <div className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800 flex justify-between items-center">
-                        <span className="text-amber-300 font-bold">BIG 5-9 ({bigBets.length})</span>
-                        <span className="font-black text-white">৳{bigAmt.toFixed(0)}</span>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                        <span className="text-cyan-700 font-bold">BIG 5-9 ({bigBets.length})</span>
+                        <span className="font-black text-slate-900">৳{bigAmt.toFixed(0)}</span>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800 flex justify-between items-center">
-                        <span className="text-sky-300 font-bold">SMALL 0-4 ({smallBets.length})</span>
-                        <span className="font-black text-white">৳{smallAmt.toFixed(0)}</span>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                        <span className="text-cyan-700 font-bold">SMALL 0-4 ({smallBets.length})</span>
+                        <span className="font-black text-slate-900">৳{smallAmt.toFixed(0)}</span>
                       </div>
                     </div>
 
                     {/* Numbers 0-9 Breakdown (Click any number to Force Result) */}
                     <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">
                         NUMBERS 0-9 WAGERED (CLICK TO FORCE)
                       </div>
                       <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 text-center font-mono">
@@ -2274,14 +2443,14 @@ export const Admin: React.FC = () => {
                             onClick={() => handleForceOutcome(n)}
                             className={`p-2 rounded-xl border transition-all active:scale-95 ${
                               forcedSetting === n
-                                ? 'bg-blue-600/30 border-cyan-400'
+                                ? 'bg-cyan-50 border-cyan-400'
                                 : n === smartLeastNum && totalRoundPool > 0
-                                ? 'bg-amber-500/20 border-amber-400'
-                                : 'bg-[#070E1B] border-slate-800 hover:border-slate-600'
+                                ? 'bg-cyan-50 border-cyan-500'
+                                : 'bg-slate-50 border-slate-200 hover:border-slate-600'
                             }`}
                           >
-                            <div className="font-black text-white">{n}</div>
-                            <div className="text-[10px] text-cyan-300 font-bold">৳{numAmounts[n]?.amount || 0}</div>
+                            <div className="font-black text-slate-900">{n}</div>
+                            <div className="text-[10px] text-cyan-700 font-bold">৳{numAmounts[n]?.amount || 0}</div>
                             <div className="text-[9px] text-slate-500">{numAmounts[n]?.count || 0}x</div>
                           </button>
                         ))}
@@ -2290,23 +2459,23 @@ export const Admin: React.FC = () => {
 
                     {/* Live Mobile Bettors Feed */}
                     {roundBets.length > 0 && (
-                      <div className="pt-2 border-t border-slate-800 space-y-1.5 max-h-48 overflow-y-auto">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase">
+                      <div className="pt-2 border-t border-slate-200 space-y-1.5 max-h-48 overflow-y-auto">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">
                           ACTIVE MOBILE BETS ({roundBets.length})
                         </div>
                         {roundBets.map((rb) => (
                           <div
                             key={rb.id}
-                            className="px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-800/80 flex items-center justify-between text-xs"
+                            className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                           >
                             <div className="min-w-0">
-                              <span className="font-bold text-white">{rb.userPhone || rb.nickname || 'Player'}</span>
+                              <span className="font-bold text-slate-900">{rb.userPhone || rb.nickname || 'Player'}</span>
                               <span className="mx-1.5 text-slate-600">•</span>
-                              <span className="font-black uppercase text-cyan-400">
+                              <span className="font-black uppercase text-cyan-700">
                                 {rb.type}: {String(rb.value).toUpperCase()}
                               </span>
                             </div>
-                            <div className="font-mono font-black text-amber-300 flex-shrink-0">
+                            <div className="font-mono font-black text-cyan-700 flex-shrink-0">
                               ৳{rb.totalAmount.toFixed(0)}
                             </div>
                           </div>
@@ -2336,28 +2505,28 @@ export const Admin: React.FC = () => {
                 ];
 
                 return (
-                  <div className="bg-[#0E172A] border border-amber-500/35 rounded-2xl p-4 space-y-4">
+                  <div className="bg-white border border-cyan-200 rounded-2xl p-4 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <h3 className="text-xs font-black text-amber-400 tracking-wider">
+                        <h3 className="text-xs font-black text-cyan-700 tracking-wider">
                           4-MODE MARKET &amp; GAME ENGINE CONTROLLER
                         </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-slate-500 mt-0.5">
                           Control EWI K3, EWI 5D, Mines 777, Binary &amp; Gold Market, and Coin Flip live payout pools.
                         </p>
                       </div>
-                      <span className="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-[#070E1B] border border-slate-700 text-emerald-400">
+                      <span className="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-emerald-600">
                         Live Pool Sync ({Object.keys(marketPools || {}).length} active pools)
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">EWI K3 MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">EWI K3 MODE</label>
                         <select
                           value={ctrlK3}
                           onChange={(e) => setCtrlK3(e.target.value as MarketControlMode)}
-                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
                         >
                           {controlOptions.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
@@ -2365,11 +2534,11 @@ export const Admin: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">EWI 5D MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">EWI 5D MODE</label>
                         <select
                           value={ctrlD5}
                           onChange={(e) => setCtrlD5(e.target.value as MarketControlMode)}
-                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
                         >
                           {controlOptions.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
@@ -2377,11 +2546,11 @@ export const Admin: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">MINES 777 MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">MINES 777 MODE</label>
                         <select
                           value={ctrlMines}
                           onChange={(e) => setCtrlMines(e.target.value as MarketControlMode)}
-                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
                         >
                           {controlOptions.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
@@ -2389,11 +2558,11 @@ export const Admin: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">BINARY &amp; GOLD MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">BINARY &amp; GOLD MODE</label>
                         <select
                           value={ctrlBinary}
                           onChange={(e) => setCtrlBinary(e.target.value as MarketControlMode)}
-                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
                         >
                           {controlOptions.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
@@ -2401,11 +2570,11 @@ export const Admin: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">COIN FLIP MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">COIN FLIP MODE</label>
                         <select
                           value={ctrlCoinFlip}
                           onChange={(e) => setCtrlCoinFlip(e.target.value as MarketControlMode)}
-                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white font-bold"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
                         >
                           {controlOptions.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
@@ -2413,11 +2582,11 @@ export const Admin: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">MINES PATTERN</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">MINES PATTERN</label>
                         <select
                           value={minesPatternDraft}
                           onChange={(e) => setMinesPatternDraft(e.target.value as MinesPatternMode)}
-                          className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-amber-300 font-bold"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-cyan-700 font-bold"
                         >
                           <option value="RANDOM">RANDOM (Fair / 4-Mode)</option>
                           <option value="FIRST_WIN_SECOND_LOSS">1st Safe → 2nd Boom</option>
@@ -2427,15 +2596,15 @@ export const Admin: React.FC = () => {
                     </div>
 
                     {/* Binary Next Candle Bias + Live Preview */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-end bg-[#070E1B] p-3.5 rounded-2xl border border-slate-800">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-end bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">
                           BINARY NEXT CANDLE BIAS
                         </label>
                         <select
                           value={binaryBiasDraft}
                           onChange={(e) => setBinaryBiasDraft(e.target.value as 'AUTO' | 'BULL' | 'BEAR')}
-                          className="w-full px-3 py-2 rounded-xl bg-[#0E172A] border border-slate-700 text-white font-bold text-xs"
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 font-bold text-xs"
                         >
                           <option value="AUTO">AUTO (Natural Chart)</option>
                           <option value="BULL">FORCE BULL (Green Up)</option>
@@ -2444,20 +2613,20 @@ export const Admin: React.FC = () => {
                       </div>
 
                       {goldNext && (
-                        <div className="p-2.5 rounded-xl bg-[#0E172A] border border-amber-500/25 flex items-center justify-between text-xs">
+                        <div className="p-2.5 rounded-xl bg-white border border-amber-500/25 flex items-center justify-between text-xs">
                           <div>
-                            <div className="text-[10px] font-bold text-amber-300">
+                            <div className="text-[10px] font-bold text-cyan-700">
                               NEXT XAU/USD CANDLE ({goldNext.timeLabel} {formatOffsetLabel(tzOffsetDraft)})
                             </div>
-                            <div className="text-[11px] font-mono text-slate-300 mt-0.5">
+                            <div className="text-[11px] font-mono text-slate-700 mt-0.5">
                               O: {goldNext.open.toFixed(2)} → C: {goldNext.close.toFixed(2)}
                             </div>
                           </div>
                           <span
                             className={`px-2 py-1 rounded-lg font-black text-[11px] ${
                               goldNext.direction === 'BULL'
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : 'bg-rose-500/20 text-rose-400'
+                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                                : 'bg-rose-50 border border-rose-200 text-rose-600'
                             }`}
                           >
                             {goldNext.direction === 'BULL' ? '▲ BULL GREEN' : '▼ BEAR RED'} ({goldNext.secUntilNext}s)
@@ -2466,20 +2635,20 @@ export const Admin: React.FC = () => {
                       )}
 
                       {btcNext && (
-                        <div className="p-2.5 rounded-xl bg-[#0E172A] border border-cyan-500/25 flex items-center justify-between text-xs">
+                        <div className="p-2.5 rounded-xl bg-white border border-cyan-500/25 flex items-center justify-between text-xs">
                           <div>
-                            <div className="text-[10px] font-bold text-cyan-300">
+                            <div className="text-[10px] font-bold text-cyan-700">
                               NEXT BTC/USDT CANDLE ({btcNext.timeLabel})
                             </div>
-                            <div className="text-[11px] font-mono text-slate-300 mt-0.5">
+                            <div className="text-[11px] font-mono text-slate-700 mt-0.5">
                               O: {btcNext.open.toFixed(2)} → C: {btcNext.close.toFixed(2)}
                             </div>
                           </div>
                           <span
                             className={`px-2 py-1 rounded-lg font-black text-[11px] ${
                               btcNext.direction === 'BULL'
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : 'bg-rose-500/20 text-rose-400'
+                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                                : 'bg-rose-50 border border-rose-200 text-rose-600'
                             }`}
                           >
                             {btcNext.direction === 'BULL' ? '▲ BULL GREEN' : '▼ BEAR RED'}
@@ -2503,10 +2672,162 @@ export const Admin: React.FC = () => {
                           binaryNextCandleBias: binaryBiasDraft
                         })
                       }
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white font-black text-xs shadow-md"
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 text-white font-black text-xs shadow-md"
                     >
                       SAVE ENGINE CONTROLS &amp; APPLY LIVE
                     </button>
+                  </div>
+                );
+              })()}
+
+              {/* CRASH GAME CONTROLS (AVIATOR PLANE / LUCKY JET / PLANE) */}
+              {(() => {
+                const st = crashLiveData?.state;
+                const pl = crashLiveData?.pool;
+                const activeBets = Array.isArray(pl?.bets)
+                  ? pl.bets.filter((b: any) => b.status === 'active')
+                  : [];
+                const phase = st?.phase || 'waiting';
+                const crashHistory: number[] = Array.isArray(st?.crashHistory) ? st.crashHistory : [];
+                const gameTabs: Array<{ id: 'aviator' | 'luckyjet' | 'plane'; label: string }> = [
+                  { id: 'aviator', label: 'Aviator Plane' },
+                  { id: 'luckyjet', label: 'Lucky Jet' },
+                  { id: 'plane', label: 'PLANE' }
+                ];
+
+                return (
+                  <div className="bg-white border border-cyan-500/30 rounded-2xl p-4 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Rocket className="w-4 h-4 text-cyan-700" />
+                        <div>
+                          <h3 className="text-xs font-black text-cyan-700 tracking-wider">
+                            CRASH GAME LIVE CONTROLS
+                          </h3>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Monitor active bet pools and trigger instant round crash across Aviator Plane, Lucky Jet &amp; PLANE.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                        {gameTabs.map((gt) => (
+                          <button
+                            key={gt.id}
+                            type="button"
+                            onClick={() => setCrashControlGame(gt.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition-all ${
+                              crashControlGame === gt.id
+                                ? 'bg-cyan-500/20 text-cyan-700 border border-cyan-400/40'
+                                : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                          >
+                            {gt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center">
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">PHASE</div>
+                        <div
+                          className={`text-xs font-black mt-1 uppercase ${
+                            phase === 'flying'
+                              ? 'text-emerald-600'
+                              : phase === 'crashed'
+                              ? 'text-rose-600'
+                              : 'text-cyan-700'
+                          }`}
+                        >
+                          {phase}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">MULTIPLIER</div>
+                        <div className="text-sm font-mono font-black text-cyan-700 tabular-nums mt-0.5">
+                          {Number(st?.currentMultiplier || 1).toFixed(2)}x
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">ROUND POOL</div>
+                        <div className="text-sm font-mono font-black text-slate-900 tabular-nums mt-0.5">
+                          ৳{Number(pl?.totalPool || st?.totalPool || 0).toFixed(0)}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">PAID OUT</div>
+                        <div className="text-sm font-mono font-black text-cyan-700 tabular-nums mt-0.5">
+                          ৳{Number(pl?.totalPaidOut || st?.totalPaidOut || 0).toFixed(0)}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 col-span-2 sm:col-span-1">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">ACTIVE BETS</div>
+                        <div className="text-sm font-mono font-black text-emerald-600 tabular-nums mt-0.5">
+                          {activeBets.length}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-[11px] font-mono text-slate-500">
+                        Round ID: <span className="text-slate-800 font-bold">{st?.roundId || '—'}</span>
+                        {phase === 'waiting' && st?.countdownRemaining !== undefined && (
+                          <span className="ml-2 text-cyan-700">· Takeoff in {Number(st.countdownRemaining).toFixed(1)}s</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={phase !== 'flying' || isCrashForcing}
+                        onClick={handleForceCrashNow}
+                        className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:bg-slate-100 disabled:text-slate-500 text-white text-xs font-black whitespace-nowrap transition-all active:scale-95"
+                      >
+                        {isCrashForcing
+                          ? 'Crashing...'
+                          : phase === 'flying'
+                          ? `Force Crash ${crashControlGame.toUpperCase()} Now`
+                          : 'Waiting for Flight'}
+                      </button>
+                    </div>
+
+                    {crashHistory.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-500 mr-1">RECENT:</span>
+                        {crashHistory.slice(0, 10).map((m, idx) => (
+                          <span
+                            key={idx}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-black tabular-nums ${
+                              m >= 2
+                                ? 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/30'
+                                : 'bg-rose-500/15 text-rose-700 border border-rose-500/30'
+                            }`}
+                          >
+                            {Number(m).toFixed(2)}x
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {activeBets.length > 0 && (
+                      <div className="pt-2 border-t border-slate-200 space-y-1.5 max-h-40 overflow-y-auto">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">
+                          LIVE {crashControlGame.toUpperCase()} BETTORS ({activeBets.length})
+                        </div>
+                        {activeBets.map((b: any) => (
+                          <div
+                            key={b.id}
+                            className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
+                          >
+                            <span className="font-bold text-slate-800 truncate">
+                              {b.nickname || b.userId}
+                            </span>
+                            <span className="font-mono font-black text-cyan-700 tabular-nums">
+                              ৳{Number(b.amount || 0).toFixed(0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -2517,7 +2838,7 @@ export const Admin: React.FC = () => {
           {navTab === 'banners' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-xs text-slate-400 font-mono">
+                <span className="text-xs text-slate-500 font-mono">
                   {(adminSettings.banners || []).length} / 10 banners (Synced to All Phones)
                 </span>
                 <div className="flex items-center gap-2">
@@ -2528,7 +2849,7 @@ export const Admin: React.FC = () => {
                         bannersCustomized: false
                       });
                     }}
-                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold flex items-center gap-1.5"
+                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-cyan-700 text-xs font-bold flex items-center gap-1.5"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>RESTORE 3 DEFAULT</span>
@@ -2547,7 +2868,7 @@ export const Admin: React.FC = () => {
                         active: true
                       });
                     }}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black flex items-center gap-1.5"
                   >
                     <Plus className="w-4 h-4" />
                     <span>ADD BANNER</span>
@@ -2556,7 +2877,7 @@ export const Admin: React.FC = () => {
               </div>
 
               {(adminSettings.banners || []).length === 0 ? (
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-10 text-center text-xs text-slate-500">
+                <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-xs text-slate-500">
                   No custom banners added yet. Click "+ ADD BANNER" above.
                 </div>
               ) : (
@@ -2564,9 +2885,9 @@ export const Admin: React.FC = () => {
                   {(adminSettings.banners || []).map((b) => (
                     <div
                       key={b.id}
-                      className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden flex flex-col"
+                      className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col"
                     >
-                      <div className="h-36 bg-[#070E1B] relative">
+                      <div className="h-36 bg-slate-50 relative">
                         <img src={b.url} alt={b.title} className="w-full h-full object-cover" />
                         <span
                           className={`absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-black ${
@@ -2580,8 +2901,8 @@ export const Admin: React.FC = () => {
                       </div>
                       <div className="p-3.5 space-y-3">
                         <div>
-                          <div className="font-black text-sm text-white">{b.title}</div>
-                          <div className="text-[11px] text-slate-400 truncate">
+                          <div className="font-black text-sm text-slate-900">{b.title}</div>
+                          <div className="text-[11px] text-slate-500 truncate">
                             Link: {b.link || 'Home Default'}
                           </div>
                         </div>
@@ -2593,7 +2914,7 @@ export const Admin: React.FC = () => {
                               );
                               updateAdminSettings({ banners: next });
                             }}
-                            className="p-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30"
+                            className="p-2 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-600/30"
                             title="Enable / Disable"
                           >
                             <Power className="w-3.5 h-3.5" />
@@ -2609,7 +2930,7 @@ export const Admin: React.FC = () => {
                                 active: b.active !== false
                               })
                             }
-                            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700"
+                            className="p-2 rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200"
                             title="Edit Banner"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -2620,7 +2941,7 @@ export const Admin: React.FC = () => {
                                 banners: (adminSettings.banners || []).filter((x) => x.id !== b.id)
                               });
                             }}
-                            className="p-2 rounded-lg bg-rose-950/60 text-rose-400 hover:bg-rose-900"
+                            className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
                             title="Delete Banner"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2639,35 +2960,35 @@ export const Admin: React.FC = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Send Broadcast */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
-                  <h3 className="text-xs font-black text-cyan-400 tracking-wider">SEND BROADCAST</h3>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <h3 className="text-xs font-black text-cyan-700 tracking-wider">SEND BROADCAST</h3>
                   <div className="space-y-2.5">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">TITLE</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">TITLE</label>
                       <input
                         type="text"
                         value={brdTitle}
                         onChange={(e) => setBrdTitle(e.target.value)}
                         placeholder="Announcement title"
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">MESSAGE</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">MESSAGE</label>
                       <textarea
                         rows={4}
                         value={brdMessage}
                         onChange={(e) => setBrdMessage(e.target.value)}
                         placeholder="Write broadcast notice..."
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">TARGET</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">TARGET</label>
                       <select
                         value={brdTarget}
                         onChange={(e) => setBrdTarget(e.target.value as any)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-bold text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900"
                       >
                         <option value="all">All Users</option>
                         <option value="vip">VIP Users</option>
@@ -2684,7 +3005,7 @@ export const Admin: React.FC = () => {
                         setBrdTitle('');
                         setBrdMessage('');
                       }}
-                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black"
+                      className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black"
                     >
                       SEND NOTICE
                     </button>
@@ -2692,22 +3013,22 @@ export const Admin: React.FC = () => {
                 </div>
 
                 {/* Popup / Marquee */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-3">
-                  <h3 className="text-xs font-black text-cyan-400 tracking-wider">POPUP / MARQUEE ANNOUNCEMENT</h3>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <h3 className="text-xs font-black text-cyan-700 tracking-wider">POPUP / MARQUEE ANNOUNCEMENT</h3>
                   <div className="space-y-2.5">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
                         MARQUEE TEXT
                       </label>
                       <input
                         type="text"
                         value={marqueeDraft}
                         onChange={(e) => setMarqueeDraft(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
                         POPUP TITLE
                       </label>
                       <input
@@ -2715,16 +3036,16 @@ export const Admin: React.FC = () => {
                         value={popupTitleDraft}
                         onChange={(e) => setPopupTitleDraft(e.target.value)}
                         placeholder="ANNOUNCEMENT"
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
                         POPUP POSTER IMAGE (GALLERY UPLOAD OR URL)
                       </label>
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <label
-                          className={`px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer ${
+                          className={`px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer ${
                             isUploadingPopupImg ? 'opacity-50 pointer-events-none' : ''
                           }`}
                         >
@@ -2768,7 +3089,7 @@ export const Admin: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setPopupImageDraft('')}
-                            className="px-3 py-2 rounded-xl bg-rose-950/70 border border-rose-700 text-rose-300 text-xs font-bold hover:bg-rose-900"
+                            className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 border border-rose-700 text-rose-700 text-xs font-bold hover:bg-rose-100"
                           >
                             Clear Photo
                           </button>
@@ -2779,24 +3100,24 @@ export const Admin: React.FC = () => {
                         value={popupImageDraft}
                         onChange={(e) => setPopupImageDraft(e.target.value)}
                         placeholder="/assets/aistudio/image_d2e764e7.png or data:image..."
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                       />
                       {popupImageDraft && (
-                        <div className="mt-2 p-2 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center gap-3">
+                        <div className="mt-2 p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
                           <img
                             src={popupImageDraft}
                             alt="Popup Preview"
                             referrerPolicy="no-referrer"
-                            className="w-16 h-16 rounded-lg object-cover border border-slate-700"
+                            className="w-16 h-16 rounded-lg object-cover border border-slate-200"
                           />
-                          <div className="text-[11px] text-slate-300 font-semibold">
+                          <div className="text-[11px] text-slate-700 font-semibold">
                             Announcement poster preview ready
                           </div>
                         </div>
                       )}
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
                         POPUP MESSAGE
                       </label>
                       <textarea
@@ -2804,10 +3125,10 @@ export const Admin: React.FC = () => {
                         value={popupMsgDraft}
                         onChange={(e) => setPopupMsgDraft(e.target.value)}
                         placeholder="Write multiline announcement notice..."
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                       />
                     </div>
-                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                    <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer pt-1">
                       <input
                         type="checkbox"
                         checked={popupEnabledDraft}
@@ -2826,7 +3147,7 @@ export const Admin: React.FC = () => {
                           enableSystemPopup: popupEnabledDraft
                         });
                       }}
-                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black"
+                      className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black"
                     >
                       SAVE POPUP &amp; CONFIG
                     </button>
@@ -2835,8 +3156,8 @@ export const Admin: React.FC = () => {
               </div>
 
               {/* History */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 space-y-2.5">
-                <h3 className="text-xs font-black text-slate-400 tracking-wider">HISTORY</h3>
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5">
+                <h3 className="text-xs font-black text-slate-500 tracking-wider">HISTORY</h3>
                 {(adminSettings.broadcasts || []).length === 0 ? (
                   <div className="text-xs text-slate-500 py-4 text-center">No broadcast history yet</div>
                 ) : (
@@ -2844,18 +3165,18 @@ export const Admin: React.FC = () => {
                     {(adminSettings.broadcasts || []).map((b) => (
                       <div
                         key={b.id}
-                        className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center justify-between gap-3"
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3"
                       >
                         <div>
-                          <div className="font-bold text-xs text-white">{b.title}</div>
-                          <div className="text-[11px] text-slate-300">{b.message}</div>
+                          <div className="font-bold text-xs text-slate-900">{b.title}</div>
+                          <div className="text-[11px] text-slate-700">{b.message}</div>
                           <div className="text-[10px] text-slate-500 font-mono mt-0.5">
                             {b.time} • Target: {b.target}
                           </div>
                         </div>
                         <button
                           onClick={() => deleteBroadcastNotice(b.id)}
-                          className="p-2 rounded-lg bg-rose-950/60 text-rose-400 hover:bg-rose-900"
+                          className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -2870,7 +3191,7 @@ export const Admin: React.FC = () => {
           {/* ---------------- 7. DEPOSITS ---------------- */}
           {navTab === 'deposits' && (
             <div className="space-y-4">
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-3.5 space-y-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="relative flex-1 max-w-sm">
                     <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -2878,8 +3199,8 @@ export const Admin: React.FC = () => {
                       type="text"
                       value={depSearch}
                       onChange={(e) => setDepSearch(e.target.value)}
-                      placeholder="Search deposit..."
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                      placeholder="Search phone, TrxID, or Order ID..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                     />
                   </div>
                   <div className="flex items-center gap-2.5">
@@ -2889,12 +3210,12 @@ export const Admin: React.FC = () => {
                         syncEwiPayTransactions();
                         showToast('Synced live EWI-Pay transactions');
                       }}
-                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white text-xs font-black flex items-center gap-1.5"
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 text-white text-xs font-black flex items-center gap-1.5"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                       <span>Sync EWI-Pay Live</span>
                     </button>
-                    <span className="text-xs text-slate-400 font-mono">{filteredDeposits.length} requests</span>
+                    <span className="text-xs text-slate-500 font-mono">{filteredDeposits.length} requests</span>
                   </div>
                 </div>
 
@@ -2911,8 +3232,8 @@ export const Admin: React.FC = () => {
                       onClick={() => setDepFilter(tab.id)}
                       className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
                         depFilter === tab.id
-                          ? 'bg-blue-600/30 border-blue-500 text-cyan-300'
-                          : 'bg-[#070E1B] border-slate-800 text-slate-400 hover:text-white'
+                          ? 'bg-cyan-50 border-blue-500 text-cyan-700'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
                       }`}
                     >
                       {tab.label}
@@ -2921,10 +3242,10 @@ export const Admin: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#070E1B] text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3">USER</th>
                         <th className="px-4 py-3">AMOUNT</th>
@@ -2935,7 +3256,7 @@ export const Admin: React.FC = () => {
                         <th className="px-4 py-3 text-right">ACTION</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-200">
                       {filteredDeposits.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="py-10 text-center text-slate-500">
@@ -2944,27 +3265,32 @@ export const Admin: React.FC = () => {
                         </tr>
                       ) : (
                         filteredDeposits.map((d) => (
-                          <tr key={d.id} className="hover:bg-slate-800/30">
+                          <tr key={d.id} className="hover:bg-slate-50">
                             <td className="px-4 py-3">
-                              <div className="font-bold text-white">{d.userPhone}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">From: {d.senderNumber}</div>
+                              <div className="font-bold text-slate-900">{d.userPhone}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">From: {d.senderNumber}</div>
                             </td>
-                            <td className="px-4 py-3 font-mono font-black text-emerald-400">
+                            <td className="px-4 py-3 font-mono font-black text-emerald-600">
                               ৳{d.amount.toFixed(2)}
                             </td>
-                            <td className="px-4 py-3 font-bold text-slate-300">{d.method}</td>
-                            <td className="px-4 py-3 font-mono font-bold text-amber-400">{d.trxId}</td>
-                            <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{d.time}</td>
+                            <td className="px-4 py-3 font-bold text-slate-700">{d.method}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-cyan-700">
+                              <div>{d.trxId}</div>
+                              <div className="text-[10px] text-slate-500 font-normal">
+                                Order: {d.orderId || d.id}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{d.time}</td>
                             <td className="px-4 py-3">
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
                                   d.status === 'approved'
-                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                     : d.status === 'rejected'
-                                    ? 'bg-rose-500/20 text-rose-400'
+                                    ? 'bg-rose-50 border border-rose-200 text-rose-600'
                                     : d.status === 'processing'
-                                    ? 'bg-cyan-500/20 text-cyan-300'
-                                    : 'bg-amber-500/20 text-amber-400'
+                                    ? 'bg-cyan-500/20 text-cyan-700'
+                                    : 'bg-cyan-50 text-cyan-700'
                                 }`}
                               >
                                 {d.status === 'approved'
@@ -2976,7 +3302,7 @@ export const Admin: React.FC = () => {
                                   : 'Pending'}
                               </span>
                               {d.status === 'rejected' && (d.rejectionReason || d.adminNote) && (
-                                <div className="text-[10px] text-rose-300/90 mt-1 max-w-[180px] break-words">
+                                <div className="text-[10px] text-rose-600 mt-1 max-w-[180px] break-words">
                                   {d.rejectionReason || d.adminNote}
                                 </div>
                               )}
@@ -3016,7 +3342,7 @@ export const Admin: React.FC = () => {
           {/* ---------------- 8. WITHDRAWS ---------------- */}
           {navTab === 'withdraws' && (
             <div className="space-y-4">
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-1.5">
                   {([
                     { id: 'pending', label: 'Pending' },
@@ -3030,8 +3356,8 @@ export const Admin: React.FC = () => {
                       onClick={() => setWdFilter(tab.id)}
                       className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
                         wdFilter === tab.id
-                          ? 'bg-blue-600/30 border-blue-500 text-cyan-300'
-                          : 'bg-[#070E1B] border-slate-800 text-slate-400 hover:text-white'
+                          ? 'bg-cyan-50 border-blue-500 text-cyan-700'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
                       }`}
                     >
                       {tab.label}
@@ -3121,21 +3447,21 @@ export const Admin: React.FC = () => {
                         setIsSyncingWithdraws(false);
                       }
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 disabled:opacity-60 text-white text-xs font-black flex items-center gap-1.5 whitespace-nowrap"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 disabled:opacity-60 text-white text-xs font-black flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncingWithdraws ? 'animate-spin' : ''}`} />
                     <span>{isSyncingWithdraws ? 'Checking...' : 'Sync EWI-Pay Withdraws'}</span>
                   </button>
-                  <span className="text-xs text-slate-400 font-mono whitespace-nowrap">
+                  <span className="text-xs text-slate-500 font-mono whitespace-nowrap">
                     {filteredWithdraws.length} requests
                   </span>
                 </div>
               </div>
 
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#070E1B] text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3">USER</th>
                         <th className="px-4 py-3">AMOUNT</th>
@@ -3146,7 +3472,7 @@ export const Admin: React.FC = () => {
                         <th className="px-4 py-3 text-right">ACTION</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-200">
                       {filteredWithdraws.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="py-10 text-center text-slate-500">
@@ -3155,27 +3481,27 @@ export const Admin: React.FC = () => {
                         </tr>
                       ) : (
                         filteredWithdraws.map((w) => (
-                          <tr key={w.id} className="hover:bg-slate-800/30">
+                          <tr key={w.id} className="hover:bg-slate-50">
                             <td className="px-4 py-3">
-                              <div className="font-bold text-white">{w.userName}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">{w.userPhone}</div>
+                              <div className="font-bold text-slate-900">{w.userName}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">{w.userPhone}</div>
                             </td>
-                            <td className="px-4 py-3 font-mono font-black text-rose-400">
+                            <td className="px-4 py-3 font-mono font-black text-rose-600">
                               ৳{w.amount.toFixed(2)}
                             </td>
-                            <td className="px-4 py-3 font-bold text-slate-300">{w.method}</td>
-                            <td className="px-4 py-3 font-mono font-bold text-cyan-400">{w.number}</td>
-                            <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{w.time}</td>
+                            <td className="px-4 py-3 font-bold text-slate-700">{w.method}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-cyan-700">{w.number}</td>
+                            <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{w.time}</td>
                             <td className="px-4 py-3">
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
                                   w.status === 'completed'
-                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                     : w.status === 'rejected'
-                                    ? 'bg-rose-500/20 text-rose-400'
+                                    ? 'bg-rose-50 border border-rose-200 text-rose-600'
                                     : w.status === 'processing'
-                                    ? 'bg-cyan-500/20 text-cyan-300'
-                                    : 'bg-blue-500/20 text-blue-400'
+                                    ? 'bg-cyan-500/20 text-cyan-700'
+                                    : 'bg-blue-500/20 text-cyan-700'
                                 }`}
                               >
                                 {w.status === 'completed'
@@ -3187,17 +3513,17 @@ export const Admin: React.FC = () => {
                                   : 'Pending'}
                               </span>
                               {w.ewiPayWithdrawId && (
-                                <div className="text-[10px] font-mono text-cyan-300/90 mt-1">
+                                <div className="text-[10px] font-mono text-cyan-700/90 mt-1">
                                   EWI-Pay: {w.ewiPayWithdrawId}
                                 </div>
                               )}
                               {w.payoutTrxId && (
-                                <div className="text-[10px] font-mono text-emerald-300/95 mt-0.5">
+                                <div className="text-[10px] font-mono text-emerald-700/95 mt-0.5">
                                   TrxID: {w.payoutTrxId}
                                 </div>
                               )}
                               {w.status === 'rejected' && (w.rejectionReason || w.adminNote) && (
-                                <div className="text-[10px] text-rose-300/90 mt-1 max-w-[180px] break-words">
+                                <div className="text-[10px] text-rose-600 mt-1 max-w-[180px] break-words">
                                   {w.rejectionReason || w.adminNote}
                                 </div>
                               )}
@@ -3210,7 +3536,7 @@ export const Admin: React.FC = () => {
                                       type="button"
                                       onClick={() => updateWithdrawStatus(w.id, 'processing')}
                                       title="Send withdrawal request to EWI-Pay & mark Processing"
-                                      className="px-2 py-1 rounded-md bg-blue-600/30 border border-blue-500/40 text-cyan-300 text-[10px] font-black whitespace-nowrap"
+                                      className="px-2 py-1 rounded-md bg-cyan-50 border border-cyan-300 text-cyan-700 text-[10px] font-black whitespace-nowrap"
                                     >
                                       {w.status === 'processing' ? 'RETRY EWI-PAY' : 'PROC → EWI-PAY'}
                                     </button>
@@ -3218,7 +3544,7 @@ export const Admin: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => updateWithdrawStatus(w.id, 'completed')}
-                                    className="px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-black whitespace-nowrap"
+                                    className="px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/40 text-emerald-700 text-[10px] font-black whitespace-nowrap"
                                   >
                                     PAY DONE
                                   </button>
@@ -3233,7 +3559,7 @@ export const Admin: React.FC = () => {
                                         amount: w.amount
                                       });
                                     }}
-                                    className="px-2 py-1 rounded-md bg-rose-600/30 border border-rose-500/40 text-rose-300 text-[10px] font-black"
+                                    className="px-2 py-1 rounded-md bg-rose-600/30 border border-rose-500/40 text-rose-700 text-[10px] font-black"
                                   >
                                     REJECT
                                   </button>
@@ -3256,7 +3582,7 @@ export const Admin: React.FC = () => {
           {navTab === 'giftcodes' && (
             <div className="space-y-4">
               {/* Top Search & Create Buttons */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="relative flex-1 max-w-xs">
                     <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -3265,10 +3591,10 @@ export const Admin: React.FC = () => {
                       value={giftSearch}
                       onChange={(e) => setGiftSearch(e.target.value)}
                       placeholder="Search gift code..."
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                     />
                   </div>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <span className="text-xs text-slate-500 font-mono">
                     {adminSettings.activeGiftCodes.length} codes
                   </span>
                 </div>
@@ -3294,7 +3620,7 @@ export const Admin: React.FC = () => {
                         active: true
                       });
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white text-xs font-black flex items-center gap-1 shadow-sm"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-slate-900 text-xs font-black flex items-center gap-1 shadow-sm"
                   >
                     <Gift className="w-3.5 h-3.5" />
                     <span>+ 200% DEP BONUS</span>
@@ -3302,9 +3628,9 @@ export const Admin: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setBulkModalOpen(true)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-black flex items-center gap-1"
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-900 text-xs font-black flex items-center gap-1"
                   >
-                    <Layers className="w-3.5 h-3.5 text-purple-400" />
+                    <Layers className="w-3.5 h-3.5 text-purple-700" />
                     <span>+ BULK</span>
                   </button>
                   <button
@@ -3327,7 +3653,7 @@ export const Admin: React.FC = () => {
                         active: true
                       });
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1"
+                    className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black flex items-center gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>CREATE</span>
@@ -3347,21 +3673,21 @@ export const Admin: React.FC = () => {
                 const totalClaims = codes.reduce((s, c) => s + (c.claimedCount || 0), 0);
                 return (
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                    <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                      <div className="text-[10px] font-bold text-slate-400">TOTAL</div>
-                      <div className="text-2xl font-black text-purple-400 font-mono mt-1">{codes.length}</div>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                      <div className="text-[10px] font-bold text-slate-500">TOTAL</div>
+                      <div className="text-2xl font-black text-purple-700 font-mono mt-1">{codes.length}</div>
                     </div>
-                    <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                      <div className="text-[10px] font-bold text-slate-400">ACTIVE</div>
-                      <div className="text-2xl font-black text-emerald-400 font-mono mt-1">{activeCount}</div>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                      <div className="text-[10px] font-bold text-slate-500">ACTIVE</div>
+                      <div className="text-2xl font-black text-emerald-600 font-mono mt-1">{activeCount}</div>
                     </div>
-                    <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                      <div className="text-[10px] font-bold text-slate-400">CLAIMS</div>
-                      <div className="text-2xl font-black text-cyan-400 font-mono mt-1">{totalClaims}</div>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                      <div className="text-[10px] font-bold text-slate-500">CLAIMS</div>
+                      <div className="text-2xl font-black text-cyan-700 font-mono mt-1">{totalClaims}</div>
                     </div>
-                    <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4">
-                      <div className="text-[10px] font-bold text-slate-400">PAID ৳</div>
-                      <div className="text-2xl font-black text-amber-400 font-mono mt-1">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                      <div className="text-[10px] font-bold text-slate-500">PAID ৳</div>
+                      <div className="text-2xl font-black text-cyan-700 font-mono mt-1">
                         ৳{giftClaimedTotal.toFixed(2)}
                       </div>
                     </div>
@@ -3370,10 +3696,10 @@ export const Admin: React.FC = () => {
               })()}
 
               {/* Gift Codes Table */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#070E1B] text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3">CODE</th>
                         <th className="px-4 py-3">REWARD</th>
@@ -3384,7 +3710,7 @@ export const Admin: React.FC = () => {
                         <th className="px-4 py-3 text-right">ACTIONS</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-200">
                       {filteredGiftCodes.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="py-10 text-center text-slate-500">
@@ -3410,13 +3736,13 @@ export const Admin: React.FC = () => {
                             ? 'EXHAUSTED'
                             : 'ACTIVE';
                           return (
-                            <tr key={gc.code} className="hover:bg-slate-800/30">
+                            <tr key={gc.code} className="hover:bg-slate-50">
                               <td className="px-4 py-3">
-                                <div className="font-mono font-black text-white">{gc.code}</div>
+                                <div className="font-mono font-black text-slate-900">{gc.code}</div>
                                 <button
                                   type="button"
                                   onClick={() => copyTextSafely(gc.code, `Copied ${gc.code}`)}
-                                  className="text-[10px] text-cyan-400 hover:underline mt-0.5 flex items-center gap-1"
+                                  className="text-[10px] text-cyan-700 hover:underline mt-0.5 flex items-center gap-1"
                                 >
                                   <Copy className="w-2.5 h-2.5" />
                                   <span>Copy</span>
@@ -3424,33 +3750,33 @@ export const Admin: React.FC = () => {
                               </td>
                               <td className="px-4 py-3 font-mono font-black">
                                 {isDepPct ? (
-                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[11px]">
+                                  <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-700 text-[11px]">
                                     +{pctVal}% DEPOSIT
                                   </span>
                                 ) : (
-                                  <span className="text-cyan-400">৳{Number(gc.amount).toFixed(2)}</span>
+                                  <span className="text-cyan-700">৳{Number(gc.amount).toFixed(2)}</span>
                                 )}
                               </td>
                               <td className="px-4 py-3">
                                 <button
                                   type="button"
                                   onClick={() => setClaimHistoryCode(gc)}
-                                  className="px-2.5 py-1 rounded-lg bg-blue-600/25 hover:bg-blue-600/40 border border-blue-500/40 text-cyan-300 font-mono font-black text-[11px] flex items-center gap-1.5"
+                                  className="px-2.5 py-1 rounded-lg bg-cyan-600/25 hover:bg-cyan-600/40 border border-cyan-300 text-cyan-700 font-mono font-black text-[11px] flex items-center gap-1.5"
                                 >
                                   <Users className="w-3 h-3" />
                                   <span>{claimedDisplay} / {gc.maxClaims}</span>
                                 </button>
                               </td>
-                              <td className="px-4 py-3 font-mono text-[11px] text-slate-400">
+                              <td className="px-4 py-3 font-mono text-[11px] text-slate-500">
                                 {gc.expiresAt && gc.expiresAt > 0
                                   ? new Date(gc.expiresAt).toLocaleString()
                                   : 'No Expiry'}
                               </td>
-                              <td className="px-4 py-3 text-slate-300 max-w-[230px]">
-                                <div className="font-semibold text-white truncate">
+                              <td className="px-4 py-3 text-slate-700 max-w-[230px]">
+                                <div className="font-semibold text-slate-900 truncate">
                                   {gc.reason || gc.note || `Turnover: ৳${gc.turnoverAmount ?? gc.amount}`}
                                 </div>
-                                <div className="text-[10px] font-mono text-amber-300 mt-0.5 truncate">
+                                <div className="text-[10px] font-mono text-cyan-700 mt-0.5 truncate">
                                   User: {gc.targetUid ? `${targetUserMatch ? `${targetUserMatch.nickname} · ` : ''}${gc.targetUid}` : 'ALL USERS'}
                                 </div>
                               </td>
@@ -3458,10 +3784,10 @@ export const Admin: React.FC = () => {
                                 <span
                                   className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
                                     statusLabel === 'ACTIVE'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                       : statusLabel === 'INACTIVE'
-                                      ? 'bg-amber-500/20 text-amber-400'
-                                      : 'bg-rose-500/20 text-rose-400'
+                                      ? 'bg-cyan-50 text-cyan-700'
+                                      : 'bg-rose-50 border border-rose-200 text-rose-600'
                                   }`}
                                 >
                                   {statusLabel}
@@ -3472,7 +3798,7 @@ export const Admin: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setClaimHistoryCode(gc)}
-                                    className="px-2 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-black flex items-center gap-1"
+                                    className="px-2 py-1.5 rounded-lg bg-cyan-600 text-white text-[10px] font-black flex items-center gap-1"
                                     title="View Claimants"
                                   >
                                     <Eye className="w-3 h-3" />
@@ -3502,7 +3828,7 @@ export const Admin: React.FC = () => {
                                         active: gc.active !== false
                                       });
                                     }}
-                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+                                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
                                     title="Edit Gift Code"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
@@ -3518,8 +3844,8 @@ export const Admin: React.FC = () => {
                                     }}
                                     className={`p-1.5 rounded-lg ${
                                       gc.active !== false
-                                        ? 'bg-emerald-600/20 text-emerald-300'
-                                        : 'bg-amber-600/20 text-amber-300'
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-cyan-50 text-cyan-700'
                                     }`}
                                     title="Activate / Deactivate"
                                   >
@@ -3535,7 +3861,7 @@ export const Admin: React.FC = () => {
                                       });
                                       showToast(`Gift code ${gc.code} deleted`);
                                     }}
-                                    className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-400"
+                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
                                     title="Delete Gift Code"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -3558,33 +3884,33 @@ export const Admin: React.FC = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Local Payment Gateway */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-3">
-                  <h3 className="text-xs font-black text-cyan-400 tracking-wider">LOCAL PAYMENT GATEWAY</h3>
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+                  <h3 className="text-xs font-black text-cyan-700 tracking-wider">LOCAL PAYMENT GATEWAY</h3>
                   <div className="space-y-2.5 text-xs">
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         bKash Personal / Agent Number
                       </label>
                       <input
                         type="text"
                         value={bkashNum}
                         onChange={(e) => setBkashNum(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         Nagad Personal / Agent Number
                       </label>
                       <input
                         type="text"
                         value={nagadNum}
                         onChange={(e) => setNagadNum(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         Rocket / Upay Number
                       </label>
                       <input
@@ -3592,11 +3918,11 @@ export const Admin: React.FC = () => {
                         value={rocketNum}
                         onChange={(e) => setRocketNum(e.target.value)}
                         placeholder="01XXXXXXXXX"
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         USDT (TRC20 Wallet Address)
                       </label>
                       <input
@@ -3604,42 +3930,65 @@ export const Admin: React.FC = () => {
                         value={usdtAddr}
                         onChange={(e) => setUsdtAddr(e.target.value)}
                         placeholder="T..."
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                        Binance Pay ID (Merchant ID shown on Deposit page)
+                      </label>
+                      <input
+                        type="text"
+                        value={binancePayIdDraft}
+                        onChange={(e) => setBinancePayIdDraft(e.target.value)}
+                        placeholder="Enter merchant Binance Pay ID"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2.5">
                       <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">
                           Min Withdraw ৳
                         </label>
                         <input
                           type="number"
                           value={minWd}
                           onChange={(e) => setMinWd(e.target.value)}
-                          className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                          className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                         />
                       </div>
                       <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                          First Dep Bonus ৳
+                        </label>
+                        <input
+                          type="number"
+                          value={firstDepBonusDraft}
+                          onChange={(e) => setFirstDepBonusDraft(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">
                           Refer Commission %
                         </label>
                         <input
                           type="number"
                           value={referPct}
                           onChange={(e) => setReferPct(e.target.value)}
-                          className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                          className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         Deposit Instructions
                       </label>
                       <textarea
                         rows={2}
                         value={depositInstr}
                         onChange={(e) => setDepositInstr(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
                       />
                     </div>
                     <button
@@ -3649,12 +3998,14 @@ export const Admin: React.FC = () => {
                           nagadNumber: nagadNum.trim(),
                           rocketNumber: rocketNum.trim(),
                           usdtAddress: usdtAddr.trim(),
+                          binancePayId: binancePayIdDraft.trim(),
+                          firstDepositBonusAmount: Math.max(0, Number(firstDepBonusDraft) || 0),
                           minWithdraw: Math.max(300, Number(minWd) || 300),
                           referCommissionPercent: Math.max(0, Number(referPct) || 0),
                           depositInstructions: depositInstr.trim()
                         })
                       }
-                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs"
+                      className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xs"
                     >
                       SAVE GATEWAY NUMBERS
                     </button>
@@ -3662,27 +4013,27 @@ export const Admin: React.FC = () => {
                 </div>
 
                 {/* App Identity */}
-                <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-3">
-                  <h3 className="text-xs font-black text-cyan-400 tracking-wider">APP IDENTITY</h3>
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+                  <h3 className="text-xs font-black text-cyan-700 tracking-wider">APP IDENTITY</h3>
                   <div className="space-y-2.5 text-xs">
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">APP NAME</label>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">APP NAME</label>
                       <input
                         type="text"
                         value={appNameDraft}
                         onChange={(e) => setAppNameDraft(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-bold text-white"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">APP LOGO URL (Leave blank for Official Crown Logo)</label>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">APP LOGO URL (Leave blank for Official Crown Logo)</label>
                       <div className="flex gap-2">
                         <input
                           type="text"
                           value={appLogoDraft}
                           onChange={(e) => setAppLogoDraft(e.target.value)}
                           placeholder="Leave blank for Official EWI 777 Crown Logo"
-                          className="flex-1 px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                          className="flex-1 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                         />
                         <button
                           type="button"
@@ -3691,14 +4042,14 @@ export const Admin: React.FC = () => {
                             updateAdminSettings({ appLogoUrl: '' });
                             showToast('Restored Official Crown Logo everywhere!');
                           }}
-                          className="px-3 py-2 rounded-xl bg-amber-600/25 border border-amber-500/40 text-amber-300 font-black text-[11px] hover:bg-amber-600/40 whitespace-nowrap"
+                          className="px-3 py-2 rounded-xl bg-cyan-600/25 border border-cyan-300 text-cyan-700 font-black text-[11px] hover:bg-cyan-600/40 whitespace-nowrap"
                         >
                           Use Official Logo
                         </button>
                       </div>
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         SUPPORT LINK (Telegram)
                       </label>
                       <input
@@ -3706,18 +4057,18 @@ export const Admin: React.FC = () => {
                         value={supportLinkDraft}
                         onChange={(e) => setSupportLinkDraft(e.target.value)}
                         placeholder="https://t.me/..."
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         PHONE / WHATSAPP
                       </label>
                       <input
                         type="text"
                         value={supportPhoneDraft}
                         onChange={(e) => setSupportPhoneDraft(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                       />
                     </div>
                     <button
@@ -3729,7 +4080,7 @@ export const Admin: React.FC = () => {
                           supportPhone: supportPhoneDraft.trim()
                         })
                       }
-                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs mt-2"
+                      className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xs mt-2"
                     >
                       SAVE IDENTITY
                     </button>
@@ -3738,14 +4089,14 @@ export const Admin: React.FC = () => {
               </div>
 
               {/* EWI-Pay Deposit & Withdraw API Configuration */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="text-xs font-black text-cyan-400 tracking-wider flex items-center gap-1.5">
+                    <h3 className="text-xs font-black text-cyan-700 tracking-wider flex items-center gap-1.5">
                       <Globe className="w-4 h-4" />
                       <span>EWI-PAY DEPOSIT &amp; WITHDRAW API SETTINGS</span>
                     </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-500 mt-0.5">
                       Configure live bKash &amp; Nagad checkout, deposit verification, and auto-withdraw API endpoints.
                     </p>
                   </div>
@@ -3770,7 +4121,7 @@ export const Admin: React.FC = () => {
                         setEwiMemberStatusUrl(`${base}/api/v1/member/:siteUserId/status`);
                         showToast('Generated all endpoint URLs from Base URL');
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-[11px] font-black whitespace-nowrap hover:bg-cyan-600/30"
+                      className="px-3 py-1.5 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 text-[11px] font-black whitespace-nowrap hover:bg-cyan-600/30"
                     >
                       Fill From Base URL
                     </button>
@@ -3795,7 +4146,7 @@ export const Admin: React.FC = () => {
                         setEwiMemberStatusUrl(`${defBase}/api/v1/member/:siteUserId/status`);
                         showToast('Restored default EWI777 API endpoints (click Save to apply)');
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-300 text-[11px] font-black whitespace-nowrap hover:bg-amber-600/30"
+                      className="px-3 py-1.5 rounded-lg bg-cyan-50 border border-cyan-300 text-cyan-700 text-[11px] font-black whitespace-nowrap hover:bg-cyan-100"
                     >
                       Reset EWI777 Defaults
                     </button>
@@ -3804,27 +4155,27 @@ export const Admin: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">API Base URL</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">API Base URL</label>
                     <input
                       type="text"
                       value={ewiBaseUrl}
                       onChange={(e) => setEwiBaseUrl(e.target.value)}
                       placeholder="https://ewi-pay.vercel.app"
-                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Merchant Site Slug</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Merchant Site Slug</label>
                     <input
                       type="text"
                       value={ewiSiteSlug}
                       onChange={(e) => setEwiSiteSlug(e.target.value)}
                       placeholder="ewi777"
-                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       Gateway x-api-key
                     </label>
                     <div className="relative">
@@ -3833,12 +4184,12 @@ export const Admin: React.FC = () => {
                         value={ewiApiKey}
                         onChange={(e) => setEwiApiKey(e.target.value)}
                         placeholder="Leave blank to keep default key"
-                        className="w-full pl-3 pr-9 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                        className="w-full pl-3 pr-9 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                       />
                       <button
                         type="button"
                         onClick={() => setShowEwiApiKey((v) => !v)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900"
                         aria-label="Toggle API key visibility"
                       >
                         {showEwiApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -3846,7 +4197,7 @@ export const Admin: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       Checkout Status URL
                     </label>
                     <input
@@ -3854,132 +4205,132 @@ export const Admin: React.FC = () => {
                       value={ewiCheckoutStatusUrl}
                       onChange={(e) => setEwiCheckoutStatusUrl(e.target.value)}
                       placeholder="https://.../api/v1/checkout/status/:sessionId"
-                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
                   {/* bKash API Group */}
-                  <div className="p-3.5 rounded-xl bg-[#070E1B] border border-pink-500/25 space-y-2.5">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-pink-500/25 space-y-2.5">
                     <div className="text-[11px] font-black text-pink-400 tracking-wider uppercase">
                       bKash Dedicated API Endpoints
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         Create bKash Checkout (POST)
                       </label>
                       <input
                         type="text"
                         value={ewiBkashCheckoutUrl}
                         onChange={(e) => setEwiBkashCheckoutUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         Check bKash Deposit Status (GET)
                       </label>
                       <input
                         type="text"
                         value={ewiBkashDepositStatusUrl}
                         onChange={(e) => setEwiBkashDepositStatusUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         bKash Transactions List (GET)
                       </label>
                       <input
                         type="text"
                         value={ewiBkashTxUrl}
                         onChange={(e) => setEwiBkashTxUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         bKash Withdraw Request (POST)
                       </label>
                       <input
                         type="text"
                         value={ewiBkashWithdrawUrl}
                         onChange={(e) => setEwiBkashWithdrawUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         bKash Withdraw Status (GET)
                       </label>
                       <input
                         type="text"
                         value={ewiBkashWithdrawStatusUrl}
                         onChange={(e) => setEwiBkashWithdrawStatusUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                   </div>
 
                   {/* Nagad API Group */}
-                  <div className="p-3.5 rounded-xl bg-[#070E1B] border border-orange-500/25 space-y-2.5">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-orange-500/25 space-y-2.5">
                     <div className="text-[11px] font-black text-orange-400 tracking-wider uppercase">
                       Nagad Dedicated API Endpoints
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         Create Nagad Checkout (POST)
                       </label>
                       <input
                         type="text"
                         value={ewiNagadCheckoutUrl}
                         onChange={(e) => setEwiNagadCheckoutUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         Check Nagad Deposit Status (GET)
                       </label>
                       <input
                         type="text"
                         value={ewiNagadDepositStatusUrl}
                         onChange={(e) => setEwiNagadDepositStatusUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         Nagad Transactions List (GET)
                       </label>
                       <input
                         type="text"
                         value={ewiNagadTxUrl}
                         onChange={(e) => setEwiNagadTxUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         Nagad Withdraw Request (POST)
                       </label>
                       <input
                         type="text"
                         value={ewiNagadWithdrawUrl}
                         onChange={(e) => setEwiNagadWithdrawUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
                         Nagad Withdraw Status (GET)
                       </label>
                       <input
                         type="text"
                         value={ewiNagadWithdrawStatusUrl}
                         onChange={(e) => setEwiNagadWithdrawStatusUrl(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-white"
+                        className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-slate-900"
                       />
                     </div>
                   </div>
@@ -3987,7 +4338,7 @@ export const Admin: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       Unified Checkout URL (POST)
                     </label>
                     <input
@@ -3995,11 +4346,11 @@ export const Admin: React.FC = () => {
                       value={ewiUnifiedCheckoutUrl}
                       onChange={(e) => setEwiUnifiedCheckoutUrl(e.target.value)}
                       placeholder="https://ewi-pay.vercel.app/api/v1/checkout/create"
-                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       Member Status Sync URL (GET)
                     </label>
                     <input
@@ -4007,11 +4358,11 @@ export const Admin: React.FC = () => {
                       value={ewiMemberStatusUrl}
                       onChange={(e) => setEwiMemberStatusUrl(e.target.value)}
                       placeholder="https://ewi-pay.vercel.app/api/v1/member/:siteUserId/status"
-                      className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       2-Way HTTPS Webhook Receiver (X-EWI-Signature)
                     </label>
                     <div className="flex gap-1.5">
@@ -4019,7 +4370,7 @@ export const Admin: React.FC = () => {
                         type="text"
                         readOnly
                         value={`${window.location.origin}/api/ewi-pay/webhook`}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-emerald-500/40 font-mono text-emerald-300 text-[11px]"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-emerald-500/40 font-mono text-emerald-700 text-[11px]"
                       />
                       <button
                         type="button"
@@ -4027,7 +4378,7 @@ export const Admin: React.FC = () => {
                           navigator.clipboard?.writeText(`${window.location.origin}/api/ewi-pay/webhook`).catch(() => {});
                           showToast('Webhook URL copied!');
                         }}
-                        className="px-2.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-black whitespace-nowrap"
+                        className="px-2.5 py-2 rounded-xl bg-emerald-50 border border-emerald-500/40 text-emerald-700 text-[10px] font-black whitespace-nowrap"
                       >
                         COPY
                       </button>
@@ -4062,29 +4413,29 @@ export const Admin: React.FC = () => {
                     });
                     showToast('Saved EWI-Pay Deposit & Withdraw API Configuration!');
                   }}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white font-black text-xs"
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 text-white font-black text-xs"
                 >
                   SAVE EWI-PAY API CONFIG
                 </button>
               </div>
 
               {/* Secret Admin Panel Credentials */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-xs font-black text-amber-400 tracking-wider flex items-center gap-1.5">
+                  <h3 className="text-xs font-black text-cyan-700 tracking-wider flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4" />
                     <span>CHANGE ADMIN LOGIN CREDENTIALS</span>
                   </h3>
-                  <span className="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-[#070E1B] border border-slate-700 text-cyan-300">
+                  <span className="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-cyan-700">
                     Protected Route Active • SHA-256 Hashed
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   Leave blank to keep existing credentials. New values are hashed (SHA-256) before saving — zero plaintext numbers or passwords are ever exposed.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       New Admin Phone Number (Optional)
                     </label>
                     <input
@@ -4092,11 +4443,11 @@ export const Admin: React.FC = () => {
                       value={adminLoginPhoneDraft}
                       onChange={(e) => setAdminLoginPhoneDraft(e.target.value)}
                       placeholder="Enter new admin phone"
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       New Admin Password (Optional)
                     </label>
                     <input
@@ -4104,7 +4455,7 @@ export const Admin: React.FC = () => {
                       value={adminLoginPassDraft}
                       onChange={(e) => setAdminLoginPassDraft(e.target.value)}
                       placeholder="Enter new password (min 4 chars)"
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                     />
                   </div>
                 </div>
@@ -4132,25 +4483,25 @@ export const Admin: React.FC = () => {
                     setAdminLoginPhoneDraft('');
                     setAdminLoginPassDraft('');
                   }}
-                  className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs"
+                  className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xs"
                 >
                   SAVE ADMIN CREDENTIALS
                 </button>
               </div>
 
               {/* Global System Switches */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-4">
-                <h3 className="text-xs font-black text-amber-400 tracking-wider">GLOBAL SYSTEM SWITCHES</h3>
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+                <h3 className="text-xs font-black text-cyan-700 tracking-wider">GLOBAL SYSTEM SWITCHES</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Master Site Power</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Master Site Power</label>
                     <select
                       value={siteEnabledDraft ? 'ON' : 'OFF'}
                       onChange={(e) => setSiteEnabledDraft(e.target.value === 'ON')}
-                      className={`w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border font-black ${
+                      className={`w-full px-3 py-2.5 rounded-xl bg-slate-50 border font-black ${
                         siteEnabledDraft
-                          ? 'border-emerald-500/60 text-emerald-400'
-                          : 'border-rose-500/60 text-rose-400'
+                          ? 'border-emerald-500/60 text-emerald-600'
+                          : 'border-rose-500/60 text-rose-600'
                       }`}
                     >
                       <option value="ON">SITE ON (Live)</option>
@@ -4158,11 +4509,11 @@ export const Admin: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">System Timezone</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">System Timezone</label>
                     <select
                       value={String(tzOffsetDraft)}
                       onChange={(e) => setTzOffsetDraft(Number(e.target.value))}
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-bold text-amber-300"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-cyan-700"
                     >
                       <option value="360">UTC+6:00 Bangladesh (Dhaka)</option>
                       <option value="330">UTC+5:30 India (IST)</option>
@@ -4172,44 +4523,44 @@ export const Admin: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Deposit System</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Deposit System</label>
                     <select
                       value={depEnabled ? 'ENABLED' : 'DISABLED'}
                       onChange={(e) => setDepEnabled(e.target.value === 'ENABLED')}
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-bold text-white"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
                     >
                       <option value="ENABLED">ENABLED</option>
                       <option value="DISABLED">DISABLED</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Withdraw System</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Withdraw System</label>
                     <select
                       value={wdEnabled ? 'ENABLED' : 'DISABLED'}
                       onChange={(e) => setWdEnabled(e.target.value === 'ENABLED')}
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-bold text-white"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
                     >
                       <option value="ENABLED">ENABLED</option>
                       <option value="DISABLED">DISABLED</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Gift Code Claim</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Gift Code Claim</label>
                     <select
                       value={giftEnabled ? 'ENABLED' : 'DISABLED'}
                       onChange={(e) => setGiftEnabled(e.target.value === 'ENABLED')}
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-bold text-white"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
                     >
                       <option value="ENABLED">ENABLED</option>
                       <option value="DISABLED">DISABLED</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">User Registration</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">User Registration</label>
                     <select
                       value={regEnabled ? 'ENABLED' : 'DISABLED'}
                       onChange={(e) => setRegEnabled(e.target.value === 'ENABLED')}
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-bold text-white"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
                     >
                       <option value="ENABLED">ENABLED</option>
                       <option value="DISABLED">DISABLED</option>
@@ -4217,7 +4568,7 @@ export const Admin: React.FC = () => {
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 text-xs text-amber-300 font-bold cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-cyan-700 font-bold cursor-pointer">
                   <input
                     type="checkbox"
                     checked={maintMode}
@@ -4239,20 +4590,20 @@ export const Admin: React.FC = () => {
                       maintenanceMode: maintMode
                     })
                   }
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] hover:brightness-110 text-white font-black text-xs"
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 text-white font-black text-xs"
                 >
                   SAVE GLOBAL SYSTEM
                 </button>
               </div>
 
               {/* Password Recovery Tickets */}
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black text-amber-400 tracking-wider flex items-center gap-1.5">
+                  <h3 className="text-xs font-black text-cyan-700 tracking-wider flex items-center gap-1.5">
                     <KeyRound className="w-4 h-4" />
                     <span>PASSWORD RECOVERY REQUESTS</span>
                   </h3>
-                  <span className="text-[11px] font-mono text-slate-400">
+                  <span className="text-[11px] font-mono text-slate-500">
                     {pwRequests.filter((r) => r.status === 'pending').length} pending
                   </span>
                 </div>
@@ -4263,11 +4614,11 @@ export const Admin: React.FC = () => {
                     {pwRequests.map((req) => (
                       <div
                         key={req.id}
-                        className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs"
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs"
                       >
                         <div>
-                          <div className="font-mono font-bold text-white">{req.phone}</div>
-                          <div className="text-[10px] text-slate-400">{req.note} • {req.time}</div>
+                          <div className="font-mono font-bold text-slate-900">{req.phone}</div>
+                          <div className="text-[10px] text-slate-500">{req.note} • {req.time}</div>
                         </div>
                         {req.status === 'pending' ? (
                           <div className="flex items-center gap-2">
@@ -4278,7 +4629,7 @@ export const Admin: React.FC = () => {
                                 setTempPasswords((p) => ({ ...p, [req.id]: e.target.value }))
                               }
                               placeholder="Temp password"
-                              className="px-2.5 py-1.5 rounded-lg bg-[#0E172A] border border-slate-700 text-xs font-mono text-white w-32"
+                              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-900 w-32"
                             />
                             <button
                               onClick={() => handleResolvePwTicket(req.id, req.matchedPassword)}
@@ -4288,7 +4639,7 @@ export const Admin: React.FC = () => {
                             </button>
                           </div>
                         ) : (
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-black">
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-black">
                             RESOLVED ({req.tempPassword})
                           </span>
                         )}
@@ -4304,9 +4655,9 @@ export const Admin: React.FC = () => {
           {navTab === 'support' && (
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               {/* Threads Sidebar */}
-              <div className="md:col-span-4 bg-[#0E172A] border border-slate-800 rounded-2xl p-3 space-y-2 max-h-[640px] overflow-y-auto">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-slate-800">
-                  <span className="text-xs font-black text-cyan-400 tracking-wider">
+              <div className="md:col-span-4 bg-white border border-slate-200 rounded-2xl p-3 space-y-2 max-h-[640px] overflow-y-auto">
+                <div className="flex items-center justify-between px-2 py-1 border-b border-slate-200">
+                  <span className="text-xs font-black text-cyan-700 tracking-wider">
                     USER THREADS ({supportThreads.length})
                   </span>
                   {unansweredSupportCount > 0 && (
@@ -4329,26 +4680,26 @@ export const Admin: React.FC = () => {
                         onClick={() => setSelectedChatUserId(thread.userId)}
                         className={`w-full p-3 rounded-xl text-left border transition-all flex items-start gap-2.5 ${
                           active
-                            ? 'bg-blue-600/20 border-cyan-400/60'
-                            : 'bg-[#070E1B] border-slate-800 hover:border-slate-700'
+                            ? 'bg-cyan-600/20 border-cyan-400/60'
+                            : 'bg-slate-50 border-slate-200 hover:border-slate-200'
                         }`}
                       >
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#D97706] to-[#B45309] text-white font-black text-xs flex items-center justify-center flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#D97706] to-[#B45309] text-slate-900 font-black text-xs flex items-center justify-center flex-shrink-0">
                           {(thread.userNickname || 'M')[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1">
-                            <span className="text-xs font-black text-white truncate">
+                            <span className="text-xs font-black text-slate-900 truncate">
                               {thread.userNickname}
                             </span>
                             {thread.hasUnanswered && (
                               <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
                             )}
                           </div>
-                          <div className="text-[10px] font-mono text-slate-400 truncate">
+                          <div className="text-[10px] font-mono text-slate-500 truncate">
                             UID: {thread.userUid} {thread.userPhone ? `• ${thread.userPhone}` : ''}
                           </div>
-                          <div className="text-[11px] text-slate-300 truncate mt-1">
+                          <div className="text-[11px] text-slate-700 truncate mt-1">
                             {thread.lastMessage || 'New message'}
                           </div>
                         </div>
@@ -4359,7 +4710,7 @@ export const Admin: React.FC = () => {
               </div>
 
               {/* Conversation Panel */}
-              <div className="md:col-span-8 bg-[#0E172A] border border-slate-800 rounded-2xl p-4 flex flex-col min-h-[540px] max-h-[640px]">
+              <div className="md:col-span-8 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col min-h-[540px] max-h-[640px]">
                 {(() => {
                   const activeThread = supportThreads.find((t) => t.userId === selectedChatUserId);
                   if (!activeThread) {
@@ -4418,16 +4769,16 @@ export const Admin: React.FC = () => {
 
                   return (
                     <>
-                      <div className="pb-3 border-b border-slate-800 flex items-center justify-between">
+                      <div className="pb-3 border-b border-slate-200 flex items-center justify-between">
                         <div>
-                          <div className="font-black text-sm text-white">
+                          <div className="font-black text-sm text-slate-900">
                             {activeThread.userNickname}
                           </div>
-                          <div className="text-[11px] font-mono text-slate-400">
+                          <div className="text-[11px] font-mono text-slate-500">
                             UID: {activeThread.userUid} • Phone: {activeThread.userPhone || 'N/A'}
                           </div>
                         </div>
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-black">
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 text-[10px] font-black">
                           2-Way Live Sync
                         </span>
                       </div>
@@ -4441,8 +4792,8 @@ export const Admin: React.FC = () => {
                             <div
                               className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-xs space-y-2 ${
                                 m.sender === 'admin'
-                                  ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white'
-                                  : 'bg-[#070E1B] border border-slate-700 text-slate-200'
+                                  ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white'
+                                  : 'bg-slate-50 border border-slate-200 text-slate-800'
                               }`}
                             >
                               {m.imageUrl && (
@@ -4470,10 +4821,10 @@ export const Admin: React.FC = () => {
                         ))}
                       </div>
 
-                      <form onSubmit={(e) => handleSendAdminReply(e)} className="pt-3 border-t border-slate-800 flex items-center gap-2">
+                      <form onSubmit={(e) => handleSendAdminReply(e)} className="pt-3 border-t border-slate-200 flex items-center gap-2">
                         <label
                           title="Send photo from gallery"
-                          className={`w-10 h-10 rounded-xl bg-[#070E1B] border border-slate-700 text-cyan-400 flex items-center justify-center cursor-pointer hover:border-cyan-400 flex-shrink-0 ${
+                          className={`w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 text-cyan-700 flex items-center justify-center cursor-pointer hover:border-cyan-400 flex-shrink-0 ${
                             isAdminSendingPhoto ? 'opacity-50 pointer-events-none' : ''
                           }`}
                         >
@@ -4490,11 +4841,11 @@ export const Admin: React.FC = () => {
                           value={adminReplyText}
                           onChange={(e) => setAdminReplyText(e.target.value)}
                           placeholder="Type official admin reply..."
-                          className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                          className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-cyan-400"
                         />
                         <button
                           type="submit"
-                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs flex items-center gap-1.5"
+                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs flex items-center gap-1.5"
                         >
                           <Send className="w-3.5 h-3.5" />
                           <span>Send</span>
@@ -4506,10 +4857,56 @@ export const Admin: React.FC = () => {
               </div>
             </div>
           )}
-          {/* =================== VISITOR IP & ENTRY TIME MONITOR =================== */}
+          {/* =================== VISITOR IP, MULTI-ACCOUNT & VPN SECURITY MONITOR =================== */}
           {navTab === 'access_logs' && (
             <div className="space-y-4">
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+              {/* Security KPI Strip + Refresh */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-white border border-cyan-200 rounded-2xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-black text-cyan-700 uppercase tracking-wider">
+                      Same-IP Multi-Account Clusters
+                    </div>
+                    <div className="text-2xl font-mono font-black text-slate-900 tabular-nums mt-1">
+                      {effectiveIpReport.multiIpGroups.length}
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-cyan-600/15 text-cyan-700 flex items-center justify-center">
+                    <Users className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-white border border-rose-500/35 rounded-2xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-black text-rose-700 uppercase tracking-wider">
+                      VPN / Proxy Flagged Accounts
+                    </div>
+                    <div className="text-2xl font-mono font-black text-slate-900 tabular-nums mt-1">
+                      {effectiveIpReport.vpnUsers.length}
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-700 flex items-center justify-center">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-white border border-cyan-500/30 rounded-2xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-black text-cyan-700 uppercase tracking-wider">
+                      Tracked Accounts / IP Logs
+                    </div>
+                    <div className="text-2xl font-mono font-black text-slate-900 tabular-nums mt-1">
+                      {effectiveIpReport.totalTrackedUsers} / {adminAccessLogs.length}
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-cyan-500/15 text-cyan-700 flex items-center justify-center">
+                    <Wifi className="w-5 h-5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Search & Scan Controls */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-[220px]">
                   <div className="relative flex-1 max-w-sm">
                     <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -4517,31 +4914,287 @@ export const Admin: React.FC = () => {
                       type="text"
                       value={ipSearch}
                       onChange={(e) => setIpSearch(e.target.value)}
-                      placeholder="Search by IP, action or device..."
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white outline-none focus:border-cyan-400"
+                      placeholder="Search by IP, ISP, Country, UID or Phone..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 outline-none focus:border-cyan-400"
                     />
                   </div>
-                  <span className="text-xs font-mono text-slate-400">
-                    {adminAccessLogs.length} entries recorded
+                  <span className="text-xs font-mono text-slate-500 whitespace-nowrap">
+                    {adminAccessLogs.length} entries
                   </span>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => syncServerDataNow()}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1.5"
+                  disabled={isLoadingIpReport}
+                  onClick={() => {
+                    syncServerDataNow();
+                    fetchIpSecurityReport();
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black flex items-center gap-1.5 whitespace-nowrap disabled:opacity-60"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>REFRESH IP LOGS</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingIpReport ? 'animate-spin' : ''}`} />
+                  <span>REFRESH SECURITY SCAN</span>
                 </button>
               </div>
 
-              <div className="bg-[#0E172A] border border-slate-800 rounded-2xl overflow-hidden">
+              {/* 1. SAME-IP MULTI-ACCOUNT CLUSTERS */}
+              <div className="bg-white border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-black text-cyan-700 uppercase tracking-wider">
+                      Same-IP Multi-Account Clusters ({effectiveIpReport.multiIpGroups.length})
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      IP addresses used by 2 or more registered member accounts. Inspect individual accounts or ban an entire cluster.
+                    </p>
+                  </div>
+                </div>
+
+                {effectiveIpReport.multiIpGroups.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                    No multi-account IP clusters detected across tracked accounts.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {effectiveIpReport.multiIpGroups
+                      .filter((grp) => {
+                        const q = ipSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return (
+                          grp.ip.toLowerCase().includes(q) ||
+                          (grp.isp || '').toLowerCase().includes(q) ||
+                          (grp.country || '').toLowerCase().includes(q) ||
+                          grp.users.some(
+                            (m) =>
+                              (m.uid || '').toLowerCase().includes(q) ||
+                              (m.nickname || '').toLowerCase().includes(q) ||
+                              (m.phone || '').toLowerCase().includes(q)
+                          )
+                        );
+                      })
+                      .map((grp) => {
+                        const unbannedCount = grp.users.filter((cu) => {
+                          const live = allUsers.find((u) => u.id === cu.id || (cu.uid && u.uid === cu.uid));
+                          return live ? !live.isBanned : !cu.isBanned;
+                        }).length;
+                        return (
+                          <div
+                            key={grp.ip}
+                            className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="font-mono font-black text-cyan-700">{grp.ip}</span>
+                                <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-700 font-black text-[10px] tabular-nums">
+                                  {grp.count} accounts
+                                </span>
+                                {grp.hasVpn && (
+                                  <span className="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 font-black text-[10px]">
+                                    VPN DETECTED
+                                  </span>
+                                )}
+                                {(grp.isp || grp.country) && (
+                                  <span className="text-[11px] text-slate-500">
+                                    {[grp.isp, grp.country].filter(Boolean).join(' · ')}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {confirmBanIp === grp.ip ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBanAllOnIp(grp.ip, grp.users)}
+                                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black whitespace-nowrap"
+                                    >
+                                      Confirm Ban ({unbannedCount})
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmBanIp(null)}
+                                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold whitespace-nowrap"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={unbannedCount === 0}
+                                    onClick={() => setConfirmBanIp(grp.ip)}
+                                    className="px-3 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 disabled:bg-slate-100 disabled:text-slate-500 text-white text-[11px] font-black flex items-center gap-1 whitespace-nowrap"
+                                  >
+                                    <Ban className="w-3 h-3" />
+                                    <span>
+                                      {unbannedCount === 0 ? 'All Banned' : `Ban All on IP (${unbannedCount})`}
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {grp.users.map((m) => {
+                                const liveMatch = allUsers.find((u) => u.id === m.id || (m.uid && u.uid === m.uid));
+                                const isMemberBanned = Boolean(liveMatch ? liveMatch.isBanned : m.isBanned);
+                                const isMemberVpn = Boolean(liveMatch ? liveMatch.isVpn : m.isVpn);
+                                return (
+                                  <div
+                                    key={m.id}
+                                    className="px-3 py-2 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2 text-xs"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="font-bold text-slate-900 flex items-center gap-1.5 truncate">
+                                        <span className="truncate">{m.nickname}</span>
+                                        {isMemberVpn && (
+                                          <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-black">
+                                            VPN
+                                          </span>
+                                        )}
+                                        {isMemberBanned && (
+                                          <span className="px-1.5 py-0.2 rounded bg-rose-600 text-white text-[9px] font-black">
+                                            BANNED
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[10px] font-mono text-slate-500 truncate">
+                                        UID: {m.uid} · {m.phone || 'N/A'} · ৳{Number(m.balance || 0).toFixed(0)}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleInspectSecurityUser(m)}
+                                      className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-black flex-shrink-0 whitespace-nowrap"
+                                    >
+                                      Inspect
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. VPN / PROXY FLAGGED ACCOUNTS */}
+              <div className="bg-white border border-rose-500/30 rounded-2xl p-4 space-y-3">
+                <div>
+                  <h3 className="text-xs font-black text-rose-700 uppercase tracking-wider">
+                    VPN / Proxy Flagged Accounts ({effectiveIpReport.vpnUsers.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Members flagged for VPN, datacenter proxy, or Tor/relay traffic based on network heuristics.
+                  </p>
+                </div>
+
+                {effectiveIpReport.vpnUsers.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                    No VPN or proxy-flagged accounts detected right now.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <tr>
+                          <th className="px-3 py-2.5">MEMBER</th>
+                          <th className="px-3 py-2.5">IP &amp; NETWORK</th>
+                          <th className="px-3 py-2.5">DETECTION REASON</th>
+                          <th className="px-3 py-2.5 text-right">ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {effectiveIpReport.vpnUsers
+                          .filter((vu) => {
+                            const q = ipSearch.trim().toLowerCase();
+                            if (!q) return true;
+                            return (
+                              (vu.nickname || '').toLowerCase().includes(q) ||
+                              (vu.uid || '').toLowerCase().includes(q) ||
+                              (vu.phone || '').toLowerCase().includes(q) ||
+                              (vu.lastIp || '').toLowerCase().includes(q) ||
+                              (vu.ipIsp || '').toLowerCase().includes(q) ||
+                              (vu.ipCountry || '').toLowerCase().includes(q) ||
+                              (vu.vpnReason || '').toLowerCase().includes(q)
+                            );
+                          })
+                          .map((vu) => {
+                            const liveMatch = allUsers.find((u) => u.id === vu.id || (vu.uid && u.uid === vu.uid));
+                            const isVpnBanned = Boolean(liveMatch ? liveMatch.isBanned : vu.isBanned);
+                            return (
+                              <tr key={vu.id} className="hover:bg-slate-50">
+                                <td className="px-3 py-2.5">
+                                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                    <span>{vu.nickname}</span>
+                                    {isVpnBanned && (
+                                      <span className="px-1.5 py-0.2 rounded bg-rose-600 text-[9px] text-white font-black">
+                                        BANNED
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] font-mono text-slate-500">
+                                    UID: {vu.uid} · {vu.phone || 'N/A'}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2.5 font-mono">
+                                  <div className="text-cyan-700 font-bold">{vu.lastIp || vu.registeredIp}</div>
+                                  <div className="text-[10px] text-slate-500">
+                                    {[vu.ipIsp, vu.ipCountry].filter(Boolean).join(' · ') || 'Network unknown'}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2.5">
+                                  <span className="inline-block px-2 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-700 text-[10px] font-bold">
+                                    {vu.vpnReason || 'VPN / Proxy Flagged'}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-right">
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleInspectSecurityUser(vu)}
+                                      className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-black whitespace-nowrap"
+                                    >
+                                      Inspect
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleUserBan(
+                                          vu.id,
+                                          vu.vpnReason
+                                            ? `VPN / Proxy detected: ${vu.vpnReason}`
+                                            : 'VPN / Proxy usage prohibited'
+                                        )
+                                      }
+                                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black whitespace-nowrap ${
+                                        isVpnBanned
+                                          ? 'bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100'
+                                          : 'bg-rose-600 hover:bg-rose-500 text-white'
+                                      }`}
+                                    >
+                                      {isVpnBanned ? 'Unban' : 'Ban'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. ACCESS LOGS TIMELINE TABLE */}
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#070E1B] text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-3">IP ADDRESS</th>
+                        <th className="px-4 py-3">IP &amp; VPN SECURITY</th>
                         <th className="px-4 py-3">STATUS / ACTION</th>
                         <th className="px-4 py-3">ENTRY TIME</th>
                         <th className="px-4 py-3">ELAPSED DURATION (কতক্ষণ আগে)</th>
@@ -4549,7 +5202,7 @@ export const Admin: React.FC = () => {
                         <th className="px-4 py-3">DEVICE / BROWSER</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-200">
                       {(() => {
                         const q = ipSearch.trim().toLowerCase();
                         const filtered = adminAccessLogs.filter(
@@ -4558,7 +5211,9 @@ export const Admin: React.FC = () => {
                             (l.ip || '').toLowerCase().includes(q) ||
                             (l.action || '').toLowerCase().includes(q) ||
                             (l.userAgent || '').toLowerCase().includes(q) ||
-                            (l.phoneAttempt || '').toLowerCase().includes(q)
+                            (l.phoneAttempt || '').toLowerCase().includes(q) ||
+                            (l.isp || '').toLowerCase().includes(q) ||
+                            (l.country || '').toLowerCase().includes(q)
                         );
                         if (filtered.length === 0) {
                           return (
@@ -4570,41 +5225,63 @@ export const Admin: React.FC = () => {
                           );
                         }
                         return filtered.map((log) => (
-                          <tr key={log.id} className="hover:bg-slate-800/30">
-                            <td className="px-4 py-3 font-mono font-black text-cyan-400">
-                              {log.ip || 'Unknown'}
+                          <tr key={log.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-mono font-black text-cyan-700">
+                                  {log.ip || 'Unknown'}
+                                </span>
+                                {log.isVpn ? (
+                                  <span
+                                    title={log.vpnReason || 'VPN / Proxy Detected'}
+                                    className="px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200 border border-rose-500/40 text-rose-700 text-[9px] font-black uppercase"
+                                  >
+                                    VPN / PROXY
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 text-[9px] font-black uppercase">
+                                    CLEAN
+                                  </span>
+                                )}
+                              </div>
+                              {(log.isp || log.country || log.vpnReason) && (
+                                <div className="text-[10px] text-slate-500 mt-0.5">
+                                  {[log.isp, log.country].filter(Boolean).join(' · ')}
+                                  {log.isVpn && log.vpnReason ? ` (${log.vpnReason})` : ''}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
                                   log.action === 'login_success'
-                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                     : log.action === 'login_failed'
-                                    ? 'bg-rose-500/20 text-rose-400'
+                                    ? 'bg-rose-50 border border-rose-200 text-rose-600'
                                     : log.action === 'login_step1'
-                                    ? 'bg-amber-500/20 text-amber-300'
-                                    : 'bg-blue-500/20 text-cyan-300'
+                                    ? 'bg-cyan-50 text-cyan-700'
+                                    : 'bg-blue-500/20 text-cyan-700'
                                 }`}
                               >
                                 {log.action.replace('_', ' ')}
                               </span>
                             </td>
-                            <td className="px-4 py-3 font-mono text-slate-200">
+                            <td className="px-4 py-3 font-mono text-slate-800">
                               {log.enteredAt}
                             </td>
-                            <td className="px-4 py-3 font-mono font-black text-amber-300">
+                            <td className="px-4 py-3 font-mono font-black text-cyan-700">
                               <div className="inline-flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                <Clock className="w-3.5 h-3.5 text-cyan-700" />
                                 <span>{formatElapsedDuration(log.enteredAtMs, nowMs)}</span>
                               </div>
-                              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">
+                              <div className="text-[10px] text-emerald-600 font-mono mt-0.5">
                                 Stayed: {formatStaySeconds(log.staySeconds, log.lastSeenAtMs, log.enteredAtMs)}
                               </div>
                             </td>
-                            <td className="px-4 py-3 font-mono text-slate-300">
+                            <td className="px-4 py-3 font-mono text-slate-700">
                               {log.phoneAttempt || 'Visitor'}
                             </td>
-                            <td className="px-4 py-3 text-[11px] text-slate-400 max-w-xs truncate">
+                            <td className="px-4 py-3 text-[11px] text-slate-500 max-w-xs truncate">
                               {log.userAgent || 'Browser'}
                             </td>
                           </tr>
@@ -4627,7 +5304,7 @@ export const Admin: React.FC = () => {
         >
           <button
             onClick={() => setAdminChatZoomUrl(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-slate-800 text-white"
+            className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 text-slate-900"
           >
             <X className="w-5 h-5" />
           </button>
@@ -4645,13 +5322,13 @@ export const Admin: React.FC = () => {
       {/* 1. USER CONTROL MODAL */}
       {controlUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400 tracking-wider">USER CONTROL</h3>
+              <h3 className="text-sm font-black text-cyan-700 tracking-wider">USER CONTROL</h3>
               <button
                 type="button"
                 onClick={() => setControlUser(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -4670,9 +5347,9 @@ export const Admin: React.FC = () => {
 
               return (
                 <>
-                  <div className="flex items-center justify-between bg-[#070E1B] border border-slate-800 rounded-2xl p-3.5">
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-[#D97706] text-white font-black flex items-center justify-center overflow-hidden">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white font-black flex items-center justify-center overflow-hidden">
                         {liveUser.avatar ? (
                           <img src={liveUser.avatar} alt="" className="w-full h-full object-cover" />
                         ) : (
@@ -4680,41 +5357,41 @@ export const Admin: React.FC = () => {
                         )}
                       </div>
                       <div>
-                        <div className="font-black text-sm text-white">{liveUser.nickname}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">
+                        <div className="font-black text-sm text-slate-900">{liveUser.nickname}</div>
+                        <div className="text-[11px] text-slate-500 font-mono">
                           {liveUser.phone || liveUser.email}
                         </div>
                         <div className="text-[10px] text-slate-500 font-mono">UID: {liveUser.uid}</div>
                       </div>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black">
+                    <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-black">
                       {role}
                     </span>
                   </div>
 
                   {/* 4 Stat Boxes */}
                   <div className="grid grid-cols-4 gap-2 text-center">
-                    <div className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800">
-                      <div className="text-[9px] font-bold text-slate-400">BAL</div>
-                      <div className="text-xs font-mono font-black text-cyan-400 mt-0.5">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[9px] font-bold text-slate-500">BAL</div>
+                      <div className="text-xs font-mono font-black text-cyan-700 mt-0.5">
                         ৳{Number(liveUser.balance || 0).toFixed(0)}
                       </div>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800">
-                      <div className="text-[9px] font-bold text-slate-400">DEP</div>
-                      <div className="text-xs font-mono font-black text-emerald-400 mt-0.5">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[9px] font-bold text-slate-500">DEP</div>
+                      <div className="text-xs font-mono font-black text-emerald-600 mt-0.5">
                         ৳{Number(liveUser.totalDeposited || 0).toFixed(0)}
                       </div>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800">
-                      <div className="text-[9px] font-bold text-slate-400">WD</div>
-                      <div className="text-xs font-mono font-black text-rose-400 mt-0.5">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[9px] font-bold text-slate-500">WD</div>
+                      <div className="text-xs font-mono font-black text-rose-600 mt-0.5">
                         ৳{Number(liveUser.totalWithdrawn || 0).toFixed(0)}
                       </div>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800">
-                      <div className="text-[9px] font-bold text-slate-400">REFS</div>
-                      <div className="text-xs font-mono font-black text-purple-400 mt-0.5">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[9px] font-bold text-slate-500">REFS</div>
+                      <div className="text-xs font-mono font-black text-purple-700 mt-0.5">
                         {userRefs.length}
                       </div>
                     </div>
@@ -4722,7 +5399,7 @@ export const Admin: React.FC = () => {
 
                   {/* Assign Role */}
                   <div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">ASSIGN ROLE</div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">ASSIGN ROLE</div>
                     <div className="grid grid-cols-3 gap-2">
                       {(['USER', 'VIP', 'ADMIN'] as const).map((r) => (
                         <button
@@ -4731,8 +5408,8 @@ export const Admin: React.FC = () => {
                           onClick={() => adminUpdateUserRole(liveUser.id, r)}
                           className={`py-2 rounded-xl text-xs font-black border transition-all ${
                             role === r
-                              ? 'bg-blue-600/30 border-blue-400 text-cyan-300'
-                              : 'bg-[#070E1B] border-slate-800 text-slate-400 hover:text-white'
+                              ? 'bg-cyan-50 border-blue-400 text-cyan-700'
+                              : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
                           }`}
                         >
                           {r}
@@ -4741,24 +5418,69 @@ export const Admin: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Meta Info */}
-                  <div className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 text-[11px] text-slate-400 space-y-1 font-mono">
+                  {/* Meta Info & IP Security Telemetry */}
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500 space-y-1 font-mono">
                     <div>
-                      Ref Code: <span className="text-cyan-400 font-bold">{liveUser.inviteCode}</span> •
+                      Ref Code: <span className="text-cyan-700 font-bold">{liveUser.inviteCode}</span> ·
                       Referred By: {liveUser.referredBy || '—'}
                     </div>
                     <div>
-                      Joined: {(liveUser.createdAt || liveUser.lastLogin || '').slice(0, 10) || '—'} • Cards:{' '}
-                      {boundCount} • Txns: {userTxns.length}
+                      Joined: {(liveUser.createdAt || liveUser.lastLogin || '').slice(0, 10) || '—'} · Cards:{' '}
+                      {boundCount} · Txns: {userTxns.length}
                     </div>
                     <div>
                       Turnover: ৳{Number(liveUser.turnoverCompleted || 0).toFixed(0)} / ৳
                       {Number(liveUser.turnoverRequired || 0).toFixed(0)}
                     </div>
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 mt-1">
+                    <div className="pt-1 border-t border-slate-200 mt-1 space-y-1">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <span>
+                          Reg IP: <strong className="text-cyan-700">{liveUser.registeredIp || '—'}</strong> · Last IP:{' '}
+                          <strong className="text-cyan-700">{liveUser.lastIp || '—'}</strong>
+                        </span>
+                        {liveUser.isVpn ? (
+                          <span className="px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200 border border-rose-500/40 text-rose-700 text-[9px] font-black">
+                            VPN: {liveUser.vpnReason || 'FLAGGED'}
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 text-[9px] font-black">
+                            CLEAN IP
+                          </span>
+                        )}
+                      </div>
+                      {(liveUser.ipIsp || liveUser.ipCountry || getUserIpClusterCount(liveUser) >= 2) && (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[10px] text-slate-500">
+                            {[liveUser.ipIsp, liveUser.ipCountry].filter(Boolean).join(' · ') || 'Network'}
+                            {getUserIpClusterCount(liveUser) >= 2 && (
+                              <span className="ml-1.5 text-cyan-700 font-bold">
+                                ({getUserIpClusterCount(liveUser)} IDs sharing this IP)
+                              </span>
+                            )}
+                          </span>
+                          {(liveUser.isVpn || getUserIpClusterCount(liveUser) >= 2) && !liveUser.isBanned && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                toggleUserBan(
+                                  liveUser.id,
+                                  liveUser.isVpn
+                                    ? `VPN / Proxy detected: ${liveUser.vpnReason || 'Proxy traffic'}`
+                                    : `Multi-account IP violation (${liveUser.lastIp || liveUser.registeredIp})`
+                                )
+                              }
+                              className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[9px] font-black whitespace-nowrap"
+                            >
+                              Quick Ban
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 mt-1">
                       <span>
                         Locked Balance:{' '}
-                        <strong className={Number(liveUser.lockedBalance || 0) > 0 ? 'text-amber-400' : 'text-slate-300'}>
+                        <strong className={Number(liveUser.lockedBalance || 0) > 0 ? 'text-cyan-700' : 'text-slate-700'}>
                           ৳{Number(liveUser.lockedBalance || 0).toFixed(2)}
                         </strong>
                       </span>
@@ -4771,7 +5493,7 @@ export const Admin: React.FC = () => {
                               prev && prev.id === liveUser.id ? { ...prev, lockedBalance: 0 } : prev
                             );
                           }}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] whitespace-nowrap active:scale-95"
+                          className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-amber-400 text-slate-950 font-black text-[10px] whitespace-nowrap active:scale-95"
                         >
                           Release Locked
                         </button>
@@ -4786,12 +5508,12 @@ export const Admin: React.FC = () => {
                       value={turnoverDraft}
                       onChange={(e) => setTurnoverDraft(e.target.value)}
                       placeholder="Required turnover ৳"
-                      className="flex-1 px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-mono text-white"
+                      className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900"
                     />
                     <button
                       type="button"
                       onClick={() => setUserTurnover(liveUser.id, Math.max(0, Number(turnoverDraft) || 0))}
-                      className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black"
+                      className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black"
                     >
                       SET TURNOVER
                     </button>
@@ -4809,7 +5531,7 @@ export const Admin: React.FC = () => {
                         setBalLocked(false);
                         setBalTurnover('');
                       }}
-                      className="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black flex items-center justify-center gap-1.5"
+                      className="py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black flex items-center justify-center gap-1.5"
                     >
                       <DollarSign className="w-3.5 h-3.5" />
                       <span>BALANCE</span>
@@ -4817,17 +5539,17 @@ export const Admin: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTxHistoryModalUser(liveUser)}
-                      className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black flex items-center justify-center gap-1.5"
+                      className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-black flex items-center justify-center gap-1.5"
                     >
-                      <History className="w-3.5 h-3.5 text-cyan-400" />
+                      <History className="w-3.5 h-3.5 text-cyan-700" />
                       <span>TXNS</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setCardsModalUser(liveUser)}
-                      className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black flex items-center justify-center gap-1.5"
+                      className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-black flex items-center justify-center gap-1.5"
                     >
-                      <CreditCard className="w-3.5 h-3.5 text-purple-400" />
+                      <CreditCard className="w-3.5 h-3.5 text-purple-700" />
                       <span>CARDS</span>
                     </button>
                     <button
@@ -4835,8 +5557,8 @@ export const Admin: React.FC = () => {
                       onClick={() => toggleUserBan(liveUser.id, 'Restricted by Super Controller')}
                       className={`py-2.5 rounded-xl font-black flex items-center justify-center gap-1.5 border ${
                         liveUser.isBanned
-                          ? 'bg-emerald-950/60 border-emerald-600/50 text-emerald-300'
-                          : 'bg-rose-950/60 border-rose-600/50 text-rose-300'
+                          ? 'bg-emerald-950/60 border-emerald-600/50 text-emerald-700'
+                          : 'bg-rose-50 border-rose-600/50 text-rose-700'
                       }`}
                     >
                       <Ban className="w-3.5 h-3.5" />
@@ -4848,17 +5570,17 @@ export const Admin: React.FC = () => {
                         setNoticeModalUser(liveUser);
                         setPersonalNoticeText('');
                       }}
-                      className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black flex items-center justify-center gap-1.5"
+                      className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-black flex items-center justify-center gap-1.5"
                     >
-                      <Bell className="w-3.5 h-3.5 text-amber-400" />
+                      <Bell className="w-3.5 h-3.5 text-cyan-700" />
                       <span>NOTICE</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => copyTextSafely(liveUser.uid || liveUser.id, 'User UID copied!')}
-                      className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black flex items-center justify-center gap-1.5"
+                      className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-black flex items-center justify-center gap-1.5"
                     >
-                      <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                      <Copy className="w-3.5 h-3.5 text-cyan-700" />
                       <span>COPY KEY</span>
                     </button>
                   </div>
@@ -4867,7 +5589,7 @@ export const Admin: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteUser(liveUser)}
-                    className="w-full py-2.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-700/50 text-rose-300 text-xs font-black flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-black flex items-center justify-center gap-1.5"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>DELETE ACCOUNT</span>
@@ -4882,13 +5604,13 @@ export const Admin: React.FC = () => {
       {/* 2. MODIFY BALANCE MODAL (z-[60] so it renders cleanly ABOVE User Control modal) */}
       {balanceModalUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-black text-cyan-400 tracking-wider">MODIFY BALANCE</h3>
-                <div className="text-xs text-slate-300 mt-0.5">
+                <h3 className="text-sm font-black text-cyan-700 tracking-wider">MODIFY BALANCE</h3>
+                <div className="text-xs text-slate-700 mt-0.5">
                   {balanceModalUser.nickname} — Current{' '}
-                  <span className="text-emerald-400 font-mono font-black">
+                  <span className="text-emerald-600 font-mono font-black">
                     ৳{Number(balanceModalUser.balance || 0).toFixed(2)}
                   </span>
                 </div>
@@ -4896,7 +5618,7 @@ export const Admin: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setBalanceModalUser(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -4904,11 +5626,11 @@ export const Admin: React.FC = () => {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">ACTION</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">ACTION</label>
                 <select
                   value={balAction}
                   onChange={(e) => setBalAction(e.target.value as any)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-blue-500/60 font-bold text-white"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-cyan-500 font-bold text-slate-900"
                 >
                   <option value="add">+ ADD BALANCE</option>
                   <option value="deduct">- DEDUCT BALANCE</option>
@@ -4916,17 +5638,17 @@ export const Admin: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">AMOUNT ৳</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">AMOUNT ৳</label>
                 <input
                   type="number"
                   value={balAmount}
                   onChange={(e) => setBalAmount(e.target.value)}
                   placeholder="Enter amount"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
                   CUSTOM TURNOVER REQUIREMENT (৳ OPTIONAL)
                 </label>
                 <input
@@ -4935,10 +5657,10 @@ export const Admin: React.FC = () => {
                   value={balTurnover}
                   onChange={(e) => setBalTurnover(e.target.value)}
                   placeholder="0 (adds extra turnover target)"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                 />
               </div>
-              <label className="flex items-start gap-2.5 p-2.5 rounded-xl bg-[#070E1B] border border-slate-700 cursor-pointer select-none">
+              <label className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={balLocked}
@@ -4946,20 +5668,20 @@ export const Admin: React.FC = () => {
                   className="mt-0.5 h-4 w-4 rounded accent-amber-500"
                 />
                 <div>
-                  <div className="text-[11px] font-black text-amber-400">Locked (Non-Withdrawable)</div>
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-[11px] font-black text-cyan-700">Locked (Non-Withdrawable)</div>
+                  <div className="text-[10px] text-slate-500">
                     User can play games with this amount, but cannot withdraw until released.
                   </div>
                 </div>
               </label>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">REASON</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">REASON</label>
                 <input
                   type="text"
                   value={balReason}
                   onChange={(e) => setBalReason(e.target.value)}
                   placeholder="Optional admin note..."
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                 />
               </div>
               <button
@@ -5009,7 +5731,7 @@ export const Admin: React.FC = () => {
                     };
                   });
                 }}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs"
+                className="w-full py-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xs"
               >
                 APPLY TRANSACTION
               </button>
@@ -5021,11 +5743,11 @@ export const Admin: React.FC = () => {
       {/* 3. USER TXNS SUB-MODAL */}
       {txHistoryModalUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-black text-cyan-400">TRANSACTION HISTORY</h3>
-                <div className="text-[11px] text-slate-400">
+                <h3 className="text-sm font-black text-cyan-700">TRANSACTION HISTORY</h3>
+                <div className="text-[11px] text-slate-500">
                   {txHistoryModalUser.nickname} — Total{' '}
                   {transactions.filter((t) => t.userId === txHistoryModalUser.id).length}
                 </div>
@@ -5033,7 +5755,7 @@ export const Admin: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTxHistoryModalUser(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -5048,16 +5770,16 @@ export const Admin: React.FC = () => {
                   .map((t) => (
                     <div
                       key={t.id}
-                      className="p-2.5 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center justify-between text-xs"
+                      className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                     >
                       <div>
-                        <div className="font-bold text-white">{t.title}</div>
-                        <div className="text-[10px] text-slate-400">{t.detail}</div>
+                        <div className="font-bold text-slate-900">{t.title}</div>
+                        <div className="text-[10px] text-slate-500">{t.detail}</div>
                         <div className="text-[9px] text-slate-500 font-mono">{t.time}</div>
                       </div>
                       <span
                         className={`font-mono font-black ${
-                          t.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'
                         }`}
                       >
                         {t.amount >= 0 ? '+' : ''}৳{t.amount.toFixed(2)}
@@ -5073,13 +5795,13 @@ export const Admin: React.FC = () => {
       {/* 4. USER BOUND CARDS SUB-MODAL */}
       {cardsModalUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400">BOUND WALLETS / CARDS</h3>
+              <h3 className="text-sm font-black text-cyan-700">BOUND WALLETS / CARDS</h3>
               <button
                 type="button"
                 onClick={() => setCardsModalUser(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -5087,9 +5809,9 @@ export const Admin: React.FC = () => {
             <div className="space-y-2 text-xs">
               {(cardsModalUser.boundWallets || []).length > 0 ? (
                 cardsModalUser.boundWallets!.map((w) => (
-                  <div key={w.id} className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex justify-between">
-                    <span className={`font-black ${w.type === 'bKash' ? 'text-[#E2136E]' : 'text-amber-400'}`}>{w.type}</span>
-                    <span className="font-mono text-white">{w.number}</span>
+                  <div key={w.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
+                    <span className={`font-black ${w.type === 'bKash' ? 'text-[#E2136E]' : 'text-cyan-700'}`}>{w.type}</span>
+                    <span className="font-mono text-slate-900">{w.number}</span>
                   </div>
                 ))
               ) : (
@@ -5106,24 +5828,24 @@ export const Admin: React.FC = () => {
       {/* 5. PERSONAL NOTICE SUB-MODAL */}
       {noticeModalUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400">PERSONAL NOTICE</h3>
+              <h3 className="text-sm font-black text-cyan-700">PERSONAL NOTICE</h3>
               <button
                 type="button"
                 onClick={() => setNoticeModalUser(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="text-xs text-slate-400">Send to: {noticeModalUser.nickname}</div>
+            <div className="text-xs text-slate-500">Send to: {noticeModalUser.nickname}</div>
             <textarea
               rows={3}
               value={personalNoticeText}
               onChange={(e) => setPersonalNoticeText(e.target.value)}
               placeholder="Write personal message..."
-              className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white"
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900"
             />
             <button
               type="button"
@@ -5135,7 +5857,7 @@ export const Admin: React.FC = () => {
                 adminSendUserNotice(noticeModalUser.id, personalNoticeText);
                 setNoticeModalUser(null);
               }}
-              className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs"
+              className="w-full py-2.5 rounded-xl bg-cyan-600 text-white font-black text-xs"
             >
               SEND PERSONAL NOTICE
             </button>
@@ -5146,16 +5868,16 @@ export const Admin: React.FC = () => {
       {/* 6. DELETE USER CONFIRM MODAL */}
       {confirmDeleteUser && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-rose-700/60 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
-            <h3 className="text-sm font-black text-rose-400">DELETE USER ACCOUNT?</h3>
-            <p className="text-xs text-slate-300">
+          <div className="bg-white border border-rose-700/60 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-black text-rose-600">DELETE USER ACCOUNT?</h3>
+            <p className="text-xs text-slate-700">
               Permanently remove <strong>{confirmDeleteUser.nickname}</strong> ({confirmDeleteUser.phone || confirmDeleteUser.email})?
             </p>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmDeleteUser(null)}
-                className="py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs"
+                className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
               >
                 Cancel
               </button>
@@ -5178,35 +5900,35 @@ export const Admin: React.FC = () => {
       {/* 7. HTML SOURCE MODAL */}
       {htmlModalGame && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-lg p-5 space-y-3 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-black text-cyan-400">HTML SOURCE</h3>
-                <div className="text-[11px] text-slate-400">{htmlModalGame.title}</div>
+                <h3 className="text-sm font-black text-cyan-700">HTML SOURCE</h3>
+                <div className="text-[11px] text-slate-500">{htmlModalGame.title}</div>
               </div>
               <button
                 type="button"
                 onClick={() => setHtmlModalGame(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <pre className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 text-[11px] font-mono text-emerald-300 max-h-64 overflow-auto whitespace-pre-wrap">
+            <pre className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-mono text-emerald-700 max-h-64 overflow-auto whitespace-pre-wrap">
               {htmlModalGame.htmlCode || `<!-- No custom HTML code configured for ${htmlModalGame.title} -->`}
             </pre>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => copyTextSafely(htmlModalGame.htmlCode || '', 'Code Copied!')}
-                className="py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs"
+                className="py-2.5 rounded-xl bg-cyan-600 text-white font-black text-xs"
               >
                 COPY CODE
               </button>
               <button
                 type="button"
                 onClick={() => setHtmlModalGame(null)}
-                className="py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs"
+                className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
               >
                 CLOSE
               </button>
@@ -5220,45 +5942,45 @@ export const Admin: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
           <form
             onSubmit={handleSaveGame}
-            className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-3 shadow-2xl text-xs"
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-3 shadow-2xl text-xs"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400">
+              <h3 className="text-sm font-black text-cyan-700">
                 {editGameModal.id ? 'EDIT GAME' : 'ADD NEW GAME'}
               </h3>
               <button
                 type="button"
                 onClick={() => setEditGameModal(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">TITLE *</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">TITLE *</label>
               <input
                 type="text"
                 required
                 value={editGameModal.title || ''}
                 onChange={(e) => setEditGameModal({ ...editGameModal, title: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">IMAGE URL</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">IMAGE URL</label>
               <input
                 type="text"
                 value={editGameModal.imageUrl || ''}
                 onChange={(e) => setEditGameModal({ ...editGameModal, imageUrl: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">CATEGORY</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">CATEGORY</label>
               <select
                 value={editGameModal.category || 'Slots'}
                 onChange={(e) => setEditGameModal({ ...editGameModal, category: e.target.value as any })}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               >
                 <option value="Lottery">Lottery</option>
                 <option value="Crash">Crash</option>
@@ -5269,56 +5991,56 @@ export const Admin: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">URL</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">URL</label>
               <input
                 type="text"
                 value={editGameModal.url || ''}
                 onChange={(e) => setEditGameModal({ ...editGameModal, url: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">HTML CODE</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">HTML CODE</label>
               <textarea
                 rows={3}
                 value={editGameModal.htmlCode || ''}
                 onChange={(e) => setEditGameModal({ ...editGameModal, htmlCode: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
               />
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">BADGE</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">BADGE</label>
                 <input
                   type="text"
                   value={editGameModal.badge || ''}
                   onChange={(e) => setEditGameModal({ ...editGameModal, badge: e.target.value })}
-                  className="w-full px-2.5 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                  className="w-full px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">PRICE / X</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">PRICE / X</label>
                 <input
                   type="text"
                   value={editGameModal.price || ''}
                   onChange={(e) => setEditGameModal({ ...editGameModal, price: e.target.value })}
-                  className="w-full px-2.5 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                  className="w-full px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">SORT ORDER</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">SORT ORDER</label>
                 <input
                   type="number"
                   value={editGameModal.sortOrder ?? 0}
                   onChange={(e) =>
                     setEditGameModal({ ...editGameModal, sortOrder: Number(e.target.value) })
                   }
-                  className="w-full px-2.5 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                  className="w-full px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                 />
               </div>
             </div>
             <div className="flex items-center gap-5 pt-1">
-              <label className="flex items-center gap-2 text-slate-300">
+              <label className="flex items-center gap-2 text-slate-700">
                 <input
                   type="checkbox"
                   checked={editGameModal.active !== false}
@@ -5326,7 +6048,7 @@ export const Admin: React.FC = () => {
                 />
                 <span>Active</span>
               </label>
-              <label className="flex items-center gap-2 text-slate-300">
+              <label className="flex items-center gap-2 text-slate-700">
                 <input
                   type="checkbox"
                   checked={Boolean(editGameModal.featured)}
@@ -5335,7 +6057,7 @@ export const Admin: React.FC = () => {
                 <span>Featured</span>
               </label>
             </div>
-            <button type="submit" className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black">
+            <button type="submit" className="w-full py-2.5 rounded-xl bg-cyan-600 text-white font-black">
               SAVE GAME
             </button>
           </form>
@@ -5347,45 +6069,45 @@ export const Admin: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
           <form
             onSubmit={handleSaveBanner}
-            className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-3 shadow-2xl text-xs"
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-3 shadow-2xl text-xs"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400">
+              <h3 className="text-sm font-black text-cyan-700">
                 {bannerModal.id ? 'EDIT BANNER' : `ADD NEW BANNER (${(adminSettings.banners || []).length}/10)`}
               </h3>
               <button
                 type="button"
                 onClick={() => setBannerModal(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             {bannerModal.url && (
-              <div className="h-28 rounded-xl overflow-hidden bg-[#070E1B] border border-slate-700">
+              <div className="h-28 rounded-xl overflow-hidden bg-slate-50 border border-slate-200">
                 <img src={bannerModal.url} alt="Banner Preview" className="w-full h-full object-cover" />
               </div>
             )}
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">TITLE</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">TITLE</label>
               <input
                 type="text"
                 value={bannerModal.title}
                 onChange={(e) => setBannerModal({ ...bannerModal, title: e.target.value })}
                 placeholder="e.g. Welcome Bonus 500%"
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">IMAGE URL OR UPLOAD *</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">IMAGE URL OR UPLOAD *</label>
               <input
                 type="text"
                 value={bannerModal.url}
                 onChange={(e) => setBannerModal({ ...bannerModal, url: e.target.value })}
                 placeholder="https://... or upload image below"
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
-              <label className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-cyan-300 font-bold cursor-pointer hover:bg-slate-700">
+              <label className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-cyan-700 font-bold cursor-pointer hover:bg-slate-200">
                 <Upload className="w-3.5 h-3.5" />
                 <span>Upload Image from Device</span>
                 <input
@@ -5412,13 +6134,13 @@ export const Admin: React.FC = () => {
               </label>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">TARGET PAGE LINK</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">TARGET PAGE LINK</label>
               <input
                 type="text"
                 value={bannerModal.link}
                 onChange={(e) => setBannerModal({ ...bannerModal, link: e.target.value })}
                 placeholder="#/wingo, #/deposit, #/aviator"
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {[
@@ -5437,8 +6159,8 @@ export const Admin: React.FC = () => {
                     onClick={() => setBannerModal({ ...bannerModal, link: preset.href })}
                     className={`px-2 py-1 rounded-md text-[10px] font-bold border ${
                       bannerModal.link === preset.href
-                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                        : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-700'
+                        : 'bg-slate-50 border-slate-200 text-slate-500'
                     }`}
                   >
                     {preset.label}
@@ -5447,15 +6169,15 @@ export const Admin: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">SORT ORDER</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">SORT ORDER</label>
               <input
                 type="number"
                 value={bannerModal.sortOrder}
                 onChange={(e) => setBannerModal({ ...bannerModal, sortOrder: Number(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
             </div>
-            <label className="flex items-center gap-2 text-slate-300">
+            <label className="flex items-center gap-2 text-slate-700">
               <input
                 type="checkbox"
                 checked={bannerModal.active}
@@ -5463,7 +6185,7 @@ export const Admin: React.FC = () => {
               />
               <span>Active on Home Carousel</span>
             </label>
-            <button type="submit" className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black">
+            <button type="submit" className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black">
               SAVE BANNER
             </button>
           </form>
@@ -5475,16 +6197,16 @@ export const Admin: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
           <form
             onSubmit={handleSaveGiftCode}
-            className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-5 space-y-3 shadow-2xl text-xs"
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-5 space-y-3 shadow-2xl text-xs"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400">
+              <h3 className="text-sm font-black text-cyan-700">
                 {giftModal.isEdit ? 'EDIT GIFT CODE' : 'CREATE GIFT CODE'}
               </h3>
               <button
                 type="button"
                 onClick={() => setGiftModal(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -5492,15 +6214,15 @@ export const Admin: React.FC = () => {
 
             {/* Reward Type Selector */}
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">REWARD MODE</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">REWARD MODE</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setGiftModal({ ...giftModal, rewardType: 'fixed' })}
                   className={`py-2 rounded-xl font-black border text-[11px] ${
                     giftModal.rewardType === 'fixed'
-                      ? 'bg-blue-600/30 border-blue-400 text-cyan-300'
-                      : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                      ? 'bg-cyan-50 border-blue-400 text-cyan-700'
+                      : 'bg-slate-50 border-slate-200 text-slate-500'
                   }`}
                 >
                   Fixed Bonus (৳)
@@ -5517,8 +6239,8 @@ export const Admin: React.FC = () => {
                   }
                   className={`py-2 rounded-xl font-black border text-[11px] ${
                     giftModal.rewardType === 'deposit_percent'
-                      ? 'bg-amber-600/30 border-amber-400 text-amber-300'
-                      : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                      ? 'bg-cyan-100 border-cyan-500 text-cyan-700'
+                      : 'bg-slate-50 border-slate-200 text-slate-500'
                   }`}
                 >
                   Deposit Bonus (%)
@@ -5527,19 +6249,19 @@ export const Admin: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">GIFT CODE *</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">GIFT CODE *</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   required
                   value={giftModal.code}
                   onChange={(e) => setGiftModal({ ...giftModal, code: e.target.value.toUpperCase() })}
-                  className="flex-1 px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-black text-white uppercase"
+                  className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-black text-slate-900 uppercase"
                 />
                 <button
                   type="button"
                   onClick={() => setGiftModal({ ...giftModal, code: generateGiftCodeName() })}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-black"
+                  className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-cyan-700 font-black"
                 >
                   GEN
                 </button>
@@ -5549,14 +6271,14 @@ export const Admin: React.FC = () => {
             <div className="grid grid-cols-2 gap-2.5">
               {giftModal.rewardType === 'deposit_percent' ? (
                 <div>
-                  <label className="text-[10px] font-bold text-amber-300 block mb-1">DEPOSIT BONUS %</label>
+                  <label className="text-[10px] font-bold text-cyan-700 block mb-1">DEPOSIT BONUS %</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={giftModal.depositBonusPercent}
                     onChange={(e) => setGiftModal({ ...giftModal, depositBonusPercent: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-amber-500/50 font-mono font-black text-amber-300"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-amber-500/50 font-mono font-black text-cyan-700"
                   />
                   <div className="flex gap-1 mt-1">
                     {['100', '150', '200', '300'].map((pct) => (
@@ -5566,8 +6288,8 @@ export const Admin: React.FC = () => {
                         onClick={() => setGiftModal({ ...giftModal, depositBonusPercent: pct })}
                         className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${
                           giftModal.depositBonusPercent === pct
-                            ? 'bg-amber-500 text-slate-950 border-amber-300'
-                            : 'bg-[#070E1B] text-slate-400 border-slate-700'
+                            ? 'bg-cyan-600 text-slate-950 border-amber-300'
+                            : 'bg-slate-50 text-slate-500 border-slate-200'
                         }`}
                       >
                         {pct}%
@@ -5577,74 +6299,74 @@ export const Admin: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">AMOUNT ৳</label>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">AMOUNT ৳</label>
                   <input
                     type="number"
                     required
                     value={giftModal.amount}
                     onChange={(e) => setGiftModal({ ...giftModal, amount: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                   />
                 </div>
               )}
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">MAX USES</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">MAX USES</label>
                 <input
                   type="number"
                   required
                   value={giftModal.maxClaims}
                   onChange={(e) => setGiftModal({ ...giftModal, maxClaims: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">
                   TURNOVER ৳ {giftModal.rewardType === 'deposit_percent' ? '(0 = Auto 1x)' : ''}
                 </label>
                 <input
                   type="number"
                   value={giftModal.turnoverAmount}
                   onChange={(e) => setGiftModal({ ...giftModal, turnoverAmount: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">
                   MIN REQUIRED BALANCE
                 </label>
                 <input
                   type="number"
                   value={giftModal.minRequiredBalance}
                   onChange={(e) => setGiftModal({ ...giftModal, minRequiredBalance: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono font-bold text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">EXPIRY DATE</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">EXPIRY DATE</label>
               <input
                 type="datetime-local"
                 value={giftModal.expiryDate}
                 onChange={(e) => setGiftModal({ ...giftModal, expiryDate: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
               />
             </div>
 
             {/* Select Target User Dropdown + Manual UID */}
-            <div className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 space-y-2">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-amber-300 uppercase">
+                <label className="text-[10px] font-bold text-cyan-700 uppercase">
                   SELECT TARGET USER (OPTIONAL)
                 </label>
                 {giftModal.targetUid && (
                   <button
                     type="button"
                     onClick={() => setGiftModal({ ...giftModal, targetUid: '' })}
-                    className="text-[10px] font-bold text-cyan-400 hover:underline"
+                    className="text-[10px] font-bold text-cyan-700 hover:underline"
                   >
                     Reset to ALL
                   </button>
@@ -5655,12 +6377,12 @@ export const Admin: React.FC = () => {
                 value={targetUserSearch}
                 onChange={(e) => setTargetUserSearch(e.target.value)}
                 placeholder="Search user by Nickname, UID or Phone..."
-                className="w-full px-2.5 py-1.5 rounded-lg bg-[#0E172A] border border-slate-700 text-[11px] text-white"
+                className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-900"
               />
               <select
                 value={giftModal.targetUid}
                 onChange={(e) => setGiftModal({ ...giftModal, targetUid: e.target.value })}
-                className="w-full px-2.5 py-2 rounded-lg bg-[#0E172A] border border-slate-700 text-[11px] font-bold text-amber-200"
+                className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-amber-200"
               >
                 <option value="">ALL USERS (Anyone can redeem)</option>
                 {allUsers
@@ -5685,12 +6407,12 @@ export const Admin: React.FC = () => {
                 value={giftModal.targetUid}
                 onChange={(e) => setGiftModal({ ...giftModal, targetUid: e.target.value.toUpperCase() })}
                 placeholder="Or enter UID(s): e.g. EWI700012 (Blank = ALL)"
-                className="w-full px-2.5 py-1.5 rounded-lg bg-[#0E172A] border border-slate-700 font-mono text-[11px] text-amber-300 uppercase"
+                className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-mono text-[11px] text-cyan-700 uppercase"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-cyan-300 block mb-1">
+              <label className="text-[10px] font-bold text-cyan-700 block mb-1">
                 GIFT REASON (SHOWN TO USER WHEN CLAIMING) *
               </label>
               <input
@@ -5698,7 +6420,7 @@ export const Admin: React.FC = () => {
                 value={giftModal.reason}
                 onChange={(e) => setGiftModal({ ...giftModal, reason: e.target.value, note: e.target.value })}
                 placeholder="e.g. 200% Deposit Bonus Reward / VIP Compensation"
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {['200% Deposit Bonus', 'VIP Loyalty Gift', 'Loss Recovery Bonus', 'Special Event Gift'].map((preset) => (
@@ -5706,7 +6428,7 @@ export const Admin: React.FC = () => {
                     key={preset}
                     type="button"
                     onClick={() => setGiftModal({ ...giftModal, reason: preset, note: preset })}
-                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[9px] text-slate-300 font-bold"
+                    className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[9px] text-slate-700 font-bold"
                   >
                     {preset}
                   </button>
@@ -5714,7 +6436,7 @@ export const Admin: React.FC = () => {
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-slate-300">
+            <label className="flex items-center gap-2 text-slate-700">
               <input
                 type="checkbox"
                 checked={giftModal.active}
@@ -5722,7 +6444,7 @@ export const Admin: React.FC = () => {
               />
               <span>Active</span>
             </label>
-            <button type="submit" className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black">
+            <button type="submit" className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black">
               SAVE GIFT CODE
             </button>
           </form>
@@ -5732,15 +6454,15 @@ export const Admin: React.FC = () => {
       {/* 11. GIFT CODE CLAIM HISTORY MODAL */}
       {claimHistoryCode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-black text-cyan-400">CLAIM HISTORY &amp; CLAIMANTS</h3>
-                <div className="text-[11px] text-slate-300 font-mono">
+                <h3 className="text-sm font-black text-cyan-700">CLAIM HISTORY &amp; CLAIMANTS</h3>
+                <div className="text-[11px] text-slate-700 font-mono">
                   {claimHistoryCode.code} — {Math.max(claimHistoryCode.claimedCount || 0, (claimHistoryCode.claimRecords || []).length)} / {claimHistoryCode.maxClaims} Claimed
                 </div>
                 {(claimHistoryCode.reason || claimHistoryCode.note) && (
-                  <div className="text-[10px] text-amber-300 font-semibold mt-0.5">
+                  <div className="text-[10px] text-cyan-700 font-semibold mt-0.5">
                     Reason: {claimHistoryCode.reason || claimHistoryCode.note}
                   </div>
                 )}
@@ -5748,7 +6470,7 @@ export const Admin: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setClaimHistoryCode(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -5760,28 +6482,28 @@ export const Admin: React.FC = () => {
                 claimHistoryCode.claimRecords!.map((rec, i) => (
                   <div
                     key={i}
-                    className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 flex items-center justify-between text-xs gap-2"
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs gap-2"
                   >
                     <div className="min-w-0">
-                      <div className="font-bold text-white flex items-center gap-1.5">
+                      <div className="font-bold text-slate-900 flex items-center gap-1.5">
                         <span>{rec.nickname}</span>
                         {rec.uid && (
-                          <span className="px-1.5 py-0.2 rounded bg-slate-800 text-[9px] font-mono text-cyan-300">
+                          <span className="px-1.5 py-0.2 rounded bg-slate-100 text-[9px] font-mono text-cyan-700">
                             {rec.uid}
                           </span>
                         )}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">{rec.contact}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{rec.contact}</div>
                       {rec.depositAmount ? (
-                        <div className="text-[10px] text-amber-300 font-mono">
+                        <div className="text-[10px] text-cyan-700 font-mono">
                           On ৳{Number(rec.depositAmount).toFixed(0)} Deposit
                         </div>
                       ) : null}
                       <div className="text-[10px] text-slate-500">{rec.time}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-mono font-black text-emerald-400">+৳{rec.amount.toFixed(2)}</div>
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-black">
+                      <div className="font-mono font-black text-emerald-600">+৳{rec.amount.toFixed(2)}</div>
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-600 text-[9px] font-black">
                         CLAIMED
                       </span>
                     </div>
@@ -5798,14 +6520,14 @@ export const Admin: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
           <form
             onSubmit={handleBulkGenerateCodes}
-            className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl text-xs"
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl text-xs"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400">BULK GENERATE CODES</h3>
+              <h3 className="text-sm font-black text-cyan-700">BULK GENERATE CODES</h3>
               <button
                 type="button"
                 onClick={() => setBulkModalOpen(false)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -5816,8 +6538,8 @@ export const Admin: React.FC = () => {
                 onClick={() => setBulkRewardType('fixed')}
                 className={`py-2 rounded-xl font-black border text-[11px] ${
                   bulkRewardType === 'fixed'
-                    ? 'bg-blue-600/30 border-blue-400 text-cyan-300'
-                    : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                    ? 'bg-cyan-50 border-blue-400 text-cyan-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-500'
                 }`}
               >
                 Fixed ৳
@@ -5827,8 +6549,8 @@ export const Admin: React.FC = () => {
                 onClick={() => setBulkRewardType('deposit_percent')}
                 className={`py-2 rounded-xl font-black border text-[11px] ${
                   bulkRewardType === 'deposit_percent'
-                    ? 'bg-amber-600/30 border-amber-400 text-amber-300'
-                    : 'bg-[#070E1B] border-slate-700 text-slate-400'
+                    ? 'bg-cyan-100 border-cyan-500 text-cyan-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-500'
                 }`}
               >
                 Deposit % (200%)
@@ -5836,16 +6558,16 @@ export const Admin: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">QUANTITY (MAX 50)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">QUANTITY (MAX 50)</label>
                 <input
                   type="number"
                   value={bulkCount}
                   onChange={(e) => setBulkCount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">
                   {bulkRewardType === 'deposit_percent' ? 'BONUS %' : 'AMOUNT ৳'}
                 </label>
                 <input
@@ -5856,32 +6578,32 @@ export const Admin: React.FC = () => {
                       ? setBulkDepositPercent(e.target.value)
                       : setBulkAmount(e.target.value)
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">USES PER CODE</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">USES PER CODE</label>
                 <input
                   type="number"
                   value={bulkMaxClaims}
                   onChange={(e) => setBulkMaxClaims(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">TURNOVER ৳</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">TURNOVER ৳</label>
                 <input
                   type="number"
                   value={bulkTurnover}
                   onChange={(e) => setBulkTurnover(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 font-mono text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900"
                 />
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">GIFT REASON (SHOWN TO USER)</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">GIFT REASON (SHOWN TO USER)</label>
               <input
                 type="text"
                 value={bulkReason}
@@ -5889,10 +6611,10 @@ export const Admin: React.FC = () => {
                   setBulkReason(e.target.value);
                   setBulkNote(e.target.value);
                 }}
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
               />
             </div>
-            <button type="submit" className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black">
+            <button type="submit" className="w-full py-2.5 rounded-xl bg-cyan-600 text-white font-black">
               GENERATE CODES
             </button>
           </form>
@@ -5902,17 +6624,17 @@ export const Admin: React.FC = () => {
       {/* 13. WINGO LIVE SYNC DATA MODAL */}
       {showSyncDataModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-cyan-400">WINGO LIVE SYNC JSON</h3>
+              <h3 className="text-sm font-black text-cyan-700">WINGO LIVE SYNC JSON</h3>
               <button
                 onClick={() => setShowSyncDataModal(false)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <pre className="p-3 rounded-xl bg-[#070E1B] border border-slate-800 text-[11px] font-mono text-cyan-300 max-h-72 overflow-auto">
+            <pre className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-mono text-cyan-700 max-h-72 overflow-auto">
               {JSON.stringify(
                 {
                   path: wingoSyncPath,
@@ -5934,27 +6656,27 @@ export const Admin: React.FC = () => {
       {/* 14. REJECT WITHDRAWAL WITH REASON MODAL */}
       {rejectWithdrawModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
-          <div className="bg-[#0E172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-rose-400">REJECT WITHDRAWAL</h3>
+              <h3 className="text-sm font-black text-rose-600">REJECT WITHDRAWAL</h3>
               <button
                 type="button"
                 onClick={() => setRejectWithdrawModal(null)}
-                className="p-1.5 rounded-full bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="text-xs text-slate-300 space-y-1">
+            <div className="text-xs text-slate-700 space-y-1">
               <div>
-                User: <strong className="text-white">{rejectWithdrawModal.userName}</strong>
+                User: <strong className="text-slate-900">{rejectWithdrawModal.userName}</strong>
               </div>
               <div>
-                Refund Amount: <strong className="font-mono text-emerald-400">৳{rejectWithdrawModal.amount.toFixed(2)}</strong>
+                Refund Amount: <strong className="font-mono text-emerald-600">৳{rejectWithdrawModal.amount.toFixed(2)}</strong>
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase">
+              <label className="text-[10px] font-bold text-slate-500 block mb-1.5 uppercase">
                 Rejection Reason (Shown to User)
               </label>
               <textarea
@@ -5962,11 +6684,11 @@ export const Admin: React.FC = () => {
                 value={rejectWithdrawReason}
                 onChange={(e) => setRejectWithdrawReason(e.target.value)}
                 placeholder="আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ"
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs text-white focus:outline-none focus:border-rose-400"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-rose-400"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase">
+              <label className="text-[10px] font-bold text-slate-500 block mb-1.5 uppercase">
                 Add Turnover Penalty (৳ Optional)
               </label>
               <input
@@ -5975,14 +6697,14 @@ export const Admin: React.FC = () => {
                 value={rejectTurnoverPenalty}
                 onChange={(e) => setRejectTurnoverPenalty(e.target.value)}
                 placeholder="0 (no extra turnover)"
-                className="w-full px-3 py-2 rounded-xl bg-[#070E1B] border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-amber-400"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:border-cyan-500"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setRejectWithdrawModal(null)}
-                className="py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs"
+                className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
               >
                 Cancel
               </button>

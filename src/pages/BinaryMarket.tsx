@@ -18,6 +18,7 @@ import { BINARY_MARKETS, BINARY_MARKET_MAP } from '../constants/markets';
 import { BinaryMarketCategory, BinaryMarketConfig } from '../types';
 import {
   formatTimeWithOffset,
+  formatDateWithOffset,
   formatOffsetLabel,
   getSyncedBinaryCandlesForTimeframe,
   formatCountdownClock
@@ -31,16 +32,16 @@ const BINARY_ONLY_CATEGORIES: Array<'All' | BinaryMarketCategory> = [
 ];
 
 const TIMEFRAMES = [
-  { label: '5s', sec: 5 },
-  { label: '15s', sec: 15 },
-  { label: '30s', sec: 30 },
-  { label: '1m', sec: 60 },
-  { label: '5m', sec: 300 },
-  { label: '15m', sec: 900 },
-  { label: '30m', sec: 1800 },
-  { label: '1h', sec: 3600 },
-  { label: '12h', sec: 43200 },
-  { label: '24h', sec: 86400 }
+  { label: '30 sec', sec: 30 },
+  { label: '1 min', sec: 60 },
+  { label: '3 min', sec: 180 },
+  { label: '5 min', sec: 300 },
+  { label: '15 min', sec: 900 },
+  { label: '30 min', sec: 1800 },
+  { label: '1 hour', sec: 3600 },
+  { label: '1 day', sec: 86400 },
+  { label: '15 day', sec: 1296000 },
+  { label: '30 day', sec: 2592000 }
 ];
 
 const QUICK_AMOUNTS = [10, 50, 100, 500, 1000];
@@ -121,6 +122,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
   const currentSecEpoch = Math.floor(nowTime / 1000);
   const tfSecRemaining = Math.max(1, selectedTimeframe - (currentSecEpoch % selectedTimeframe));
   const tfCountdownLabel = formatCountdownClock(tfSecRemaining);
+  const activeTfObj = TIMEFRAMES.find((t) => t.sec === selectedTimeframe) || TIMEFRAMES[0];
 
   const assetCandles = useMemo(
     () =>
@@ -133,7 +135,6 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
         96,
         assetPrice
       ),
-    // Rebuild aggregated OHLC candles cleanly every second or on timeframe/asset/bias switches
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeSpec, selectedTimeframe, currentSecEpoch, adminSettings.binaryNextCandleBias, offsetMinutes, assetPrice]
   );
@@ -147,7 +148,6 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
   );
   const completedOrders = useMemo(() => binaryBets.filter((b) => b.status !== 'active'), [binaryBets]);
 
-  // Smooth 60fps Quotex-style Light Terminal Canvas Rendering
   const chartDataRef = useRef({
     candles: assetCandles,
     price: assetPrice,
@@ -155,6 +155,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     activeOrders: assetActiveOrders,
     secRemaining: tfSecRemaining,
     timeframeSec: selectedTimeframe,
+    timeframeLabel: activeTfObj.label,
     offsetMinutes,
     visibleCount,
     panOffset
@@ -167,6 +168,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     activeOrders: assetActiveOrders,
     secRemaining: tfSecRemaining,
     timeframeSec: selectedTimeframe,
+    timeframeLabel: activeTfObj.label,
     offsetMinutes,
     visibleCount,
     panOffset
@@ -196,6 +198,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             activeOrders: orders,
             secRemaining,
             timeframeSec,
+            timeframeLabel,
             offsetMinutes: tzMin,
             visibleCount: count,
             panOffset: offset
@@ -205,11 +208,11 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           const h = canvas.height;
           ctx.clearRect(0, 0, w, h);
 
-          // Crisp White Terminal Surface
+          // Crisp Light Terminal Surface
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, w, h);
 
-          const axisRightW = 68 * dpr;
+          const axisRightW = 72 * dpr;
           const bottomAxisH = 22 * dpr;
           const topPad = 14 * dpr;
           const plotW = Math.max(80, w - axisRightW);
@@ -280,7 +283,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           ctx.lineTo(plotW, h - bottomAxisH);
           ctx.stroke();
 
-          // Candle Plot Geometry (leave breathing room on right for expiry lines)
+          // Candle Plot Geometry
           const candleAreaW = plotW * 0.78;
           const slotW = candleAreaW / Math.max(1, visible.length);
           const bodyW = Math.max(4 * dpr, Math.min(11 * dpr, slotW * 0.62));
@@ -294,7 +297,6 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             const openY = priceToY(c.open);
             const closeY = priceToY(c.close);
 
-            // Wick
             ctx.strokeStyle = col;
             ctx.lineWidth = 1.4 * dpr;
             ctx.beginPath();
@@ -302,14 +304,13 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             ctx.lineTo(cx, lowY);
             ctx.stroke();
 
-            // Body
             const topY = Math.min(openY, closeY);
             const bodyH = Math.max(2 * dpr, Math.abs(closeY - openY));
             ctx.fillStyle = col;
             ctx.fillRect(cx - bodyW / 2, topY, bodyW, bodyH);
           });
 
-          // Beginning of Trade & End of Trade Vertical Dashed Lines (Quotex-style)
+          // Beginning & End of Trade Vertical Dashed Lines
           const beginX = candleAreaW + 6 * dpr;
           const endX = plotW - 18 * dpr;
 
@@ -323,7 +324,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           ctx.lineTo(beginX, topPad + plotH);
           ctx.stroke();
 
-          ctx.strokeStyle = '#D97706';
+          ctx.strokeStyle = '#0891B2';
           ctx.beginPath();
           ctx.moveTo(endX, topPad);
           ctx.lineTo(endX, topPad + plotH);
@@ -333,10 +334,10 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           ctx.font = `700 ${8 * dpr}px sans-serif`;
           ctx.fillStyle = '#64748B';
           ctx.fillText('Beginning', beginX - 18 * dpr, topPad + 9 * dpr);
-          ctx.fillStyle = '#B45309';
-          ctx.fillText(`End (${timeframeSec}s)`, endX - 28 * dpr, topPad + 9 * dpr);
+          ctx.fillStyle = '#0E7490';
+          ctx.fillText(`End (${timeframeLabel})`, endX - 36 * dpr, topPad + 9 * dpr);
 
-          // Live Price Dashed Horizontal Line + Pulsing Tip Dot + Right Price Tag
+          // Live Price Dashed Horizontal Line + Pulsing Tip Dot + Right Price Pill
           const liveY = Math.max(topPad + 6 * dpr, Math.min(topPad + plotH - 6 * dpr, priceToY(price)));
           ctx.save();
           ctx.setLineDash([3 * dpr, 3 * dpr]);
@@ -351,7 +352,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           const lastX = visible.length > 0 ? (visible.length - 1) * slotW + slotW / 2 + 4 * dpr : candleAreaW;
           ctx.beginPath();
           ctx.arc(lastX, liveY, 3.6 * dpr, 0, Math.PI * 2);
-          ctx.fillStyle = '#D97706';
+          ctx.fillStyle = '#0891B2';
           ctx.fill();
           ctx.lineWidth = 1.5 * dpr;
           ctx.strokeStyle = '#FFFFFF';
@@ -363,11 +364,11 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           ctx.beginPath();
           ctx.roundRect(plotW + 2 * dpr, liveY - tagH / 2, axisRightW - 5 * dpr, tagH, 4 * dpr);
           ctx.fill();
-          ctx.fillStyle = '#FBBF24';
+          ctx.fillStyle = '#22D3EE';
           ctx.font = `700 ${9.5 * dpr}px ui-monospace, SFMono-Regular, Menlo, monospace`;
           ctx.fillText(price.toFixed(Math.min(4, spec.decimals)), plotW + 6 * dpr, liveY + 3.2 * dpr);
 
-          // Active Order Exact Entry Price Line + BUY/SELL Indicator + Floating P/L
+          // Active Order Exact Entry Price Line
           orders.forEach((order, oIdx) => {
             const entryY = Math.max(topPad + 10 * dpr, Math.min(topPad + plotH - 10 * dpr, priceToY(order.entryPrice)));
             const isCall = order.direction === 'UP';
@@ -385,7 +386,6 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             ctx.stroke();
             ctx.restore();
 
-            // Left floating pill: ▲ BUY / ▼ SELL + exact entry price + live P/L
             const pillY = Math.max(topPad + 12 * dpr, Math.min(topPad + plotH - 12 * dpr, entryY - oIdx * 20 * dpr));
             const labelText = `${isCall ? '▲ BUY' : '▼ SELL'} ${order.entryPrice.toFixed(Math.min(4, spec.decimals))} • ${
               inProfit ? `+৳${(order.amount * order.payoutRate).toFixed(0)}` : `-৳${order.amount}`
@@ -401,7 +401,6 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             ctx.font = `800 ${8.5 * dpr}px ui-monospace, SFMono-Regular, Menlo, monospace`;
             ctx.fillText(labelText, 13 * dpr, pillY + 3 * dpr);
 
-            // Marker dot on right vertical axis
             ctx.beginPath();
             ctx.arc(beginX, entryY, 4 * dpr, 0, Math.PI * 2);
             ctx.fillStyle = lineCol;
@@ -427,10 +426,11 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             const c = visible[idx];
             if (!c) return;
             const tx = Math.max(8 * dpr, Math.min(plotW - 44 * dpr, idx * slotW + 4 * dpr));
-            ctx.fillText(formatTimeWithOffset(c.time, tzMin), tx, h - 7 * dpr);
+            const label = timeframeSec >= 86400 ? formatDateWithOffset(c.time, tzMin) : formatTimeWithOffset(c.time, tzMin);
+            ctx.fillText(label, tx, h - 7 * dpr);
           });
-          ctx.fillStyle = '#B45309';
-          ctx.fillText(formatCountdownClock(secRemaining), plotW + 6 * dpr, h - 7 * dpr);
+          ctx.fillStyle = '#0891B2';
+          ctx.fillText(formatCountdownClock(secRemaining), plotW + 5 * dpr, h - 7 * dpr);
         }
       }
       rafId = requestAnimationFrame(renderChart);
@@ -462,14 +462,14 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-36">
-      {/* Clean Quotex-Style Light Header with Luxury Gold Brand Accent */}
-      <div className="bg-white border-b border-amber-200/80 px-3.5 py-2.5 sticky top-0 z-30 shadow-2xs">
+      {/* Light Mode Header */}
+      <div className="bg-white border-b border-cyan-100 px-3.5 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={handleExit}
-              className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-[#B45309] flex items-center justify-center active:scale-95 transition-transform"
+              className="w-9 h-9 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center active:scale-95 transition-transform"
               aria-label="Exit Market"
             >
               <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
@@ -483,7 +483,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                 if (!isGoldMode) setShowAssetPicker((v) => !v);
               }}
               className={`px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2 text-left transition-colors min-w-0 ${
-                isGoldMode ? 'cursor-default border-amber-200 bg-amber-50/60' : 'hover:border-amber-400'
+                isGoldMode ? 'cursor-default border-cyan-200 bg-cyan-50/70' : 'hover:border-cyan-400'
               }`}
             >
               <div className="min-w-0">
@@ -491,7 +491,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                   <span className="font-black text-xs text-slate-900 truncate">
                     {isGoldMode ? 'GOLD XAU/USD' : selectedAsset}
                   </span>
-                  <span className="text-[10px] font-black text-[#B45309] tabular-nums">
+                  <span className="text-[10px] font-black text-cyan-700 tabular-nums">
                     +{payoutPct}%
                   </span>
                 </div>
@@ -516,17 +516,17 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                 setActiveTab('deposit');
                 window.location.hash = '#/deposit';
               }}
-              className="px-3 py-2 rounded-xl bg-gradient-to-r from-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-xs active:scale-95 whitespace-nowrap"
+              className="px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-black text-xs shadow-xs active:scale-95 whitespace-nowrap"
             >
               Deposit
             </button>
           </div>
         </div>
 
-        {/* Timezone Bar (Bangladeshi UTC+6:00 default or admin configured) + Gold Market Quick Shortcut */}
+        {/* Timezone Bar */}
         <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100 text-[11px]">
           <div className="flex items-center gap-1.5 font-mono text-slate-600 tabular-nums">
-            <Clock className="w-3.5 h-3.5 text-[#D97706]" />
+            <Clock className="w-3.5 h-3.5 text-cyan-600" />
             <span className="font-bold text-slate-800">
               {formatTimeWithOffset(nowTime, offsetMinutes)}
             </span>
@@ -535,12 +535,12 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
 
           <div className="flex items-center gap-1.5">
             {isGoldMode ? (
-              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white shadow-2xs">
+              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-2xs">
                 <GoldMarketLogo size={14} className="rounded-sm" />
                 <span>GOLD TRADING</span>
               </span>
             ) : (
-              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-amber-50 text-[#B45309] border border-amber-200">
+              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200">
                 <Globe2 className="w-3 h-3" />
                 <span>BINARY TRADING</span>
               </span>
@@ -551,7 +551,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
               onClick={() => setTradesPopover((p) => (p === 'open' ? 'none' : 'open'))}
               className={`px-2.5 py-1 rounded-lg font-bold text-[10px] border transition-colors ${
                 tradesPopover === 'open'
-                  ? 'bg-slate-900 text-white border-slate-900'
+                  ? 'bg-cyan-600 text-white border-cyan-600'
                   : 'bg-white text-slate-700 border-slate-200'
               }`}
             >
@@ -562,7 +562,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
               onClick={() => setTradesPopover((p) => (p === 'closed' ? 'none' : 'closed'))}
               className={`px-2.5 py-1 rounded-lg font-bold text-[10px] border transition-colors ${
                 tradesPopover === 'closed'
-                  ? 'bg-slate-900 text-white border-slate-900'
+                  ? 'bg-cyan-600 text-white border-cyan-600'
                   : 'bg-white text-slate-700 border-slate-200'
               }`}
             >
@@ -573,10 +573,10 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
 
         {/* Asset Dropdown Overlay (Binary Trading markets only) */}
         {!isGoldMode && showAssetPicker && (
-          <div className="mt-2 bg-white border border-amber-200 rounded-2xl p-3 shadow-xl space-y-2.5">
+          <div className="mt-2 bg-white border border-cyan-200 rounded-2xl p-3 shadow-xl space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
-                <Globe2 className="w-4 h-4 text-[#D97706]" />
+                <Globe2 className="w-4 h-4 text-cyan-600" />
                 <span>Select Binary Market ({filteredMarkets.length})</span>
               </div>
               <button
@@ -596,8 +596,8 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-bold flex-shrink-0 transition-colors ${
                     selectedCategory === cat
-                      ? 'bg-[#D97706] text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-amber-50'
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-cyan-50'
                   }`}
                 >
                   {cat}
@@ -621,8 +621,8 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                     }}
                     className={`p-2.5 rounded-xl border text-left transition-all ${
                       active
-                        ? 'bg-amber-50 border-[#D97706] ring-1 ring-amber-400'
-                        : 'bg-slate-50/70 border-slate-200 hover:border-amber-300'
+                        ? 'bg-cyan-50 border-cyan-500 ring-1 ring-cyan-400'
+                        : 'bg-slate-50/70 border-slate-200 hover:border-cyan-300'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -650,15 +650,15 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
       {/* Main Trading Workspace */}
       <div className="p-3 space-y-3">
         {!isGoldMode && (
-          <div className="relative rounded-2xl overflow-hidden border border-amber-200 shadow-xs bg-[#0B1120] h-24">
+          <div className="relative rounded-2xl overflow-hidden border border-cyan-200 shadow-xs bg-slate-900 h-24">
             <img
               src="/assets/aistudio/image_f9ecaae4.png"
               alt="EWI Binary Options Trading"
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover object-center opacity-90"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/35 to-transparent flex flex-col justify-center px-4">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/40 to-transparent flex flex-col justify-center px-4">
+              <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300">
                 Crypto · Forex · Indices
               </span>
               <span className="text-sm font-black text-white leading-tight mt-0.5">
@@ -677,14 +677,14 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             {selectedAsset === 'XAU/USD' ? (
               <GoldMarketLogo size={36} />
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-[#B45309]">
+              <div className="w-9 h-9 rounded-xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
                 <Coins className="w-4 h-4" />
               </div>
             )}
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-black text-sm text-slate-900">{selectedAsset}</span>
-                <span className="text-[11px] font-bold text-[#B45309]">{activeSpec.category}</span>
+                <span className="text-[11px] font-bold text-cyan-700">{activeSpec.category}</span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 font-mono tabular-nums">
                 <span className="text-lg font-black text-slate-900">
@@ -699,8 +699,8 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           </div>
 
           <div className="text-right">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Candle Close</div>
-            <div className="text-base font-mono font-black text-[#D97706] tabular-nums">
+            <div className="text-[10px] font-bold text-slate-400 uppercase">Candle Close ({activeTfObj.label})</div>
+            <div className="text-base font-mono font-black text-cyan-700 tabular-nums">
               {tfCountdownLabel}
             </div>
           </div>
@@ -708,10 +708,10 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
 
         {/* Open / Closed Trades Popover Card */}
         {tradesPopover !== 'none' && (
-          <div className="bg-white rounded-2xl border border-amber-200 p-3.5 shadow-sm space-y-2.5">
+          <div className="bg-white rounded-2xl border border-cyan-200 p-3.5 shadow-sm space-y-2.5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
-                <History className="w-4 h-4 text-[#D97706]" />
+                <History className="w-4 h-4 text-cyan-600" />
                 <span>
                   {tradesPopover === 'open'
                     ? `Open Positions (${activeOrders.length})`
@@ -761,7 +761,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                           </div>
                         </div>
                         <div className="text-right font-mono tabular-nums">
-                          <div className="font-black text-[#B45309]">{secLeft}s</div>
+                          <div className="font-black text-cyan-700">{formatCountdownClock(secLeft)}</div>
                           <div className={`text-[10px] font-black ${inMoney ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {inMoney ? `+৳${(order.amount * order.payoutRate).toFixed(0)}` : 'Out of Money'}
                           </div>
@@ -788,7 +788,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                           <span className={t.direction === 'UP' ? 'text-emerald-600' : 'text-rose-600'}>
                             {t.direction === 'UP' ? '▲ BUY' : '▼ SELL'}
                           </span>
-                          <span>{t.asset}</span>
+                          <span className="text-slate-900">{t.asset}</span>
                           <span className="tabular-nums text-slate-600">৳{t.amount}</span>
                         </div>
                         <div className="text-[10px] font-mono text-slate-500 mt-0.5 tabular-nums">
@@ -811,11 +811,11 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           </div>
         )}
 
-        {/* Smooth 60fps Quotex-Style Light Canvas + Zoom & Pan Controls */}
+        {/* Smooth 60fps Light Canvas + Zoom & Pan Controls */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 text-[10px]">
             <span className="font-bold text-slate-500">
-              Showing {Math.min(visibleCount, assetCandles.length || visibleCount)}/{assetCandles.length || 140} candles
+              Showing {Math.min(visibleCount, assetCandles.length || visibleCount)}/{assetCandles.length || 96} candles ({activeTfObj.label})
               {panOffset > 0 ? ` • History (-${panOffset})` : ' • Live'}
             </span>
             <div className="flex items-center gap-1">
@@ -826,15 +826,15 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                     Math.min(Math.max(0, assetCandles.length - visibleCount), p + Math.max(4, Math.floor(visibleCount / 4)))
                   )
                 }
-                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-cyan-400"
                 title="Pan Left"
               >
                 &lt;
               </button>
               <button
                 type="button"
-                onClick={() => setVisibleCount((c) => Math.min(140, c + 12))}
-                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                onClick={() => setVisibleCount((c) => Math.min(96, c + 12))}
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-cyan-400"
                 title="Zoom Out"
               >
                 -
@@ -842,17 +842,17 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
               <button
                 type="button"
                 onClick={() => {
-                  setVisibleCount(Math.min(140, Math.max(28, assetCandles.length || 140)));
+                  setVisibleCount(Math.min(96, Math.max(28, assetCandles.length || 96)));
                   setPanOffset(0);
                 }}
-                className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 font-black text-[#B45309] hover:bg-amber-100"
+                className="px-2 py-0.5 rounded bg-cyan-50 border border-cyan-200 font-black text-cyan-700 hover:bg-cyan-100"
               >
                 All
               </button>
               <button
                 type="button"
                 onClick={() => setVisibleCount((c) => Math.max(12, c - 8))}
-                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-cyan-400"
                 title="Zoom In"
               >
                 +
@@ -860,7 +860,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
               <button
                 type="button"
                 onClick={() => setPanOffset((p) => Math.max(0, p - Math.max(4, Math.floor(visibleCount / 4))))}
-                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-amber-400"
+                className="px-2 py-0.5 rounded bg-white border border-slate-200 font-black text-slate-700 hover:border-cyan-400"
                 title="Pan Right"
               >
                 &gt;
@@ -890,12 +890,12 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           </div>
         </div>
 
-        {/* Live Entry Marker Cards (compact summary directly under chart when orders active) */}
+        {/* Live Entry Marker Cards */}
         {activeOrders.length > 0 && (
-          <div className="bg-white rounded-2xl border border-amber-200 p-3 space-y-2 shadow-2xs">
+          <div className="bg-white rounded-2xl border border-cyan-200 p-3 space-y-2 shadow-2xs">
             <div className="flex items-center justify-between text-xs font-black text-slate-800">
               <span>Active Market Positions ({activeOrders.length})</span>
-              <span className="text-[11px] text-[#B45309]">Auto Settle on Expiry</span>
+              <span className="text-[11px] text-cyan-700">Auto Settle on Expiry</span>
             </div>
             <div className="grid grid-cols-1 gap-1.5">
               {activeOrders.slice(0, 4).map((order) => {
@@ -929,8 +929,8 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                       <span className={`font-black text-[11px] ${inProfit ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {inProfit ? `+৳${(order.amount * order.payoutRate).toFixed(0)}` : `-৳${order.amount}`}
                       </span>
-                      <span className="px-2 py-0.5 rounded bg-white border border-amber-200 text-[#B45309] font-black text-[11px]">
-                        {secLeft}s
+                      <span className="px-2 py-0.5 rounded bg-white border border-cyan-200 text-cyan-800 font-black text-[11px]">
+                        {formatCountdownClock(secLeft)}
                       </span>
                     </div>
                   </div>
@@ -940,9 +940,9 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           </div>
         )}
 
-        {/* Quotex-Style Order Control Panel */}
+        {/* Order Control Panel */}
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 space-y-3 shadow-2xs">
-          {/* Pending Trade Toggle + Timer Selector */}
+          {/* Pending Trade Toggle + Payout Info */}
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
@@ -954,7 +954,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             >
               <span
                 className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
-                  pendingTradeMode ? 'bg-[#D97706] justify-end' : 'bg-slate-200 justify-start'
+                  pendingTradeMode ? 'bg-cyan-600 justify-end' : 'bg-slate-200 justify-start'
                 }`}
               >
                 <span className="w-4 h-4 rounded-full bg-white shadow-xs" />
@@ -969,9 +969,16 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             </span>
           </div>
 
-          {/* Timer Grid */}
+          {/* Trade Duration Selector (30 sec .. 30 day) */}
           <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Timer</div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                Trade Duration (Seconds / Time)
+              </span>
+              <span className="text-[11px] font-black text-cyan-700 tabular-nums">
+                Active: {activeTfObj.label}
+              </span>
+            </div>
             <div className="grid grid-cols-5 gap-1.5">
               {TIMEFRAMES.map((tf) => (
                 <button
@@ -981,10 +988,10 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                     setSelectedTimeframe(tf.sec);
                     setPanOffset(0);
                   }}
-                  className={`py-2 rounded-lg text-xs font-black transition-all tabular-nums ${
+                  className={`py-2 px-1 rounded-lg text-[11px] font-black transition-all tabular-nums whitespace-nowrap ${
                     selectedTimeframe === tf.sec
-                      ? 'bg-[#D97706] text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-amber-50'
+                      ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-cyan-50'
                   }`}
                 >
                   {tf.label}
@@ -997,7 +1004,9 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           <div>
             <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1.5">
               <span>Investment (Min ৳10)</span>
-              <span className="font-mono tabular-nums">Est. Return: ৳{((Number(customAmountStr) || tradeAmount) * (1 + activeSpec.payoutRate)).toFixed(2)}</span>
+              <span className="font-mono tabular-nums">
+                Est. Return: ৳{((Number(customAmountStr) || tradeAmount) * (1 + activeSpec.payoutRate)).toFixed(2)}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1012,7 +1021,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                 <Minus className="w-4 h-4" />
               </button>
               <div className="flex-1 relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-sm text-[#B45309]">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-sm text-cyan-700">
                   ৳
                 </span>
                 <input
@@ -1023,7 +1032,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                     setCustomAmountStr(e.target.value);
                     setTradeAmount(Number(e.target.value) || 0);
                   }}
-                  className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 text-center font-mono font-black text-base text-slate-900 focus:outline-none focus:border-[#D97706] tabular-nums"
+                  className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 text-center font-mono font-black text-base text-slate-900 focus:outline-none focus:border-cyan-500 tabular-nums"
                 />
               </div>
               <button
@@ -1050,7 +1059,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                   }}
                   className={`py-1.5 rounded-lg text-[11px] font-black border transition-all tabular-nums ${
                     Number(customAmountStr) === amt
-                      ? 'bg-amber-50 border-[#D97706] text-[#B45309]'
+                      ? 'bg-cyan-50 border-cyan-500 text-cyan-700'
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >

@@ -219,7 +219,6 @@ export const D5Game: React.FC = () => {
     setBetSlip(null);
   };
 
-  // Compute Chart Statistics over 50 issues for chartPos (A..E)
   const posIdxMap: Record<'A' | 'B' | 'C' | 'D' | 'E', number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
   const cIdx = posIdxMap[chartPos];
   const chartStats = Array.from({ length: 10 }, (_, digit) => {
@@ -256,9 +255,8 @@ export const D5Game: React.FC = () => {
   const chartRows = history.slice(0, 12);
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] pb-24">
-      {/* Luxury Gold Header */}
-      <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
+      <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           <button
             onClick={() => {
@@ -285,7 +283,7 @@ export const D5Game: React.FC = () => {
             >
               <Bell className="w-5 h-5" />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full bg-yellow-300 text-[#78350F] text-[9px] font-black flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full bg-cyan-300 text-[#0B2235] text-[9px] font-black flex items-center justify-center">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
@@ -306,10 +304,9 @@ export const D5Game: React.FC = () => {
           </div>
         </div>
 
-        {/* Wallet Balance Card */}
-        <div className="bg-white rounded-3xl p-5 text-slate-800 shadow-md border border-amber-100">
+        <div className="bg-white rounded-3xl p-5 text-slate-800 shadow-md border border-slate-200">
           <div className="flex items-center justify-center gap-2 mb-1">
-            <span className="text-3xl font-black tracking-tight text-slate-900">
+            <span className="text-3xl font-black tracking-tight text-slate-900 tabular-nums">
               ৳{user.balance.toFixed(2)}
             </span>
             <button
@@ -317,19 +314,19 @@ export const D5Game: React.FC = () => {
                 syncServerDataNow();
                 showToast('Wallet balance refreshed');
               }}
-              className="text-slate-400 hover:text-[#B45309] active:rotate-180 transition-transform"
+              className="text-slate-400 hover:text-[#0891B2] active:rotate-180 transition-transform"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
-          <div className="text-center text-xs font-semibold text-slate-400 mb-4">Wallet balance</div>
+          <div className="text-center text-xs font-semibold text-slate-500 mb-4">Wallet balance</div>
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => {
                 setActiveTab('wallet');
                 window.location.hash = '#/wallet';
               }}
-              className="py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-extrabold text-sm shadow-xs active:scale-98"
+              className="py-3 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-extrabold text-sm shadow-xs active:scale-98"
             >
               Withdraw
             </button>
@@ -338,7 +335,7 @@ export const D5Game: React.FC = () => {
                 setActiveTab('deposit');
                 window.location.hash = '#/deposit';
               }}
-              className="py-3 rounded-full bg-[#00B977] text-white font-extrabold text-sm shadow-xs active:scale-98"
+              className="py-3 rounded-full bg-emerald-600 text-white font-extrabold text-sm shadow-xs active:scale-98"
             >
               Deposit
             </button>
@@ -347,16 +344,15 @@ export const D5Game: React.FC = () => {
       </div>
 
       <div className="px-4 -mt-3 space-y-4">
-        {/* EWI 5D Mode Tabs */}
-        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-amber-100 grid grid-cols-4 gap-1.5">
+        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-slate-200 grid grid-cols-4 gap-1.5">
           {(['1m', '3m', '5m', '10m'] as D5Mode[]).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               className={`py-2 px-1 rounded-xl text-xs font-black text-center transition-all ${
                 mode === m
-                  ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-amber-50/50'
+                  ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-cyan-50'
               }`}
             >
               EWI 5D {m === '1m' ? '1Min' : m === '3m' ? '3Min' : m === '5m' ? '5Min' : '10Min'}
@@ -364,10 +360,8 @@ export const D5Game: React.FC = () => {
           ))}
         </div>
 
-        {/* Lottery Results & 5-Reel Green Slot Display */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-3">
-          {/* Latest Results Strip A-E + Sum */}
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-amber-50">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200 space-y-3">
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
             <span className="text-[11px] font-bold text-slate-500">Lottery results</span>
             <div className="flex items-center gap-1.5">
               {(['A', 'B', 'C', 'D', 'E'] as const).map((letter, idx) => (
@@ -375,12 +369,12 @@ export const D5Game: React.FC = () => {
                   <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-800 font-black text-xs flex items-center justify-center tabular-nums">
                     {latestDigits[idx]}
                   </span>
-                  <span className="text-[9px] font-bold text-slate-400 mt-0.5">{letter}</span>
+                  <span className="text-[9px] font-bold text-slate-500 mt-0.5">{letter}</span>
                 </div>
               ))}
               <span className="text-xs font-black text-slate-400 mb-3">=</span>
               <div className="flex flex-col items-center">
-                <span className="w-7 h-7 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs flex items-center justify-center shadow-xs tabular-nums">
+                <span className="w-7 h-7 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs flex items-center justify-center shadow-xs tabular-nums">
                   {latestSum}
                 </span>
                 <span className="text-[9px] font-bold text-transparent mt-0.5">S</span>
@@ -388,14 +382,13 @@ export const D5Game: React.FC = () => {
             </div>
           </div>
 
-          {/* Period & Countdown */}
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500">Period</span>
                 <button
                   onClick={() => setShowRulesModal(true)}
-                  className="px-2.5 py-0.5 rounded-full border border-amber-300 text-[#B45309] text-[10px] font-bold flex items-center gap-1 hover:bg-amber-50 active:scale-95"
+                  className="px-2.5 py-0.5 rounded-full border border-cyan-300 text-[#0891B2] text-[10px] font-bold flex items-center gap-1 hover:bg-cyan-50 active:scale-95"
                 >
                   <HelpCircle className="w-3 h-3" />
                   <span>How to play</span>
@@ -408,7 +401,7 @@ export const D5Game: React.FC = () => {
 
             <div className="text-right">
               <div className="text-[11px] font-semibold text-slate-500 mb-1 flex items-center justify-end gap-1">
-                <Clock className="w-3 h-3 text-[#D97706]" />
+                <Clock className="w-3 h-3 text-[#0891B2]" />
                 <span>Time remaining</span>
               </div>
               <div className="flex items-center gap-1">
@@ -418,7 +411,7 @@ export const D5Game: React.FC = () => {
                   ) : (
                     <span
                       key={i}
-                      className={`w-6 h-7 rounded-md bg-[#F7F8FA] border border-slate-100 font-mono font-black text-base flex items-center justify-center tabular-nums ${
+                      className={`w-6 h-7 rounded-md bg-slate-100 border border-slate-200 font-mono font-black text-base flex items-center justify-center tabular-nums ${
                         isLocked ? 'text-[#F95959] animate-pulse' : 'text-[#F95959]'
                       }`}
                     >
@@ -430,7 +423,6 @@ export const D5Game: React.FC = () => {
             </div>
           </div>
 
-          {/* 5-Reel Green Slot Frame */}
           <div className="relative rounded-2xl p-[9px] bg-gradient-to-b from-[#00B86B] via-[#009F57] to-[#008946] border border-[#4ADE80]/50 shadow-[0_6px_14px_rgba(0,137,70,0.28)]">
             <svg
               width="14"
@@ -467,35 +459,33 @@ export const D5Game: React.FC = () => {
           </div>
         </div>
 
-        {/* EWI 5D Betting Area with 5s Lock Overlay */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 relative overflow-hidden space-y-4">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200 relative overflow-hidden space-y-4">
           {isLocked && (
             <div className="absolute inset-0 z-20 bg-black/55 backdrop-blur-[1.5px] flex flex-col items-center justify-center gap-2">
               <div className="flex items-center gap-3">
-                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#B45309]">
+                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#0891B2]">
                   0
                 </div>
-                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#B45309]">
+                <div className="w-20 h-28 rounded-2xl bg-white shadow-xl flex items-center justify-center text-6xl font-black text-[#0891B2]">
                   {periodInfo.rem}
                 </div>
               </div>
-              <div className="px-3 py-1 rounded-full bg-black/60 text-yellow-300 text-[11px] font-black flex items-center gap-1">
+              <div className="px-3 py-1 rounded-full bg-black/60 text-cyan-200 text-[11px] font-black flex items-center gap-1">
                 <Lock className="w-3 h-3" />
                 <span>Drawing result...</span>
               </div>
             </div>
           )}
 
-          {/* Position Tabs A B C D E SUM */}
-          <div className="grid grid-cols-6 gap-1.5 border-b border-amber-50 pb-2.5">
+          <div className="grid grid-cols-6 gap-1.5 border-b border-slate-100 pb-2.5">
             {(['A', 'B', 'C', 'D', 'E', 'SUM'] as const).map((pos) => (
               <button
                 key={pos}
                 onClick={() => setSelectedPos(pos)}
                 className={`py-2 rounded-t-xl font-black text-xs transition-all ${
                   selectedPos === pos
-                    ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white shadow-xs'
-                    : 'bg-amber-50/70 text-slate-600'
+                    ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {pos}
@@ -503,11 +493,10 @@ export const D5Game: React.FC = () => {
             ))}
           </div>
 
-          {/* Big / Small / Odd / Even 2X */}
           <div className="grid grid-cols-4 gap-2">
             <button
               onClick={() => openSlip('size', 'Big', selectedPos === 'SUM' ? 'Big (>=23)' : 'Big (5-9)', 2)}
-              className="py-2.5 rounded-xl bg-gradient-to-b from-amber-400 to-orange-500 text-white font-black text-xs shadow-xs active:scale-95"
+              className="py-2.5 rounded-xl bg-gradient-to-b from-[#06B6D4] to-[#0891B2] text-white font-black text-xs shadow-xs active:scale-95"
             >
               Big 2X
             </button>
@@ -519,7 +508,7 @@ export const D5Game: React.FC = () => {
             </button>
             <button
               onClick={() => openSlip('parity', 'Odd', 'Odd', 2)}
-              className="py-2.5 rounded-xl bg-gradient-to-b from-[#D97706] to-[#B45309] text-white font-black text-xs shadow-xs active:scale-95"
+              className="py-2.5 rounded-xl bg-gradient-to-b from-indigo-500 to-purple-600 text-white font-black text-xs shadow-xs active:scale-95"
             >
               Odd 2X
             </button>
@@ -531,7 +520,6 @@ export const D5Game: React.FC = () => {
             </button>
           </div>
 
-          {/* 0-9 Number Grid (9X) for Positions A-E */}
           {selectedPos !== 'SUM' && (
             <div className="grid grid-cols-5 gap-3 pt-1 place-items-center">
               {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
@@ -540,18 +528,17 @@ export const D5Game: React.FC = () => {
                   onClick={() => openSlip('digit', String(d), `Number ${d}`, 9)}
                   className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
                 >
-                  <div className="w-11 h-11 rounded-full border-2 border-amber-200 bg-amber-50/50 text-slate-800 font-black text-base flex items-center justify-center hover:border-[#D97706] hover:text-[#B45309]">
+                  <div className="w-11 h-11 rounded-full border-2 border-cyan-200 bg-cyan-50/50 text-slate-800 font-black text-base flex items-center justify-center hover:border-[#0891B2] hover:text-[#0891B2]">
                     {d}
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">9X</span>
+                  <span className="text-[10px] font-bold text-slate-500">9X</span>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* History / Chart / My Bets Tabs */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100">
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200">
           <div className="grid grid-cols-3 gap-2 mb-3">
             {(
               [
@@ -565,8 +552,8 @@ export const D5Game: React.FC = () => {
                 onClick={() => setActiveRecordTab(t.id)}
                 className={`py-2 rounded-xl text-xs font-extrabold transition-all ${
                   activeRecordTab === t.id
-                    ? 'bg-gradient-to-r from-[#B45309] to-[#D97706] text-white shadow-xs'
-                    : 'bg-amber-50/70 text-slate-600'
+                    ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {t.label}
@@ -578,15 +565,15 @@ export const D5Game: React.FC = () => {
             <div className="space-y-3">
               <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="bg-gradient-to-r from-[#B45309] to-[#D97706] text-white">
+                  <tr className="bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white">
                     <th className="py-2 px-2 rounded-l-xl font-bold">Period</th>
                     <th className="py-2 px-1 text-center font-bold">Result</th>
                     <th className="py-2 px-2 rounded-r-xl text-right font-bold">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-amber-50">
+                <tbody className="divide-y divide-slate-100">
                   {pagedHistory.map((row) => (
-                    <tr key={row.periodNumber} className="hover:bg-amber-50/30">
+                    <tr key={row.periodNumber} className="hover:bg-cyan-50/40">
                       <td className="py-2.5 px-2 font-mono text-[11px] font-bold text-slate-700">
                         {row.periodNumber}
                       </td>
@@ -595,7 +582,7 @@ export const D5Game: React.FC = () => {
                           {row.digits.map((d, i) => (
                             <span
                               key={i}
-                              className="w-5 h-5 rounded-full border border-amber-200 bg-white text-[10px] font-black text-slate-700 flex items-center justify-center"
+                              className="w-5 h-5 rounded-full border border-slate-200 bg-white text-[10px] font-black text-slate-700 flex items-center justify-center"
                             >
                               {d}
                             </span>
@@ -603,7 +590,7 @@ export const D5Game: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-2.5 px-2 text-right">
-                        <span className="inline-flex w-6 h-6 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white text-[11px] font-black items-center justify-center">
+                        <span className="inline-flex w-6 h-6 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white text-[11px] font-black items-center justify-center">
                           {row.sum}
                         </span>
                       </td>
@@ -616,7 +603,7 @@ export const D5Game: React.FC = () => {
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="p-1.5 rounded-lg bg-amber-50 text-[#B45309] disabled:opacity-40"
+                  className="p-1.5 rounded-lg bg-cyan-50 text-[#0891B2] disabled:opacity-40"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -626,7 +613,7 @@ export const D5Game: React.FC = () => {
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="p-1.5 rounded-lg bg-gradient-to-r from-[#B45309] to-[#D97706] text-white disabled:opacity-40"
+                  className="p-1.5 rounded-lg bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white disabled:opacity-40"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -642,7 +629,7 @@ export const D5Game: React.FC = () => {
                     key={p}
                     onClick={() => setChartPos(p)}
                     className={`w-8 h-8 rounded-t-xl font-black text-xs ${
-                      chartPos === p ? 'bg-[#D97706] text-white' : 'bg-amber-50 text-slate-600'
+                      chartPos === p ? 'bg-[#0891B2] text-white' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {p}
@@ -650,8 +637,7 @@ export const D5Game: React.FC = () => {
                 ))}
               </div>
 
-              {/* Statistic (last 50 periods) */}
-              <div className="text-[10px] space-y-1.5 bg-amber-50/40 p-2.5 rounded-2xl border border-amber-100 overflow-x-auto">
+              <div className="text-[10px] space-y-1.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-200 overflow-x-auto">
                 <div className="font-bold text-slate-700 mb-1">Statistic (last {history.length} Periods)</div>
                 {[
                   { label: 'Missing', key: 'missing' as const },
@@ -670,7 +656,6 @@ export const D5Game: React.FC = () => {
                 ))}
               </div>
 
-              {/* Trend Polyline + B/S O/E Row Table */}
               <div className="relative overflow-x-auto">
                 <svg
                   className="pointer-events-none absolute top-7 right-[44px] left-[92px] h-[calc(100%-28px)] w-[calc(100%-136px)] z-0"
@@ -680,7 +665,7 @@ export const D5Game: React.FC = () => {
                   {chartRows.length > 1 && (
                     <polyline
                       fill="none"
-                      stroke="#D97706"
+                      stroke="#0891B2"
                       strokeWidth="1.8"
                       points={chartRows
                         .map((r, rIdx) => {
@@ -695,13 +680,13 @@ export const D5Game: React.FC = () => {
 
                 <table className="w-full text-[10px] relative z-10">
                   <thead>
-                    <tr className="bg-gradient-to-r from-[#B45309] to-[#D97706] text-white">
+                    <tr className="bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white">
                       <th className="py-1.5 px-1.5 text-left rounded-l-lg">Period</th>
                       <th className="py-1.5 px-1 text-center">Number</th>
                       <th className="py-1.5 px-1.5 text-right rounded-r-lg">B/S O/E</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-amber-50">
+                  <tbody className="divide-y divide-slate-100">
                     {chartRows.map((row) => {
                       const val = row.digits[cIdx];
                       const isBig = val >= 5;
@@ -718,7 +703,7 @@ export const D5Game: React.FC = () => {
                                   key={n}
                                   className={`w-4 h-4 mx-auto rounded-full flex items-center justify-center font-black text-[9px] ${
                                     val === n
-                                      ? 'bg-[#D97706] text-white shadow-xs'
+                                      ? 'bg-[#0891B2] text-white shadow-xs'
                                       : 'text-slate-400'
                                   }`}
                                 >
@@ -731,14 +716,14 @@ export const D5Game: React.FC = () => {
                             <div className="inline-flex gap-1">
                               <span
                                 className={`w-4 h-4 rounded-full text-white font-black text-[9px] flex items-center justify-center ${
-                                  isBig ? 'bg-amber-500' : 'bg-blue-500'
+                                  isBig ? 'bg-[#0891B2]' : 'bg-blue-500'
                                 }`}
                               >
                                 {isBig ? 'B' : 'S'}
                               </span>
                               <span
                                 className={`w-4 h-4 rounded-full text-white font-black text-[9px] flex items-center justify-center ${
-                                  isOdd ? 'bg-[#B45309]' : 'bg-emerald-500'
+                                  isOdd ? 'bg-indigo-600' : 'bg-emerald-500'
                                 }`}
                               >
                                 {isOdd ? 'O' : 'E'}
@@ -757,12 +742,12 @@ export const D5Game: React.FC = () => {
           {activeRecordTab === 'my' && (
             <div className="space-y-2.5">
               {myModeBets.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-400">No EWI 5D bets placed yet.</div>
+                <div className="py-10 text-center text-xs text-slate-500">No EWI 5D bets placed yet.</div>
               ) : (
                 myModeBets.slice(0, 30).map((b) => (
                   <div
                     key={b.id}
-                    className="p-3 rounded-2xl bg-amber-50/40 border border-amber-100 flex items-center justify-between text-xs"
+                    className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                   >
                     <div>
                       <div className="font-black text-slate-800">
@@ -778,7 +763,7 @@ export const D5Game: React.FC = () => {
                             ? 'text-emerald-600'
                             : b.status === 'lost'
                             ? 'text-slate-400'
-                            : 'text-amber-500'
+                            : 'text-[#0891B2]'
                         }`}
                       >
                         {b.status === 'won' ? `+৳${(b.winAmount || 0).toFixed(2)}` : b.status}
@@ -792,13 +777,12 @@ export const D5Game: React.FC = () => {
         </div>
       </div>
 
-      {/* Bet Slip Drawer Modal */}
       {betSlip && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-t-3xl p-5 space-y-4 shadow-2xl animate-fade-in">
-            <div className="bg-gradient-to-r from-[#B45309] to-[#D97706] -mx-5 -mt-5 px-5 py-3.5 rounded-t-3xl text-white flex items-center justify-between">
+          <div className="w-full max-w-md bg-white border-t border-slate-200 rounded-t-3xl p-5 space-y-4 shadow-2xl animate-fade-in">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] -mx-5 -mt-5 px-5 py-3.5 rounded-t-3xl text-white flex items-center justify-between">
               <div>
-                <div className="text-xs font-bold opacity-90">EWI 5D {mode.toUpperCase()} • Pos {selectedPos}</div>
+                <div className="text-xs font-bold text-cyan-100">EWI 5D {mode.toUpperCase()} • Pos {selectedPos}</div>
                 <div className="text-base font-black">Select: {betSlip.label} ({betSlip.payoutRate}X)</div>
               </div>
               <button onClick={() => setBetSlip(null)} className="p-1 rounded-full hover:bg-white/20">
@@ -814,7 +798,7 @@ export const D5Game: React.FC = () => {
                     key={v}
                     onClick={() => setBetBaseAmount(v)}
                     className={`px-3 py-1.5 rounded-xl font-black ${
-                      betBaseAmount === v ? 'bg-[#D97706] text-white' : 'bg-amber-50 text-slate-700'
+                      betBaseAmount === v ? 'bg-[#0891B2] text-white' : 'bg-slate-100 text-slate-700'
                     }`}
                   >
                     ৳{v}
@@ -827,15 +811,27 @@ export const D5Game: React.FC = () => {
               <span>Quantity</span>
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => setBetMultiplier((m) => Math.max(1, m - 1))}
-                  className="w-8 h-8 rounded-xl bg-amber-50 text-[#B45309] font-black text-base"
+                  className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 font-black text-base"
                 >
                   -
                 </button>
-                <span className="w-10 text-center font-black text-sm">{betMultiplier}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={9999}
+                  value={betMultiplier || ''}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setBetMultiplier(isNaN(val) ? 1 : Math.min(9999, Math.max(1, val)));
+                  }}
+                  className="w-16 h-8 rounded-xl border border-slate-200 bg-white text-center font-black text-sm text-slate-900 tabular-nums focus:outline-none focus:border-[#0891B2]"
+                />
                 <button
-                  onClick={() => setBetMultiplier((m) => m + 1)}
-                  className="w-8 h-8 rounded-xl bg-amber-50 text-[#B45309] font-black text-base"
+                  type="button"
+                  onClick={() => setBetMultiplier((m) => Math.min(9999, m + 1))}
+                  className="w-8 h-8 rounded-xl bg-[#0891B2] text-white font-black text-base"
                 >
                   +
                 </button>
@@ -848,7 +844,7 @@ export const D5Game: React.FC = () => {
                   key={q}
                   onClick={() => setBetMultiplier(q)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-black ${
-                    betMultiplier === q ? 'bg-[#D97706] text-white' : 'bg-slate-100 text-slate-600'
+                    betMultiplier === q ? 'bg-[#0891B2] text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
                   X{q}
@@ -865,7 +861,7 @@ export const D5Game: React.FC = () => {
               </button>
               <button
                 onClick={confirmBet}
-                className="col-span-2 py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md"
+                className="col-span-2 py-3 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs shadow-md"
               >
                 Total amount ৳{(betBaseAmount * betMultiplier).toFixed(2)}
               </button>
@@ -874,11 +870,10 @@ export const D5Game: React.FC = () => {
         </div>
       )}
 
-      {/* Rules Modal */}
       {showRulesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="w-full max-w-xs bg-white rounded-3xl overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-[#B45309] to-[#D97706] p-4 text-white text-center font-black text-sm">
+          <div className="w-full max-w-xs bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] p-4 text-white text-center font-black text-sm">
               EWI 5D Rules
             </div>
             <div className="p-4 text-xs text-slate-600 space-y-2 leading-relaxed">
@@ -889,7 +884,7 @@ export const D5Game: React.FC = () => {
             <div className="p-4 pt-0">
               <button
                 onClick={() => setShowRulesModal(false)}
-                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs"
+                className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs"
               >
                 Close
               </button>

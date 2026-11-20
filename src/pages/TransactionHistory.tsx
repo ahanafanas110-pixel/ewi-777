@@ -154,7 +154,6 @@ export const TransactionHistory: React.FC = () => {
     transactions
       .filter((tx) => tx.userId === user.id)
       .forEach((tx) => {
-        // Avoid duplicating deposit/withdraw records already represented by request rows
         if (tx.type === 'deposit') {
           const matchingReq = depositRequests.some(
             (d) =>
@@ -206,7 +205,6 @@ export const TransactionHistory: React.FC = () => {
 
   const filtered = combinedItems.filter((tx) => {
     if (filterType === 'deposit') {
-      // Gift codes and non-deposit items NEVER appear under Deposit History
       if (tx.type !== 'deposit') return false;
     } else if (filterType === 'withdraw') {
       if (tx.type !== 'withdraw') return false;
@@ -225,16 +223,15 @@ export const TransactionHistory: React.FC = () => {
       : 'TRANSACTION HISTORY';
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC] pb-24">
-      {/* Clean Minimal Top Navbar matching Mockups */}
-      <div className="bg-white px-4 py-3 border-b border-slate-200/80 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
+      <div className="bg-white/95 backdrop-blur-md px-4 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <button
           type="button"
           onClick={() => {
             setActiveTab('wallet');
             window.location.hash = '#/wallet';
           }}
-          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-700 hover:text-[#B45309] active:scale-95"
+          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-700 hover:text-cyan-700 active:scale-95"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
@@ -255,7 +252,7 @@ export const TransactionHistory: React.FC = () => {
                 setFilterType(e.target.value);
                 setHistoryFilterTab(e.target.value as any);
               }}
-              className="w-full bg-white border border-amber-200/80 rounded-2xl px-4 py-3 text-xs font-bold text-slate-700 shadow-2xs appearance-none focus:outline-none focus:ring-1 focus:ring-[#D97706]"
+              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 shadow-2xs appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="all">All Records</option>
               <option value="deposit">Deposit History</option>
@@ -274,14 +271,14 @@ export const TransactionHistory: React.FC = () => {
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              className="w-full bg-white border border-amber-200/80 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs focus:outline-none focus:ring-1 focus:ring-[#D97706]"
+              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-800 shadow-2xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
         </div>
 
-        {/* Section Subtitle matching Mockup */}
+        {/* Section Subtitle */}
         <div className="flex items-center gap-2 px-1 pt-0.5">
-          <div className="w-5 h-5 rounded-full bg-amber-100 text-[#B45309] flex items-center justify-center">
+          <div className="w-5 h-5 rounded-full bg-cyan-500/15 text-cyan-700 flex items-center justify-center">
             <FileText className="w-3 h-3" />
           </div>
           <span className="text-xs font-black tracking-wide text-slate-700 uppercase">
@@ -292,7 +289,7 @@ export const TransactionHistory: React.FC = () => {
         {/* Records Cards */}
         <div className="space-y-3">
           {filtered.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-3xl p-6 border border-slate-200/70">
+            <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-3xl p-6 border border-slate-200">
               No records found.
             </div>
           ) : (
@@ -303,21 +300,21 @@ export const TransactionHistory: React.FC = () => {
                 row.status === 'COMPLETED'
                   ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
                   : row.status === 'REJECTED'
-                  ? 'border-rose-300 text-rose-600 bg-rose-50'
+                  ? 'border-rose-300 text-rose-700 bg-rose-50'
                   : row.status === 'PROCESSING'
                   ? 'border-sky-300 text-sky-700 bg-sky-50'
-                  : 'border-amber-300 text-[#D97706] bg-amber-50/40';
+                  : 'border-cyan-300 text-cyan-800 bg-cyan-50';
 
               const typeBadgeStyle = isDep
                 ? 'bg-emerald-50 text-emerald-700'
                 : isWd
-                ? 'bg-rose-50 text-rose-600'
-                : 'bg-amber-50 text-[#B45309]';
+                ? 'bg-rose-50 text-rose-700'
+                : 'bg-cyan-50 text-cyan-700';
 
               return (
                 <div
                   key={row.id}
-                  className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3"
+                  className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3"
                 >
                   {/* Card Header: Type Badge Left + Status Right */}
                   <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
@@ -339,7 +336,7 @@ export const TransactionHistory: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* 4 Key Rows Matching Deposit/Withdraw Mockup */}
+                  {/* 4 Key Rows */}
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 font-medium">
@@ -347,8 +344,10 @@ export const TransactionHistory: React.FC = () => {
                       </span>
                       <span
                         className={`font-black font-mono tabular-nums text-sm ${
-                          isDep || isWd
-                            ? 'text-[#EAB308]'
+                          isDep
+                            ? 'text-cyan-700'
+                            : isWd
+                            ? 'text-rose-600'
                             : row.amount >= 0
                             ? 'text-emerald-600'
                             : 'text-rose-600'
@@ -429,13 +428,13 @@ export const TransactionHistory: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Full-width golden COMPLETE PAYMENT button on Pending Deposits */}
-                  {isDep && row.status === 'PENDING' && (
+                  {/* Full-width Cyan COMPLETE PAYMENT button on Pending EWI PAY Deposits */}
+                  {isDep && row.status === 'PENDING' && row.rawMethod !== 'USDT' && (
                     <button
                       type="button"
                       disabled={resumingId === row.id}
                       onClick={() => handleCompletePayment(row)}
-                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#F59E0B] via-[#FBBF24] to-[#EAB308] text-white font-black text-xs tracking-wider uppercase shadow-sm hover:brightness-105 active:scale-98 transition-all disabled:opacity-60"
+                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs tracking-wider uppercase shadow-sm hover:brightness-105 active:scale-98 transition-all disabled:opacity-60"
                     >
                       {resumingId === row.id ? 'OPENING CHECKOUT...' : 'COMPLETE PAYMENT'}
                     </button>

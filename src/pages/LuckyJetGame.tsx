@@ -6,14 +6,14 @@ import {
   HelpCircle,
   CheckCircle2,
   X,
-  Rocket,
-  WifiOff
+  Rocket
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { AviatorServerState } from '../types';
 import { getSyncedCrashEngineState } from '../utils/syncedMarkets';
 import { apiUrl } from '../utils/phoneAndApi';
 import { loadTransparentSprite } from '../utils/spriteAlpha';
+import luckyJetSpriteImg from '../assets/images/lucky_jet_pilot_clean_1795168517207.jpg';
 
 type RoundPhase = 'waiting' | 'flying' | 'crashed';
 type SlotId = 1 | 2 | 3;
@@ -34,7 +34,7 @@ interface LuckySlotState {
 const MAX_MULTIPLIER = 10000;
 const QUICK_CHIPS = [10, 50, 100, 500];
 const SLOT_IDS: SlotId[] = [1, 2, 3];
-const LUCKY_JET_SPRITE_SRC = '/assets/aistudio/image_ae596394.png';
+const LUCKY_JET_SPRITE_SRC = luckyJetSpriteImg;
 
 const createInitialSlot = (defaultAmt = '50'): LuckySlotState => ({
   betAmount: defaultAmt,
@@ -68,7 +68,6 @@ export const LuckyJetGame: React.FC = () => {
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [roundId, setRoundId] = useState<string>('LJ000000');
   const [crashHistory, setCrashHistory] = useState<number[]>([3.12, 1.44, 8.95, 1.92, 14.5, 1.19, 2.75, 4.18]);
-  const [networkAlertMsg, setNetworkAlertMsg] = useState<string | null>(null);
   const [cleanAvatarUrl, setCleanAvatarUrl] = useState<string>(LUCKY_JET_SPRITE_SRC);
 
   const [slots, setSlots] = useState<Record<SlotId, LuckySlotState>>({
@@ -95,13 +94,14 @@ export const LuckyJetGame: React.FC = () => {
     phaseStartedAt: number;
     serverOffsetMs: number;
     crashPoint: number;
-    forcedReason?: string;
+    crashedAtMs: number;
   }>({
     roundId: 'LJ000000',
     phase: 'waiting',
     phaseStartedAt: Date.now(),
     serverOffsetMs: 0,
-    crashPoint: 1.0
+    crashPoint: 1.0,
+    crashedAtMs: 0
   });
 
   const cashOutRef = useRef(cashOutCrashBet);
@@ -140,25 +140,17 @@ export const LuckyJetGame: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const pool = crashPoolStates.luckyjet;
-    if (pool?.roundId === roundId && pool.forcedReason) {
-      setNetworkAlertMsg(pool.forcedReason);
-    } else if (phase === 'waiting') {
-      setNetworkAlertMsg(null);
-    }
-  }, [crashPoolStates.luckyjet, roundId, phase]);
-
   // Poll /api/crash/state?game=luckyjet (with identical deterministic fallback on static hosts)
   useEffect(() => {
     let mounted = true;
     let useFallback = false;
 
-    const applyState = (st: AviatorServerState & { forcedReason?: string }) => {
+    const applyState = (st: AviatorServerState) => {
       if (!mounted) return;
       const clientNow = Date.now();
       const serverOffsetMs = (st.serverNow || clientNow) - clientNow;
       const prevRoundId = serverStateRef.current.roundId;
+      const wasCrashed = serverStateRef.current.phase === 'crashed';
 
       serverStateRef.current = {
         roundId: st.roundId,
@@ -166,16 +158,16 @@ export const LuckyJetGame: React.FC = () => {
         phaseStartedAt: st.phaseStartedAt,
         serverOffsetMs,
         crashPoint: st.crashPoint || 0,
-        forcedReason: st.forcedReason
+        crashedAtMs:
+          st.phase === 'crashed'
+            ? wasCrashed
+              ? serverStateRef.current.crashedAtMs || performance.now()
+              : performance.now()
+            : 0
       };
 
       setRoundId(st.roundId);
       setPhase(st.phase);
-      if (st.forcedReason && st.phase === 'crashed') {
-        setNetworkAlertMsg(st.forcedReason);
-      } else if (st.phase === 'waiting') {
-        setNetworkAlertMsg(null);
-      }
       if (Array.isArray(st.crashHistory)) {
         setCrashHistory(st.crashHistory);
       }
@@ -475,12 +467,35 @@ export const LuckyJetGame: React.FC = () => {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Blast / Fly away with flame extinguished
-        const flyOffProgress = Math.min(1, elapsedSec * 0.35);
+        // Blast / Fly away with shockwave + extinguished jetpack flame
+        const sinceCrash = serverStateRef.current.crashedAtMs
+          ? Math.max(0, (performance.now() - serverStateRef.current.crashedAtMs) / 1000)
+          : 0.35;
+
+        if (sinceCrash < 0.85) {
+          const ringR = (10 + sinceCrash * 125) * dpr;
+          const alpha = Math.max(0, 1 - sinceCrash / 0.85);
+          ctx.strokeStyle = `rgba(251, 146, 60, ${alpha * 0.85})`;
+          ctx.lineWidth = 3 * dpr;
+          ctx.beginPath();
+          ctx.arc(tipX, tipY - 8 * dpr, ringR, 0, Math.PI * 2);
+          ctx.stroke();
+
+          const flash = ctx.createRadialGradient(tipX, tipY - 8 * dpr, 2, tipX, tipY - 8 * dpr, ringR * 0.68);
+          flash.addColorStop(0, `rgba(254, 240, 138, ${alpha * 0.72})`);
+          flash.addColorStop(0.5, `rgba(244, 63, 94, ${alpha * 0.45})`);
+          flash.addColorStop(1, 'rgba(244, 63, 94, 0)');
+          ctx.fillStyle = flash;
+          ctx.beginPath();
+          ctx.arc(tipX, tipY - 8 * dpr, ringR * 0.68, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const flyOffProgress = Math.min(1, sinceCrash * 1.1);
         const crashX = Math.min(w - 26 * dpr, tipX + flyOffProgress * 45 * dpr);
         const crashY = Math.max(24 * dpr, tipY - flyOffProgress * 28 * dpr);
         ctx.save();
-        ctx.globalAlpha = Math.max(0.25, 1 - flyOffProgress * 0.5);
+        ctx.globalAlpha = Math.max(0.2, 1 - flyOffProgress * 0.6);
         drawPilotSprite(ctx, dpr, crashX, crashY, 0.25, elapsedSec, false, true, 84);
         ctx.restore();
       }
@@ -509,9 +524,7 @@ export const LuckyJetGame: React.FC = () => {
           const forcedMult = Number(pool.forcedCrashMultiplier);
           st.phase = 'crashed';
           st.crashPoint = forcedMult;
-          if (pool.forcedReason) {
-            setNetworkAlertMsg(pool.forcedReason);
-          }
+          if (!st.crashedAtMs) st.crashedAtMs = performance.now();
           setPhase('crashed');
           setMultiplier(forcedMult);
           drawArena('crashed', elapsedSec);
@@ -679,16 +692,16 @@ export const LuckyJetGame: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#141029] text-white pb-16">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
       {/* Header */}
-      <div className="bg-[#1D163A] border-b border-violet-500/20 px-4 py-2.5 relative flex items-center justify-between min-h-[60px] shadow-md sticky top-0 z-30">
+      <div className="bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 relative flex items-center justify-between min-h-[60px] shadow-xs sticky top-0 z-30">
         <button
           type="button"
           onClick={() => {
             setActiveTab('home');
             window.location.hash = '#/';
           }}
-          className="relative z-10 p-2 -ml-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95"
+          className="relative z-10 p-2 -ml-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 active:scale-95"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
@@ -698,11 +711,11 @@ export const LuckyJetGame: React.FC = () => {
           <Ewi777Logo height={50} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
-        <div className="relative z-10 flex items-center gap-2">
+        <div className="relative z-10 flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setShowHowToPlay(true)}
-            className="p-2 rounded-xl bg-violet-500/20 text-violet-200 hover:bg-violet-500/30"
+            className="p-2 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 hover:bg-cyan-100 active:scale-95"
             aria-label="How to play"
           >
             <HelpCircle className="w-4 h-4" />
@@ -710,17 +723,17 @@ export const LuckyJetGame: React.FC = () => {
           <button
             type="button"
             onClick={() => showToast('Balance synced')}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#141029] border border-amber-400/35 text-xs font-black font-mono tabular-nums text-amber-300"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-50 border border-cyan-200 text-xs font-black font-mono tabular-nums text-cyan-800 active:scale-95"
           >
             <span>৳{user.balance.toFixed(0)}</span>
-            <RefreshCw className="w-3 h-3 text-amber-400" />
+            <RefreshCw className="w-3 h-3 text-cyan-600" />
           </button>
         </div>
       </div>
 
       <div className="p-3.5 space-y-3.5">
         {/* Title Strip */}
-        <div className="flex items-center justify-between bg-[#1D163A] rounded-2xl px-3.5 py-2 border border-violet-500/20">
+        <div className="flex items-center justify-between bg-white rounded-2xl px-3.5 py-2 border border-slate-200 shadow-2xs">
           <div className="flex items-center gap-2">
             <img
               src={cleanAvatarUrl}
@@ -728,16 +741,16 @@ export const LuckyJetGame: React.FC = () => {
               referrerPolicy="no-referrer"
               className="w-8 h-8 object-contain"
             />
-            <span className="font-black text-xs tracking-wider text-white">LUCKY JET · 3 SLOTS</span>
+            <span className="font-black text-xs tracking-wider text-slate-900">LUCKY JET · 3 SLOTS</span>
           </div>
-          <span className="text-[11px] font-bold text-violet-300 font-mono tabular-nums">
+          <span className="text-[11px] font-bold text-cyan-700 font-mono tabular-nums">
             #{roundId}
           </span>
         </div>
 
         {/* HISTORY OF ROUNDS */}
         <div className="space-y-1">
-          <div className="text-[10px] font-bold text-violet-300/70 tracking-wider uppercase px-1">
+          <div className="text-[10px] font-bold text-slate-500 tracking-wider uppercase px-1">
             HISTORY OF ROUNDS
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
@@ -746,10 +759,10 @@ export const LuckyJetGame: React.FC = () => {
                 key={`${m}-${idx}`}
                 className={`px-2.5 py-1 rounded-full text-[11px] font-black font-mono tabular-nums flex-shrink-0 border ${
                   m >= 10
-                    ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
+                    ? 'bg-amber-100 border-amber-300 text-amber-900'
                     : m >= 2
-                    ? 'bg-violet-500/30 border-violet-400/50 text-violet-200'
-                    : 'bg-sky-500/20 border-sky-400/40 text-sky-200'
+                    ? 'bg-violet-100 border-violet-300 text-violet-900'
+                    : 'bg-sky-100 border-sky-300 text-sky-900'
                 }`}
               >
                 {m.toFixed(2)}x
@@ -759,14 +772,14 @@ export const LuckyJetGame: React.FC = () => {
         </div>
 
         {/* Deep Indigo Flight Canvas Stage */}
-        <div className="relative rounded-2xl overflow-hidden border border-violet-500/30 bg-[#141029] shadow-xl h-72">
+        <div className="relative rounded-2xl overflow-hidden border border-slate-300 bg-[#141029] shadow-xl h-72">
           <canvas ref={canvasRef} className="w-full h-full block" />
 
           <div className="absolute top-3 left-3.5 right-3.5 flex items-center justify-between pointer-events-none">
-            <div className="px-2.5 py-1 rounded-lg bg-black/45 border border-white/10 text-[10px] font-mono text-violet-200">
+            <div className="px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-[10px] font-mono text-violet-200">
               Round #{roundId.slice(-5)}
             </div>
-            <div className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-black font-mono">
+            <div className="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-[10px] font-black font-mono">
               MAX 10,000X
             </div>
           </div>
@@ -783,7 +796,7 @@ export const LuckyJetGame: React.FC = () => {
                 </div>
                 <div className="w-44 h-1.5 bg-white/10 rounded-full overflow-hidden mx-auto">
                   <div
-                    className="h-full bg-gradient-to-r from-violet-500 to-amber-400 transition-all duration-75"
+                    className="h-full bg-gradient-to-r from-cyan-400 to-violet-500 transition-all duration-75"
                     style={{ width: `${Math.min(100, (countdown / 5.0) * 100)}%` }}
                   />
                 </div>
@@ -829,71 +842,65 @@ export const LuckyJetGame: React.FC = () => {
                 <div className="text-5xl font-black font-mono tabular-nums text-rose-400">
                   {multiplier.toFixed(2)}x
                 </div>
-                {networkAlertMsg && (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-950/90 border border-rose-500/60 text-rose-200 text-[11px] font-black shadow-lg">
-                    <WifiOff className="w-3.5 h-3.5 text-rose-400" />
-                    <span>{networkAlertMsg}</span>
-                  </div>
-                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* 3 Independent Simultaneous Trade Slots (Bet Next Round + Cancel before takeoff) */}
+        {/* 3 Independent Simultaneous Trade Slots */}
         <div className="space-y-2.5">
           {SLOT_IDS.map((slotId) => {
             const sl = slots[slotId];
             return (
               <div
                 key={slotId}
-                className="bg-[#1D163A] rounded-2xl p-3.5 border border-violet-500/25 space-y-2.5"
+                className="bg-white rounded-2xl p-3.5 border border-slate-200 space-y-2.5 shadow-xs"
               >
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-black text-amber-300 tracking-wider uppercase">
+                  <span className="font-black text-cyan-700 tracking-wider uppercase">
                     Jet Slot #{slotId}
                   </span>
                   {sl.cashedOutInfo ? (
-                    <span className="text-emerald-400 font-black font-mono">
+                    <span className="text-emerald-700 font-black font-mono">
                       Won +৳{sl.cashedOutInfo.win.toFixed(2)} @ {sl.cashedOutInfo.mult.toFixed(2)}x
                     </span>
                   ) : sl.activeBetId ? (
-                    <span className="text-emerald-300 font-bold font-mono">
+                    <span className="text-emerald-700 font-bold font-mono">
                       Locked: ৳{sl.activeBetAmount.toFixed(0)}
                     </span>
                   ) : sl.queuedForNext ? (
-                    <span className="text-amber-300 font-black font-mono">
+                    <span className="text-amber-700 font-black font-mono">
                       Queued for Next Round · ৳{(Number(sl.betAmount) || 0).toFixed(0)}
                     </span>
                   ) : (
-                    <span className="text-violet-300/75 font-semibold">Min ৳10</span>
+                    <span className="text-slate-500 font-semibold">Min ৳10</span>
                   )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <label className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-1.5 border border-violet-500/20 cursor-pointer">
-                    <span className="font-bold text-violet-100 text-[11px]">Autobet</span>
+                  <label className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200 cursor-pointer">
+                    <span className="font-bold text-slate-700 text-[11px]">Autobet</span>
                     <input
                       type="checkbox"
                       checked={sl.autoBetEnabled}
                       onChange={(e) => updateSlot(slotId, { autoBetEnabled: e.target.checked })}
-                      className="w-4 h-4 accent-amber-400"
+                      className="w-4 h-4 accent-cyan-600"
                     />
                   </label>
-                  <label className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-1.5 border border-violet-500/20 cursor-pointer">
-                    <span className="font-bold text-violet-100 text-[11px]">Autowithdraw</span>
+                  <label className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200 cursor-pointer">
+                    <span className="font-bold text-slate-700 text-[11px]">Autowithdraw</span>
                     <input
                       type="checkbox"
                       checked={sl.autoCashoutEnabled}
                       onChange={(e) => updateSlot(slotId, { autoCashoutEnabled: e.target.checked })}
-                      className="w-4 h-4 accent-amber-400"
+                      className="w-4 h-4 accent-cyan-600"
                     />
                   </label>
                 </div>
 
                 {sl.autoCashoutEnabled && (
-                  <div className="flex items-center justify-between bg-[#141029] rounded-xl px-3 py-1.5 border border-amber-400/30">
-                    <span className="text-[11px] font-bold text-amber-200">Target Multiplier</span>
+                  <div className="flex items-center justify-between bg-cyan-50/70 rounded-xl px-3 py-1.5 border border-cyan-200">
+                    <span className="text-[11px] font-bold text-cyan-800">Target Multiplier</span>
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
@@ -902,23 +909,23 @@ export const LuckyJetGame: React.FC = () => {
                         max={MAX_MULTIPLIER}
                         value={sl.autoCashoutVal}
                         onChange={(e) => updateSlot(slotId, { autoCashoutVal: e.target.value })}
-                        className="w-16 bg-[#1D163A] border border-violet-400/30 rounded-lg px-2 py-0.5 text-right font-mono font-black text-xs text-amber-300 focus:outline-none"
+                        className="w-16 bg-white border border-cyan-200 rounded-lg px-2 py-0.5 text-right font-mono font-black text-xs text-slate-900 focus:outline-none"
                       />
-                      <span className="text-xs font-black text-violet-300">x</span>
+                      <span className="text-xs font-black text-cyan-700">x</span>
                     </div>
                   </div>
                 )}
 
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-[#141029] border border-violet-500/30 rounded-xl px-3 py-1.5 flex items-center justify-between">
-                    <span className="text-xs font-black text-amber-400">৳</span>
+                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex items-center justify-between">
+                    <span className="text-xs font-black text-cyan-700">৳</span>
                     <input
                       type="number"
                       min={10}
                       disabled={Boolean(sl.activeBetId) || sl.queuedForNext}
                       value={sl.betAmount}
                       onChange={(e) => updateSlot(slotId, { betAmount: e.target.value })}
-                      className="w-full bg-transparent text-center font-mono font-black text-sm text-white focus:outline-none tabular-nums disabled:opacity-60"
+                      className="w-full bg-transparent text-center font-mono font-black text-sm text-slate-900 focus:outline-none tabular-nums disabled:opacity-60"
                     />
                   </div>
                   <button
@@ -929,7 +936,7 @@ export const LuckyJetGame: React.FC = () => {
                         betAmount: String(Math.max(10, Math.floor((Number(sl.betAmount) || 20) / 2)))
                       })
                     }
-                    className="min-h-[38px] px-3 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
+                    className="min-h-[38px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-xs active:scale-95 disabled:opacity-50"
                   >
                     1/2
                   </button>
@@ -941,7 +948,7 @@ export const LuckyJetGame: React.FC = () => {
                         betAmount: String(Math.min(50000, (Number(sl.betAmount) || 10) * 2))
                       })
                     }
-                    className="min-h-[38px] px-3 rounded-xl bg-white/10 hover:bg-white/15 font-black text-xs active:scale-95 disabled:opacity-50"
+                    className="min-h-[38px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-xs active:scale-95 disabled:opacity-50"
                   >
                     2X
                   </button>
@@ -956,8 +963,8 @@ export const LuckyJetGame: React.FC = () => {
                       onClick={() => updateSlot(slotId, { betAmount: String(chip) })}
                       className={`min-h-[34px] rounded-xl text-[11px] font-black font-mono tabular-nums border transition-all disabled:opacity-50 ${
                         Number(sl.betAmount) === chip
-                          ? 'bg-gradient-to-r from-[#D97706] to-[#F59E0B] border-amber-300 text-slate-950'
-                          : 'bg-[#141029] border-white/10 text-violet-100 hover:bg-white/10'
+                          ? 'bg-gradient-to-r from-[#0891B2] to-[#06B6D4] border-cyan-600 text-white shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                       }`}
                     >
                       ৳{chip}
@@ -969,7 +976,7 @@ export const LuckyJetGame: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleCashOut(slotId)}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-gradient-to-r from-[#D97706] via-[#F59E0B] to-[#FBBF24] text-slate-950 font-black text-sm shadow-lg active:scale-97 transition-all flex items-center justify-center gap-2"
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-sm shadow-md active:scale-97 transition-all flex items-center justify-center gap-2"
                   >
                     <span>WITHDRAW #{slotId}</span>
                     <span className="font-mono tabular-nums">
@@ -981,7 +988,7 @@ export const LuckyJetGame: React.FC = () => {
                     type="button"
                     disabled={sl.isPlacing}
                     onClick={() => handleCancelActiveBet(slotId)}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/85 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all disabled:opacity-60"
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all disabled:opacity-60"
                   >
                     <X className="w-4 h-4" />
                     <span>CANCEL BET #{slotId} (REFUND ৳{sl.activeBetAmount.toFixed(0)})</span>
@@ -990,7 +997,7 @@ export const LuckyJetGame: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handlePlaceBet(slotId)}
-                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 border border-rose-400/50 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all"
+                    className="w-full min-h-[46px] py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center justify-center gap-2 active:scale-97 transition-all"
                   >
                     <X className="w-4 h-4" />
                     <span>CANCEL QUEUED BET (#{slotId} · ৳{(Number(sl.betAmount) || 0).toFixed(0)})</span>
@@ -1000,10 +1007,10 @@ export const LuckyJetGame: React.FC = () => {
                     type="button"
                     onClick={() => handlePlaceBet(slotId)}
                     disabled={sl.isPlacing}
-                    className={`w-full min-h-[46px] py-2.5 rounded-xl font-black text-sm shadow-lg active:scale-97 transition-all disabled:opacity-45 ${
+                    className={`w-full min-h-[46px] py-2.5 rounded-xl font-black text-sm shadow-md active:scale-97 transition-all disabled:opacity-45 ${
                       phase === 'waiting'
-                        ? 'bg-gradient-to-r from-[#7C3AED] via-[#8B5CF6] to-[#A855F7] hover:brightness-110 text-white'
-                        : 'bg-amber-500/90 hover:bg-amber-500 text-slate-950'
+                        ? 'bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] hover:brightness-110 text-white'
+                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
                     }`}
                   >
                     {phase === 'waiting'
@@ -1017,8 +1024,8 @@ export const LuckyJetGame: React.FC = () => {
         </div>
 
         {/* All / My / Top Bets Tabs */}
-        <div className="bg-[#1D163A] rounded-2xl p-4 border border-violet-500/20 space-y-3">
-          <div className="grid grid-cols-3 gap-1.5 bg-[#141029] p-1 rounded-xl">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-3 shadow-xs">
+          <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl">
             {(
               [
                 { id: 'all', label: `All (${poolBets.length})` },
@@ -1032,8 +1039,8 @@ export const LuckyJetGame: React.FC = () => {
                 onClick={() => setBetsTab(t.id)}
                 className={`py-2 rounded-lg text-xs font-black transition-all ${
                   betsTab === t.id
-                    ? 'bg-violet-600 text-white shadow-2xs'
-                    : 'text-violet-300 hover:text-white'
+                    ? 'bg-[#0891B2] text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {t.label}
@@ -1044,24 +1051,24 @@ export const LuckyJetGame: React.FC = () => {
           {betsTab === 'all' && (
             <div className="space-y-1.5 max-h-60 overflow-y-auto">
               {poolBets.length === 0 ? (
-                <div className="py-6 text-center text-xs text-violet-300/60">
+                <div className="py-6 text-center text-xs text-slate-400">
                   No active pool bets yet in round #{roundId.slice(-5)}.
                 </div>
               ) : (
                 poolBets.slice(0, 20).map((b) => (
                   <div
                     key={b.betId || b.id}
-                    className="p-2.5 rounded-xl bg-[#141029] border border-white/5 flex items-center justify-between text-xs"
+                    className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                   >
-                    <span className="font-bold text-white truncate">{b.nickname}</span>
+                    <span className="font-bold text-slate-900 truncate">{b.nickname}</span>
                     <div className="flex items-center gap-2 font-mono tabular-nums">
-                      <span className="text-violet-200">৳{b.amount.toFixed(0)}</span>
+                      <span className="text-slate-600">৳{b.amount.toFixed(0)}</span>
                       {b.status === 'cashed_out' ? (
-                        <span className="text-emerald-400 font-black">{b.cashoutMultiplier?.toFixed(2)}x</span>
+                        <span className="text-emerald-700 font-black">{b.cashoutMultiplier?.toFixed(2)}x</span>
                       ) : b.status === 'lost' ? (
-                        <span className="text-rose-400 font-bold">Lost</span>
+                        <span className="text-rose-600 font-bold">Lost</span>
                       ) : (
-                        <span className="text-amber-300 font-bold">Flying</span>
+                        <span className="text-cyan-700 font-bold">Flying</span>
                       )}
                     </div>
                   </div>
@@ -1073,34 +1080,34 @@ export const LuckyJetGame: React.FC = () => {
           {betsTab === 'my' && (
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {myLuckyJetBets.length === 0 ? (
-                <div className="py-6 text-center text-xs text-violet-300/60">
+                <div className="py-6 text-center text-xs text-slate-400">
                   No Lucky Jet bets placed yet.
                 </div>
               ) : (
                 myLuckyJetBets.slice(0, 15).map((b) => (
                   <div
                     key={b.id}
-                    className="p-3 rounded-xl bg-[#141029] border border-white/10 flex items-center justify-between text-xs"
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-bold text-white flex items-center gap-2">
-                        <span className="font-mono text-amber-300">#{b.roundId.slice(-5)}</span>
-                        {b.slot ? <span className="text-[10px] text-violet-300">S{b.slot}</span> : null}
+                      <div className="font-bold text-slate-900 flex items-center gap-2">
+                        <span className="font-mono text-cyan-700">#{b.roundId.slice(-5)}</span>
+                        {b.slot ? <span className="text-[10px] text-slate-500">S{b.slot}</span> : null}
                         <span className="tabular-nums">Bet: ৳{b.amount.toFixed(2)}</span>
                       </div>
-                      <div className="text-[10px] text-violet-300/60 mt-0.5">{b.time}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{b.time}</div>
                     </div>
                     <div className="text-right font-mono tabular-nums">
                       {b.status === 'cashed_out' ? (
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-black text-[11px]">
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-black text-[11px]">
                           {b.cashoutMultiplier?.toFixed(2)}x · +৳{b.winAmount?.toFixed(2)}
                         </span>
                       ) : b.status === 'lost' ? (
-                        <span className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 font-black text-[11px]">
+                        <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 font-black text-[11px]">
                           Crashed
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-black text-[11px]">
+                        <span className="px-2.5 py-1 rounded-lg bg-cyan-100 text-cyan-800 font-black text-[11px]">
                           Flying
                         </span>
                       )}
@@ -1114,20 +1121,20 @@ export const LuckyJetGame: React.FC = () => {
           {betsTab === 'top' && (
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {topBets.length === 0 ? (
-                <div className="py-6 text-center text-xs text-violet-300/60">
+                <div className="py-6 text-center text-xs text-slate-400">
                   Cash out during flights to rank on the Top Wins board!
                 </div>
               ) : (
                 topBets.slice(0, 15).map((b) => (
                   <div
                     key={b.id}
-                    className="p-3 rounded-xl bg-[#141029] border border-amber-400/20 flex items-center justify-between text-xs font-mono tabular-nums"
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs font-mono tabular-nums"
                   >
                     <div>
-                      <div className="font-black text-amber-300">+{b.cashoutMultiplier?.toFixed(2)}x</div>
-                      <div className="text-[10px] text-violet-300/70">Bet ৳{b.amount.toFixed(2)}</div>
+                      <div className="font-black text-cyan-700">+{b.cashoutMultiplier?.toFixed(2)}x</div>
+                      <div className="text-[10px] text-slate-500">Bet ৳{b.amount.toFixed(2)}</div>
                     </div>
-                    <div className="font-black text-emerald-400">+৳{(b.winAmount || 0).toFixed(2)}</div>
+                    <div className="font-black text-emerald-700">+৳{(b.winAmount || 0).toFixed(2)}</div>
                   </div>
                 ))
               )}
@@ -1138,15 +1145,15 @@ export const LuckyJetGame: React.FC = () => {
 
       {/* How to Play Modal */}
       {showHowToPlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-xs bg-[#1D163A] border border-violet-500/30 rounded-2xl overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-[#7C3AED] to-[#D97706] p-4 flex items-center justify-between text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-xs bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="bg-gradient-to-r from-[#0891B2] to-[#0D9488] p-4 flex items-center justify-between text-white">
               <span className="font-black text-sm">How to Play Lucky Jet</span>
               <button type="button" onClick={() => setShowHowToPlay(false)} className="p-1 rounded-full bg-white/20">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 text-xs text-violet-100 space-y-2.5 leading-relaxed">
+            <div className="p-4 text-xs text-slate-600 space-y-2.5 leading-relaxed">
               <p>1. Place up to 3 simultaneous bets or queue for the upcoming flight before takeoff. You can cancel anytime before launch.</p>
               <p>2. Watch Lucky Joe soar with the multiplier rising in real time.</p>
               <p>3. Tap WITHDRAW before Lucky Joe flies away to lock your win up to 10,000x!</p>

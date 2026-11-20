@@ -1,32 +1,35 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Copy,
-  RefreshCw,
   LogOut,
   ChevronRight,
   User as UserIcon,
-  Camera
+  Camera,
+  Bell,
+  Headphones,
+  Eye,
+  EyeOff,
+  Wallet as WalletIcon,
+  CreditCard,
+  ShieldCheck,
+  Crown,
+  Gift,
+  CalendarCheck,
+  BarChart2,
+  Award,
+  Globe,
+  Coins,
+  UserCog,
+  KeyRound
 } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
-import { PinkSafePlateLogo, CustomerServiceLogo } from '../components/BrandLogos';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
 import {
-  WalletPastelIcon,
-  DepositPastelIcon,
-  WithdrawPastelIcon,
-  VipPastelIcon,
   GameHistoryGridIcon,
   TransactionGridIcon,
   DepositHistoryGridIcon,
-  WithdrawHistoryGridIcon,
-  NotificationRowIcon,
-  GiftsRowIcon,
-  StatsRowIcon,
-  LanguageRowIcon,
-  SalaryRowIcon,
-  NicknameRowIcon,
-  PasswordRowIcon
+  WithdrawHistoryGridIcon
 } from '../components/AccountIcons';
 
 interface AccountProps {
@@ -44,10 +47,11 @@ export const Account: React.FC<AccountProps> = () => {
     setIsNotificationOpen,
     markNotificationsRead,
     language,
-    showToast,
+    showToast
   } = useApp();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [hideBalance, setHideBalance] = useState(false);
 
   const copyUid = () => {
     navigator.clipboard?.writeText(user.uid).catch(() => {});
@@ -71,413 +75,362 @@ export const Account: React.FC<AccountProps> = () => {
     }
   };
 
+  const go = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = `#/${tab}`;
+  };
+
+  const menuRows = [
+    {
+      id: 'notification',
+      label: 'Notification',
+      icon: Bell,
+      onClick: () => {
+        markNotificationsRead();
+        setIsNotificationOpen(true);
+      },
+      rightNode:
+        unreadNotificationsCount > 0 ? (
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <span className="text-[11px] font-black text-emerald-700">
+              {unreadNotificationsCount}
+            </span>
+          </span>
+        ) : null
+    },
+    {
+      id: 'gifts',
+      label: 'Gifts',
+      icon: Gift,
+      onClick: () => go('gifts')
+    },
+    {
+      id: 'attendance',
+      label: 'Daily Sign-in',
+      icon: CalendarCheck,
+      onClick: () => go('attendence')
+    },
+    {
+      id: 'game-statistics',
+      label: 'Game statistics',
+      icon: BarChart2,
+      onClick: () => go('game-statistics')
+    },
+    {
+      id: 'activity',
+      label: 'My activity',
+      icon: Award,
+      onClick: () => go('activity')
+    },
+    {
+      id: 'language',
+      label: getTranslation(language, 'language') || 'Language',
+      icon: Globe,
+      onClick: () => go('language'),
+      rightText: language === 'en' ? 'English' : 'বাংলা'
+    },
+    {
+      id: 'safe',
+      label: 'Safe Vault',
+      icon: ShieldCheck,
+      onClick: () => go('safe'),
+      rightText: `৳${user.safeBalance.toFixed(2)}`
+    },
+    {
+      id: 'vip',
+      label: 'VIP Rewards',
+      icon: Crown,
+      onClick: () => go('vip'),
+      rightText: `VIP${user.vipLevel}`
+    },
+    {
+      id: 'salary',
+      label: 'Agent Daily Salary',
+      icon: Coins,
+      onClick: () => go('salary'),
+      rightText: 'Up to ৳100,000'
+    },
+    {
+      id: 'change-nickname',
+      label: getTranslation(language, 'changeNickname') || 'Change Nickname',
+      icon: UserCog,
+      onClick: () => go('change-nickname'),
+      rightText: user.nickname
+    },
+    {
+      id: 'change-password',
+      label: getTranslation(language, 'changePasswordHeader') || 'Change Login Password',
+      icon: KeyRound,
+      onClick: () => go('change-login-password')
+    },
+    {
+      id: 'customer-service',
+      label: getTranslation(language, 'customerService') || 'Customer Service',
+      icon: Headphones,
+      onClick: () => go('customer-service')
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-[#FFFDF7] pb-24">
-      {/* Top Profile Header (Luxury Gold) */}
-      <div className="bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] px-4 pt-4 pb-12 rounded-b-[2rem] text-white shadow-md">
-        <div className="flex items-center gap-3.5 mb-2">
-          {/* Avatar with custom upload system - no predefined photo */}
-          <div
-            className="relative cursor-pointer select-none group"
-            onClick={() => fileInputRef.current?.click()}
-            title="Click to upload profile photo"
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarFile}
-            />
-            {user.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.nickname}
-                className="w-16 h-16 rounded-full object-cover border-2 border-white/80 shadow-md"
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-28">
+      <div className="px-4 pt-4 space-y-4">
+        {/* Top Profile Header */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="relative cursor-pointer select-none flex-shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              title="Click to upload profile photo"
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFile}
               />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-xs border-2 border-white/80 shadow-md flex items-center justify-center text-white">
-                <UserIcon className="w-8 h-8 opacity-90" />
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.nickname}
+                  className="w-12 h-12 rounded-full object-cover border-2 border-cyan-500 shadow-md"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-600 to-teal-700 border-2 border-cyan-400 shadow-md flex items-center justify-center text-white font-black text-lg">
+                  {(user.nickname || user.phone || 'M').charAt(0).toUpperCase() || <UserIcon className="w-6 h-6" />}
+                </div>
+              )}
+              <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white text-cyan-600 flex items-center justify-center shadow border border-cyan-300">
+                <Camera className="w-3 h-3" />
               </div>
-            )}
-            {/* Camera badge overlay */}
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white text-[#B45309] flex items-center justify-center shadow-md border border-amber-200 hover:scale-110 active:scale-95 transition-transform">
-              <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-base font-black text-slate-900 tracking-tight truncate">
+                Hello, <span className="uppercase">{user.nickname || user.phone || 'MEMBER'}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => go('vip')}
+                  className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-black text-[11px] flex items-center gap-1 shadow-xs active:scale-95"
+                >
+                  <Crown className="w-3 h-3" />
+                  <span>VIP{user.vipLevel}</span>
+                </button>
+
+                <div className="px-2.5 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-[11px] font-bold text-cyan-800 flex items-center gap-1.5">
+                  <span className="tabular-nums">UID {user.uid || 'N/A'}</span>
+                  {user.uid && (
+                    <button
+                      type="button"
+                      onClick={copyUid}
+                      aria-label="Copy UID"
+                      className="text-cyan-700 hover:opacity-80 active:scale-90"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-wide uppercase">
-                {user.nickname || user.phone || user.uid || 'MEMBER'}
-              </span>
+          {/* Right Top Circular Action Buttons: Notification & Customer Service */}
+          <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                markNotificationsRead();
+                setIsNotificationOpen(true);
+              }}
+              aria-label="Notifications"
+              className="relative w-9 h-9 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-cyan-600 active:scale-95 transition-all"
+            >
+              <Bell className="w-4 h-4" />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => go('customer-service')}
+              aria-label="Customer Service"
+              className="w-9 h-9 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-cyan-600 active:scale-95 transition-all"
+            >
+              <Headphones className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Holding Assets Card (No Profit & Loss Displayed) */}
+        <div className="bg-white rounded-3xl p-4 border border-cyan-100 shadow-sm space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                <span>Holding assets (BDT)</span>
+                <button
+                  type="button"
+                  onClick={() => setHideBalance((prev) => !prev)}
+                  aria-label="Toggle balance visibility"
+                  className="text-cyan-700 hover:opacity-80"
+                >
+                  {hideBalance ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
               <button
-                onClick={() => {
-                  setActiveTab('vip');
-                  window.location.hash = '#/vip';
-                }}
-                className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 font-black text-[10px] tracking-wide shadow-xs active:scale-95"
+                type="button"
+                onClick={() => go('wallet')}
+                className="mt-1 flex items-center gap-1 text-2xl font-black text-slate-900 tracking-tight tabular-nums active:scale-98"
               >
-                VIP{user.vipLevel}
+                <span>{hideBalance ? '••••••' : `৳${user.balance.toFixed(2)}`}</span>
+                <ChevronRight className="w-5 h-5 text-cyan-600" />
               </button>
             </div>
 
-            {/* UID with copy button */}
-            <div className="flex items-center gap-1.5 text-xs text-white/90 mt-1">
-              <span>UID | {user.uid || 'N/A'}</span>
-              {user.uid && (
-                <button onClick={copyUid} className="p-0.5 hover:text-yellow-200 active:scale-90">
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Upload photo helper link */}
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className="text-[10px] text-yellow-200 hover:underline flex items-center gap-1 font-bold mt-0.5"
+              type="button"
+              onClick={() => go('wallet')}
+              className="px-3 py-1.5 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-800 text-[11px] font-black flex items-center gap-1 active:scale-95"
             >
-              <Camera className="w-3 h-3" />
-              <span>{user.avatar ? 'Change Photo' : 'Upload Profile Photo'}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Account White Card */}
-      <div className="px-4 -mt-8 space-y-4">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-1">
-            <span>{getTranslation(language, 'totalBalance')}</span>
-            <button
-              onClick={() => showToast('Balance refreshed')}
-              className="text-slate-400 hover:text-[#D97706] active:rotate-180 transition-transform"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Wallet</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="text-3xl font-black text-slate-900 tracking-tight mb-5">
-            ৳{user.balance.toFixed(2)}
-          </div>
-
-          {/* Quick 4 icons (Wallet, Deposit, Withdraw, VIP) */}
-          <div className="grid grid-cols-4 gap-2 pt-2 border-t border-amber-100">
+          <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={() => {
-                setActiveTab('wallet');
-                window.location.hash = '#/wallet';
-              }}
-              className="flex flex-col items-center gap-1.5 py-2 hover:bg-amber-50/60 rounded-2xl active:scale-95 transition-all"
+              type="button"
+              onClick={() => go('deposit')}
+              className="py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-teal-500 text-white font-black text-sm shadow-sm flex items-center justify-center gap-2 active:scale-97 transition-transform whitespace-nowrap"
             >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
-                <WalletPastelIcon size={44} />
-              </div>
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'wallet')}
-              </span>
+              <WalletIcon className="w-4 h-4 stroke-[2.3]" />
+              <span>{getTranslation(language, 'deposit') || 'Deposit'}</span>
             </button>
 
             <button
-              onClick={() => {
-                setActiveTab('deposit');
-                window.location.hash = '#/deposit';
-              }}
-              className="flex flex-col items-center gap-1.5 py-2 hover:bg-orange-50/50 rounded-2xl active:scale-95 transition-all"
+              type="button"
+              onClick={() => go('wallet')}
+              className="py-2.5 rounded-full bg-gradient-to-r from-teal-500 via-cyan-500 to-sky-500 text-white font-black text-sm shadow-sm flex items-center justify-center gap-2 active:scale-97 transition-transform whitespace-nowrap"
             >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
-                <DepositPastelIcon size={44} />
-              </div>
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'deposit')}
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('wallet');
-                window.location.hash = '#/wallet';
-              }}
-              className="flex flex-col items-center gap-1.5 py-2 hover:bg-blue-50/50 rounded-2xl active:scale-95 transition-all"
-            >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
-                <WithdrawPastelIcon size={44} />
-              </div>
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'withdraw')}
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('vip');
-                window.location.hash = '#/vip';
-              }}
-              className="flex flex-col items-center gap-1.5 py-2 hover:bg-emerald-50/50 rounded-2xl active:scale-95 transition-all"
-            >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
-                <VipPastelIcon size={44} />
-              </div>
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'vip')}
-              </span>
+              <CreditCard className="w-4 h-4 stroke-[2.3]" />
+              <span>{getTranslation(language, 'withdraw') || 'Withdraw'}</span>
             </button>
           </div>
         </div>
 
-        {/* Safe Vault Card (from frame_150.png) */}
-        <div
-          onClick={() => {
-            setActiveTab('safe');
-            window.location.hash = '#/safe';
-          }}
-          className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shadow-xs">
-              <PinkSafePlateLogo size={36} />
-            </div>
-            <div>
-              <div className="font-extrabold text-xs text-slate-800 flex items-center gap-2">
-                <span>Safe</span>
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  ৳{user.safeBalance.toFixed(2)}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Half-hour interest rate 0.006%, earnings calculated once every 30 minutes
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
-        </div>
-
-        {/* Game, Transaction, Deposit & Withdraw 2x2 Grid */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* 2×2 Quick History Cards */}
+        <div className="grid grid-cols-2 gap-2.5">
           <button
-            onClick={() => {
-              setActiveTab('wingo');
-              window.location.hash = '#/wingo';
-            }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            type="button"
+            onClick={() => go('game-statistics')}
+            className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs flex items-center gap-2.5 text-left hover:border-cyan-400 active:scale-98 transition-all"
           >
-            <GameHistoryGridIcon size={38} />
+            <GameHistoryGridIcon size={36} />
             <div className="min-w-0">
-              <div className="font-extrabold text-xs text-slate-800 truncate">
-                {getTranslation(language, 'gameHistory')}
+              <div className="font-extrabold text-xs text-slate-900 truncate">
+                {getTranslation(language, 'gameHistory') || 'Game History'}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5 truncate">My game history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My game history</div>
             </div>
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setHistoryFilterTab('all');
-              setActiveTab('transaction-history');
-              window.location.hash = '#/transaction-history';
+              go('transaction-history');
             }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs flex items-center gap-2.5 text-left hover:border-cyan-400 active:scale-98 transition-all"
           >
-            <TransactionGridIcon size={38} />
+            <TransactionGridIcon size={36} />
             <div className="min-w-0">
-              <div className="font-extrabold text-xs text-slate-800 truncate">
-                {getTranslation(language, 'transactionHistory')}
+              <div className="font-extrabold text-xs text-slate-900 truncate">
+                {getTranslation(language, 'transactionHistory') || 'Transaction'}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5 truncate">My transaction history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My transaction history</div>
             </div>
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setHistoryFilterTab('deposit');
-              setActiveTab('transaction-history');
-              window.location.hash = '#/transaction-history';
+              go('transaction-history');
             }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs flex items-center gap-2.5 text-left hover:border-cyan-400 active:scale-98 transition-all"
           >
-            <DepositHistoryGridIcon size={38} />
+            <DepositHistoryGridIcon size={36} />
             <div className="min-w-0">
-              <div className="font-extrabold text-xs text-slate-800 truncate">
-                {getTranslation(language, 'deposit')}
+              <div className="font-extrabold text-xs text-slate-900 truncate">
+                {getTranslation(language, 'deposit') || 'Deposit'}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5 truncate">My deposit history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My deposit history</div>
             </div>
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setHistoryFilterTab('withdraw');
-              setActiveTab('transaction-history');
-              window.location.hash = '#/transaction-history';
+              go('transaction-history');
             }}
-            className="bg-white rounded-2xl p-3.5 shadow-xs border border-amber-200/80 flex items-center gap-3 text-left active:scale-98 transition-all"
+            className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs flex items-center gap-2.5 text-left hover:border-cyan-400 active:scale-98 transition-all"
           >
-            <WithdrawHistoryGridIcon size={38} />
+            <WithdrawHistoryGridIcon size={36} />
             <div className="min-w-0">
-              <div className="font-extrabold text-xs text-slate-800 truncate">
-                {getTranslation(language, 'withdraw')}
+              <div className="font-extrabold text-xs text-slate-900 truncate">
+                {getTranslation(language, 'withdraw') || 'Withdraw'}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5 truncate">My withdraw history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My withdraw history</div>
             </div>
           </button>
         </div>
 
-        {/* Settings Center & Account Security */}
-        <div className="bg-white rounded-3xl p-2 shadow-xs border border-amber-200/80 divide-y divide-amber-50">
-          {/* Notification */}
-          <button
-            onClick={() => {
-              markNotificationsRead();
-              setIsNotificationOpen(true);
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <NotificationRowIcon size={32} />
-              <span className="text-xs font-bold text-slate-700">Notification</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              {unreadNotificationsCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-[#FF4D4F] text-white text-[10px] font-black leading-none">
-                  {unreadNotificationsCount}
-                </span>
-              )}
-              <ChevronRight className="w-4 h-4" />
-            </div>
-          </button>
+        {/* Settings & Menu Card */}
+        <div className="bg-white rounded-3xl p-1.5 border border-slate-200 shadow-xs divide-y divide-slate-100">
+          {menuRows.map((row) => {
+            const Icon = row.icon;
+            return (
+              <button
+                key={row.id}
+                type="button"
+                onClick={row.onClick}
+                className="w-full px-3 py-3 flex items-center justify-between text-left hover:bg-slate-50 rounded-2xl active:scale-99 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-600 flex-shrink-0">
+                    <Icon className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-800 truncate">
+                    {row.label}
+                  </span>
+                </div>
 
-          {/* Gifts */}
-          <button
-            onClick={() => {
-              setActiveTab('gifts');
-              window.location.hash = '#/gifts';
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <GiftsRowIcon size={32} />
-              <span className="text-xs font-bold text-slate-700">Gifts</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
-
-          {/* Game statistics */}
-          <button
-            onClick={() => {
-              setActiveTab('game-statistics');
-              window.location.hash = '#/game-statistics';
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <StatsRowIcon size={32} />
-              <span className="text-xs font-bold text-slate-700">Game statistics</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
-
-          {/* Language Selection */}
-          <button
-            onClick={() => {
-              setActiveTab('language');
-              window.location.hash = '#/language';
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <LanguageRowIcon size={32} />
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'language')}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">
-                {language === 'en' ? 'English' : 'বাংলা'}
-              </span>
-              <ChevronRight className="w-4 h-4" />
-            </div>
-          </button>
-
-          {/* Agent Daily Salary */}
-          <button
-            onClick={() => {
-              setActiveTab('salary');
-              window.location.hash = '#/salary';
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <SalaryRowIcon size={32} />
-              <span className="text-xs font-bold text-slate-700">Agent Daily Salary</span>
-            </div>
-            <div className="flex items-center gap-1 text-slate-400">
-              <span className="text-[11px] font-bold text-[#D97706]">Up to ৳100,000</span>
-              <ChevronRight className="w-4 h-4" />
-            </div>
-          </button>
-
-          {/* Change Nickname */}
-          <button
-            onClick={() => {
-              setActiveTab('change-nickname');
-              window.location.hash = '#/change-nickname';
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <NicknameRowIcon size={32} />
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'changeNickname')}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">{user.nickname}</span>
-              <ChevronRight className="w-4 h-4" />
-            </div>
-          </button>
-
-          {/* Change Login Password */}
-          <button
-            onClick={() => {
-              setActiveTab('change-login-password');
-              window.location.hash = '#/change-login-password';
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <PasswordRowIcon size={32} />
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'changePasswordHeader')}
-              </span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
-
-          {/* Customer Service */}
-          <button
-            onClick={() => {
-              setActiveTab('customer-service');
-              window.location.hash = '#/customer-service';
-            }}
-            className="w-full p-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 rounded-2xl active:scale-99 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <CustomerServiceLogo size={32} />
-              <span className="text-xs font-bold text-slate-700">
-                {getTranslation(language, 'customerService')}
-              </span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {row.rightNode}
+                  {row.rightText && (
+                    <span className="text-xs font-semibold text-slate-500 max-w-[110px] truncate">
+                      {row.rightText}
+                    </span>
+                  )}
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Log Out Button */}
         <button
+          type="button"
           onClick={logout}
-          className="w-full py-3.5 rounded-full border border-amber-300 text-[#B45309] bg-white font-extrabold text-xs shadow-xs hover:bg-amber-50 active:scale-98 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-full border border-rose-200 text-rose-600 bg-white font-extrabold text-xs shadow-xs hover:bg-rose-50 active:scale-98 transition-all flex items-center justify-center gap-2"
         >
           <LogOut className="w-4 h-4" />
-          <span>{getTranslation(language, 'logout')}</span>
+          <span>{getTranslation(language, 'logout') || 'Log out'}</span>
         </button>
       </div>
     </div>

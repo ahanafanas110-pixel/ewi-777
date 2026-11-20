@@ -1,9 +1,10 @@
 import React from 'react';
 import aviatorGameIconImg from '../assets/images/game_icon_aviator_3d_1794734299543.jpg';
 import minesGameIconImg from '../assets/images/game_icon_mines_3d_1794734301052.jpg';
+import goldMarketIconImg from '../assets/images/ewi777_gold_icon_1794909589461.jpg';
 
 /**
- * Luxury Gold Safe Plate Logo (keeps PinkSafePlateLogo export name for compatibility)
+ * Crisp Cyan/Slate Safe Plate Logo (keeps PinkSafePlateLogo export name for compatibility)
  */
 export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 28,
@@ -20,27 +21,25 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
     >
       <defs>
         <linearGradient id="goldPlateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FDE68A" />
-          <stop offset="35%" stopColor="#F59E0B" />
-          <stop offset="70%" stopColor="#D97706" />
-          <stop offset="100%" stopColor="#92400E" />
+          <stop offset="0%" stopColor="#67E8F9" />
+          <stop offset="40%" stopColor="#0891B2" />
+          <stop offset="100%" stopColor="#0E7490" />
         </linearGradient>
 
         <radialGradient id="goldSunkenHole" cx="48%" cy="46%" r="52%">
-          <stop offset="0%" stopColor="#FBBF24" />
-          <stop offset="45%" stopColor="#D97706" />
-          <stop offset="85%" stopColor="#92400E" />
-          <stop offset="100%" stopColor="#451A03" />
+          <stop offset="0%" stopColor="#22D3EE" />
+          <stop offset="55%" stopColor="#0891B2" />
+          <stop offset="100%" stopColor="#0F172A" />
         </radialGradient>
 
         <radialGradient id="goldRivet" cx="40%" cy="40%" r="60%">
-          <stop offset="0%" stopColor="#FEF3C7" />
-          <stop offset="50%" stopColor="#F59E0B" />
-          <stop offset="100%" stopColor="#78350F" />
+          <stop offset="0%" stopColor="#ECFEFF" />
+          <stop offset="55%" stopColor="#06B6D4" />
+          <stop offset="100%" stopColor="#0E7490" />
         </radialGradient>
 
         <filter id="goldPlateShadow" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" floodColor="#78350F" floodOpacity="0.35" />
+          <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" floodColor="#0E7490" floodOpacity="0.3" />
         </filter>
       </defs>
 
@@ -52,7 +51,7 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
         rx="22"
         fill="url(#goldPlateGrad)"
         filter="url(#goldPlateShadow)"
-        stroke="#FDE68A"
+        stroke="#CFFAFE"
         strokeWidth="2.5"
       />
 
@@ -63,15 +62,15 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
         height="80"
         rx="18"
         fill="none"
-        stroke="rgba(255, 255, 255, 0.5)"
+        stroke="rgba(255, 255, 255, 0.55)"
         strokeWidth="1.2"
       />
 
       <g>
-        <circle cx="25" cy="25" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
-        <circle cx="75" cy="25" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
-        <circle cx="25" cy="75" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
-        <circle cx="75" cy="75" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.65)" strokeWidth="1" />
+        <circle cx="25" cy="25" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.75)" strokeWidth="1" />
+        <circle cx="75" cy="25" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.75)" strokeWidth="1" />
+        <circle cx="25" cy="75" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.75)" strokeWidth="1" />
+        <circle cx="75" cy="75" r="5.5" fill="url(#goldRivet)" stroke="rgba(255,255,255,0.75)" strokeWidth="1" />
       </g>
 
       <circle
@@ -79,7 +78,7 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
         cy="50"
         r="23"
         fill="url(#goldSunkenHole)"
-        stroke="#FDE68A"
+        stroke="#CFFAFE"
         strokeWidth="2.5"
       />
       <circle
@@ -87,9 +86,9 @@ export const PinkSafePlateLogo: React.FC<{ size?: number; className?: string }> 
         cy="50"
         r="18"
         fill="none"
-        stroke="#451A03"
+        stroke="#0F172A"
         strokeWidth="2"
-        opacity="0.45"
+        opacity="0.35"
       />
     </svg>
   );
@@ -140,7 +139,7 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
         </radialGradient>
 
         <filter id="ballDropShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="1" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.4" />
+          <feDropShadow dx="1" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.3" />
         </filter>
       </defs>
 
@@ -221,14 +220,14 @@ export const Ewi777Logo: React.FC<{
         alt="EWI 777"
         style={{ height }}
         referrerPolicy="no-referrer"
-        className="w-auto max-w-full object-contain drop-shadow-[0_3px_10px_rgba(0,0,0,0.28)]"
+        className="w-auto max-w-full object-contain drop-shadow-[0_3px_10px_rgba(8,145,178,0.22)]"
       />
     </div>
   );
 };
 
 /**
- * Transparent Luxury Metallic Wordmark for Colored Headers (Gold/Dark)
+ * Transparent Cyan Metallic Wordmark for Light/Gradient Headers
  */
 export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: string }> = ({
   height = 24,
@@ -244,17 +243,17 @@ export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: 
     >
       <defs>
         <linearGradient id="ewiGoldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#FFF4B8" />
-          <stop offset="45%" stopColor="#FFD24C" />
-          <stop offset="100%" stopColor="#D4941A" />
+          <stop offset="0%" stopColor="#ECFEFF" />
+          <stop offset="50%" stopColor="#67E8F9" />
+          <stop offset="100%" stopColor="#06B6D4" />
         </linearGradient>
         <linearGradient id="ewiSilverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="55%" stopColor="#F1F5F9" />
+          <stop offset="65%" stopColor="#F1F5F9" />
           <stop offset="100%" stopColor="#CBD5E1" />
         </linearGradient>
         <filter id="ewiWordShadow" x="-8%" y="-12%" width="116%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#451A03" floodOpacity="0.45" />
+          <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#0E7490" floodOpacity="0.4" />
         </filter>
       </defs>
       <g filter="url(#ewiWordShadow)">
@@ -262,7 +261,7 @@ export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: 
           x="4"
           y="33"
           fill="url(#ewiGoldGrad)"
-          stroke="#7A4900"
+          stroke="#0F172A"
           strokeWidth="1.2"
           fontSize="33"
           fontWeight="900"
@@ -275,7 +274,7 @@ export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: 
           x="84"
           y="33"
           fill="url(#ewiSilverGrad)"
-          stroke="#475569"
+          stroke="#0E7490"
           strokeWidth="1"
           fontSize="34"
           fontWeight="900"
@@ -310,7 +309,7 @@ export const BinaryMarketLogo: React.FC<{ size?: number; className?: string }> =
   return (
     <div
       style={{ width: size, height: size }}
-      className={`inline-flex items-center justify-center flex-shrink-0 select-none rounded-xl bg-gradient-to-br from-[#161922] to-[#0B0D12] border border-amber-400/35 shadow-xs ${className}`}
+      className={`inline-flex items-center justify-center flex-shrink-0 select-none rounded-xl bg-gradient-to-br from-[#ECFEFF] to-[#E0F2FE] border border-cyan-300 shadow-xs ${className}`}
     >
       <svg
         width={Math.round(size * 0.68)}
@@ -319,19 +318,19 @@ export const BinaryMarketLogo: React.FC<{ size?: number; className?: string }> =
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
-        <line x1="7" y1="6" x2="7" y2="25" stroke="#34D399" strokeWidth="2" strokeLinecap="round" />
-        <rect x="4.5" y="10" width="5" height="10" rx="1.5" fill="#34D399" />
-        <line x1="16" y1="9" x2="16" y2="27" stroke="#FB7185" strokeWidth="2" strokeLinecap="round" />
-        <rect x="13.5" y="13" width="5" height="9" rx="1.5" fill="#FB7185" />
-        <line x1="25" y1="4" x2="25" y2="22" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round" />
-        <rect x="22.5" y="7" width="5" height="10" rx="1.5" fill="#FBBF24" />
+        <line x1="7" y1="6" x2="7" y2="25" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
+        <rect x="4.5" y="10" width="5" height="10" rx="1.5" fill="#10B981" />
+        <line x1="16" y1="9" x2="16" y2="27" stroke="#E11D48" strokeWidth="2" strokeLinecap="round" />
+        <rect x="13.5" y="13" width="5" height="9" rx="1.5" fill="#F43F5E" />
+        <line x1="25" y1="4" x2="25" y2="22" stroke="#0891B2" strokeWidth="2" strokeLinecap="round" />
+        <rect x="22.5" y="7" width="5" height="10" rx="1.5" fill="#06B6D4" />
       </svg>
     </div>
   );
 };
 
 /**
- * Crisp Transparent-Background Real Aviator Stunt Plane Logo
+ * Crisp Real Aviator Stunt Plane Logo
  */
 export const AviatorPlaneLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 32,
@@ -367,7 +366,7 @@ export const MinesGameLogo: React.FC<{ size?: number; className?: string }> = ({
 };
 
 /**
- * Luxury Gold Customer Service Mascot
+ * Cyan/Teal Customer Service Mascot
  */
 export const CustomerServiceLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 44,
@@ -380,38 +379,38 @@ export const CustomerServiceLogo: React.FC<{ size?: number; className?: string }
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`inline-block flex-shrink-0 select-none drop-shadow-[0_4px_10px_rgba(217,119,6,0.38)] ${className}`}
+      className={`inline-block flex-shrink-0 select-none drop-shadow-[0_4px_10px_rgba(8,145,178,0.32)] ${className}`}
     >
       <defs>
-        <linearGradient id="csGoldOuter" x1="15%" y1="10%" x2="85%" y2="90%">
-          <stop offset="0%" stopColor="#FBBF24" />
-          <stop offset="50%" stopColor="#D97706" />
-          <stop offset="100%" stopColor="#92400E" />
+        <linearGradient id="csCyanOuter" x1="15%" y1="10%" x2="85%" y2="90%">
+          <stop offset="0%" stopColor="#22D3EE" />
+          <stop offset="50%" stopColor="#0891B2" />
+          <stop offset="100%" stopColor="#0E7490" />
         </linearGradient>
-        <linearGradient id="csGoldInner" x1="25%" y1="20%" x2="75%" y2="85%">
-          <stop offset="0%" stopColor="#FCD34D" />
-          <stop offset="100%" stopColor="#D97706" />
+        <linearGradient id="csCyanInner" x1="25%" y1="20%" x2="75%" y2="85%">
+          <stop offset="0%" stopColor="#67E8F9" />
+          <stop offset="100%" stopColor="#0891B2" />
         </linearGradient>
       </defs>
-      <circle cx="50" cy="50" r="44" fill="#FFFFFF" fillOpacity="0.96" />
-      <circle cx="50" cy="50" r="39" stroke="url(#csGoldOuter)" strokeWidth="5.5" fill="none" />
+      <circle cx="50" cy="50" r="44" fill="#FFFFFF" fillOpacity="0.98" />
+      <circle cx="50" cy="50" r="39" stroke="url(#csCyanOuter)" strokeWidth="5.5" fill="none" />
       <path
         d="M50 18C32.3 18 18 31.7 18 48.7C18 57.6 22 65.6 28.4 71.1L21 81.5L36.5 76.7C40.7 78.4 45.2 79.3 50 79.3C67.7 79.3 82 65.6 82 48.7C82 31.7 67.7 18 50 18Z"
-        fill="url(#csGoldOuter)"
+        fill="url(#csCyanOuter)"
       />
       <path d="M44 26C48 16 58 14 63 20C57 21 54 25 54 30Z" fill="#FFFFFF" />
-      <circle cx="50" cy="49" r="22" fill="#FFFBEB" />
-      <circle cx="50" cy="49" r="19" fill="url(#csGoldInner)" />
+      <circle cx="50" cy="49" r="22" fill="#ECFEFF" />
+      <circle cx="50" cy="49" r="19" fill="url(#csCyanInner)" />
       <rect x="39" y="42" width="6.5" height="13" rx="3.25" fill="#FFFFFF" />
       <rect x="54.5" y="42" width="6.5" height="13" rx="3.25" fill="#FFFFFF" />
-      <circle cx="42.2" cy="46" r="1.4" fill="#92400E" />
-      <circle cx="57.7" cy="46" r="1.4" fill="#92400E" />
+      <circle cx="42.2" cy="46" r="1.4" fill="#0E7490" />
+      <circle cx="57.7" cy="46" r="1.4" fill="#0E7490" />
     </svg>
   );
 };
 
 /**
- * Luxury Gold Market Card Emblem (Fine Gold Bars)
+ * Gold Market Card Emblem (ES-imported Gold Bars asset)
  */
 export const GoldMarketLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 32,
@@ -419,17 +418,17 @@ export const GoldMarketLogo: React.FC<{ size?: number; className?: string }> = (
 }) => {
   return (
     <img
-      src="/assets/aistudio/image_e176352b.png"
+      src={goldMarketIconImg}
       alt="Gold Market"
       style={{ width: size, height: size }}
       referrerPolicy="no-referrer"
-      className={`inline-block flex-shrink-0 select-none rounded-xl object-cover border border-amber-400/60 shadow-xs ${className}`}
+      className={`inline-block flex-shrink-0 select-none rounded-xl object-cover border border-cyan-300 shadow-xs ${className}`}
     />
   );
 };
 
 /**
- * Gold-Accented 3D Lottery Ball Emblem for EWI WinGo
+ * Cyan-Accented 3D Lottery Ball Emblem for EWI WinGo
  */
 export const EwiWingoLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 32,
@@ -438,10 +437,11 @@ export const EwiWingoLogo: React.FC<{ size?: number; className?: string }> = ({
   return (
     <div
       style={{ width: size, height: size }}
-      className={`inline-flex items-center justify-center flex-shrink-0 select-none rounded-xl bg-gradient-to-br from-[#78350F] via-[#D97706] to-[#FBBF24] border border-amber-200/70 shadow-xs p-0.5 ${className}`}
+      className={`inline-flex items-center justify-center flex-shrink-0 select-none rounded-xl bg-gradient-to-br from-[#0E7490] via-[#0891B2] to-[#06B6D4] border border-cyan-200 shadow-xs p-0.5 ${className}`}
     >
       <BrandBallsLogo size={Math.round(size * 0.84)} />
     </div>
   );
 };
+
 

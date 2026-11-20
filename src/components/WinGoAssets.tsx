@@ -88,13 +88,13 @@ export const WinGoCountdownOverlay: React.FC<CountdownOverlayProps> = ({ seconds
 
   return (
     <div className="absolute inset-0 z-20 rounded-3xl bg-black/50 backdrop-blur-[1.5px] flex items-center justify-center gap-4 px-6 select-none animate-fade-in">
-      <div className="w-[104px] h-[142px] sm:w-[116px] sm:h-[154px] rounded-[22px] bg-[#FFFBEB] shadow-[0_14px_35px_rgba(0,0,0,0.38)] flex items-center justify-center border border-amber-200">
-        <span className="text-[76px] sm:text-[84px] font-black leading-none text-[#D97706] tabular-nums">
+      <div className="w-[104px] h-[142px] sm:w-[116px] sm:h-[154px] rounded-[22px] bg-[#ECFEFF] shadow-[0_14px_35px_rgba(0,0,0,0.38)] flex items-center justify-center border border-cyan-200">
+        <span className="text-[76px] sm:text-[84px] font-black leading-none text-[#0891B2] tabular-nums">
           {tens}
         </span>
       </div>
-      <div className="w-[104px] h-[142px] sm:w-[116px] sm:h-[154px] rounded-[22px] bg-[#FFFBEB] shadow-[0_14px_35px_rgba(0,0,0,0.38)] flex items-center justify-center border border-amber-200">
-        <span className="text-[76px] sm:text-[84px] font-black leading-none text-[#D97706] tabular-nums">
+      <div className="w-[104px] h-[142px] sm:w-[116px] sm:h-[154px] rounded-[22px] bg-[#ECFEFF] shadow-[0_14px_35px_rgba(0,0,0,0.38)] flex items-center justify-center border border-cyan-200">
+        <span className="text-[76px] sm:text-[84px] font-black leading-none text-[#0891B2] tabular-nums">
           {ones}
         </span>
       </div>

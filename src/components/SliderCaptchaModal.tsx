@@ -264,10 +264,10 @@ export const SliderCaptchaModal: React.FC<SliderCaptchaModalProps> = ({
   const progressRatio = maxSlideX > 0 ? sliderX / maxSlideX : 0;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl w-full max-w-[348px] shadow-2xl border border-amber-200 overflow-hidden">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-3xl w-full max-w-[348px] shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-[#D97706] via-[#F59E0B] to-[#D97706] text-white flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" />
             <span className="font-extrabold text-sm">Complete security verification</span>
@@ -295,8 +295,8 @@ export const SliderCaptchaModal: React.FC<SliderCaptchaModalProps> = ({
         {/* Canvas Puzzle Area */}
         <div className="p-4 space-y-3">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-            <span>Scene {(sceneIdx % 20) + 1} / 20 • {SCENES[sceneIdx % 20].name}</span>
-            <span className={verified ? 'text-emerald-600' : 'text-amber-600'}>
+            <span>Scene {(sceneIdx % 20) + 1} / 20 · {SCENES[sceneIdx % 20].name}</span>
+            <span className={verified ? 'text-emerald-600' : 'text-cyan-700'}>
               {verified ? 'Matched!' : 'Slide to fit'}
             </span>
           </div>
@@ -307,7 +307,7 @@ export const SliderCaptchaModal: React.FC<SliderCaptchaModalProps> = ({
                 ? 'border-emerald-500'
                 : errorShake
                 ? 'border-rose-500 animate-pulse'
-                : 'border-amber-200'
+                : 'border-cyan-200'
             }`}
             style={{ width: CANVAS_W, height: CANVAS_H }}
           >
@@ -329,7 +329,7 @@ export const SliderCaptchaModal: React.FC<SliderCaptchaModalProps> = ({
             )}
           </div>
 
-          {/* Interactive Yellow/Emerald Slider Track */}
+          {/* Interactive Cyan/Emerald Slider Track */}
           <div
             ref={trackRef}
             className={`relative h-12 rounded-2xl border flex items-center justify-center overflow-hidden select-none transition-colors ${
@@ -342,7 +342,11 @@ export const SliderCaptchaModal: React.FC<SliderCaptchaModalProps> = ({
           >
             <div
               className={`absolute left-0 top-0 bottom-0 transition-none ${
-                verified ? 'bg-emerald-200/70' : errorShake ? 'bg-rose-200/70' : 'bg-amber-200/70'
+                verified
+                  ? 'bg-emerald-200/70'
+                  : errorShake
+                  ? 'bg-rose-200/70'
+                  : 'bg-cyan-200/70'
               }`}
               style={{ width: `calc(${progressRatio * 84}% + 24px)` }}
             />
@@ -361,7 +365,7 @@ export const SliderCaptchaModal: React.FC<SliderCaptchaModalProps> = ({
               className={`absolute top-1 bottom-1 w-12 rounded-xl flex items-center justify-center font-black text-lg shadow-md cursor-grab active:cursor-grabbing z-20 transition-colors ${
                 verified
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white'
+                  : 'bg-gradient-to-r from-[#0891B2] to-[#06B6D4] text-white'
               }`}
             >
               {verified ? '✓' : '»'}

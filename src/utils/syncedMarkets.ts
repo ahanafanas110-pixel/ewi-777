@@ -54,6 +54,13 @@ export function formatTimeWithOffset(epochMs: number, offsetMinutes = 360): stri
   return `${hh}:${mm}:${ss}`;
 }
 
+export function formatDateWithOffset(epochMs: number, offsetMinutes = 360): string {
+  const shifted = new Date(epochMs + offsetMinutes * 60000);
+  const mo = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const dy = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${mo}/${dy}`;
+}
+
 export function getDateKeyWithOffset(epochMs = Date.now(), offsetMinutes = 360): string {
   const shifted = new Date(epochMs + offsetMinutes * 60000);
   return shifted.toISOString().slice(0, 10);
@@ -296,14 +303,14 @@ const AVIATOR_CRASH_HOLD_MS = 3000;
 export function getSyncedAviatorCrashPoint(hourBucket: number, seqIdx: number): number {
   const rng = createSeededRng(`aviator:${hourBucket}:${seqIdx}`);
   const r = rng();
-  if (r < 0.28) return +(1.01 + rng() * 0.14).toFixed(2);
-  if (r < 0.62) return +(1.16 + rng() * 0.28).toFixed(2);
+  if (r < 0.42) return +(1.00 + rng() * 0.10).toFixed(2);
+  if (r < 0.77) return +(1.11 + rng() * 0.24).toFixed(2);
   if (r > 0.999) {
-    const mega = 50 + rng() * (AVIATOR_MAX_MULTIPLIER - 50);
+    const mega = 35 + rng() * (AVIATOR_MAX_MULTIPLIER - 35);
     return +Math.min(AVIATOR_MAX_MULTIPLIER, mega).toFixed(2);
   }
-  const raw = 0.72 / (1 - Math.min(r, 0.9999));
-  return +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.03, raw)).toFixed(2);
+  const raw = 0.52 / (1 - Math.min(r, 0.9999));
+  return +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.02, raw)).toFixed(2);
 }
 
 function aviatorFlyDurationMs(crashPoint: number): number {
@@ -322,13 +329,13 @@ export function getSyncedLuckyJetState(nowMs = Date.now()): AviatorServerState {
 }
 
 export function getSyncedCrashEngineState(
-  game: 'aviator' | 'luckyjet',
+  game: 'aviator' | 'luckyjet' | 'plane',
   nowMs = Date.now()
 ): AviatorServerState {
   const hourMs = 3600000;
   const hourBucket = Math.floor(nowMs / hourMs);
   const hourStart = hourBucket * hourMs;
-  const saltPrefix = game === 'luckyjet' ? 'luckyjet' : 'aviator';
+  const saltPrefix = game === 'luckyjet' ? 'luckyjet' : game === 'plane' ? 'plane' : 'aviator';
 
   let cursor = hourStart;
   let seq = 0;
@@ -341,14 +348,14 @@ export function getSyncedCrashEngineState(
     const rng = createSeededRng(`${saltPrefix}:${hourBucket}:${seq}`);
     const r = rng();
     let crashPt: number;
-    if (r < 0.28) {
-      crashPt = +(1.01 + rng() * 0.14).toFixed(2);
-    } else if (r < 0.62) {
-      crashPt = +(1.16 + rng() * 0.28).toFixed(2);
+    if (r < 0.42) {
+      crashPt = +(1.00 + rng() * 0.10).toFixed(2);
+    } else if (r < 0.77) {
+      crashPt = +(1.11 + rng() * 0.24).toFixed(2);
     } else if (r > 0.999) {
-      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, 50 + rng() * (AVIATOR_MAX_MULTIPLIER - 50)).toFixed(2);
+      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, 35 + rng() * (AVIATOR_MAX_MULTIPLIER - 35)).toFixed(2);
     } else {
-      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.03, 0.72 / (1 - Math.min(r, 0.9999)))).toFixed(2);
+      crashPt = +Math.min(AVIATOR_MAX_MULTIPLIER, Math.max(1.02, 0.52 / (1 - Math.min(r, 0.9999)))).toFixed(2);
     }
     const flyMs = aviatorFlyDurationMs(crashPt);
     const roundTotalMs = AVIATOR_WAIT_MS + flyMs + AVIATOR_CRASH_HOLD_MS;
@@ -395,8 +402,9 @@ export function getSyncedCrashEngineState(
   }
 
   const roundSuffix = `${String(hourBucket).slice(-3)}${String(seq).padStart(3, '0')}`;
+  const prefix = game === 'luckyjet' ? 'LJ' : game === 'plane' ? 'PL' : 'AV';
   return {
-    roundId: `${game === 'luckyjet' ? 'LJ' : 'AV'}${roundSuffix}`,
+    roundId: `${prefix}${roundSuffix}`,
     phase,
     phaseStartedAt,
     serverNow: nowMs,
@@ -410,10 +418,9 @@ export function getSyncedCrashEngineState(
 }
 
 /**
- * Strict 30% Max Payout / 70% Company Profit Rule across Aviator & Lucky Jet:
- * - Out of ৳1,000 collective bets, max total payouts = ৳300 (30%), keeping ৳700 (70%) company profit.
- * - Any cashout pushing totalPaidOut + potentialPayout > payoutCap forces immediate crash.
- * - Solo/dominant stakes are capped tightly to <= 1.25x profit unless collective pool covers 30%.
+ * Silent 30% Max Payout / 70% Company Profit Rule across Aviator & Lucky Jet:
+ * - Out of collective & rolling wagers, max allowed payouts = 30% (keeping 70% company profit).
+ * - Prevents low-multiplier (1.10x–1.25x) auto-collect bypasses without surfacing internal banner text.
  */
 export function evaluateCrash30Cap(params: {
   totalPool: number;
@@ -421,6 +428,8 @@ export function evaluateCrash30Cap(params: {
   activeBetAmount: number;
   currentMultiplier: number;
   activePlayerCount: number;
+  rollingWagered?: number;
+  rollingPaidOut?: number;
 }): {
   shouldForceCrash: boolean;
   reason?: string;
@@ -433,40 +442,58 @@ export function evaluateCrash30Cap(params: {
   const mult = Math.max(1, Number(params.currentMultiplier) || 1);
   const payoutCap = +(totalPool * 0.30).toFixed(2);
   const potentialPayout = +(activeBetAmount * mult).toFixed(2);
-  const profit = +(potentialPayout - activeBetAmount).toFixed(2);
+  const rollingWagered = Math.max(totalPool, Number(params.rollingWagered) || 0);
+  const rollingPaidOut = Math.max(totalPaidOut, Number(params.rollingPaidOut) || 0);
+  const rollingCap = +(rollingWagered * 0.30).toFixed(2);
 
   if (totalPool <= 0) {
     return { shouldForceCrash: false, potentialPayout, payoutCap };
   }
 
-  // Once 30% of pool is already paid out (e.g. ৳300 out of ৳1000), force crash immediately
-  if (totalPaidOut >= payoutCap && totalPaidOut > 0) {
+  // High-value bettor guard (>= 500 stake) triggers blast before cashout
+  if (activeBetAmount >= 500) {
     return {
       shouldForceCrash: true,
-      reason: '30% pool payout cap reached — 70% company profit secured',
       potentialPayout,
       payoutCap
     };
   }
 
-  // Collective multi-bet pool: total cashouts cannot exceed 30% of totalPool (৳300 per ৳1000 bet)
+  // Once 30% of round pool or rolling pool is already paid out, trigger blast immediately
+  if ((totalPaidOut >= payoutCap && totalPaidOut > 0) || (rollingWagered >= 1000 && rollingPaidOut >= rollingCap)) {
+    return {
+      shouldForceCrash: true,
+      potentialPayout,
+      payoutCap
+    };
+  }
+
+  // Collective pool check: payout cannot push round payouts above 30% of round wagers
   if (totalPool >= activeBetAmount * 2 || params.activePlayerCount > 1) {
     if (totalPaidOut + potentialPayout > payoutCap) {
       return {
         shouldForceCrash: true,
-        reason: '30% pool payout cap reached — 70% company profit secured',
         potentialPayout,
         payoutCap
       };
     }
   }
 
-  // Solo/dominant stake guard: tight 25% profit ceiling (max 1.25x) so house retains strong margin
-  const isDominantSolo = params.activePlayerCount <= 1 || activeBetAmount >= totalPool * 0.55;
-  if (isDominantSolo && (mult >= 1.26 || profit > activeBetAmount * 0.25)) {
+  // Rolling ledger check across consecutive solo/multi rounds (every 1000 wagered allows max 300 paid out)
+  if (rollingWagered > 0 && rollingPaidOut + potentialPayout > rollingCap && mult > 1.02) {
+    // Allow small occasional wins only if rolling pool still has budget, otherwise blast cleanly
     return {
       shouldForceCrash: true,
-      reason: '30% solo payout protection triggered',
+      potentialPayout,
+      payoutCap
+    };
+  }
+
+  // Dominant solo guard: cap multiplier strictly so low auto-collect cannot drain rolling profit
+  const isDominantSolo = params.activePlayerCount <= 1 || activeBetAmount >= totalPool * 0.55;
+  if (isDominantSolo && (mult >= 1.10 || rollingPaidOut + potentialPayout > rollingCap)) {
+    return {
+      shouldForceCrash: true,
       potentialPayout,
       payoutCap
     };
@@ -627,9 +654,13 @@ export function getNextBinaryCandlePreview(
 
 export function formatCountdownClock(secRemaining: number): string {
   const s = Math.max(0, Math.floor(secRemaining));
-  const hrs = Math.floor(s / 3600);
+  const days = Math.floor(s / 86400);
+  const hrs = Math.floor((s % 86400) / 3600);
   const mins = Math.floor((s % 3600) / 60);
   const secs = s % 60;
+  if (days > 0) {
+    return `${days}d ${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
   if (hrs > 0) {
     return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }
@@ -736,10 +767,10 @@ export function getSyncedBinaryCandlesForTimeframe(
     return out;
   }
 
-  // Coarse multi-substep aggregation path for 15m .. 24h
-  const scaleFactor = Math.sqrt(tfSec / 60);
-  const subStepsPerCandle = tfSec >= 43200 ? 12 : tfSec >= 3600 ? 8 : 6;
-  const anchorRng = createSeededRng(`bin_macro_anchor:${spec.symbol}:${Math.floor(startBucket / 16)}`);
+  // Coarse multi-substep aggregation path for 15m .. 30d
+  const scaleFactor = Math.min(18, Math.sqrt(tfSec / 60));
+  const subStepsPerCandle = tfSec >= 86400 ? 14 : tfSec >= 3600 ? 10 : 6;
+  const anchorRng = createSeededRng(`bin_macro_anchor:${spec.symbol}:${tfSec}:${Math.floor(startBucket / 16)}`);
   let cur = +(spec.basePrice + (anchorRng() - 0.5) * spec.volatility * 4 * Math.min(6, scaleFactor)).toFixed(spec.decimals);
   cur = Math.max(spec.volatility * 5, cur);
 
@@ -761,12 +792,12 @@ export function getSyncedBinaryCandlesForTimeframe(
       const driftBack = ((spec.basePrice - cur) / Math.max(spec.basePrice * 0.03, spec.volatility * 10)) * spec.volatility * 0.2;
       const biasDrift = isCur
         ? bias === 'BULL'
-          ? spec.volatility * 0.45 * scaleFactor * 0.35
+          ? spec.volatility * 0.45 * Math.min(6, scaleFactor) * 0.35
           : bias === 'BEAR'
-          ? -spec.volatility * 0.45 * scaleFactor * 0.35
+          ? -spec.volatility * 0.45 * Math.min(6, scaleFactor) * 0.35
           : 0
         : 0;
-      const stepDelta = (rng() - 0.5) * spec.volatility * 0.72 * Math.min(4.5, scaleFactor * 0.65) + driftBack + biasDrift;
+      const stepDelta = (rng() - 0.5) * spec.volatility * 0.72 * Math.min(5.5, scaleFactor * 0.65) + driftBack + biasDrift;
       cur = +Math.max(spec.volatility * 5, cur + stepDelta).toFixed(spec.decimals);
       if (cur > high) high = cur;
       if (cur < low) low = cur;
@@ -775,7 +806,7 @@ export function getSyncedBinaryCandlesForTimeframe(
 
     candles.push({
       time: bStart,
-      timeStr: formatTimeWithOffset(bStart, offsetMinutes),
+      timeStr: tfSec >= 86400 ? formatDateWithOffset(bStart, offsetMinutes) : formatTimeWithOffset(bStart, offsetMinutes),
       open,
       high: +Math.max(high, open, cur).toFixed(spec.decimals),
       low: +Math.min(low, open, cur).toFixed(spec.decimals),
@@ -1075,5 +1106,109 @@ export function resolveCoinFlipOutcome(
   }
   return randomSide;
 }
+
+// ================= EWI ROULETTE SYNCHRONIZED EUROPEAN ENGINE =================
+export const ROULETTE_WHEEL_ORDER: number[] = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+  5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
+
+export const ROULETTE_RED_NUMBERS = new Set<number>([
+  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
+]);
+
+export function getRouletteNumberColor(num: number): 'green' | 'red' | 'black' {
+  if (num === 0) return 'green';
+  return ROULETTE_RED_NUMBERS.has(num) ? 'red' : 'black';
+}
+
+export interface EwiRouletteState {
+  roundId: string;
+  phase: 'betting' | 'spinning' | 'result';
+  timeRemaining: number;
+  phaseRemaining: number;
+  winningNumber: number;
+  winningColor: 'green' | 'red' | 'black';
+  history: Array<{ roundId: string; number: number; color: 'green' | 'red' | 'black' }>;
+  serverNow: number;
+}
+
+const ROULETTE_BETTING_MS = 20000;
+const ROULETTE_SPINNING_MS = 6000;
+const ROULETTE_RESULT_MS = 4000;
+const ROULETTE_ROUND_MS = ROULETTE_BETTING_MS + ROULETTE_SPINNING_MS + ROULETTE_RESULT_MS;
+
+function getRouletteNumberForRound(roundIndex: number): number {
+  const rng = createSeededRng(`ewi_roulette:${roundIndex}`);
+  return Math.floor(rng() * 37);
+}
+
+export function getEwiRouletteState(nowMs = Date.now(), offsetMinutes = 360): EwiRouletteState {
+  const roundIndex = Math.floor(nowMs / ROULETTE_ROUND_MS);
+  const roundStart = roundIndex * ROULETTE_ROUND_MS;
+  const elapsed = Math.max(0, nowMs - roundStart);
+
+  let phase: 'betting' | 'spinning' | 'result' = 'betting';
+  let phaseRemaining = 0;
+
+  if (elapsed < ROULETTE_BETTING_MS) {
+    phase = 'betting';
+    phaseRemaining = Math.ceil((ROULETTE_BETTING_MS - elapsed) / 1000);
+  } else if (elapsed < ROULETTE_BETTING_MS + ROULETTE_SPINNING_MS) {
+    phase = 'spinning';
+    phaseRemaining = Math.ceil((ROULETTE_BETTING_MS + ROULETTE_SPINNING_MS - elapsed) / 1000);
+  } else {
+    phase = 'result';
+    phaseRemaining = Math.ceil((ROULETTE_ROUND_MS - elapsed) / 1000);
+  }
+
+  const timeRemaining = Math.max(0, Math.ceil((ROULETTE_ROUND_MS - elapsed) / 1000));
+  const winningNumber = getRouletteNumberForRound(roundIndex);
+  const winningColor = getRouletteNumberColor(winningNumber);
+
+  const d = getOffsetDate(offsetMinutes, nowMs);
+  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(
+    d.getUTCDate()
+  ).padStart(2, '0')}`;
+  const roundSuffix = String(roundIndex % 10000).padStart(4, '0');
+  const roundId = `RL${ymd}${roundSuffix}`;
+
+  const history: Array<{ roundId: string; number: number; color: 'green' | 'red' | 'black' }> = [];
+  for (let i = 1; i <= 50; i++) {
+    const prevIdx = roundIndex - i;
+    const num = getRouletteNumberForRound(prevIdx);
+    const prevD = getOffsetDate(offsetMinutes, prevIdx * ROULETTE_ROUND_MS);
+    const prevYmd = `${prevD.getUTCFullYear()}${String(prevD.getUTCMonth() + 1).padStart(2, '0')}${String(
+      prevD.getUTCDate()
+    ).padStart(2, '0')}`;
+    history.push({
+      roundId: `RL${prevYmd}${String(prevIdx % 10000).padStart(4, '0')}`,
+      number: num,
+      color: getRouletteNumberColor(num)
+    });
+  }
+
+  return {
+    roundId,
+    phase,
+    timeRemaining,
+    phaseRemaining,
+    winningNumber,
+    winningColor,
+    history,
+    serverNow: nowMs
+  };
+}
+
+export function computeRouletteBetPayout(
+  numbers: number[],
+  winningNumber: number,
+  amount: number,
+  payoutMultiplier: number
+): number {
+  if (!numbers.includes(winningNumber)) return 0;
+  return +(amount * payoutMultiplier).toFixed(2);
+}
+
 
 

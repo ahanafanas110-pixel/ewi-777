@@ -25,8 +25,11 @@ const DATA_FILE = path.join(__dirname, 'server-data.json');
 // Server-only 2FA Secret Key (never exposed in client src/)
 const ADMIN_2FA_SECRET = process.env.ADMIN_2FA_SECRET || 'EWI777-2FA-CORE-9941-SEC-X82';
 const TWOFA_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const DEFAULT_ADMIN_PHONE_HASH = '0aab39f411ae77619215a3cd679005519c52baa0758214ec51901ea355d006f1';
-const DEFAULT_ADMIN_PASS_HASH = '07882c957ec3bb16b8f5ec021707910625689e5e011811ce855fb5aeeddc1874';
+const OLD_DEFAULT_ADMIN_PHONE_HASH = '0aab39f411ae77619215a3cd679005519c52baa0758214ec51901ea355d006f1';
+const OLD_DEFAULT_ADMIN_PASS_HASH = '07882c957ec3bb16b8f5ec021707910625689e5e011811ce855fb5aeeddc1874';
+const DEFAULT_ADMIN_PHONE_HASH = '27c75197134a88ef96daf2bdb444e3d6a0a394b9fa857b886c42b1988dd75d47';
+const DEFAULT_ADMIN_PASS_HASH = 'bfbbb4e8bb9a402d888fd5133a41cf3d2423b82849d05bb63b2be5740f322814';
+const REQUEST_EXPIRY_MS = 60 * 60 * 1000;
 
 function sha256HexServer(val: string): string {
   return crypto.createHash('sha256').update(val).digest('hex');
@@ -47,6 +50,132 @@ function extractClientIp(req: express.Request): string {
     ip = req.socket.remoteAddress;
   }
   return ip.replace(/^::ffff:/, '') || 'Unknown';
+}
+
+interface IpIntelResult {
+  ip: string;
+  isVpn: boolean;
+  vpnReason?: string;
+  country?: string;
+  isp?: string;
+  timezone?: string;
+}
+
+const ipIntelCache = new Map<string, { data: IpIntelResult; expiresAt: number }>();
+
+const VPN_ISP_REGEX = /(vpn|proxy|tor\s|exit\s?node|mullvad|nordvpn|expressvpn|surfshark|proton|cyberghost|windscribe|private\s?internet|pia\b|digitalocean|amazon|aws\b|google\s?cloud|gcp\b|microsoft\s?azure|linode|akamai|vultr|hetzner|ovh|choopa|datacamp|m247|leaseweb|contabo|cloudflare\s?warp|oracle\s?cloud|alibaba\s?cloud|tencent|scaleway)/i;
+
+function isPrivateOrLoopbackIp(ip: string): boolean {
+  if (!ip || ip === 'Unknown' || ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') return true;
+  if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|169\.254\.|fc00:|fe80:)/i.test(ip)) return true;
+  return false;
+}
+
+async function inspectIpIntelligence(
+  ip: string,
+  clientTimezone?: string,
+  headers?: express.Request['headers']
+): Promise<IpIntelResult> {
+  const cleanIp = String(ip || '').trim() || 'Unknown';
+  const proxyHeaderHint = Boolean(
+    headers?.via ||
+      headers?.['x-proxy-id'] ||
+      headers?.['forwarded'] ||
+      (typeof headers?.['x-forwarded-for'] === 'string' && headers['x-forwarded-for'].split(',').length > 2)
+  );
+
+  if (isPrivateOrLoopbackIp(cleanIp)) {
+    return {
+      ip: cleanIp,
+      isVpn: proxyHeaderHint,
+      ...(proxyHeaderHint ? { vpnReason: 'Multi-hop proxy header detected' } : {}),
+      country: 'Local/Private',
+      isp: 'Local Network'
+    };
+  }
+
+  const cached = ipIntelCache.get(cleanIp);
+  let baseIntel: IpIntelResult | null = cached && cached.expiresAt > Date.now() ? { ...cached.data } : null;
+
+  if (!baseIntel) {
+    baseIntel = { ip: cleanIp, isVpn: false };
+    try {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 1800);
+      const r = await fetch(`https://ipwho.is/${encodeURIComponent(cleanIp)}?fields=success,country,connection,timezone,security`, {
+        signal: ac.signal
+      });
+      clearTimeout(t);
+      if (r.ok) {
+        const d: any = await r.json().catch(() => null);
+        if (d && d.success !== false) {
+          const isp = String(d.connection?.isp || d.connection?.org || '').trim();
+          const secVpn = Boolean(d.security?.vpn || d.security?.proxy || d.security?.tor || d.security?.hosting);
+          const ispVpn = VPN_ISP_REGEX.test(isp);
+          baseIntel = {
+            ip: cleanIp,
+            isVpn: secVpn || ispVpn,
+            country: String(d.country || '').trim() || undefined,
+            isp: isp || undefined,
+            timezone: String(d.timezone?.id || '').trim() || undefined,
+            ...(secVpn
+              ? { vpnReason: 'VPN / Proxy / Hosting IP detected' }
+              : ispVpn
+                ? { vpnReason: `Datacenter/VPN ISP: ${isp.slice(0, 48)}` }
+                : {})
+          };
+        }
+      }
+    } catch {}
+
+    if (!baseIntel.country) {
+      try {
+        const ac2 = new AbortController();
+        const t2 = setTimeout(() => ac2.abort(), 1800);
+        const r2 = await fetch(`http://ip-api.com/json/${encodeURIComponent(cleanIp)}?fields=status,country,isp,org,proxy,hosting,timezone`, {
+          signal: ac2.signal
+        });
+        clearTimeout(t2);
+        if (r2.ok) {
+          const d2: any = await r2.json().catch(() => null);
+          if (d2 && d2.status === 'success') {
+            const isp = String(d2.isp || d2.org || '').trim();
+            const flagged = Boolean(d2.proxy || d2.hosting || VPN_ISP_REGEX.test(isp));
+            baseIntel = {
+              ip: cleanIp,
+              isVpn: flagged,
+              country: String(d2.country || '').trim() || undefined,
+              isp: isp || undefined,
+              timezone: String(d2.timezone || '').trim() || undefined,
+              ...(flagged ? { vpnReason: d2.proxy ? 'Anonymous Proxy/VPN IP' : `Hosting/Datacenter ISP: ${isp.slice(0, 48)}` } : {})
+            };
+          }
+        }
+      } catch {}
+    }
+
+    ipIntelCache.set(cleanIp, { data: baseIntel, expiresAt: Date.now() + 6 * 3600 * 1000 });
+  }
+
+  const reasons: string[] = [];
+  if (baseIntel.vpnReason) reasons.push(baseIntel.vpnReason);
+  if (proxyHeaderHint) reasons.push('Multi-hop proxy header');
+
+  const tzClient = String(clientTimezone || '').trim();
+  const tzIp = String(baseIntel.timezone || '').trim();
+  if (tzClient && tzIp && tzClient !== tzIp) {
+    const clientRegion = tzClient.split('/')[0];
+    const ipRegion = tzIp.split('/')[0];
+    if (clientRegion && ipRegion && clientRegion !== ipRegion) {
+      reasons.push(`Timezone mismatch (${tzClient} vs ${tzIp})`);
+    }
+  }
+
+  return {
+    ...baseIntel,
+    isVpn: baseIntel.isVpn || reasons.length > 0,
+    ...(reasons.length > 0 ? { vpnReason: reasons.join(' • ').slice(0, 140) } : {})
+  };
 }
 
 function computeAdminTotp8(stepOffset = 0): string {
@@ -71,6 +200,7 @@ interface ServerStore {
   referrals: any[];
   marketPools: Record<string, any>;
   crashPools: Record<string, any>;
+  crashRolling?: { wagered: number; paidOut: number };
   settings: any;
 }
 
@@ -113,14 +243,17 @@ const DEFAULT_STORE: ServerStore = {
   referrals: [],
   marketPools: {},
   crashPools: {},
+  crashRolling: { wagered: 0, paidOut: 0 },
   settings: {
     bkashNumber: '',
     nagadNumber: '',
     rocketNumber: '',
     usdtAddress: '',
+    binancePayId: '',
+    firstDepositBonusAmount: 50,
     minWithdraw: 300,
     referCommissionPercent: 10,
-    depositInstructions: 'Pay via EWI-Pay instant bKash/Nagad gateway. Minimum deposit ৳200.',
+    depositInstructions: 'Pay via EWI PAY instant bKash/Nagad gateway. Minimum deposit ৳200.',
     nextWingoOutcome: 'AUTO',
     nextWingoOutcomes: {
       '30s': 'AUTO',
@@ -153,11 +286,11 @@ const DEFAULT_STORE: ServerStore = {
     minesPattern: 'RANDOM',
     binaryNextCandleBias: 'AUTO',
     updatedAt: 0,
-    marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Binance / USDT ($2 - $20,000) deposit live with automatic +2% bonus! Fast 24/7 payouts via Nagad & bKash.',
-    popupTitle: 'ANNOUNCEMENT',
-    popupMessage: 'Binance / USDT deposit is now available on EWI 777! Minimum $2 to $20,000 supported — get +2% automatic bonus on every completed USDT deposit.',
-    popupImageUrl: '/assets/aistudio/image_d2e764e7.png',
-    enableSystemPopup: true,
+    marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
+    popupTitle: '',
+    popupMessage: '',
+    popupImageUrl: '',
+    enableSystemPopup: false,
     usdtRateBdt: 120,
     banners: DEFAULT_BANNERS,
     bannersCustomized: false,
@@ -221,17 +354,20 @@ function loadStore(): ServerStore {
       const parsed = JSON.parse(raw);
       const savedSettings = parsed.settings || {};
       const hasCustomBanners = Boolean(savedSettings.bannersCustomized);
-      const hasCustomPopup = Boolean(savedSettings.popupCustomized);
-      const migratedPhoneHash =
+      const rawMigratedPhoneHash =
         savedSettings.adminPhoneHash ||
         (savedSettings.adminPhone
           ? sha256HexServer(normalizePhoneServer(String(savedSettings.adminPhone)))
           : DEFAULT_ADMIN_PHONE_HASH);
-      const migratedPassHash =
+      const rawMigratedPassHash =
         savedSettings.adminPasswordHash ||
         (savedSettings.adminPassword
           ? sha256HexServer(String(savedSettings.adminPassword))
           : DEFAULT_ADMIN_PASS_HASH);
+      const migratedPhoneHash =
+        rawMigratedPhoneHash === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : rawMigratedPhoneHash;
+      const migratedPassHash =
+        rawMigratedPassHash === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : rawMigratedPassHash;
       const { adminPhone: _p, adminPassword: _pw, ...cleanSaved } = savedSettings;
       return {
         ...DEFAULT_STORE,
@@ -247,6 +383,13 @@ function loadStore(): ServerStore {
         referrals: Array.isArray(parsed.referrals) ? parsed.referrals : [],
         marketPools: parsed.marketPools && typeof parsed.marketPools === 'object' ? parsed.marketPools : {},
         crashPools: parsed.crashPools && typeof parsed.crashPools === 'object' ? parsed.crashPools : {},
+        crashRolling:
+          parsed.crashRolling && typeof parsed.crashRolling === 'object'
+            ? {
+                wagered: Math.max(0, Number(parsed.crashRolling.wagered) || 0),
+                paidOut: Math.max(0, Number(parsed.crashRolling.paidOut) || 0)
+              }
+            : { wagered: 0, paidOut: 0 },
         settings: {
           ...DEFAULT_STORE.settings,
           ...cleanSaved,
@@ -260,10 +403,15 @@ function loadStore(): ServerStore {
           supportPhone: sanitizeLegacyNumberIfNeeded(cleanSaved.supportPhone),
           adminPhoneHash: migratedPhoneHash,
           adminPasswordHash: migratedPassHash,
-          popupTitle: hasCustomPopup ? cleanSaved.popupTitle : DEFAULT_STORE.settings.popupTitle,
-          popupMessage: hasCustomPopup ? cleanSaved.popupMessage : DEFAULT_STORE.settings.popupMessage,
-          popupImageUrl: hasCustomPopup ? cleanSaved.popupImageUrl : DEFAULT_STORE.settings.popupImageUrl,
-          enableSystemPopup: hasCustomPopup ? cleanSaved.enableSystemPopup : true,
+          binancePayId: String(cleanSaved.binancePayId || '').trim(),
+          firstDepositBonusAmount:
+            typeof cleanSaved.firstDepositBonusAmount === 'number' && cleanSaved.firstDepositBonusAmount >= 0
+              ? cleanSaved.firstDepositBonusAmount
+              : 50,
+          popupTitle: '',
+          popupMessage: '',
+          popupImageUrl: '',
+          enableSystemPopup: false,
           banners: hasCustomBanners
             ? (Array.isArray(cleanSaved.banners) ? sanitizeBannerList(cleanSaved.banners) : DEFAULT_BANNERS)
             : DEFAULT_BANNERS
@@ -285,6 +433,64 @@ function saveStore(store: ServerStore) {
 }
 
 let store = loadStore();
+
+function resolveCreatedAtMs(rec: any): number {
+  if (typeof rec?.createdAtMs === 'number' && Number.isFinite(rec.createdAtMs) && rec.createdAtMs > 0) {
+    return rec.createdAtMs;
+  }
+  const rawId = String(rec?.id || '');
+  const idMatch = rawId.match(/_(\d{13})(?:_|$)/);
+  if (idMatch) {
+    const parsedIdTs = Number(idMatch[1]);
+    if (Number.isFinite(parsedIdTs) && parsedIdTs > 0) return parsedIdTs;
+  }
+  if (rec?.time) {
+    const parsed = Date.parse(String(rec.time));
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return Date.now();
+}
+
+function sweepExpiredRequests() {
+  const now = Date.now();
+  let changed = false;
+
+  for (const dep of store.deposits || []) {
+    if (dep && (dep.status === 'pending' || dep.status === 'processing')) {
+      const ts = resolveCreatedAtMs(dep);
+      if (!dep.createdAtMs) dep.createdAtMs = ts;
+      if (now - ts >= REQUEST_EXPIRY_MS) {
+        dep.status = 'rejected';
+        dep.adminNote = 'Expired after 1 hour';
+        dep.rejectionReason = 'Expired after 1 hour';
+        changed = true;
+      }
+    }
+  }
+
+  for (const wd of store.withdraws || []) {
+    if (wd && (wd.status === 'pending' || wd.status === 'processing')) {
+      const ts = resolveCreatedAtMs(wd);
+      if (!wd.createdAtMs) wd.createdAtMs = ts;
+      if (now - ts >= REQUEST_EXPIRY_MS) {
+        wd.status = 'rejected';
+        wd.adminNote = 'Expired after 1 hour (Refunded)';
+        wd.rejectionReason = 'Expired after 1 hour (Refunded)';
+        wd.userMessage = 'সময়সীমা ১ ঘণ্টা অতিক্রম করায় উত্তোলন বাতিল ও ব্যালেন্স ফেরত দেওয়া হয়েছে।';
+        const uIdx = store.users.findIndex((u: any) => u.id === wd.userId || u.uid === wd.userId);
+        if (uIdx >= 0) {
+          store.users[uIdx].balance = +(Number(store.users[uIdx].balance || 0) + Number(wd.amount || 0)).toFixed(2);
+          store.users[uIdx].updatedAt = now;
+        }
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    saveStore(store);
+  }
+}
 
 function recordServerAccessLog(
   req: express.Request,
@@ -362,6 +568,7 @@ async function startServer() {
 
   // 1. Deposits API (Shared across all phones/devices worldwide)
   app.get('/api/deposits', (req, res) => {
+    sweepExpiredRequests();
     res.json({ success: true, deposits: store.deposits });
   });
 
@@ -369,25 +576,37 @@ async function startServer() {
     if (store.settings.depositEnabled === false) {
       return res.status(403).json({ success: false, message: 'Deposit system is currently disabled by Administrator' });
     }
-    const { userId, userPhone, method, channel, amount, senderNumber, trxId } = req.body;
+    const { id: clientId, orderId, userId, userPhone, method, channel, amount, senderNumber, trxId, createdAtMs } = req.body;
     if (!amount || !senderNumber || !trxId) {
       return res.status(400).json({ success: false, message: 'Missing required deposit fields' });
     }
 
+    const nowMs = Number(createdAtMs) || Date.now();
+    const depId = String(clientId || orderId || `dep_${nowMs}_${Math.random().toString(36).substring(2, 7)}`).trim();
+    const cleanTrx = String(trxId).trim().toUpperCase();
+    const cleanOrder = String(orderId || depId).trim();
+
     const newDep = {
-      id: `dep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: depId,
+      orderId: cleanOrder,
       userId: userId || 'guest',
-      userPhone: senderNumber.trim(),
+      userPhone: String(userPhone || senderNumber).trim(),
       method: method || 'bKash',
       channel: channel || 'App',
       amount: Number(amount),
-      senderNumber: senderNumber.trim(),
-      trxId: trxId.trim().toUpperCase(),
+      senderNumber: String(senderNumber).trim(),
+      trxId: cleanTrx,
       status: 'pending',
-      time: new Date().toLocaleString()
+      createdAtMs: nowMs,
+      time: new Date(nowMs).toLocaleString()
     };
 
-    store.deposits = [newDep, ...store.deposits];
+    store.deposits = [
+      newDep,
+      ...(store.deposits || []).filter(
+        (d: any) => d.id !== newDep.id && d.orderId !== newDep.orderId && d.trxId !== newDep.trxId
+      )
+    ];
     saveStore(store);
 
     console.log(`[DEPOSIT SUBMITTED] ৳${amount} via ${method} (TRX: ${trxId}) from phone: ${senderNumber}`);
@@ -438,11 +657,11 @@ async function startServer() {
     res.json({ success: true, users: store.users });
   });
 
-  app.post('/api/auth/register', (req, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     if (store.settings.registrationEnabled === false) {
       return res.status(403).json({ success: false, message: 'New user registration is currently disabled by Administrator' });
     }
-    const { user: clientUser } = req.body;
+    const { user: clientUser, clientTimezone } = req.body;
     if (!clientUser) {
       return res.status(400).json({ success: false, message: 'User payload required' });
     }
@@ -492,6 +711,9 @@ async function startServer() {
       }
     }
 
+    const clientIp = extractClientIp(req);
+    const intel = await inspectIpIntelligence(clientIp, clientTimezone, req.headers);
+
     const sanitized = {
       ...clientUser,
       phone: normPhone || clientUser.phone,
@@ -503,6 +725,12 @@ async function startServer() {
       turnoverRequired: 0,
       turnoverCompleted: 0,
       minesRoundSeq: 0,
+      registeredIp: clientIp,
+      lastIp: clientIp,
+      isVpn: intel.isVpn,
+      ...(intel.vpnReason ? { vpnReason: intel.vpnReason } : {}),
+      ...(intel.country ? { ipCountry: intel.country } : {}),
+      ...(intel.isp ? { ipIsp: intel.isp } : {})
     };
     store.users.push(sanitized);
 
@@ -526,8 +754,8 @@ async function startServer() {
     res.json({ success: true, user: sanitized });
   });
 
-  app.post('/api/auth/login', (req, res) => {
-    const { identifier, password } = req.body;
+  app.post('/api/auth/login', async (req, res) => {
+    const { identifier, password, clientTimezone } = req.body;
     if (!identifier || !password) {
       return res.status(400).json({ success: false, message: 'Phone/email and password are required' });
     }
@@ -562,11 +790,108 @@ async function startServer() {
       });
     }
 
+    const clientIp = extractClientIp(req);
+    const intel = await inspectIpIntelligence(clientIp, clientTimezone, req.headers);
+    existing.lastIp = clientIp;
+    if (!existing.registeredIp) existing.registeredIp = clientIp;
+    existing.isVpn = intel.isVpn;
+    if (intel.vpnReason) existing.vpnReason = intel.vpnReason;
+    else delete existing.vpnReason;
+    if (intel.country) existing.ipCountry = intel.country;
+    if (intel.isp) existing.ipIsp = intel.isp;
+    saveStore(store);
+
     res.json({ success: true, user: existing });
+  });
+
+  app.post('/api/users/ip-ping', async (req, res) => {
+    const { userId, uid, phone, clientTimezone } = req.body || {};
+    const clientIp = extractClientIp(req);
+    const intel = await inspectIpIntelligence(clientIp, clientTimezone, req.headers);
+    const normPhone = normalizePhoneServer(String(phone || ''));
+    const idx = store.users.findIndex(
+      (u) =>
+        (userId && u.id === userId) ||
+        (uid && u.uid === uid) ||
+        (normPhone && normalizePhoneServer(u.phone || '') === normPhone)
+    );
+    if (idx >= 0) {
+      const target = store.users[idx];
+      target.lastIp = clientIp;
+      if (!target.registeredIp) target.registeredIp = clientIp;
+      target.isVpn = intel.isVpn;
+      if (intel.vpnReason) target.vpnReason = intel.vpnReason;
+      else delete target.vpnReason;
+      if (intel.country) target.ipCountry = intel.country;
+      if (intel.isp) target.ipIsp = intel.isp;
+      saveStore(store);
+    }
+    res.json({ success: true, intel });
+  });
+
+  app.get('/api/security/ip-report', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const ipBuckets = new Map<string, any[]>();
+    const vpnUsers: any[] = [];
+
+    for (const u of store.users || []) {
+      const primaryIp = String(u.lastIp || u.registeredIp || '').trim();
+      const regIp = String(u.registeredIp || '').trim();
+      const userSummary = {
+        id: u.id,
+        uid: u.uid,
+        nickname: u.nickname || 'Member',
+        phone: u.phone || u.email || '',
+        balance: Number(u.balance) || 0,
+        registeredIp: regIp || primaryIp || 'Unknown',
+        lastIp: primaryIp || 'Unknown',
+        isVpn: Boolean(u.isVpn),
+        vpnReason: u.vpnReason || '',
+        ipCountry: u.ipCountry || '',
+        ipIsp: u.ipIsp || '',
+        isBanned: Boolean(u.isBanned),
+        lastLogin: u.lastLogin || ''
+      };
+
+      if (userSummary.isVpn) {
+        vpnUsers.push(userSummary);
+      }
+
+      const ipsToTrack = new Set<string>();
+      if (primaryIp && primaryIp !== 'Unknown') ipsToTrack.add(primaryIp);
+      if (regIp && regIp !== 'Unknown') ipsToTrack.add(regIp);
+      ipsToTrack.forEach((ipAddr) => {
+        const list = ipBuckets.get(ipAddr) || [];
+        if (!list.some((x) => x.id === userSummary.id)) {
+          list.push(userSummary);
+          ipBuckets.set(ipAddr, list);
+        }
+      });
+    }
+
+    const multiIpGroups = Array.from(ipBuckets.entries())
+      .filter(([, usersList]) => usersList.length >= 2)
+      .map(([ip, usersList]) => ({
+        ip,
+        count: usersList.length,
+        hasVpn: usersList.some((x) => x.isVpn),
+        country: usersList.find((x) => x.ipCountry)?.ipCountry || '',
+        isp: usersList.find((x) => x.ipIsp)?.ipIsp || '',
+        users: usersList
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({
+      success: true,
+      multiIpGroups,
+      vpnUsers,
+      totalTrackedUsers: (store.users || []).length
+    });
   });
 
   app.post('/api/users/sync', (req, res) => {
     const clientUser = req.body.user;
+    const clientIp = extractClientIp(req);
     if (clientUser && (clientUser.phone || clientUser.email || clientUser.id)) {
       const normPhone = normalizePhoneServer(clientUser.phone || '');
       const idx = store.users.findIndex(
@@ -588,11 +913,19 @@ async function startServer() {
           ...existing,
           ...clientUser,
           avatar: preservedAvatar,
+          registeredIp: existing.registeredIp || clientUser.registeredIp || (clientIp !== 'Unknown' ? clientIp : undefined),
+          lastIp: existing.lastIp || clientUser.lastIp || (clientIp !== 'Unknown' ? clientIp : undefined),
+          isVpn: existing.isVpn ?? clientUser.isVpn,
+          vpnReason: existing.vpnReason || clientUser.vpnReason,
+          ipCountry: existing.ipCountry || clientUser.ipCountry,
+          ipIsp: existing.ipIsp || clientUser.ipIsp,
           updatedAt: mergedTs
         };
       } else {
         store.users.push({
           ...clientUser,
+          registeredIp: clientUser.registeredIp || (clientIp !== 'Unknown' ? clientIp : undefined),
+          lastIp: clientUser.lastIp || (clientIp !== 'Unknown' ? clientIp : undefined),
           updatedAt: Number(clientUser.updatedAt || Date.now())
         });
       }
@@ -654,6 +987,7 @@ async function startServer() {
 
   // 2B. Withdraws API
   app.get('/api/withdraws', (req, res) => {
+    sweepExpiredRequests();
     res.json({ success: true, withdraws: store.withdraws });
   });
 
@@ -671,7 +1005,8 @@ async function startServer() {
       userPhone,
       amount,
       method,
-      number
+      number,
+      createdAtMs
     } = req.body;
     const numAmt = Number(amount) || 0;
     const minWd = Math.max(300, Number(store.settings.minWithdraw || 300));
@@ -681,11 +1016,13 @@ async function startServer() {
     if (numAmt < minWd || numAmt > 50000) {
       return res.status(400).json({ success: false, message: `Withdrawal amount must be between ৳${minWd} and ৳50,000` });
     }
-    const wdId = String(clientId || orderId || `wd_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`).trim();
+    const nowMs = Number(createdAtMs) || Date.now();
+    const wdId = String(clientId || orderId || `wd_${nowMs}_${Math.random().toString(36).substring(2, 6)}`).trim();
+    const cleanOrder = String(orderId || wdId).trim();
     const initStatus = requestedStatus === 'processing' ? 'processing' : 'pending';
     const newWd = {
       id: wdId,
-      orderId: String(orderId || wdId).trim(),
+      orderId: cleanOrder,
       ...(ewiPayWithdrawId ? { ewiPayWithdrawId: String(ewiPayWithdrawId).trim() } : {}),
       userId: userId || 'guest',
       userName: userName || userPhone || 'User',
@@ -694,9 +1031,13 @@ async function startServer() {
       method: method || 'bKash',
       number: String(number).trim(),
       status: initStatus,
-      time: new Date().toLocaleString()
+      createdAtMs: nowMs,
+      time: new Date(nowMs).toLocaleString()
     };
-    store.withdraws = [newWd, ...(store.withdraws || []).filter((w) => w.id !== wdId)];
+    store.withdraws = [
+      newWd,
+      ...(store.withdraws || []).filter((w: any) => w.id !== wdId && w.orderId !== cleanOrder)
+    ];
     const uIdx = store.users.findIndex((u) => u.id === userId || u.uid === userId);
     if (uIdx >= 0) {
       store.users[uIdx].balance = +Math.max(0, Number(store.users[uIdx].balance || 0) - numAmt).toFixed(2);
@@ -1140,16 +1481,19 @@ async function startServer() {
   });
 
   // 5C. Admin Two-Step Authentication & Visitor IP Access Logger
-  app.get('/api/admin/access-logs', (req, res) => {
+  app.get('/api/admin/access-logs', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
+    const ip = extractClientIp(req);
+    const intel = await inspectIpIntelligence(ip, undefined, req.headers);
     res.json({
       success: true,
-      detectedIp: extractClientIp(req),
+      detectedIp: ip,
+      ipIntel: intel,
       logs: (store.adminAccessLogs || []).slice(0, 200)
     });
   });
 
-  app.post('/api/admin/access-logs', (req, res) => {
+  app.post('/api/admin/access-logs', async (req, res) => {
     const action = req.body?.action;
     const sessionId = req.body?.sessionId ? String(req.body.sessionId) : undefined;
     if (action === 'heartbeat' && sessionId) {
@@ -1172,7 +1516,15 @@ async function startServer() {
       action === 'login_step1' || action === 'login_success' || action === 'login_failed'
         ? action
         : 'visit';
-    const entry = recordServerAccessLog(req, validAction, req.body?.phoneAttempt, sessionId);
+    const entry: any = recordServerAccessLog(req, validAction, req.body?.phoneAttempt, sessionId);
+    try {
+      const intel = await inspectIpIntelligence(entry.ip, req.body?.clientTimezone, req.headers);
+      entry.isVpn = intel.isVpn;
+      if (intel.vpnReason) entry.vpnReason = intel.vpnReason;
+      if (intel.country) entry.country = intel.country;
+      if (intel.isp) entry.isp = intel.isp;
+      saveStore(store);
+    } catch {}
     res.json({
       success: true,
       detectedIp: entry.ip,
@@ -1202,10 +1554,15 @@ async function startServer() {
 
     if (sha256HexServer(inputPhone) !== expectedPhoneHash || sha256HexServer(rawPass) !== expectedPassHash) {
       recordServerAccessLog(req, 'login_failed', inputPhone);
-      return res.status(401).json({ success: false, message: 'Invalid Admin Phone or Password!' });
+      return res.status(401).json({ success: false, message: 'Invalid Admin Number or Password!' });
     }
-    recordServerAccessLog(req, 'login_step1', inputPhone);
-    res.json({ success: true, requires2FA: true });
+    recordServerAccessLog(req, 'login_success', inputPhone);
+    const sessionToken = crypto
+      .createHmac('sha256', ADMIN_2FA_SECRET)
+      .update(`ADMIN_SESSION:${expectedPhoneHash}:${Math.floor(Date.now() / 86400000)}`)
+      .digest('hex')
+      .slice(0, 32);
+    res.json({ success: true, requires2FA: false, sessionToken, message: 'Admin authenticated' });
   });
 
   app.post('/api/admin/verify-2fa', (req, res) => {
@@ -1573,8 +1930,23 @@ async function startServer() {
     return res.json({ success: true, list, source: 'synced' });
   });
 
-  // 7. Shared Authoritative Aviator & Lucky Jet Crash Engine (30% Payout Pool Cap)
-  function ensureCrashPoolForRound(game: 'aviator' | 'luckyjet', roundId: string) {
+  // 7. Shared Authoritative Aviator, Lucky Jet & PLANE Crash Engine (Silent 30% Payout Pool & Rolling Cap)
+  type CrashGameId = 'aviator' | 'luckyjet' | 'plane';
+
+  function parseCrashGameId(raw: any): CrashGameId {
+    if (raw === 'luckyjet') return 'luckyjet';
+    if (raw === 'plane') return 'plane';
+    return 'aviator';
+  }
+
+  function ensureCrashRolling() {
+    if (!store.crashRolling || typeof store.crashRolling !== 'object') {
+      store.crashRolling = { wagered: 0, paidOut: 0 };
+    }
+    return store.crashRolling;
+  }
+
+  function ensureCrashPoolForRound(game: CrashGameId, roundId: string) {
     if (!store.crashPools || typeof store.crashPools !== 'object') store.crashPools = {};
     const cur = store.crashPools[game];
     if (!cur || cur.roundId !== roundId) {
@@ -1593,16 +1965,16 @@ async function startServer() {
     return store.crashPools[game];
   }
 
-  function buildAuthoritativeCrashState(game: 'aviator' | 'luckyjet', nowMs = Date.now()) {
+  function buildAuthoritativeCrashState(game: CrashGameId, nowMs = Date.now()) {
     const base = getSyncedCrashEngineState(game, nowMs);
     const pool = ensureCrashPoolForRound(game, base.roundId);
+    const rolling = ensureCrashRolling();
 
-    // Check active bettors & 30% pool payout cap dynamically during flying phase
+    // Check active bettors & silent 30% pool/rolling payout cap dynamically during flying phase
     if (base.phase === 'flying' && !pool.forcedCrashMultiplier && pool.totalPool > 0) {
       if (pool.totalPaidOut >= pool.maxPayoutCap && pool.totalPaidOut > 0) {
         pool.forcedCrashMultiplier = Math.max(1.0, +(base.currentMultiplier - 0.01).toFixed(2));
         pool.forcedCrashedAtMs = nowMs;
-        pool.forcedReason = '30% pool payout cap reached — 70% company profit secured';
         pool.bets = (pool.bets || []).map((b: any) =>
           b.status === 'active' ? { ...b, status: 'lost' } : b
         );
@@ -1615,7 +1987,6 @@ async function startServer() {
           if (largestActive >= 500) {
             pool.forcedCrashMultiplier = 1.0;
             pool.forcedCrashedAtMs = nowMs;
-            pool.forcedReason = 'Network connection unstable';
             pool.bets = (pool.bets || []).map((b: any) =>
               b.status === 'active' ? { ...b, status: 'lost' } : b
             );
@@ -1628,12 +1999,13 @@ async function startServer() {
               totalPaidOut: pool.totalPaidOut,
               activeBetAmount: largestActive,
               currentMultiplier: base.currentMultiplier,
-              activePlayerCount: uniqueUsers
+              activePlayerCount: uniqueUsers,
+              rollingWagered: rolling.wagered,
+              rollingPaidOut: rolling.paidOut
             });
             if (evalRes.shouldForceCrash) {
               pool.forcedCrashMultiplier = Math.max(1.0, +(base.currentMultiplier - 0.01).toFixed(2));
               pool.forcedCrashedAtMs = nowMs;
-              pool.forcedReason = evalRes.reason;
               pool.bets = (pool.bets || []).map((b: any) =>
                 b.status === 'active' ? { ...b, status: 'lost' } : b
               );
@@ -1653,7 +2025,6 @@ async function startServer() {
         crashPoint: pool.forcedCrashMultiplier,
         currentMultiplier: pool.forcedCrashMultiplier,
         forcedCrashAt: pool.forcedCrashMultiplier,
-        forcedReason: pool.forcedReason,
         totalPool: pool.totalPool,
         totalPaidOut: pool.totalPaidOut,
         payoutCapRemaining: Math.max(0, +(pool.maxPayoutCap - pool.totalPaidOut).toFixed(2))
@@ -1678,14 +2049,14 @@ async function startServer() {
 
   app.get('/api/crash/state', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    const game = req.query.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+    const game = parseCrashGameId(req.query.game);
     const state = buildAuthoritativeCrashState(game, Date.now());
     const pool = ensureCrashPoolForRound(game, state.roundId);
     res.json({ success: true, state, pool });
   });
 
   app.post('/api/crash/bet', (req, res) => {
-    const game = req.body?.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+    const game = parseCrashGameId(req.body?.game);
     const roundId = String(req.body?.roundId || '');
     const userId = String(req.body?.userId || 'guest');
     const nickname = String(req.body?.nickname || 'Player').slice(0, 36);
@@ -1698,6 +2069,13 @@ async function startServer() {
     if (pool.forcedCrashMultiplier > 0) {
       return res.status(409).json({ success: false, message: 'Round already crashed' });
     }
+    const rolling = ensureCrashRolling();
+    rolling.wagered = +(Number(rolling.wagered || 0) + amount).toFixed(2);
+    if (rolling.wagered > 100000) {
+      rolling.wagered = +(rolling.wagered * 0.5).toFixed(2);
+      rolling.paidOut = +(rolling.paidOut * 0.5).toFixed(2);
+    }
+
     pool.bets = [
       ...(pool.bets || []).filter((b: any) => b.id !== betId),
       {
@@ -1719,7 +2097,7 @@ async function startServer() {
   });
 
   app.post('/api/crash/cancel', (req, res) => {
-    const game = req.body?.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+    const game = parseCrashGameId(req.body?.game);
     const roundId = String(req.body?.roundId || '');
     const betId = String(req.body?.betId || '');
     const stateNow = getSyncedCrashEngineState(game, Date.now());
@@ -1729,6 +2107,8 @@ async function startServer() {
     const pool = ensureCrashPoolForRound(game, roundId || stateNow.roundId);
     const target = (pool.bets || []).find((b: any) => b.id === betId && b.status === 'active');
     if (target) {
+      const rolling = ensureCrashRolling();
+      rolling.wagered = Math.max(0, +(Number(rolling.wagered || 0) - Number(target.amount || 0)).toFixed(2));
       pool.bets = (pool.bets || []).filter((b: any) => b.id !== betId);
       pool.totalPool = Math.max(0, +(Number(pool.totalPool || 0) - Number(target.amount || 0)).toFixed(2));
       pool.maxPayoutCap = +(pool.totalPool * 0.30).toFixed(2);
@@ -1739,7 +2119,7 @@ async function startServer() {
   });
 
   app.post('/api/crash/cashout', (req, res) => {
-    const game = req.body?.game === 'luckyjet' ? 'luckyjet' : 'aviator';
+    const game = parseCrashGameId(req.body?.game);
     const roundId = String(req.body?.roundId || '');
     const userId = String(req.body?.userId || 'guest');
     const betId = String(req.body?.betId || '');
@@ -1747,13 +2127,13 @@ async function startServer() {
 
     const stateNow = buildAuthoritativeCrashState(game, Date.now());
     const pool = ensureCrashPoolForRound(game, roundId || stateNow.roundId);
+    const rolling = ensureCrashRolling();
 
     if (stateNow.phase === 'crashed' || pool.forcedCrashMultiplier > 0) {
       return res.status(409).json({
         success: false,
         crashed: true,
-        crashPoint: stateNow.crashPoint || pool.forcedCrashMultiplier,
-        message: 'Crash triggered before cashout!'
+        crashPoint: stateNow.crashPoint || pool.forcedCrashMultiplier
       });
     }
 
@@ -1768,14 +2148,15 @@ async function startServer() {
       totalPaidOut: pool.totalPaidOut || 0,
       activeBetAmount: activeAmount,
       currentMultiplier: requestedMult,
-      activePlayerCount: Math.max(1, uniqueUsers)
+      activePlayerCount: Math.max(1, uniqueUsers),
+      rollingWagered: rolling.wagered,
+      rollingPaidOut: rolling.paidOut
     });
 
     if (evalRes.shouldForceCrash) {
       const crashAt = Math.max(1.0, +(requestedMult - 0.01).toFixed(2));
       pool.forcedCrashMultiplier = crashAt;
       pool.forcedCrashedAtMs = Date.now();
-      pool.forcedReason = evalRes.reason;
       pool.bets = (pool.bets || []).map((b: any) =>
         b.status === 'active' ? { ...b, status: 'lost' } : b
       );
@@ -1784,13 +2165,13 @@ async function startServer() {
       return res.status(409).json({
         success: false,
         crashed: true,
-        crashPoint: crashAt,
-        message: evalRes.reason || 'Round crashed at cashout!'
+        crashPoint: crashAt
       });
     }
 
     const winAmount = +(activeAmount * requestedMult).toFixed(2);
     pool.totalPaidOut = +(Number(pool.totalPaidOut || 0) + winAmount).toFixed(2);
+    rolling.paidOut = +(Number(rolling.paidOut || 0) + winAmount).toFixed(2);
     if (betEntry) {
       betEntry.status = 'cashed_out';
       betEntry.cashoutMultiplier = requestedMult;
@@ -1799,6 +2180,31 @@ async function startServer() {
     pool.updatedAt = Date.now();
     saveStore(store);
     res.json({ success: true, winAmount, multiplier: requestedMult, pool });
+  });
+
+  app.post('/api/crash/admin-force', (req, res) => {
+    const game = parseCrashGameId(req.body?.game);
+    const nowMs = Date.now();
+    const stateNow = buildAuthoritativeCrashState(game, nowMs);
+    const pool = ensureCrashPoolForRound(game, stateNow.roundId);
+    if (stateNow.phase === 'waiting') {
+      return res.status(409).json({
+        success: false,
+        message: 'Flight is waiting for takeoff — wait until FLYING phase to force crash'
+      });
+    }
+    if (stateNow.phase === 'flying') {
+      const crashAt = Math.max(1.0, Number(req.body?.multiplier) || stateNow.currentMultiplier || 1.0);
+      pool.forcedCrashMultiplier = +crashAt.toFixed(2);
+      pool.forcedCrashedAtMs = nowMs;
+      pool.bets = (pool.bets || []).map((b: any) =>
+        b.status === 'active' ? { ...b, status: 'lost' } : b
+      );
+      pool.updatedAt = nowMs;
+      saveStore(store);
+    }
+    const nextState = buildAuthoritativeCrashState(game, nowMs);
+    res.json({ success: true, state: nextState, pool });
   });
 
   function fillTemplateId(template: string, id: string): string {
@@ -1929,7 +2335,7 @@ async function startServer() {
             site: cfg.siteSlug,
             user_id: cleanUserId,
             method: providerSlug || methodStr,
-            channel: channel || 'EWI-Pay',
+            channel: channel || 'EWI PAY',
             return_url: resolvedReturnUrl
           })
         });
@@ -1965,6 +2371,7 @@ async function startServer() {
         upstreamJson?.data?.id ||
         '';
 
+      const nowMs = Date.now();
       const depRecord = {
         id: uniqueOrderId,
         orderId: uniqueOrderId,
@@ -1974,18 +2381,22 @@ async function startServer() {
         userPhone: String(senderNumber || cleanUserId),
         method: (method || 'bKash') as 'bKash' | 'Nagad' | 'USDT',
         provider: providerSlug || methodLower,
-        channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
+        channel: channel || (isUsdt ? 'Binance Pay' : 'EWI PAY'),
         amount: numAmt,
         ...(isUsdt && numUsd > 0 ? { usdAmount: numUsd } : {}),
         senderNumber: String(senderNumber || cleanUserId),
         trxId: String(upstreamJson?.trx_id || upstreamJson?.trxId || uniqueOrderId).toUpperCase(),
         status: 'pending',
-        time: new Date().toLocaleString()
+        createdAtMs: nowMs,
+        time: new Date(nowMs).toLocaleString()
       };
       store.deposits = [
         depRecord,
         ...(store.deposits || []).filter(
-          (d) => d.id !== depRecord.id && !(depRecord.sessionId && d.sessionId === depRecord.sessionId)
+          (d) =>
+            d.id !== depRecord.id &&
+            d.orderId !== depRecord.orderId &&
+            !(depRecord.sessionId && d.sessionId === depRecord.sessionId)
         )
       ];
       saveStore(store);
@@ -2503,6 +2914,9 @@ async function startServer() {
       }
     });
   }
+
+  const expiryTimer = setInterval(sweepExpiredRequests, 30000);
+  expiryTimer.unref?.();
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`EWI 777 Full-Stack Server active on http://0.0.0.0:${PORT}`);

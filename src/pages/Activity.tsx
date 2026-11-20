@@ -15,12 +15,15 @@ import checkinBanner from '../assets/images/ewi777_checkin_banner_1794826719310.
 export const Activity: React.FC = () => {
   const {
     user,
+    adminSettings,
     transactions,
     depositRequests,
     claimDepositBonus,
     setActiveTab,
     language,
   } = useApp();
+
+  const firstBonusAmt = Math.max(1, Number(adminSettings.firstDepositBonusAmount) || 50);
 
   const hasCompletedDeposit =
     (Number(user.totalDeposited) || 0) > 0 ||
@@ -55,14 +58,14 @@ export const Activity: React.FC = () => {
   const lastGiftTime = user.lastGiftClaimTime || lastGiftTx?.time || '';
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-28">
       <Header title={getTranslation(language, 'activity')} showBack={false} />
 
-      {/* Top Luxury Gold Banner */}
-      <div className="bg-gradient-to-br from-[#B45309] via-[#D97706] to-[#F59E0B] text-white px-4 pt-4 pb-12 rounded-b-[2rem] shadow-md">
+      {/* Top Banner */}
+      <div className="bg-gradient-to-br from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white px-4 pt-4 pb-12 rounded-b-[2rem] shadow-md">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-xs text-amber-100 font-medium">
+            <div className="text-xs text-cyan-100 font-medium">
               {getTranslation(language, 'todaysBonus')}
             </div>
             <div className="text-2xl font-black tracking-tight mt-0.5 tabular-nums">
@@ -70,10 +73,10 @@ export const Activity: React.FC = () => {
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-amber-100 font-medium">
+            <div className="text-xs text-cyan-100 font-medium">
               {getTranslation(language, 'totalBonus')}
             </div>
-            <div className="text-2xl font-black tracking-tight mt-0.5 text-yellow-200 tabular-nums">
+            <div className="text-2xl font-black tracking-tight mt-0.5 text-cyan-200 tabular-nums">
               ৳{totalBonus.toFixed(2)}
             </div>
           </div>
@@ -81,11 +84,12 @@ export const Activity: React.FC = () => {
 
         <div className="flex justify-center">
           <button
+            type="button"
             onClick={() => {
               setActiveTab('transaction-history');
               window.location.hash = '#/transaction-history';
             }}
-            className="py-2 px-8 rounded-full bg-white text-[#B45309] font-extrabold text-xs shadow-md active:scale-95 transition-transform"
+            className="py-2 px-8 rounded-full bg-white text-slate-900 font-extrabold text-xs shadow-md active:scale-95 transition-transform"
           >
             {getTranslation(language, 'bonusDetails')}
           </button>
@@ -94,9 +98,9 @@ export const Activity: React.FC = () => {
 
       <div className="px-4 -mt-6 space-y-4">
         {/* Deposit Bonus Center */}
-        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-2">
+        <div className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-2">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-yellow-200">
+            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-cyan-100">
               <Gift className="w-3.5 h-3.5" />
               <span>Deposit Bonus Center</span>
             </div>
@@ -104,35 +108,37 @@ export const Activity: React.FC = () => {
               {user.hasClaimedDepositBonus
                 ? 'Deposit Bonus Claimed ✓'
                 : hasCompletedDeposit
-                ? 'Claim ৳50 Deposit Bonus (1-Time)!'
-                : 'Complete Deposit to Unlock ৳50 Bonus'}
+                ? `Claim ৳${firstBonusAmt} Deposit Bonus (1-Time)!`
+                : `Complete Deposit to Unlock ৳${firstBonusAmt} Bonus`}
             </div>
-            <div className="text-[10px] text-amber-100">
+            <div className="text-[10px] text-cyan-50">
               {user.hasClaimedDepositBonus
                 ? '1-time deposit bonus already claimed.'
                 : hasCompletedDeposit
-                ? 'Your deposit is verified! Claim your 1-time ৳50 reward.'
+                ? `Your deposit is verified! Claim your 1-time ৳${firstBonusAmt} reward.`
                 : 'Available 1 time only after your deposit is approved.'}
             </div>
           </div>
           <button
+            type="button"
             onClick={() => claimDepositBonus()}
             disabled={user.hasClaimedDepositBonus}
             className={`px-4 py-2 rounded-full font-black text-xs shadow-md active:scale-95 transition-all flex-shrink-0 ${
               user.hasClaimedDepositBonus
                 ? 'bg-white/40 text-white cursor-not-allowed'
                 : hasCompletedDeposit
-                ? 'bg-white text-slate-900 hover:bg-yellow-50'
+                ? 'bg-white text-slate-900 hover:bg-cyan-50'
                 : 'bg-white/25 text-white border border-white/40'
             }`}
           >
-            {user.hasClaimedDepositBonus ? 'Claimed' : hasCompletedDeposit ? 'Claim ৳50' : 'Locked'}
+            {user.hasClaimedDepositBonus ? 'Claimed' : hasCompletedDeposit ? `Claim ৳${firstBonusAmt}` : 'Locked'}
           </button>
         </div>
 
         {/* Quick 4 Category Buttons */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-200 grid grid-cols-4 gap-2 text-center">
+        <div className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200 grid grid-cols-4 gap-2 text-center">
           <button
+            type="button"
             onClick={() => {
               setActiveTab('activity-award');
               window.location.hash = '#/activity-award';
@@ -146,6 +152,7 @@ export const Activity: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setActiveTab('betting-rebate');
               window.location.hash = '#/betting-rebate';
@@ -159,6 +166,7 @@ export const Activity: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setActiveTab('super-jackpot');
               window.location.hash = '#/super-jackpot';
@@ -172,6 +180,7 @@ export const Activity: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setActiveTab('first-gift');
               window.location.hash = '#/first-gift';
@@ -192,25 +201,25 @@ export const Activity: React.FC = () => {
               setActiveTab('gifts');
               window.location.hash = '#/gifts';
             }}
-            className="group bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
+            className="group bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-2xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
           >
-            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center bg-amber-50">
+            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center bg-slate-100">
               <PinkGiftIllustration className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-[#D97706] shadow-xs">
+              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-cyan-700 shadow-xs">
                 HOT
               </span>
             </div>
 
             <div className="p-3 bg-white flex flex-col justify-between flex-1">
               <div>
-                <h4 className="font-black text-sm text-slate-900 group-hover:text-[#D97706] transition-colors">
+                <h4 className="font-black text-sm text-slate-900 group-hover:text-cyan-700 transition-colors">
                   {getTranslation(language, 'gifts')}
                 </h4>
                 <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
                   {lastGiftTime ? `Last claimed: ${lastGiftTime}` : 'Redeem exclusive gift codes'}
                 </p>
               </div>
-              <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[#D97706]">
+              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-cyan-700">
                 <span className="text-[10px] font-black">Redeem Now</span>
                 <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </div>
@@ -222,29 +231,29 @@ export const Activity: React.FC = () => {
               setActiveTab('attendence');
               window.location.hash = '#/cheking';
             }}
-            className="group bg-white rounded-3xl overflow-hidden border border-amber-200 shadow-xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
+            className="group bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-2xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
           >
-            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center bg-amber-50">
+            <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center bg-slate-100">
               <img
                 src={checkinBanner}
                 alt="EWI777 Daily Check-In"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
-              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-[#D97706] shadow-xs">
+              <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-cyan-700 shadow-xs">
                 DAILY
               </span>
             </div>
 
             <div className="p-3 bg-white flex flex-col justify-between flex-1">
               <div>
-                <h4 className="font-black text-sm text-slate-900 group-hover:text-[#D97706] transition-colors">
+                <h4 className="font-black text-sm text-slate-900 group-hover:text-cyan-700 transition-colors">
                   Daily Sign-In
                 </h4>
                 <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
                   Day 1 ৳1 up to Day 7 ৳7 rewards
                 </p>
               </div>
-              <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[#D97706]">
+              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-cyan-700">
                 <span className="text-[10px] font-black">Check-in</span>
                 <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </div>

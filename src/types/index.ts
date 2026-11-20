@@ -57,6 +57,12 @@ export interface User {
     lastDepositDate?: string;
     streak: number;
   };
+  registeredIp?: string;
+  lastIp?: string;
+  isVpn?: boolean;
+  vpnReason?: string;
+  ipCountry?: string;
+  ipIsp?: string;
   updatedAt?: number;
 }
 
@@ -172,6 +178,8 @@ export interface Transaction {
     | 'd5_win'
     | 'luckyjet_bet'
     | 'luckyjet_win'
+    | 'plane_bet'
+    | 'plane_win'
     | 'coinflip_bet'
     | 'coinflip_win'
     | 'ewi_wingo_bet'
@@ -180,7 +188,9 @@ export interface Transaction {
     | 'daily_refer_bonus'
     | 'wingo_streak_bonus'
     | 'wingo_refund'
-    | 'turnover_penalty';
+    | 'turnover_penalty'
+    | 'roulette_bet'
+    | 'roulette_win';
   title: string;
   detail?: string;
   amount: number;
@@ -208,6 +218,7 @@ export interface DepositRequest {
   trxId: string;
   status: 'pending' | 'processing' | 'approved' | 'rejected';
   time: string;
+  createdAtMs?: number;
   adminNote?: string;
   rejectionReason?: string;
 }
@@ -368,7 +379,7 @@ export interface AviatorBet {
   id: string;
   roundId: string;
   userId: string;
-  game?: 'aviator' | 'luckyjet';
+  game?: 'aviator' | 'luckyjet' | 'plane';
   slot?: 1 | 2 | 3;
   amount: number;
   status: 'active' | 'cashed_out' | 'lost';
@@ -401,6 +412,7 @@ export interface WithdrawRequest {
   number: string;
   status: 'pending' | 'processing' | 'completed' | 'rejected';
   time: string;
+  createdAtMs?: number;
   adminNote?: string;
   payoutTrxId?: string;
   userMessage?: string;
@@ -436,6 +448,8 @@ export interface AdminSettings {
   nagadNumber: string;
   rocketNumber?: string;
   usdtAddress?: string;
+  binancePayId?: string;
+  firstDepositBonusAmount?: number;
   minWithdraw?: number;
   referCommissionPercent?: number;
   depositInstructions: string;
@@ -523,6 +537,10 @@ export interface AdminAccessLog {
   phoneAttempt?: string;
   userAgent?: string;
   route: string;
+  isVpn?: boolean;
+  vpnReason?: string;
+  country?: string;
+  isp?: string;
 }
 
 export type BinaryMarketCategory = 'Crypto' | 'Forex' | 'Commodities' | 'Indices';
@@ -564,7 +582,7 @@ export interface AviatorServerState {
 export interface CrashRoundBetEntry {
   id: string;
   betId?: string;
-  game: 'aviator' | 'luckyjet';
+  game: 'aviator' | 'luckyjet' | 'plane';
   roundId: string;
   userId: string;
   nickname: string;
@@ -576,7 +594,7 @@ export interface CrashRoundBetEntry {
 }
 
 export interface CrashPoolState {
-  game: 'aviator' | 'luckyjet';
+  game: 'aviator' | 'luckyjet' | 'plane';
   roundId: string;
   totalPool: number;
   totalPaidOut: number;
@@ -597,6 +615,35 @@ export interface CoinFlipBet {
   resultSide?: 'GOLD' | 'SILVER';
   winAmount?: number;
   status: 'pending' | 'won' | 'lost';
+  time: string;
+}
+
+export type RouletteBetType =
+  | 'straight'
+  | 'split'
+  | 'street'
+  | 'corner'
+  | 'sixline'
+  | 'dozen'
+  | 'column'
+  | 'red'
+  | 'black'
+  | 'even'
+  | 'odd'
+  | 'low'
+  | 'high';
+
+export interface RouletteBet {
+  id: string;
+  userId?: string;
+  roundId: string;
+  betType: RouletteBetType;
+  numbers: number[];
+  label: string;
+  amount: number;
+  payoutMultiplier: number;
+  status: 'pending' | 'won' | 'lost';
+  winAmount?: number;
   time: string;
 }
 

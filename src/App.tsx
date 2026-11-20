@@ -40,10 +40,15 @@ import { D5Game } from './pages/D5Game';
 import { GameStatistics } from './pages/GameStatistics';
 import { EwiWinGo } from './pages/EwiWinGo';
 import { AllCharts } from './pages/AllCharts';
-import { ExtraFirstDepositModal, FIRST_DEPOSIT_TIERS } from './components/AccountIcons';
+import { PlaneGame } from './pages/PlaneGame';
+import { CasinoLobby } from './pages/CasinoLobby';
+import { SlotsLobby } from './pages/SlotsLobby';
+import { EwiRoulette } from './pages/EwiRoulette';
+import { WelcomeLanding } from './components/WelcomeLanding';
+import { ExtraFirstDepositModal } from './components/AccountIcons';
 import { WinGoResultPopupModal } from './components/WinGoAssets';
 import { CustomerServiceLogo } from './components/BrandLogos';
-import { Megaphone, Wrench, ShieldCheck, Ban, PowerOff, LogOut, X } from 'lucide-react';
+import { Wrench, ShieldCheck, Ban, PowerOff, LogOut } from 'lucide-react';
 
 export const ADMIN_ACCESS_ROUTE = '/admin-ewi777-panel-009';
 
@@ -75,11 +80,7 @@ const MainApp: React.FC = () => {
     setFirstDepositModalOpen
   } = useApp();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const prevDepositedRef = useRef<number | null>(null);
   const lastMainTabRef = useRef<string>('');
-  const [dismissedPopupKey, setDismissedPopupKey] = useState<string>('');
-  const [showSplash, setShowSplash] = useState<boolean>(true);
-  const [splashFading, setSplashFading] = useState<boolean>(false);
 
   // Draggable Customer Service Floating Icon state
   const [csPos, setCsPos] = useState<{ x: number; y: number }>(() => ({
@@ -133,15 +134,6 @@ const MainApp: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const fadeTimer = setTimeout(() => setSplashFading(true), 1750);
-    const hideTimer = setTimeout(() => setShowSplash(false), 2050);
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(hideTimer);
-    };
-  }, []);
-
   // Explicitly block legacy /admin path and enforce /admin-ewi777-panel-009
   useEffect(() => {
     const validateAdminRoute = () => {
@@ -167,34 +159,32 @@ const MainApp: React.FC = () => {
     };
   }, [user.isLoggedIn, setActiveTab]);
 
-  // Trigger Extra First Deposit bonus popup ONLY until user's first deposit is completed
+  // Trigger Extra First Deposit bonus popup ONLY AFTER user's first deposit is completed and NO tier claimed yet
   useEffect(() => {
     if (!user.isLoggedIn) {
-      prevDepositedRef.current = null;
       lastMainTabRef.current = '';
+      setFirstDepositModalOpen(false);
       return;
     }
 
     const curDep = Number(user.totalDeposited) || 0;
     const hasCompletedAnyDeposit =
       curDep > 0 ||
-      Boolean(user.hasClaimedDepositBonus) ||
       depositRequests.some((d) => d.userId === user.id && d.status === 'approved');
 
-    prevDepositedRef.current = curDep;
+    const claimedMap = user.claimedFirstDepositTiers || {};
+    const hasClaimedAnyTier = Object.values(claimedMap).some(Boolean);
 
-    if (hasCompletedAnyDeposit) {
+    if (!hasCompletedAnyDeposit || hasClaimedAnyTier) {
       setFirstDepositModalOpen(false);
       return;
     }
 
-    const claimedMap = user.claimedFirstDepositTiers || {};
-    const hasUncollectedTier = FIRST_DEPOSIT_TIERS.some((t) => !claimedMap[String(t.deposit)]);
-    const MAIN_TABS = ['home', 'activity', 'promotion', 'wallet', 'account'];
+    const MAIN_TABS = ['home', 'salary', 'activity', 'promotion', 'wallet', 'account'];
     if (MAIN_TABS.includes(activeTab) && lastMainTabRef.current !== activeTab) {
       lastMainTabRef.current = activeTab;
       const hiddenToday = localStorage.getItem('ewi777_fd_hide_date') === getLocalDateStr();
-      if (!hiddenToday && hasUncollectedTier) {
+      if (!hiddenToday) {
         setFirstDepositModalOpen(true);
       }
     }
@@ -202,7 +192,6 @@ const MainApp: React.FC = () => {
     user.isLoggedIn,
     user.id,
     user.totalDeposited,
-    user.hasClaimedDepositBonus,
     user.claimedFirstDepositTiers,
     depositRequests,
     activeTab,
@@ -212,12 +201,21 @@ const MainApp: React.FC = () => {
   const isAuthBlocked = !user.isLoggedIn && !PUBLIC_UNAUTH_TABS.has(activeTab);
 
   const renderCurrentView = () => {
+    if (!user.isLoggedIn && activeTab === 'home') {
+      return <WelcomeLanding onOpenLanguage={() => setShowLanguageModal(true)} />;
+    }
     if (isAuthBlocked) {
       return <Login onOpenLanguage={() => setShowLanguageModal(true)} />;
     }
     switch (activeTab) {
       case 'home':
         return <Home onOpenLanguage={() => setShowLanguageModal(true)} />;
+      case 'casino':
+        return <CasinoLobby />;
+      case 'slots':
+        return <SlotsLobby />;
+      case 'ewi-roulette':
+        return <EwiRoulette />;
       case 'activity':
         return <Activity />;
       case 'promotion':
@@ -259,6 +257,8 @@ const MainApp: React.FC = () => {
         return <AviatorPlane />;
       case 'luckyjet':
         return <LuckyJetGame />;
+      case 'plane':
+        return <PlaneGame />;
       case 'coinflip':
         return <CoinFlipGame />;
       case 'salary':
@@ -301,67 +301,46 @@ const MainApp: React.FC = () => {
 
   if (activeTab === 'admin' && isAuthorizedAdminRoute()) {
     return (
-      <div className="min-h-screen w-full bg-[#070E1B] text-white selection:bg-[#D97706] selection:text-white">
+      <div className="min-h-screen w-full bg-[#F8FAFC] text-slate-900 selection:bg-cyan-500 selection:text-white">
         {isNavigating ? <PageSkeleton /> : <Admin />}
         <Toast />
       </div>
     );
   }
 
-  const showBottomNav = [
-    'home',
-    'activity',
-    'promotion',
-    'wallet',
-    'account',
-    'login',
-    'register',
-    'registration',
-    'customer-service'
-  ].includes(activeTab);
-  const popupKey = `${adminSettings.popupTitle || ''}::${adminSettings.popupMessage || ''}::${adminSettings.popupImageUrl || ''}`;
-  const showSystemPopup =
-    Boolean(adminSettings.enableSystemPopup) &&
-    (Boolean(adminSettings.popupMessage?.trim()) || Boolean(adminSettings.popupImageUrl?.trim())) &&
-    dismissedPopupKey !== popupKey;
+  const isGuestWelcome = activeTab === 'home' && !user.isLoggedIn;
+  const showBottomNav =
+    !isGuestWelcome &&
+    [
+      'home',
+      'all-chart',
+      'salary',
+      'activity',
+      'promotion',
+      'wallet',
+      'account',
+      'login',
+      'register',
+      'registration',
+      'customer-service'
+    ].includes(activeTab);
 
   const isSiteOff = adminSettings.siteEnabled === false && !isAuthorizedAdminRoute();
   const isUserBanned = Boolean(user.isLoggedIn && user.isBanned);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex justify-center selection:bg-[#D97706] selection:text-white">
-      {/* 2-Second Official EWI 777 Crown Entry Splash Screen */}
-      {showSplash && (
-        <div
-          className={`fixed inset-0 z-[100] bg-gradient-to-b from-[#78350F] via-[#B45309] to-[#D97706] flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
-            splashFading ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
-        >
-          <div className="w-full max-w-sm flex flex-col items-center space-y-5">
-            <img
-              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
-              alt={adminSettings.appName || 'EWI 777'}
-              referrerPolicy="no-referrer"
-              className="w-80 max-w-[85vw] object-contain drop-shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
-            />
-            <div className="text-xs font-black tracking-widest uppercase text-amber-100">
-              {adminSettings.appName || 'EWI 777'} Official
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Frame Container */}
-      <div className="w-full max-w-md min-h-screen bg-[#FFFDF7] flex flex-col relative shadow-2xl overflow-x-hidden">
+    <div className="min-h-screen flex justify-center bg-slate-200 selection:bg-cyan-500 selection:text-white">
+      {/* Mobile Frame Container (Locked Light Mode) */}
+      <div className="w-full max-w-md min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative shadow-2xl overflow-x-hidden">
         {isSiteOff ? (
-          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDF7] to-amber-50">
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#F8FAFC] to-cyan-50">
             <img
               src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
               alt={adminSettings.appName || 'EWI 777'}
               referrerPolicy="no-referrer"
               className="h-24 w-auto object-contain mb-5 drop-shadow-md"
             />
-            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#B45309] to-[#D97706] text-white flex items-center justify-center shadow-lg mb-4">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white flex items-center justify-center shadow-lg mb-4">
               <PowerOff className="w-8 h-8" />
             </div>
             <h1 className="text-xl font-black text-slate-900 tracking-wide uppercase mb-2">
@@ -372,20 +351,20 @@ const MainApp: React.FC = () => {
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md active:scale-95"
+              className="px-5 py-2.5 rounded-full bg-gradient-to-r from-cyan-600 to-teal-500 text-white font-black text-xs shadow-md active:scale-95"
             >
               Refresh Status
             </button>
           </div>
         ) : adminSettings.maintenanceMode ? (
-          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDF7] to-amber-50">
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#F8FAFC] to-cyan-50">
             <img
               src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
               alt={adminSettings.appName || 'EWI 777'}
               referrerPolicy="no-referrer"
               className="h-24 w-auto object-contain mb-5 drop-shadow-md"
             />
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#B45309] to-[#F59E0B] text-white flex items-center justify-center shadow-lg mb-5">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white flex items-center justify-center shadow-lg mb-5">
               <Wrench className="w-10 h-10" />
             </div>
             <h1 className="text-xl font-black text-slate-900 mb-2">
@@ -398,14 +377,14 @@ const MainApp: React.FC = () => {
               onClick={() => {
                 window.location.reload();
               }}
-              className="px-4 py-2 rounded-full bg-white border border-amber-300 text-[#B45309] font-bold text-xs flex items-center gap-1.5 shadow-xs hover:bg-amber-50"
+              className="px-4 py-2 rounded-full bg-white border border-cyan-300 text-cyan-700 font-bold text-xs flex items-center gap-1.5 shadow-xs"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Check Status</span>
             </button>
           </div>
         ) : isUserBanned && activeTab !== 'customer-service' ? (
-          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDF7] to-rose-50">
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#F8FAFC] to-rose-50">
             <img
               src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
               alt={adminSettings.appName || 'EWI 777'}
@@ -416,7 +395,7 @@ const MainApp: React.FC = () => {
               <Ban className="w-10 h-10" />
             </div>
             <h1 className="text-xl font-black text-slate-900 mb-1.5">Account Suspended</h1>
-            <p className="text-xs font-bold text-rose-600 bg-rose-100/80 border border-rose-200 px-3 py-1.5 rounded-xl mb-4 max-w-xs">
+            <p className="text-xs font-bold text-rose-700 bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl mb-4 max-w-xs">
               Reason: {user.banReason || 'Restricted by Administrator'}
             </p>
             <p className="text-xs text-slate-600 leading-relaxed max-w-xs mb-6">
@@ -428,7 +407,7 @@ const MainApp: React.FC = () => {
                   setActiveTab('customer-service');
                   window.location.hash = '#/customer-service';
                 }}
-                className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] to-[#D97706] text-white font-black text-xs shadow-md"
+                className="w-full py-3 rounded-full bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black text-xs shadow-md"
               >
                 Contact Customer Support
               </button>
@@ -465,63 +444,6 @@ const MainApp: React.FC = () => {
                 </button>
               )}
           </>
-        )}
-
-        {/* System Announcement Popup */}
-        {!isSiteOff && !adminSettings.maintenanceMode && !isUserBanned && showSystemPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-fade-in">
-            <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-amber-200 flex flex-col">
-              <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] px-5 py-3.5 text-white flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
-                    <Megaphone className="w-4 h-4" />
-                  </div>
-                  <h3 className="font-black text-base tracking-wide uppercase">
-                    {adminSettings.popupTitle?.trim() || 'ANNOUNCEMENT'}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDismissedPopupKey(popupKey)}
-                  className="p-1 rounded-full hover:bg-white/20 text-white"
-                  aria-label="Close Announcement"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-4 space-y-3.5 max-h-[65vh] overflow-y-auto bg-white">
-                {adminSettings.popupImageUrl?.trim() && (
-                  <div className="rounded-2xl overflow-hidden border border-amber-100 shadow-xs bg-[#FFFDF7]">
-                    <img
-                      src={adminSettings.popupImageUrl.trim()}
-                      alt={adminSettings.popupTitle || 'Announcement'}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-auto max-h-80 object-contain mx-auto block"
-                    />
-                  </div>
-                )}
-
-                {adminSettings.popupMessage?.trim() && (
-                  <div className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-100">
-                    <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-semibold">
-                      {adminSettings.popupMessage}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="px-4 pb-4 pt-2 bg-white border-t border-amber-50">
-                <button
-                  type="button"
-                  onClick={() => setDismissedPopupKey(popupKey)}
-                  className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm tracking-wide shadow-md active:scale-98 transition-all"
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>
         )}
 
         <Toast />

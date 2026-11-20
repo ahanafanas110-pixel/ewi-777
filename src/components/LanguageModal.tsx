@@ -20,12 +20,12 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#F6F7FB] flex flex-col max-w-md mx-auto animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-[#F8FAFC] flex flex-col max-w-md mx-auto animate-fade-in">
       {/* Top Header */}
-      <div className="bg-white px-4 py-3 border-b border-slate-100 flex items-center justify-between shadow-xs">
+      <div className="bg-white px-4 py-3 border-b border-cyan-100 flex items-center justify-between shadow-xs">
         <button
           onClick={onClose}
-          className="p-1 -ml-1 text-slate-700 hover:text-red-500 active:scale-95 transition-transform"
+          className="p-1 -ml-1 text-slate-700 hover:text-cyan-600 active:scale-95 transition-transform"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
@@ -38,7 +38,7 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ isOpen, onClose })
         {/* English */}
         <button
           onClick={() => handleSelect('en')}
-          className="w-full bg-white rounded-2xl p-4 flex items-center justify-between border border-slate-100 shadow-xs active:scale-98 transition-all"
+          className="w-full bg-white rounded-2xl p-4 flex items-center justify-between border border-slate-200 shadow-xs active:scale-98 transition-all"
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">🇺🇸</span>
@@ -47,7 +47,7 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ isOpen, onClose })
           <div
             className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
               language === 'en'
-                ? 'bg-[#F84545] border-[#F84545] text-white'
+                ? 'bg-cyan-600 border-cyan-600 text-white'
                 : 'border-slate-300'
             }`}
           >
@@ -58,7 +58,7 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ isOpen, onClose })
         {/* Bengali */}
         <button
           onClick={() => handleSelect('bn')}
-          className="w-full bg-white rounded-2xl p-4 flex items-center justify-between border border-slate-100 shadow-xs active:scale-98 transition-all"
+          className="w-full bg-white rounded-2xl p-4 flex items-center justify-between border border-slate-200 shadow-xs active:scale-98 transition-all"
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">🇧🇩</span>
@@ -67,7 +67,7 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ isOpen, onClose })
           <div
             className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
               language === 'bn'
-                ? 'bg-[#F84545] border-[#F84545] text-white'
+                ? 'bg-cyan-600 border-cyan-600 text-white'
                 : 'border-slate-300'
             }`}
           >

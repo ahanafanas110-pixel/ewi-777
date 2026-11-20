@@ -10,7 +10,10 @@ import {
   Check,
   Wallet,
   Receipt,
-  ExternalLink
+  ExternalLink,
+  Copy,
+  Headphones,
+  Clock
 } from 'lucide-react';
 import { BkashLogo, NagadLogo } from '../components/PaymentLogos';
 import { getTranslation } from '../utils/i18n';
@@ -39,16 +42,16 @@ const EWALLET_CHANNELS: PaymentChannelOption[] = [
 
 const USDT_CHANNELS: PaymentChannelOption[] = [
   {
-    id: 'Binance / USDT TRC20',
-    label: 'Binance / USDT TRC20',
-    sublabel: 'Instant +2% Auto Bonus',
+    id: 'Binance Pay',
+    label: 'Binance Pay (Instant ID)',
+    sublabel: 'Send USDT via Binance Pay ID (+2% Bonus)',
     min: 2,
-    max: 20000,
-    limitTag: '$2 - $20,000'
+    max: 400,
+    limitTag: '৳200 - ৳50K Equiv.'
   }
 ];
 
-const USDT_USD_PRESETS = [2, 5, 10, 20, 50, 100, 500, 1000, 5000, 20000];
+const USDT_USD_PRESETS = [2, 5, 10, 20, 50, 100, 200, 400];
 
 export const Deposit: React.FC = () => {
   const {
@@ -56,6 +59,7 @@ export const Deposit: React.FC = () => {
     adminSettings,
     depositRequests,
     initiateEwiPayDeposit,
+    submitDepositRequest,
     claimDepositBonus,
     setActiveTab,
     language,
@@ -63,6 +67,8 @@ export const Deposit: React.FC = () => {
   } = useApp();
 
   const isDepositEnabled = adminSettings.depositEnabled !== false;
+  const firstBonusAmt = Math.max(1, Number(adminSettings.firstDepositBonusAmount) || 50);
+  const configuredBinancePayId = String(adminSettings.binancePayId || '').trim();
 
   const [category, setCategory] = useState<GatewayCategory>('ewallet');
   const [selectedEWallet, setSelectedEWallet] = useState<EWalletMethod>('bKash');
@@ -70,7 +76,12 @@ export const Deposit: React.FC = () => {
   const [amount, setAmount] = useState<number>(500);
   const [usdAmount, setUsdAmount] = useState<number>(10);
 
-  // EWI-Pay live checkout state
+  // Manual Binance Pay fields
+  const [binanceSenderId, setBinanceSenderId] = useState<string>('');
+  const [binanceTrxId, setBinanceTrxId] = useState<string>('');
+  const [copiedBinanceId, setCopiedBinanceId] = useState(false);
+
+  // EWI PAY live checkout state
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
   const [ewiPayCheckoutUrl, setEwiPayCheckoutUrl] = useState<string | null>(null);
 
@@ -101,7 +112,7 @@ export const Deposit: React.FC = () => {
     const list = [];
     for (const d of depositRequests) {
       if (d.userId !== user.id) continue;
-      const key = String(d.sessionId || d.trxId || d.id || '').trim();
+      const key = String(d.sessionId || d.orderId || d.trxId || d.id || '').trim();
       if (key && seen.has(key)) continue;
       if (key) seen.add(key);
       list.push(d);
@@ -129,25 +140,76 @@ export const Deposit: React.FC = () => {
   const handleCategorySwitch = (nextCat: GatewayCategory) => {
     setCategory(nextCat);
     if (nextCat === 'usdt') {
-      setSelectedChannel('Binance / USDT TRC20');
-      if (usdAmount < 2 || usdAmount > 20000) setUsdAmount(10);
+      setSelectedChannel('Binance Pay');
+      if (usdAmount < 2 || usdAmount * usdtRateBdt > 50000) setUsdAmount(10);
     } else {
       setSelectedChannel('Send Money');
       if (amount < 200) setAmount(500);
     }
   };
 
-  const handleProceedEwiPay = async () => {
+  const handleCopyBinancePayId = async () => {
+    if (!configuredBinancePayId) return;
+    try {
+      await navigator.clipboard.writeText(configuredBinancePayId);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = configuredBinancePayId;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+      } catch {}
+      document.body.removeChild(ta);
+    }
+    setCopiedBinanceId(true);
+    showToast('Binance Pay ID copied!');
+    setTimeout(() => setCopiedBinanceId(false), 1800);
+  };
+
+  const goToCustomerCare = () => {
+    setActiveTab('customer-service');
+    window.location.hash = '#/customer-service';
+  };
+
+  const handleProceedDeposit = async () => {
     if (!isDepositEnabled) {
       showToast('SITE IS NOT COMING — Deposits are paused by Admin.');
       return;
     }
+
     if (isUsdt) {
-      if (!Number.isFinite(usdAmount) || usdAmount < 2 || usdAmount > 20000) {
-        showToast('Binance / USDT deposit must be between $2 and $20,000');
+      if (!configuredBinancePayId) {
+        showToast('Binance Pay ID not configured — contact Care');
         return;
       }
-    } else if (amount < activeChannelObj.min || amount > activeChannelObj.max) {
+      if (!Number.isFinite(usdAmount) || effectiveBdtBase < 200 || effectiveBdtBase > 50000) {
+        showToast('Binance Pay deposit equivalent must be between ৳200 and ৳50,000');
+        return;
+      }
+      if (!binanceSenderId.trim() || !binanceTrxId.trim()) {
+        showToast('Please enter your Binance Sender ID and Order / TxID');
+        return;
+      }
+      const res = submitDepositRequest(
+        effectiveBdtBase,
+        'USDT',
+        'Binance Pay',
+        binanceSenderId.trim(),
+        binanceTrxId.trim()
+      );
+      if (res.success) {
+        setBinanceSenderId('');
+        setBinanceTrxId('');
+      } else {
+        showToast(res.message);
+      }
+      return;
+    }
+
+    if (amount < activeChannelObj.min || amount > activeChannelObj.max) {
       showToast(`Amount must be between ৳${activeChannelObj.min} and ৳${activeChannelObj.max.toLocaleString()}`);
       return;
     }
@@ -160,17 +222,16 @@ export const Deposit: React.FC = () => {
         effectiveBdtBase,
         selectedMethod,
         selectedChannel,
-        user.phone || '',
-        isUsdt ? usdAmount : undefined
+        user.phone || ''
       );
       if (res.success && res.checkoutUrl) {
         setEwiPayCheckoutUrl(res.checkoutUrl);
-        showToast('Checkout created! Redirecting to EWI-Pay...');
+        showToast('Checkout created! Redirecting to EWI PAY...');
         setTimeout(() => {
           window.location.href = res.checkoutUrl!;
         }, 450);
       } else {
-        showToast(res.message || 'Unable to start EWI-Pay checkout');
+        showToast(res.message || 'Unable to start EWI PAY checkout');
       }
     } finally {
       setIsCreatingCheckout(false);
@@ -178,37 +239,40 @@ export const Deposit: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] pb-24">
-      <div className="bg-white px-4 py-3 border-b border-amber-100 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
+      <div className="bg-white/95 backdrop-blur-md px-4 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <button
+          type="button"
           onClick={() => {
             setActiveTab('wallet');
             window.location.hash = '#/wallet';
           }}
-          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-700 hover:text-[#B45309] active:scale-95"
+          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-700 hover:text-cyan-700 active:scale-95"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
-        <h2 className="text-base font-extrabold text-slate-800">
+        <h2 className="text-base font-extrabold text-slate-900">
           {getTranslation(language, 'deposit')}
         </h2>
         <button
+          type="button"
           onClick={() => {
             setActiveTab('transaction-history');
             window.location.hash = '#/transaction-history';
           }}
-          className="text-xs font-bold text-[#B45309] hover:underline whitespace-nowrap"
+          className="text-xs font-bold text-cyan-700 hover:underline whitespace-nowrap"
         >
           Deposit History
         </button>
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Luxury Gold Balance Card */}
-        <div className="bg-gradient-to-r from-[#92400E] via-[#D97706] to-[#F59E0B] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs text-amber-100 font-semibold mb-1">
+        {/* Balance Card */}
+        <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs text-cyan-100 font-semibold mb-1">
             <span>Available Balance</span>
             <button
+              type="button"
               onClick={() => showToast('Balance synced')}
               className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 active:rotate-180 transition-transform"
             >
@@ -218,45 +282,63 @@ export const Deposit: React.FC = () => {
           <div className="text-3xl font-black tracking-tight tabular-nums">
             ৳{user.balance.toFixed(2)}
           </div>
-          <div className="text-[11px] text-amber-100 mt-2 flex items-center gap-1 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>24/7 Verified EWI-Pay Gateway</span>
+          <div className="text-[11px] text-cyan-100 mt-2 flex items-center justify-between gap-2 font-medium">
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>24/7 Verified EWI PAY Gateway</span>
+            </span>
+            <button
+              type="button"
+              onClick={goToCustomerCare}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[10px] font-bold"
+            >
+              <Headphones className="w-3 h-3" />
+              <span>Care</span>
+            </button>
           </div>
         </div>
 
         {/* Admin Deposit Off Notice */}
         {!isDepositEnabled && (
-          <div className="bg-gradient-to-br from-[#1F160A] via-[#78350F] to-[#B45309] rounded-3xl p-5 text-white shadow-md border border-amber-400/50 text-center space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-[10px] font-black uppercase tracking-widest">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-200" />
+          <div className="bg-gradient-to-br from-rose-700 via-rose-600 to-red-600 rounded-3xl p-5 text-white shadow-md border border-rose-300/60 text-center space-y-2.5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-[10px] font-black uppercase tracking-widest">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-100" />
               <span>Gateway Paused</span>
             </div>
-            <h3 className="text-2xl font-black tracking-wide uppercase drop-shadow-xs">
+            <h3 className="text-2xl font-black tracking-wide uppercase">
               SITE IS NOT COMING
             </h3>
-            <p className="text-xs text-amber-100 font-medium leading-relaxed max-w-sm mx-auto">
-              NOW NOT AVAILABLE — Deposit service is temporarily paused by the administrator. Please try again shortly or contact Customer Service.
+            <p className="text-xs text-rose-50 font-medium leading-relaxed max-w-sm mx-auto">
+              NOW NOT AVAILABLE — Deposit service is temporarily paused by the administrator. Please try again shortly or contact Customer Care.
             </p>
+            <button
+              type="button"
+              onClick={goToCustomerCare}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-rose-700 text-xs font-black shadow-xs hover:bg-rose-50"
+            >
+              <Headphones className="w-3.5 h-3.5" />
+              <span>Contact Care</span>
+            </button>
           </div>
         )}
 
-        {/* Active 200% Deposit Gift Bonus Notice */}
+        {/* Active Deposit Gift Bonus Notice */}
         {activePendingGift && (
-          <div className="bg-gradient-to-r from-[#78350F] via-[#B45309] to-[#D97706] rounded-3xl p-4 text-white shadow-md border border-amber-300/45 space-y-1">
+          <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md border border-cyan-300/50 space-y-1">
             <div className="flex items-center justify-between text-xs font-black">
-              <span className="flex items-center gap-1.5 text-yellow-200">
+              <span className="flex items-center gap-1.5 text-cyan-200">
                 <Gift className="w-4 h-4" />
                 <span>GIFT BONUS ARMED ({activePendingGift.code})</span>
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-white text-[#92400E] text-[10px] font-black">
+              <span className="px-2 py-0.5 rounded-full bg-white text-[#0B2235] text-[10px] font-black">
                 +{activePendingGift.pct}%
               </span>
             </div>
-            <p className="text-[11px] text-amber-100 font-semibold">
+            <p className="text-[11px] text-cyan-100 font-semibold">
               Reason: {activePendingGift.reason}
             </p>
             <p className="text-[11px] text-white/95">
-              Depositing ৳{effectiveBdtBase.toLocaleString()} unlocks <strong className="text-yellow-200">+৳{activePendingGift.bonusAmt.toLocaleString()}</strong> extra gift bonus automatically upon approval!
+              Depositing ৳{effectiveBdtBase.toLocaleString()} unlocks <strong className="text-cyan-200">+৳{activePendingGift.bonusAmt.toLocaleString()}</strong> extra gift bonus automatically upon approval!
             </p>
           </div>
         )}
@@ -264,27 +346,29 @@ export const Deposit: React.FC = () => {
         {/* One-Time Deposit Bonus Card */}
         {!user.hasClaimedDepositBonus && (
           <div
-            className={`rounded-3xl p-4 shadow-sm flex items-center justify-between border ${
+            className={`rounded-3xl p-4 shadow-xs flex items-center justify-between border ${
               hasCompletedDeposit
-                ? 'bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-white border-transparent'
-                : 'bg-white text-slate-700 border-amber-100'
+                ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white border-transparent'
+                : 'bg-white text-slate-700 border-slate-200'
             }`}
           >
             <div>
               <div
                 className={`flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider ${
-                  hasCompletedDeposit ? 'text-yellow-200' : 'text-[#B45309]'
+                  hasCompletedDeposit ? 'text-cyan-100' : 'text-cyan-700'
                 }`}
               >
                 <Gift className="w-3.5 h-3.5" />
                 <span>First Deposit Bonus (1x Only)</span>
               </div>
-              <div className="font-extrabold text-sm mt-0.5">
-                {hasCompletedDeposit ? 'Claim ৳50 Cash Bonus!' : 'Unlock ৳50 After Deposit'}
+              <div className={`font-extrabold text-sm mt-0.5 ${hasCompletedDeposit ? 'text-white' : 'text-slate-900'}`}>
+                {hasCompletedDeposit
+                  ? `Claim ৳${firstBonusAmt} Cash Bonus!`
+                  : `Unlock ৳${firstBonusAmt} After Deposit`}
               </div>
               <div
                 className={`text-[10px] ${
-                  hasCompletedDeposit ? 'text-amber-100' : 'text-slate-500'
+                  hasCompletedDeposit ? 'text-cyan-50' : 'text-slate-500'
                 }`}
               >
                 {hasCompletedDeposit
@@ -294,10 +378,11 @@ export const Deposit: React.FC = () => {
             </div>
             {hasCompletedDeposit ? (
               <button
+                type="button"
                 onClick={() => claimDepositBonus()}
-                className="px-4 py-2 rounded-full bg-white text-slate-900 font-black text-xs shadow-md active:scale-95 transition-all hover:bg-amber-50 flex-shrink-0"
+                className="px-4 py-2 rounded-full bg-white text-slate-900 font-black text-xs shadow-sm active:scale-95 transition-all hover:bg-cyan-50 flex-shrink-0"
               >
-                Claim ৳50
+                Claim ৳{firstBonusAmt}
               </button>
             ) : (
               <div className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 font-bold text-[11px] flex items-center gap-1 flex-shrink-0">
@@ -308,15 +393,15 @@ export const Deposit: React.FC = () => {
           </div>
         )}
 
-        {/* Gateway Category Switcher: E-Wallet vs USDT */}
-        <div className="bg-white rounded-2xl p-1.5 border border-amber-100 shadow-2xs grid grid-cols-2 gap-1.5">
+        {/* Gateway Category Switcher: E-Wallet vs Binance Pay / USDT */}
+        <div className="bg-white rounded-2xl p-1.5 border border-slate-200 shadow-2xs grid grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={() => handleCategorySwitch('ewallet')}
             className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
               category === 'ewallet'
-                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-sm'
-                : 'text-slate-600 hover:bg-amber-50'
+                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
             <Wallet className="w-3.5 h-3.5" />
@@ -327,12 +412,12 @@ export const Deposit: React.FC = () => {
             onClick={() => handleCategorySwitch('usdt')}
             className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
               category === 'usdt'
-                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-sm'
-                : 'text-slate-600 hover:bg-amber-50'
+                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
             <span className="font-black">₮</span>
-            <span>Binance / USDT (+2%)</span>
+            <span>Binance Pay (+2%)</span>
           </button>
         </div>
 
@@ -344,15 +429,15 @@ export const Deposit: React.FC = () => {
               onClick={() => setSelectedEWallet('bKash')}
               className={`p-3 rounded-2xl flex items-center justify-between border-2 transition-all active:scale-95 ${
                 selectedEWallet === 'bKash'
-                  ? 'bg-amber-50/80 border-[#D97706] shadow-sm ring-2 ring-[#D97706]/20'
-                  : 'bg-white border-amber-100 hover:border-amber-200'
+                  ? 'bg-cyan-50/90 border-cyan-500 shadow-sm ring-2 ring-cyan-500/20'
+                  : 'bg-white border-slate-200 hover:border-cyan-400/50'
               }`}
             >
               <BkashLogo size="md" showText={true} />
               <div
                 className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] ${
                   selectedEWallet === 'bKash'
-                    ? 'bg-[#D97706] border-[#D97706] text-white font-black'
+                    ? 'bg-cyan-600 border-cyan-600 text-white font-black'
                     : 'border-slate-300'
                 }`}
               >
@@ -365,15 +450,15 @@ export const Deposit: React.FC = () => {
               onClick={() => setSelectedEWallet('Nagad')}
               className={`p-3 rounded-2xl flex items-center justify-between border-2 transition-all active:scale-95 ${
                 selectedEWallet === 'Nagad'
-                  ? 'bg-orange-50/90 border-[#F7931E] shadow-sm ring-2 ring-[#F7931E]/20'
-                  : 'bg-white border-amber-100 hover:border-amber-200'
+                  ? 'bg-cyan-50/90 border-cyan-500 shadow-sm ring-2 ring-cyan-500/20'
+                  : 'bg-white border-slate-200 hover:border-cyan-400/50'
               }`}
             >
               <NagadLogo size="md" showText={true} />
               <div
                 className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] ${
                   selectedEWallet === 'Nagad'
-                    ? 'bg-[#F7931E] border-[#F7931E] text-white font-black'
+                    ? 'bg-cyan-600 border-cyan-600 text-white font-black'
                     : 'border-slate-300'
                 }`}
               >
@@ -382,32 +467,66 @@ export const Deposit: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#FFFBEB] to-[#FEF3C7] border-2 border-[#D97706] flex items-center justify-between shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#B45309] to-[#F59E0B] text-white font-black flex items-center justify-center text-base">
-                ₮
-              </div>
-              <div>
-                <div className="font-extrabold text-sm text-slate-900">Binance / USDT (TRC20)</div>
-                <div className="text-[10px] font-extrabold text-[#B45309]">
-                  $2 – $20,000 • +2% Auto Deposit Bonus
+          <div className="p-4 rounded-2xl bg-white border border-cyan-300 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0891B2] to-[#0D9488] text-white font-black flex items-center justify-center text-base">
+                  ₮
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900">Binance Pay Manual Deposit</div>
+                  <div className="text-[10px] font-bold text-cyan-700">
+                    $1 = ৳{usdtRateBdt} • +2% Auto Deposit Bonus
+                  </div>
                 </div>
               </div>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-600 text-white text-[10px] font-black">
+                +2% BONUS
+              </span>
             </div>
-            <span className="px-2 py-0.5 rounded-full bg-[#B45309] text-white text-[10px] font-black">
-              +2% BONUS
-            </span>
+
+            {configuredBinancePayId ? (
+              <div className="p-3 rounded-xl bg-cyan-50/70 border border-cyan-200 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-cyan-700 uppercase">Official Binance Pay ID</div>
+                  <div className="font-mono font-black text-sm text-slate-900 truncate">
+                    {configuredBinancePayId}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyBinancePayId}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[11px] font-black flex items-center gap-1 flex-shrink-0"
+                >
+                  {copiedBinanceId ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedBinanceId ? 'Copied' : 'Copy ID'}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-rose-700">
+                  Binance Pay ID not configured — contact Care
+                </span>
+                <button
+                  type="button"
+                  onClick={goToCustomerCare}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-[10px] font-black whitespace-nowrap"
+                >
+                  Care
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* SELECT CHANNEL */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-2.5">
+        <div className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
               Select Channel
             </span>
-            <span className="text-[10px] font-bold text-[#B45309]">
-              {selectedMethod} Verified
+            <span className="text-[10px] font-bold text-cyan-700">
+              {selectedMethod === 'USDT' ? 'Binance Pay Verified' : `${selectedMethod} · EWI PAY`}
             </span>
           </div>
           <div className="grid grid-cols-1 gap-2">
@@ -418,23 +537,19 @@ export const Deposit: React.FC = () => {
                   key={ch.id}
                   type="button"
                   onClick={() => setSelectedChannel(ch.id)}
-                  className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 ${
+                  className={`p-3 rounded-2xl border text-left transition-all active:scale-95 ${
                     isSelected
-                      ? 'bg-amber-50 border-[#D97706] ring-1 ring-[#D97706]/30 shadow-2xs'
-                      : 'bg-[#FFFDF7] border-amber-100 hover:border-amber-200'
+                      ? 'bg-cyan-50/70 border-cyan-500 ring-1 ring-cyan-500/30 shadow-2xs'
+                      : 'bg-slate-50 border-slate-200 hover:border-cyan-400/50'
                   }`}
                 >
-                  <div
-                    className={`text-xs font-extrabold truncate ${
-                      isSelected ? 'text-[#B45309]' : 'text-slate-800'
-                    }`}
-                  >
-                    {ch.label}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-xs font-extrabold truncate ${isSelected ? 'text-cyan-800' : 'text-slate-800'}`}>
+                      {ch.label}
+                    </span>
+                    <span className="text-[10px] font-black text-slate-700 tabular-nums">{ch.limitTag}</span>
                   </div>
                   <div className="text-[10px] text-slate-500 truncate mt-0.5">{ch.sublabel}</div>
-                  <div className="mt-1.5 text-[10px] font-black text-slate-700 tabular-nums">
-                    {ch.limitTag}
-                  </div>
                 </button>
               );
             })}
@@ -442,21 +557,21 @@ export const Deposit: React.FC = () => {
         </div>
 
         {/* DEPOSIT AMOUNT */}
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-3">
+        <div className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
-              {isUsdt ? 'Binance / USDT Amount ($)' : getTranslation(language, 'depositAmount')}
+              {isUsdt ? 'Binance Pay Amount ($ USDT)' : getTranslation(language, 'depositAmount')}
             </span>
-            <span className="text-[11px] font-extrabold text-[#B45309] tabular-nums">
+            <span className="text-[11px] font-extrabold text-cyan-700 tabular-nums">
               {isUsdt
-                ? '$2 - $20,000 USDT'
+                ? '৳200 - ৳50,000 Equiv.'
                 : `৳${activeChannelObj.min.toLocaleString()} - ৳${activeChannelObj.max.toLocaleString()}`}
             </span>
           </div>
 
           {isUsdt ? (
             <>
-              <div className="grid grid-cols-5 gap-1.5">
+              <div className="grid grid-cols-4 gap-2">
                 {USDT_USD_PRESETS.map((usd) => (
                   <button
                     key={usd}
@@ -464,8 +579,8 @@ export const Deposit: React.FC = () => {
                     onClick={() => setUsdAmount(usd)}
                     className={`py-2 min-h-[40px] rounded-xl font-extrabold text-xs border transition-all active:scale-95 tabular-nums ${
                       usdAmount === usd
-                        ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] border-transparent text-white shadow-sm'
-                        : 'bg-[#FFFDF7] border-amber-100 text-slate-700 hover:border-amber-300'
+                        ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] border-transparent text-white shadow-sm'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-cyan-400'
                     }`}
                   >
                     ${usd.toLocaleString()}
@@ -474,22 +589,49 @@ export const Deposit: React.FC = () => {
               </div>
 
               <div className="relative pt-1">
-                <span className="absolute inset-y-0 left-3.5 top-1 flex items-center text-[#B45309] font-black text-base">
+                <span className="absolute inset-y-0 left-3.5 top-1 flex items-center text-cyan-700 font-black text-base">
                   $
                 </span>
                 <input
                   type="number"
                   min={2}
-                  max={20000}
+                  max={400}
                   step="any"
                   value={usdAmount || ''}
                   onChange={(e) => setUsdAmount(Number(e.target.value) || 0)}
-                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-2xl pl-9 pr-16 py-3 text-sm font-black text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  placeholder="Min $2 - Max $20,000"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-9 pr-16 py-3 text-sm font-black text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="Enter USDT amount"
                 />
                 <span className="absolute inset-y-0 right-3.5 top-1 flex items-center text-[11px] font-black text-slate-500">
                   USDT
                 </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                    Your Binance Pay ID / Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={binanceSenderId}
+                    onChange={(e) => setBinanceSenderId(e.target.value)}
+                    placeholder="e.g. 58291042"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                    Binance Order / TxID
+                  </label>
+                  <input
+                    type="text"
+                    value={binanceTrxId}
+                    onChange={(e) => setBinanceTrxId(e.target.value)}
+                    placeholder="Enter Binance Order ID"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
               </div>
             </>
           ) : (
@@ -502,8 +644,8 @@ export const Deposit: React.FC = () => {
                     onClick={() => setAmount(p)}
                     className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs border transition-all active:scale-95 tabular-nums ${
                       amount === p
-                        ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] border-transparent text-white shadow-sm'
-                        : 'bg-[#FFFDF7] border-amber-100 text-slate-700 hover:border-amber-300'
+                        ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] border-transparent text-white shadow-sm'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-cyan-400'
                     }`}
                   >
                     ৳{p.toLocaleString()}
@@ -512,7 +654,7 @@ export const Deposit: React.FC = () => {
               </div>
 
               <div className="relative pt-1">
-                <span className="absolute inset-y-0 left-3.5 top-1 flex items-center text-[#B45309] font-black text-base">
+                <span className="absolute inset-y-0 left-3.5 top-1 flex items-center text-cyan-700 font-black text-base">
                   ৳
                 </span>
                 <input
@@ -521,7 +663,7 @@ export const Deposit: React.FC = () => {
                   max={activeChannelObj.max}
                   value={amount || ''}
                   onChange={(e) => setAmount(Number(e.target.value) || 0)}
-                  className="w-full bg-[#FFFDF7] border border-amber-200 rounded-2xl pl-9 pr-4 py-3 text-sm font-black text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-9 pr-4 py-3 text-sm font-black text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   placeholder={`Min ৳${activeChannelObj.min}`}
                 />
               </div>
@@ -529,7 +671,7 @@ export const Deposit: React.FC = () => {
           )}
 
           {/* Breakdown Box */}
-          <div className="bg-[#FFFDF7] rounded-2xl p-3 border border-amber-100 space-y-1.5 text-[11px]">
+          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-1.5 text-[11px]">
             {isUsdt && (
               <div className="flex justify-between text-slate-600 font-bold">
                 <span>Exchange Conversion ($1 = ৳{usdtRateBdt})</span>
@@ -544,13 +686,13 @@ export const Deposit: React.FC = () => {
             </div>
             <div className="flex justify-between text-slate-500 font-semibold">
               <span>Turnover Requirement (2x)</span>
-              <span className="text-slate-700 font-bold tabular-nums">
+              <span className="text-slate-800 font-bold tabular-nums">
                 ৳{(effectiveBdtBase * 2).toLocaleString()}
               </span>
             </div>
             {isUsdt && (
               <div className="flex justify-between text-emerald-700 font-black">
-                <span>Binance / USDT Auto Bonus (+2%)</span>
+                <span>Binance Pay Auto Bonus (+2%)</span>
                 <span className="tabular-nums">+৳{usdtAutoBonusBdt.toFixed(2)}</span>
               </div>
             )}
@@ -560,9 +702,9 @@ export const Deposit: React.FC = () => {
                 <span className="tabular-nums">+৳{activePendingGift.bonusAmt.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-slate-800 font-black pt-1 border-t border-amber-100">
+            <div className="flex justify-between text-slate-900 font-black pt-1 border-t border-slate-200">
               <span>Total Deposit Credit</span>
-              <span className="text-[#B45309] tabular-nums">
+              <span className="text-cyan-700 tabular-nums">
                 ৳{(effectiveBdtBase + usdtAutoBonusBdt + (activePendingGift?.bonusAmt || 0)).toFixed(2)}
               </span>
             </div>
@@ -572,15 +714,15 @@ export const Deposit: React.FC = () => {
             <div className="space-y-2.5 pt-1">
               <button
                 type="button"
-                onClick={handleProceedEwiPay}
-                disabled={isCreatingCheckout}
-                className="w-full py-3.5 min-h-[48px] rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-sm shadow-md active:scale-98 transition-all hover:brightness-105 disabled:opacity-60 uppercase tracking-wider"
+                onClick={handleProceedDeposit}
+                disabled={isCreatingCheckout || (isUsdt && !configuredBinancePayId)}
+                className="w-full py-3.5 min-h-[48px] rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-sm shadow-md active:scale-98 transition-all hover:brightness-105 disabled:opacity-60 uppercase tracking-wider"
               >
                 {isCreatingCheckout
-                  ? 'Connecting EWI-Pay...'
+                  ? 'Connecting EWI PAY...'
                   : isUsdt
-                  ? `Pay $${usdAmount.toLocaleString()} USDT (+2% Bonus)`
-                  : `Pay ৳${amount.toLocaleString()} via EWI-Pay`}
+                  ? `Submit $${usdAmount.toLocaleString()} Binance Pay (+2%)`
+                  : `PAY ৳${amount.toLocaleString()}`}
               </button>
 
               {ewiPayCheckoutUrl && (
@@ -591,16 +733,29 @@ export const Deposit: React.FC = () => {
                   className="w-full py-2.5 px-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold text-xs flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  <span>Continue to EWI-Pay Checkout →</span>
+                  <span>Continue to EWI PAY Checkout →</span>
                 </a>
               )}
+
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-cyan-700 flex-shrink-0" />
+                  <span>Checkout expires in 1 hour. Need help?</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={goToCustomerCare}
+                  className="font-black text-cyan-700 hover:underline whitespace-nowrap"
+                >
+                  Customer Care →
+                </button>
+              </div>
             </div>
           ) : (
             <button
               type="button"
-              onClick={handleProceedEwiPay}
               disabled
-              className="w-full py-3.5 rounded-full bg-slate-300 text-slate-600 font-black text-sm shadow-xs cursor-not-allowed uppercase tracking-wider"
+              className="w-full py-3.5 rounded-full bg-slate-200 text-slate-500 font-black text-sm shadow-xs cursor-not-allowed uppercase tracking-wider"
             >
               NOW NOT AVAILABLE
             </button>
@@ -609,10 +764,10 @@ export const Deposit: React.FC = () => {
 
         {/* Recent Deposit Status Tracker */}
         {myRecentDeposits.length > 0 && (
-          <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-100 space-y-3">
+          <div className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <Receipt className="w-4 h-4 text-[#D97706]" />
+              <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <Receipt className="w-4 h-4 text-cyan-700" />
                 <span>Recent Deposit Orders</span>
               </h3>
               <button
@@ -621,7 +776,7 @@ export const Deposit: React.FC = () => {
                   setActiveTab('transaction-history');
                   window.location.hash = '#/transaction-history';
                 }}
-                className="text-[11px] font-bold text-[#B45309]"
+                className="text-[11px] font-bold text-cyan-700 hover:underline"
               >
                 View All
               </button>
@@ -630,15 +785,15 @@ export const Deposit: React.FC = () => {
               {myRecentDeposits.map((dep) => (
                 <div
                   key={dep.id}
-                  className="p-3 rounded-2xl bg-[#FFFDF7] border border-amber-100 space-y-2 text-xs"
+                  className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-extrabold text-slate-800 truncate tabular-nums">
+                      <div className="font-extrabold text-slate-900 truncate tabular-nums">
                         {dep.method} • ৳{dep.amount.toFixed(2)}
                       </div>
                       <div className="text-[10px] font-mono text-slate-500 truncate">
-                        Order: {dep.trxId} • {dep.time}
+                        Order: {dep.orderId || dep.trxId} • {dep.time}
                       </div>
                     </div>
                     <span
@@ -646,8 +801,8 @@ export const Deposit: React.FC = () => {
                         dep.status === 'approved'
                           ? 'bg-emerald-100 text-emerald-700'
                           : dep.status === 'rejected'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-amber-100 text-amber-700'
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-cyan-100 text-cyan-800'
                       }`}
                     >
                       {dep.status === 'approved'
@@ -658,14 +813,14 @@ export const Deposit: React.FC = () => {
                     </span>
                   </div>
                   {dep.status === 'rejected' && (dep.rejectionReason || dep.adminNote) && (
-                    <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-[11px] font-semibold text-red-700">
+                    <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-[11px] font-semibold text-rose-700">
                       Reason: {dep.rejectionReason || dep.adminNote}
                     </div>
                   )}
                   {dep.status === 'pending' && dep.checkoutUrl && (
                     <a
                       href={dep.checkoutUrl}
-                      className="block w-full py-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#EAB308] text-white text-center font-black text-[11px] uppercase tracking-wider shadow-2xs"
+                      className="block w-full py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white text-center font-black text-[11px] uppercase tracking-wider shadow-2xs"
                     >
                       Complete Payment →
                     </a>

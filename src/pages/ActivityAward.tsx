@@ -86,9 +86,9 @@ export const ActivityAward: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC] text-slate-800 pb-24">
-      {/* Light-Mode Header */}
-      <div className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
+      {/* Header */}
+      <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
         <button
           onClick={() => {
             setActiveTab('activity');
@@ -100,26 +100,26 @@ export const ActivityAward: React.FC = () => {
           <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
         </button>
 
-        <h1 className="text-sm font-black text-slate-800">Activity Award</h1>
+        <h1 className="text-sm font-black text-slate-900">Activity Award</h1>
 
         <button
           onClick={() => setShowRecords(true)}
-          className="flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-[#FF5A3C]"
+          className="flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-cyan-700"
         >
           <History className="w-4 h-4" />
           <span>Collection record</span>
         </button>
       </div>
 
-      {/* Orange-Amber Gradient Hero Banner */}
-      <div className="bg-gradient-to-r from-[#FF7A18] via-[#FF8E2B] to-[#FFB347] px-4 py-5 text-white relative overflow-hidden">
+      {/* Hero Banner */}
+      <div className="bg-gradient-to-br from-[#0B2235] via-[#0E314A] to-[#0891B2] px-4 py-5 text-white relative overflow-hidden">
         <div className="flex items-center justify-between gap-3 relative z-10">
           <div className="space-y-1.5 flex-1">
             <h2 className="text-xl font-black tracking-tight">Activity Award</h2>
-            <p className="text-[11px] text-white/95 leading-relaxed font-medium">
+            <p className="text-[11px] text-cyan-50 leading-relaxed font-medium">
               Complete weekly/daily tasks to receive rich rewards
             </p>
-            <p className="text-[10px] text-amber-50/90 leading-relaxed">
+            <p className="text-[10px] text-cyan-100/90 leading-relaxed">
               Weekly rewards cannot be accumulated to the next week, and daily rewards cannot be accumulated to the next day.
             </p>
           </div>
@@ -127,17 +127,17 @@ export const ActivityAward: React.FC = () => {
           {/* 3D Mystery Cube Illustration */}
           <div className="w-24 h-24 flex-shrink-0 flex items-center justify-center">
             <svg width="92" height="92" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="48" cy="52" rx="38" ry="18" transform="rotate(-18 48 52)" stroke="#FFF5D6" strokeWidth="2.5" strokeOpacity="0.65" />
-              <path d="M48 16L74 28V60L48 72L22 60V28L48 16Z" fill="url(#cubeOrange)" stroke="#FFF3D1" strokeWidth="2" />
-              <path d="M48 16L74 28L48 40L22 28L48 16Z" fill="#FFD166" />
-              <path d="M48 40L74 28V60L48 72V40Z" fill="#F97316" />
+              <ellipse cx="48" cy="52" rx="38" ry="18" transform="rotate(-18 48 52)" stroke="#CFFAFE" strokeWidth="2.5" strokeOpacity="0.65" />
+              <path d="M48 16L74 28V60L48 72L22 60V28L48 16Z" fill="url(#cubeCyan)" stroke="#ECFEFF" strokeWidth="2" />
+              <path d="M48 16L74 28L48 40L22 28L48 16Z" fill="#22D3EE" />
+              <path d="M48 40L74 28V60L48 72V40Z" fill="#0891B2" />
               <text x="56" y="56" fill="white" fontSize="18" fontWeight="900">?</text>
-              <text x="30" y="56" fill="#FFF7ED" fontSize="18" fontWeight="900">?</text>
-              <circle cx="18" cy="24" r="5" fill="#FDE68A" />
+              <text x="30" y="56" fill="#ECFEFF" fontSize="18" fontWeight="900">?</text>
+              <circle cx="18" cy="24" r="5" fill="#67E8F9" />
               <defs>
-                <linearGradient id="cubeOrange" x1="22" y1="16" x2="74" y2="72" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#FDBA74" />
-                  <stop offset="1" stopColor="#EA580C" />
+                <linearGradient id="cubeCyan" x1="22" y1="16" x2="74" y2="72" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#67E8F9" />
+                  <stop offset="1" stopColor="#0E7490" />
                 </linearGradient>
               </defs>
             </svg>
@@ -145,14 +145,14 @@ export const ActivityAward: React.FC = () => {
         </div>
       </div>
 
-      {/* Daily Mission / Weekly Tasks Pill Tabs */}
+      {/* Daily Mission / Weekly Tasks Tabs */}
       <div className="px-4 pt-4">
         <div className="flex items-center gap-2.5 mb-4">
           <button
             onClick={() => setTab('daily')}
-            className={`px-5 py-2 rounded-full text-xs font-black transition-all ${
+            className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${
               tab === 'daily'
-                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
                 : 'bg-white text-slate-600 border border-slate-200'
             }`}
           >
@@ -160,9 +160,9 @@ export const ActivityAward: React.FC = () => {
           </button>
           <button
             onClick={() => setTab('weekly')}
-            className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${
+            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
               tab === 'weekly'
-                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
                 : 'bg-white text-slate-600 border border-slate-200'
             }`}
           >
@@ -183,11 +183,11 @@ export const ActivityAward: React.FC = () => {
             return (
               <div
                 key={mission.key}
-                className="bg-white rounded-2xl border border-amber-200 shadow-xs overflow-hidden"
+                className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden"
               >
-                {/* Top Green Banner Tag + Status */}
+                {/* Top Banner Tag + Status */}
                 <div className="flex items-center justify-between pr-4 border-b border-slate-100">
-                  <div className="bg-[#05B376] text-white text-xs font-black px-4 py-2 rounded-br-2xl">
+                  <div className="bg-emerald-600 text-white text-xs font-black px-4 py-2 rounded-br-2xl">
                     {tab === 'daily' ? 'Daily mission' : 'Weekly task'}
                   </div>
                   <span
@@ -195,7 +195,7 @@ export const ActivityAward: React.FC = () => {
                       claimed
                         ? 'text-emerald-600'
                         : completed
-                        ? 'text-[#B45309]'
+                        ? 'text-cyan-700'
                         : 'text-slate-400'
                     }`}
                   >
@@ -207,20 +207,20 @@ export const ActivityAward: React.FC = () => {
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-amber-50 border border-amber-200 text-[#B45309] flex items-center justify-center font-black text-[11px]">
+                      <div className="w-7 h-7 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center font-black text-[11px]">
                         ৳
                       </div>
                       <span className="text-xs font-bold text-slate-700">
                         {tab === 'daily' ? 'Daily betting bonus' : 'Weekly betting bonus'}
                       </span>
-                      <span className="text-xs font-black text-[#B45309] tabular-nums">
+                      <span className="text-xs font-black text-cyan-700 tabular-nums">
                         {progress.toLocaleString()}/{mission.target.toLocaleString()}
                       </span>
                     </div>
                   </div>
 
                   {/* Progress Strip */}
-                  <div className="bg-[#FFFDF7] rounded-xl px-3 py-2 space-y-1.5 border border-amber-100">
+                  <div className="bg-slate-50 rounded-xl px-3 py-2 space-y-1.5 border border-slate-200">
                     <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
                       <span>
                         {tab === 'daily'
@@ -229,9 +229,9 @@ export const ActivityAward: React.FC = () => {
                       </span>
                       <span className="font-bold text-slate-700">{pct}%</span>
                     </div>
-                    <div className="w-full h-1.5 rounded-full bg-amber-100 overflow-hidden">
+                    <div className="w-full h-1.5 rounded-full bg-cyan-100 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-[#B45309] to-[#F59E0B] rounded-full transition-all"
+                        className="h-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] rounded-full transition-all"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -240,22 +240,22 @@ export const ActivityAward: React.FC = () => {
                   {/* Award Amount Row */}
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                     <span className="text-xs font-semibold text-slate-500">Award amount</span>
-                    <div className="flex items-center gap-1.5 text-amber-600 font-black text-sm tabular-nums">
-                      <Wallet className="w-4 h-4 fill-amber-400 text-amber-600" />
+                    <div className="flex items-center gap-1.5 text-cyan-700 font-black text-sm tabular-nums">
+                      <Wallet className="w-4 h-4 text-cyan-600" />
                       <span>৳{mission.reward.toFixed(2)}</span>
                     </div>
                   </div>
 
-                  {/* CTA Pill */}
+                  {/* CTA Button */}
                   <button
                     onClick={() => handleAction(mission.key, mission.target, mission.reward, completed, claimed)}
                     disabled={claimed}
-                    className={`w-full py-2.5 rounded-full font-black text-xs transition-all active:scale-98 flex items-center justify-center gap-1.5 ${
+                    className={`w-full py-2.5 rounded-xl font-black text-xs transition-all active:scale-98 flex items-center justify-center gap-1.5 ${
                       claimed
                         ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-not-allowed'
                         : completed
-                        ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-md'
-                        : 'bg-white border border-[#D97706] text-[#B45309] hover:bg-amber-50'
+                        ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
+                        : 'bg-white border border-cyan-600 text-cyan-700 hover:bg-cyan-50'
                     }`}
                   >
                     {claimed ? (
@@ -278,10 +278,10 @@ export const ActivityAward: React.FC = () => {
 
       {/* Collection Record Modal */}
       {showRecords && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 max-h-[80vh] flex flex-col">
-            <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between">
-              <span className="font-black text-sm text-slate-800">Collection record</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-200 max-h-[80vh] flex flex-col">
+            <div className="px-4 py-3.5 border-b border-slate-200 flex items-center justify-between">
+              <span className="font-black text-sm text-slate-900">Collection record</span>
               <button
                 onClick={() => setShowRecords(false)}
                 className="p-1 rounded-full hover:bg-slate-100 text-slate-500"
@@ -298,10 +298,10 @@ export const ActivityAward: React.FC = () => {
                 records.map((r) => (
                   <div
                     key={r.id}
-                    className="p-3 rounded-2xl bg-[#F7F8FC] border border-slate-100 flex items-center justify-between text-xs"
+                    className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-bold text-slate-800">{r.title}</div>
+                      <div className="font-bold text-slate-900">{r.title}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">{r.time}</div>
                     </div>
                     <span className="text-emerald-600 font-black font-mono tabular-nums">

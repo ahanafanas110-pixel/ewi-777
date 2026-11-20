@@ -32,7 +32,9 @@ import {
   CrashPoolState,
   CoinFlipBet,
   EwiWingoMode,
-  EwiWingoBet
+  EwiWingoBet,
+  RouletteBet,
+  RouletteBetType
 } from '../types';
 import confetti from 'canvas-confetti';
 import {
@@ -78,10 +80,13 @@ import {
   nextIssueFromLatest
 } from '../utils/lotteryApi';
 import {
+  computeRouletteBetPayout,
   evaluateCrash30Cap,
   evaluatePoolControl,
   getDateKeyWithOffset,
+  getEwiRouletteState,
   getEwiWingoNumberMeta,
+  getEwiWingoPeriodInfo,
   getSyncedBinarySnapshot,
   getSyncedWinGoNumber,
   subtractPeriodString
@@ -139,6 +144,9 @@ interface AppContextType {
   attendance: AttendanceDay[];
   adminSettings: AdminSettings;
   language: Language;
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
   toastMessage: string | null;
   activeTab: string;
   isNavigating: boolean;
@@ -204,6 +212,16 @@ interface AppContextType {
     multiplier: number
   ) => { success: boolean; message: string };
   settleEwiWingoRound: (mode: EwiWingoMode, periodNumber: string, resolvedNumber: number) => void;
+  rouletteBets: RouletteBet[];
+  placeRouletteBet: (
+    periodNumber: string,
+    betType: RouletteBetType,
+    label: string,
+    numbers: number[],
+    amount: number,
+    payoutMultiplier: number
+  ) => { success: boolean; message: string; betId?: string };
+  settleRouletteRound: (periodNumber: string, winningNumber: number) => void;
   setActiveTab: (tab: string) => void;
   setLanguage: (lang: Language) => void;
   showToast: (msg: string) => void;
@@ -247,10 +265,10 @@ interface AppContextType {
   placeAviatorBet: (roundId: string, amount: number, autoCashout?: number) => { success: boolean; message: string; betId?: string };
   cashOutAviatorBet: (betId: string, multiplier: number) => { success: boolean; winAmount: number };
   loseAviatorBet: (betId: string) => void;
-  crashPoolStates: Record<'aviator' | 'luckyjet', CrashPoolState | null>;
-  placeCrashBet: (game: 'aviator' | 'luckyjet', roundId: string, amount: number, autoCashout?: number, slot?: 1 | 2 | 3) => Promise<{ success: boolean; message: string; betId?: string; crashed?: boolean; crashPoint?: number }>;
-  cancelCrashBet: (game: 'aviator' | 'luckyjet', betId: string) => Promise<{ success: boolean; message: string }>;
-  cashOutCrashBet: (game: 'aviator' | 'luckyjet', betId: string, multiplier: number) => Promise<{ success: boolean; winAmount: number; crashed?: boolean; crashPoint?: number }>;
+  crashPoolStates: Record<'aviator' | 'luckyjet' | 'plane', CrashPoolState | null>;
+  placeCrashBet: (game: 'aviator' | 'luckyjet' | 'plane', roundId: string, amount: number, autoCashout?: number, slot?: 1 | 2 | 3) => Promise<{ success: boolean; message: string; betId?: string; crashed?: boolean; crashPoint?: number }>;
+  cancelCrashBet: (game: 'aviator' | 'luckyjet' | 'plane', betId: string) => Promise<{ success: boolean; message: string }>;
+  cashOutCrashBet: (game: 'aviator' | 'luckyjet' | 'plane', betId: string, multiplier: number) => Promise<{ success: boolean; winAmount: number; crashed?: boolean; crashPoint?: number }>;
   claimWinGoStreakBonus: () => { success: boolean; message: string };
   claimWinGoSixStepRefund: () => { success: boolean; message: string };
   placeMinesBet: (amount: number, minesCount: number) => { success: boolean; message: string };
@@ -377,7 +395,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     slug: 'aviator-plane',
     title: 'Aviator Plane',
     imageUrl: '',
-    category: 'Crash',
+    category: 'Slots',
     badge: '10000X',
     price: '10000X',
     sortOrder: 5,
@@ -385,6 +403,34 @@ export const DEFAULT_GAMES: GameItem[] = [
     featured: true,
     targetTab: 'aviator',
     htmlCode: '<!-- EWI 777 Aviator Crash Engine -->\n<div class="ewi-game" data-game="aviator">Aviator Plane Crash</div>'
+  },
+  {
+    id: 'game_plane',
+    slug: 'plane',
+    title: 'PLANE',
+    imageUrl: '',
+    category: 'Casino',
+    badge: '20000X',
+    price: '20000X',
+    sortOrder: 6.1,
+    active: true,
+    featured: true,
+    targetTab: 'plane',
+    htmlCode: '<!-- EWI 777 PLANE Biplane Crash Engine -->\n<div class="ewi-game" data-game="plane">PLANE Aviation Crash</div>'
+  },
+  {
+    id: 'game_ewi_roulette',
+    slug: 'ewi-roulette',
+    title: 'EWI ROULETTE',
+    imageUrl: '',
+    category: 'Casino',
+    badge: '36X',
+    price: '36X',
+    sortOrder: 6.2,
+    active: true,
+    featured: true,
+    targetTab: 'ewi-roulette',
+    htmlCode: '<!-- EWI 777 European Single-Zero Roulette -->\n<div class="ewi-game" data-game="ewi-roulette">EWI ROULETTE Live</div>'
   },
   {
     id: 'game_binary',
@@ -405,7 +451,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     slug: 'mines-777',
     title: 'Mines 777',
     imageUrl: '',
-    category: 'Casino',
+    category: 'Slots',
     badge: 'NEW',
     price: '24X+',
     sortOrder: 7,
@@ -447,7 +493,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     slug: 'lucky-jet',
     title: 'Lucky Jet',
     imageUrl: '',
-    category: 'Crash',
+    category: 'Slots',
     badge: '10000X',
     price: '10000X',
     sortOrder: 10,
@@ -461,7 +507,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     slug: 'coin-flip',
     title: 'Coin Flip',
     imageUrl: '',
-    category: 'Casino',
+    category: 'Slots',
     badge: '1.89X',
     price: '1.89X',
     sortOrder: 11,
@@ -500,8 +546,11 @@ export const DEFAULT_GAMES: GameItem[] = [
   }
 ];
 
-export const DEFAULT_ADMIN_PHONE_HASH = '0aab39f411ae77619215a3cd679005519c52baa0758214ec51901ea355d006f1';
-export const DEFAULT_ADMIN_PASS_HASH = '07882c957ec3bb16b8f5ec021707910625689e5e011811ce855fb5aeeddc1874';
+const OLD_DEFAULT_ADMIN_PHONE_HASH = '0aab39f411ae77619215a3cd679005519c52baa0758214ec51901ea355d006f1';
+const OLD_DEFAULT_ADMIN_PASS_HASH = '07882c957ec3bb16b8f5ec021707910625689e5e011811ce855fb5aeeddc1874';
+export const DEFAULT_ADMIN_PHONE_HASH = '27c75197134a88ef96daf2bdb444e3d6a0a394b9fa857b886c42b1988dd75d47';
+export const DEFAULT_ADMIN_PASS_HASH = 'bfbbb4e8bb9a402d888fd5133a41cf3d2423b82849d05bb63b2be5740f322814';
+const REQUEST_EXPIRY_MS = 60 * 60 * 1000;
 
 // Pure deterministic SHA-256 hex digest (works cleanly in HTTPS, HTTP LAN, and SSR)
 export function sha256HexSync(ascii: string): string {
@@ -632,9 +681,11 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   nagadNumber: '',
   rocketNumber: '',
   usdtAddress: '',
+  binancePayId: '',
+  firstDepositBonusAmount: 50,
   minWithdraw: 300,
   referCommissionPercent: 10,
-  depositInstructions: 'Minimum deposit ৳200 (bKash/Nagad) or $2–$20,000 (Binance/USDT +2% Auto Bonus). Complete instant deposit via EWI-Pay Gateway.',
+  depositInstructions: 'Minimum deposit ৳200 (bKash/Nagad via EWI PAY) or Binance Pay ($2–$20,000 +2% Auto Bonus).',
   nextWingoOutcome: 'AUTO',
   nextWingoOutcomes: {
     '30s': 'AUTO',
@@ -666,11 +717,11 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   },
   minesPattern: 'RANDOM',
   binaryNextCandleBias: 'AUTO',
-  marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Binance / USDT ($2 - $20,000) deposit live with automatic +2% bonus! Fast 24/7 payouts via Nagad & bKash.',
-  popupTitle: 'ANNOUNCEMENT',
-  popupMessage: 'Binance / USDT deposit is now available on EWI 777! Minimum $2 to $20,000 supported — get +2% automatic bonus on every completed USDT deposit.',
-  popupImageUrl: '/assets/aistudio/image_d2e764e7.png',
-  enableSystemPopup: true,
+  marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
+  popupTitle: '',
+  popupMessage: '',
+  popupImageUrl: '',
+  enableSystemPopup: false,
   usdtRateBdt: 120,
   banners: DEFAULT_BANNERS,
   bannersCustomized: false,
@@ -858,6 +909,7 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'safe' || cleanHash === 'safe' || full.includes('/safe') || full.includes('#/safe')) resolved = 'safe';
     else if (target === 'vip' || cleanHash === 'vip' || full.includes('/vip') || full.includes('#/vip')) resolved = 'vip';
     else if (target === 'wingo' || cleanHash === 'wingo' || full.includes('/wingo') || full.includes('#/wingo')) resolved = 'wingo';
+    else if (target === 'plane' || cleanHash === 'plane' || full.includes('/plane') || full.includes('#/plane')) resolved = 'plane';
     else if (target === 'aviator' || target === 'aviator-plane' || cleanHash === 'aviator' || full.includes('/aviator') || full.includes('#/aviator')) resolved = 'aviator';
     else if (target === 'luckyjet' || target === 'lucky-jet' || cleanHash === 'luckyjet' || full.includes('/luckyjet') || full.includes('#/luckyjet')) resolved = 'luckyjet';
     else if (target === 'coinflip' || target === 'coin-flip' || cleanHash === 'coinflip' || full.includes('/coinflip') || full.includes('#/coinflip')) resolved = 'coinflip';
@@ -900,6 +952,9 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'betting-rebate' || cleanHash === 'betting-rebate' || full.includes('/betting-rebate') || full.includes('#/betting-rebate')) resolved = 'betting-rebate';
     else if (target === 'super-jackpot' || cleanHash === 'super-jackpot' || full.includes('/super-jackpot') || full.includes('#/super-jackpot')) resolved = 'super-jackpot';
     else if (target === 'first-gift' || cleanHash === 'first-gift' || full.includes('/first-gift') || full.includes('#/first-gift')) resolved = 'first-gift';
+    else if (target === 'casino' || cleanHash === 'casino' || full.includes('/casino') || full.includes('#/casino')) resolved = 'casino';
+    else if (target === 'slots' || cleanHash === 'slots' || full.includes('/slots') || full.includes('#/slots')) resolved = 'slots';
+    else if (target === 'ewi-roulette' || target === 'roulette' || cleanHash === 'ewi-roulette' || full.includes('/ewi-roulette') || full.includes('#/ewi-roulette')) resolved = 'ewi-roulette';
   } catch {}
 
   if (!isLoggedIn && !PUBLIC_UNAUTH_TABS.has(resolved)) {
@@ -1109,8 +1164,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
         const loadedGames = withNewGames.map((g: GameItem) => {
-          if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
-          if (g.id === 'game_coinflip') return { ...g, badge: '1.89X', price: '1.89X' };
+          if (g.id === 'game_aviator') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
+          if (g.id === 'game_luckyjet') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
+          if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
+          if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
+          if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
           if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
           if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
           if (g.id === 'game_gold_market') {
@@ -1130,12 +1188,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? sanitizeBannerListClient(parsed.banners)
           : DEFAULT_BANNERS;
         const { adminPhone: _legacyP, adminPassword: _legacyPw, ...cleanParsed } = parsed;
-        const adminPhoneHash =
+        const rawPhoneH =
           parsed.adminPhoneHash ||
           (_legacyP ? sha256HexSync(normalizePhone(String(_legacyP))) : DEFAULT_ADMIN_PHONE_HASH);
-        const adminPasswordHash =
+        const rawPassH =
           parsed.adminPasswordHash ||
           (_legacyPw ? sha256HexSync(String(_legacyPw)) : DEFAULT_ADMIN_PASS_HASH);
+        const adminPhoneHash = rawPhoneH === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : rawPhoneH;
+        const adminPasswordHash = rawPassH === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : rawPassH;
         return {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanParsed,
@@ -1147,6 +1207,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           bkashNumber: sanitizeGatewayNumber(cleanParsed.bkashNumber),
           nagadNumber: sanitizeGatewayNumber(cleanParsed.nagadNumber),
           supportPhone: sanitizeGatewayNumber(cleanParsed.supportPhone),
+          binancePayId: String(cleanParsed.binancePayId || '').trim(),
+          firstDepositBonusAmount:
+            typeof cleanParsed.firstDepositBonusAmount === 'number' && cleanParsed.firstDepositBonusAmount >= 0
+              ? cleanParsed.firstDepositBonusAmount
+              : 50,
+          popupTitle: '',
+          popupMessage: '',
+          popupImageUrl: '',
+          enableSystemPopup: false,
           adminPhoneHash,
           adminPasswordHash,
           activeGiftCodes: cleanedCodes,
@@ -1254,18 +1323,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const ewiWingoBetsRef = useRef<EwiWingoBet[]>(ewiWingoBets);
   ewiWingoBetsRef.current = ewiWingoBets;
+  const [rouletteBets, setRouletteBets] = useState<RouletteBet[]>(() => {
+    try {
+      const saved = localStorage.getItem('ewi777_roulette_bets');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+  const rouletteBetsRef = useRef<RouletteBet[]>(rouletteBets);
+  rouletteBetsRef.current = rouletteBets;
   const settledK3PeriodsRef = useRef<Set<string>>(new Set());
   const settledD5PeriodsRef = useRef<Set<string>>(new Set());
   const settledEwiWingoPeriodsRef = useRef<Set<string>>(new Set());
+  const settledRoulettePeriodsRef = useRef<Set<string>>(new Set());
   const [marketPools, setMarketPools] = useState<Record<string, MarketPoolEntry>>({});
   const marketPoolsRef = useRef<Record<string, MarketPoolEntry>>({});
   marketPoolsRef.current = marketPools;
-  const [crashPoolStates, setCrashPoolStates] = useState<Record<'aviator' | 'luckyjet', CrashPoolState | null>>({
+  const [crashPoolStates, setCrashPoolStates] = useState<Record<'aviator' | 'luckyjet' | 'plane', CrashPoolState | null>>({
     aviator: null,
-    luckyjet: null
+    luckyjet: null,
+    plane: null
   });
   const crashPoolStatesRef = useRef(crashPoolStates);
   crashPoolStatesRef.current = crashPoolStates;
+  const rollingCrashFallbackRef = useRef<{ wagered: number; paidOut: number }>({ wagered: 0, paidOut: 0 });
+  const theme: 'dark' | 'light' = 'light';
+  const setTheme = (_next: 'dark' | 'light') => {};
+  const toggleTheme = () => {};
 
   // 4 Independent WinGo Markets state (30s, 1m, 3m, 5m)
   const [activeWingoMode, setActiveWingoMode] = useState<WinGoMode>('30s');
@@ -1471,6 +1555,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [language]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('ewi777_theme', 'light');
+      document.documentElement.classList.remove('dark');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!user.isLoggedIn || !user.id) return;
+    let tz = '';
+    try {
+      tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch {}
+    fetch(apiUrl('/api/users/ip-ping'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        uid: user.uid,
+        phone: user.phone,
+        clientTimezone: tz
+      })
+    }).catch(() => {});
+  }, [user.isLoggedIn, user.id]);
+
+  useEffect(() => {
     localStorage.setItem('ewi777_notifications', JSON.stringify(notifications.slice(0, 50)));
   }, [notifications]);
 
@@ -1495,8 +1604,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [ewiWingoBets]);
 
   useEffect(() => {
+    localStorage.setItem('ewi777_roulette_bets', JSON.stringify(rouletteBets.slice(0, 150)));
+  }, [rouletteBets]);
+
+  useEffect(() => {
     localStorage.setItem('ewi777_admin_access_logs', JSON.stringify(adminAccessLogs.slice(0, 200)));
   }, [adminAccessLogs]);
+
+  // Auto-reject pending/processing deposits and withdrawals older than 1 hour (refunding expired withdrawals)
+  useEffect(() => {
+    const resolveTs = (rec: { createdAtMs?: number; id?: string; time?: string }) => {
+      if (typeof rec.createdAtMs === 'number' && rec.createdAtMs > 0) return rec.createdAtMs;
+      const m = String(rec.id || '').match(/_(\d{13})(?:_|$)/);
+      if (m) return Number(m[1]) || Date.now();
+      const parsed = rec.time ? Date.parse(rec.time) : NaN;
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : Date.now();
+    };
+    const sweepTimer = setInterval(() => {
+      const now = Date.now();
+      for (const dep of depositRequestsRef.current) {
+        if ((dep.status === 'pending' || dep.status === 'processing') && now - resolveTs(dep) >= REQUEST_EXPIRY_MS) {
+          rejectDepositRef.current(dep.id, 'Expired after 1 hour');
+        }
+      }
+      for (const wd of withdrawRequestsRef.current) {
+        if ((wd.status === 'pending' || wd.status === 'processing') && now - resolveTs(wd) >= REQUEST_EXPIRY_MS) {
+          updateWithdrawStatusRef.current(wd.id, 'rejected', 'Expired after 1 hour (Refunded)', 0, {
+            rejectionReason: 'Expired after 1 hour',
+            userMessage: 'সময়সীমা ১ ঘণ্টা অতিক্রম করায় উত্তোলন বাতিল ও ব্যালেন্স ফেরত দেওয়া হয়েছে।'
+          });
+        }
+      }
+    }, 30000);
+    return () => clearInterval(sweepTimer);
+  }, []);
 
   const addNotification = (payload: Omit<AppNotification, 'id' | 'userId' | 'read' | 'time'>) => {
     const uid = userRef.current.id;
@@ -1726,6 +1867,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ? sanitizeBannerListClient(sData.settings.banners)
                 : DEFAULT_BANNERS;
               const { adminPhone: _sp, adminPassword: _spw, ...cleanRemote } = sData.settings;
+              const rPhoneH =
+                cleanRemote.adminPhoneHash ||
+                (_sp ? sha256HexSync(normalizePhone(String(_sp))) : prev.adminPhoneHash || DEFAULT_ADMIN_PHONE_HASH);
+              const rPassH =
+                cleanRemote.adminPasswordHash ||
+                (_spw ? sha256HexSync(String(_spw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH);
               const merged: AdminSettings = {
                 ...INITIAL_ADMIN_SETTINGS,
                 ...cleanRemote,
@@ -1736,12 +1883,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 bkashNumber: sanitizeGatewayNumber(cleanRemote.bkashNumber),
                 nagadNumber: sanitizeGatewayNumber(cleanRemote.nagadNumber),
                 supportPhone: sanitizeGatewayNumber(cleanRemote.supportPhone),
-                adminPhoneHash:
-                  cleanRemote.adminPhoneHash ||
-                  (_sp ? sha256HexSync(normalizePhone(String(_sp))) : prev.adminPhoneHash || DEFAULT_ADMIN_PHONE_HASH),
-                adminPasswordHash:
-                  cleanRemote.adminPasswordHash ||
-                  (_spw ? sha256HexSync(String(_spw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH),
+                binancePayId: String(cleanRemote.binancePayId || '').trim(),
+                firstDepositBonusAmount:
+                  typeof cleanRemote.firstDepositBonusAmount === 'number' && cleanRemote.firstDepositBonusAmount >= 0
+                    ? cleanRemote.firstDepositBonusAmount
+                    : 50,
+                popupTitle: '',
+                popupMessage: '',
+                popupImageUrl: '',
+                enableSystemPopup: false,
+                adminPhoneHash: rPhoneH === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : rPhoneH,
+                adminPasswordHash: rPassH === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : rPassH,
                 games: normalizedGames,
                 banners: resolvedBanners,
                 bannersCustomized: serverHasBanners
@@ -2129,8 +2281,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
         const normalizedGames = mergedGamesList.map((g: GameItem) => {
-          if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
-          if (g.id === 'game_coinflip') return { ...g, badge: '1.89X', price: '1.89X' };
+          if (g.id === 'game_aviator') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
+          if (g.id === 'game_luckyjet') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
+          if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
+          if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
+          if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
           if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
           if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
           if (g.id === 'game_gold_market') {
@@ -2151,6 +2306,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? sanitizeBannerListClient(remoteSettings.banners)
           : DEFAULT_BANNERS;
         const { adminPhone: _rp, adminPassword: _rpw, ...cleanRemote } = remoteSettings;
+        const remPhoneH =
+          cleanRemote.adminPhoneHash ||
+          (_rp ? sha256HexSync(normalizePhone(String(_rp))) : prev.adminPhoneHash || DEFAULT_ADMIN_PHONE_HASH);
+        const remPassH =
+          cleanRemote.adminPasswordHash ||
+          (_rpw ? sha256HexSync(String(_rpw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH);
         const merged: AdminSettings = {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanRemote,
@@ -2162,12 +2323,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           bkashNumber: sanitizeGatewayNumber(cleanRemote.bkashNumber),
           nagadNumber: sanitizeGatewayNumber(cleanRemote.nagadNumber),
           supportPhone: sanitizeGatewayNumber(cleanRemote.supportPhone),
-          adminPhoneHash:
-            cleanRemote.adminPhoneHash ||
-            (_rp ? sha256HexSync(normalizePhone(String(_rp))) : prev.adminPhoneHash || DEFAULT_ADMIN_PHONE_HASH),
-          adminPasswordHash:
-            cleanRemote.adminPasswordHash ||
-            (_rpw ? sha256HexSync(String(_rpw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH),
+          binancePayId: String(cleanRemote.binancePayId || '').trim(),
+          firstDepositBonusAmount:
+            typeof cleanRemote.firstDepositBonusAmount === 'number' && cleanRemote.firstDepositBonusAmount >= 0
+              ? cleanRemote.firstDepositBonusAmount
+              : 50,
+          popupTitle: '',
+          popupMessage: '',
+          popupImageUrl: '',
+          enableSystemPopup: false,
+          adminPhoneHash: remPhoneH === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : remPhoneH,
+          adminPasswordHash: remPassH === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : remPassH,
           games: normalizedGames,
           banners: resolvedBanners,
           bannersCustomized: remoteHasBanners
@@ -3235,10 +3401,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     try {
+      let tz = '';
+      try {
+        tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch {}
       const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: trimmed, password: pass })
+        body: JSON.stringify({ identifier: trimmed, password: pass, clientTimezone: tz })
       });
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
@@ -3334,9 +3504,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     clearBanNotice();
     setUser(loggedUser);
-    if (localStorage.getItem('ewi777_fd_hide_date') !== getLocalDateStr()) {
-      setFirstDepositModalOpen(true);
-    }
     showToast(
       autoVip.totalCredited > 0
         ? `Logged in! VIP Bonus +৳${autoVip.totalCredited.toLocaleString()} auto-credited!`
@@ -3444,10 +3611,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     try {
+      let tz = '';
+      try {
+        tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch {}
       const res = await fetch(apiUrl('/api/auth/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: newUser })
+        body: JSON.stringify({ user: newUser, clientTimezone: tz })
       });
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
@@ -3503,7 +3674,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) => [...prev, newUser]);
     clearBanNotice();
     setUser(newUser);
-    setFirstDepositModalOpen(true);
     showToast('Registration successful! Welcome to EWI 777.');
     setActiveTab('home');
     window.location.hash = '#/';
@@ -3634,12 +3804,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Admin Auth (2-Step: Hash-verified Phone+Pass -> 8-char Rotating 30s 2FA Code verified strictly server-side on /admin-ewi777-panel-009)
+  // Admin Auth (Direct 1-step login verified against 0199 / EWI7772026 on /admin-ewi777-panel-009)
   const adminLogin = async (phone: string, pass: string) => {
     const cleanPhone = normalizePhone(phone.trim());
     const cleanPass = String(pass || '');
-    if (!/^01[3-9]\d{8}$/.test(cleanPhone) && cleanPhone.length < 7) {
-      return { success: false, message: 'Enter a valid Administrator mobile number.' };
+    if (!cleanPhone) {
+      return { success: false, message: 'Enter your Administrator number.' };
     }
     if (cleanPass.length < 4) {
       return { success: false, message: 'Administrator password must be at least 4 characters.' };
@@ -3658,40 +3828,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (ct.includes('application/json')) {
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
-          logAdminAccessEntry('login_step1', cleanPhone).catch(() => {});
+          if (data.sessionToken) {
+            sessionStorage.setItem('ewi777_admin_token', String(data.sessionToken));
+          }
+          logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
+          setIsAdminLoggedIn(true);
+          showToast('Welcome to EWI 777 Super Admin.');
+          setActiveTab('admin');
+          window.location.hash = '#/admin-ewi777-panel-009';
           return {
             success: true,
-            requires2FA: true,
-            message: 'Step 1 verified! Enter the 8-character 2FA code from your Authenticator.'
+            requires2FA: false,
+            message: 'Admin logged in successfully!'
           };
         }
         logAdminAccessEntry('login_failed', cleanPhone).catch(() => {});
-        return { success: false, message: data.message || 'Invalid Admin Phone or Password!' };
+        return { success: false, message: data.message || 'Invalid Admin Number or Password!' };
       }
       const fbSettings = await getAppSettingsFromFirebase().catch(() => null);
-      const expectedPhoneHash =
-        fbSettings?.adminPhoneHash ||
-        adminSettings.adminPhoneHash ||
-        DEFAULT_ADMIN_PHONE_HASH;
-      const expectedPassHash =
-        fbSettings?.adminPasswordHash ||
-        adminSettings.adminPasswordHash ||
-        DEFAULT_ADMIN_PASS_HASH;
+      const fbPhoneH =
+        fbSettings?.adminPhoneHash && fbSettings.adminPhoneHash !== OLD_DEFAULT_ADMIN_PHONE_HASH
+          ? fbSettings.adminPhoneHash
+          : undefined;
+      const fbPassH =
+        fbSettings?.adminPasswordHash && fbSettings.adminPasswordHash !== OLD_DEFAULT_ADMIN_PASS_HASH
+          ? fbSettings.adminPasswordHash
+          : undefined;
+      const expectedPhoneHash = fbPhoneH || adminSettings.adminPhoneHash || DEFAULT_ADMIN_PHONE_HASH;
+      const expectedPassHash = fbPassH || adminSettings.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH;
       if (sha256HexSync(cleanPhone) === expectedPhoneHash && sha256HexSync(cleanPass) === expectedPassHash) {
-        logAdminAccessEntry('login_step1', cleanPhone).catch(() => {});
-        return { success: true, requires2FA: true, message: 'Enter 8-character 2FA code.' };
+        logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
+        setIsAdminLoggedIn(true);
+        showToast('Welcome to EWI 777 Super Admin.');
+        setActiveTab('admin');
+        window.location.hash = '#/admin-ewi777-panel-009';
+        return { success: true, requires2FA: false, message: 'Admin logged in successfully!' };
       }
       logAdminAccessEntry('login_failed', cleanPhone).catch(() => {});
-      return { success: false, message: 'Invalid Admin Phone or Password!' };
+      return { success: false, message: 'Invalid Admin Number or Password!' };
     } catch {
       const expectedPhoneHash = adminSettings.adminPhoneHash || DEFAULT_ADMIN_PHONE_HASH;
       const expectedPassHash = adminSettings.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH;
       if (sha256HexSync(cleanPhone) === expectedPhoneHash && sha256HexSync(cleanPass) === expectedPassHash) {
-        logAdminAccessEntry('login_step1', cleanPhone).catch(() => {});
-        return { success: true, requires2FA: true, message: 'Enter 8-character 2FA code.' };
+        logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
+        setIsAdminLoggedIn(true);
+        showToast('Welcome to EWI 777 Super Admin.');
+        setActiveTab('admin');
+        window.location.hash = '#/admin-ewi777-panel-009';
+        return { success: true, requires2FA: false, message: 'Admin logged in successfully!' };
       }
       logAdminAccessEntry('login_failed', cleanPhone).catch(() => {});
-      return { success: false, message: 'Invalid Admin Phone or Password!' };
+      return { success: false, message: 'Invalid Admin Number or Password!' };
     }
   };
 
@@ -3998,8 +4185,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Please provide both sender number and Transaction ID (TRX ID)' };
     }
 
+    const nowMs = Date.now();
+    const depId = `dep_${nowMs}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const newReq: DepositRequest = {
-      id: `dep_${Date.now()}`,
+      id: depId,
+      orderId: depId,
       userId: user.id,
       userPhone: senderNumber.trim(),
       method,
@@ -4008,11 +4198,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       senderNumber: senderNumber.trim(),
       trxId: trxId.trim().toUpperCase(),
       status: 'pending',
-      time: new Date().toLocaleString()
+      createdAtMs: nowMs,
+      time: new Date(nowMs).toLocaleString()
     };
 
     lastDepositsMutationAtRef.current = Date.now();
-    setDepositRequests((prev) => [newReq, ...prev]);
+    setDepositRequests((prev) => dedupeDepositsList([newReq, ...prev]));
     saveDepositToFirebase(newReq).catch(() => {});
 
     fetch(apiUrl('/api/deposits'), {
@@ -4105,7 +4296,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           orderId,
           provider: providerSlug,
           method,
-          channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
+          channel: channel || (isUsdt ? 'Binance Pay' : 'EWI PAY'),
           senderNumber: senderNumber || user.phone || userIdTag,
           callbackUrl,
           returnUrl,
@@ -4118,6 +4309,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: data.message };
       }
       const depId = orderId;
+      const nowMs = Date.now();
       const sessionId = data?.sessionId ? String(data.sessionId) : undefined;
       const paymentUrl = String(data?.paymentUrl || data?.checkoutUrl || fallbackUrl);
       const dep: DepositRequest = {
@@ -4127,13 +4319,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userPhone: senderNumber || user.phone || userIdTag,
         method,
         provider: providerSlug,
-        channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
+        channel: channel || (isUsdt ? 'Binance Pay' : 'EWI PAY'),
         amount: bdtAmount,
         ...(usdAmount !== undefined ? { usdAmount } : {}),
         senderNumber: senderNumber || user.phone || userIdTag,
         trxId: String(data?.deposit?.trxId || orderId).toUpperCase(),
         status: 'pending',
-        time: new Date().toLocaleString(),
+        createdAtMs: nowMs,
+        time: new Date(nowMs).toLocaleString(),
         checkoutUrl: paymentUrl,
         ...(sessionId ? { sessionId } : {})
       };
@@ -4145,13 +4338,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_ewp`,
         userId: user.id,
         type: 'deposit',
-        title: isUsdt ? `Binance / USDT Deposit ($${usdAmount})` : `EWI-Pay Deposit (${method})`,
+        title: isUsdt ? `Binance Pay Deposit ($${usdAmount})` : `EWI PAY Deposit (${method})`,
         detail: isUsdt
           ? `$${usdAmount} USDT • +2% Auto Bonus on completion`
-          : `Order: ${orderId} • EWI-Pay Checkout`,
+          : `Order: ${orderId} • EWI PAY Checkout`,
         amount: bdtAmount,
         balanceAfter: user.balance,
-        time: new Date().toLocaleString(),
+        time: new Date(nowMs).toLocaleString(),
         status: 'pending',
         method,
         trxId: dep.trxId,
@@ -4168,6 +4361,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } catch {
       const depId = orderId;
+      const nowMs = Date.now();
       const dep: DepositRequest = {
         id: depId,
         orderId,
@@ -4175,14 +4369,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userPhone: senderNumber || user.phone || userIdTag,
         method,
         provider: providerSlug,
-        channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
+        channel: channel || (isUsdt ? 'Binance Pay' : 'EWI PAY'),
         amount: bdtAmount,
         ...(usdAmount !== undefined ? { usdAmount } : {}),
         senderNumber: senderNumber || user.phone || userIdTag,
         trxId: orderId.toUpperCase(),
         status: 'pending',
+        createdAtMs: nowMs,
         checkoutUrl: fallbackUrl,
-        time: new Date().toLocaleString()
+        time: new Date(nowMs).toLocaleString()
       };
       setDepositRequests((prev) => dedupeDepositsList([dep, ...prev]));
       saveDepositToFirebase(dep).catch(() => {});
@@ -4258,11 +4453,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               userId: String(item?.siteUserId || item?.user_id || item?.userId || ''),
               userPhone: String(item?.sender_number || item?.siteUserId || item?.user_id || ''),
               method: (item?.method as any) || 'bKash',
-              channel: 'EWI-Pay Gateway',
+              channel: 'EWI PAY',
               amount: Number(item?.amount) || 0,
               senderNumber: String(item?.sender_number || item?.siteUserId || item?.user_id || ''),
               trxId: itemTrx,
               status: mappedStatus,
+              createdAtMs: Date.now(),
               time: String(item?.created_at || new Date().toLocaleString()),
               ...(itemSession ? { sessionId: itemSession } : {})
             };
@@ -4277,7 +4473,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pendingSessions = depositRequestsRef.current.filter(
         (d) =>
           (d.status === 'pending' || d.status === 'processing') &&
-          (Boolean(d.sessionId) || d.id.startsWith('DEP_') || d.id.startsWith('ewipay_') || d.channel?.includes('EWI-Pay'))
+          (Boolean(d.sessionId) || d.id.startsWith('DEP_') || d.id.startsWith('ewipay_') || d.channel?.includes('EWI-Pay') || d.channel?.includes('EWI PAY'))
       );
       for (const dep of pendingSessions) {
         const methodParam = String(dep.method || '').toLowerCase().includes('nagad')
@@ -4771,7 +4967,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({ id: requestId })
     }).catch(() => {});
 
-    if (req.channel?.includes('EWI-Pay') || requestId.startsWith('ewipay_')) {
+    if (req.channel?.includes('EWI-Pay') || req.channel?.includes('EWI PAY') || requestId.startsWith('ewipay_')) {
       fetch(apiUrl('/api/ewi-pay/approve'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4819,7 +5015,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({ id: requestId, note })
     }).catch(() => {});
 
-    if (req.channel?.includes('EWI-Pay') || requestId.startsWith('DEP_') || requestId.startsWith('ewipay_')) {
+    if (req.channel?.includes('EWI-Pay') || req.channel?.includes('EWI PAY') || requestId.startsWith('DEP_') || requestId.startsWith('ewipay_')) {
       fetch(apiUrl('/api/ewi-pay/reject'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4876,9 +5072,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Deposit must be completed first before claiming!' };
     }
 
-    const bonusAmount = 50.00;
+    const bonusAmount = Math.max(0, Number(adminSettingsRef.current.firstDepositBonusAmount ?? 50));
+    const addedTurnover = +(bonusAmount * 3).toFixed(2);
     const newBal = +(user.balance + bonusAmount).toFixed(2);
-    const newTurnover = (user.turnoverRequired || 0) + 150;
+    const newTurnover = (user.turnoverRequired || 0) + addedTurnover;
 
     const updatedUser = syncUserEverywhere({
       ...user,
@@ -4894,7 +5091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userId: user.id,
       type: 'deposit_bonus',
       title: 'First Deposit Bonus (1-Time)',
-      detail: '৳50 Cash (150 Taka Turnover)',
+      detail: `৳${bonusAmount.toFixed(0)} Cash (${addedTurnover.toFixed(0)} Taka Turnover)`,
       amount: bonusAmount,
       balanceAfter: newBal,
       time: new Date().toLocaleString(),
@@ -4904,7 +5101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveTransactionToFirebase(depBonusTx).catch(() => {});
 
     confetti({ particleCount: 60, spread: 60 });
-    showToast('Claimed ৳50 Deposit Bonus! Added 150 turnover.');
+    showToast(`Claimed ৳${bonusAmount.toFixed(0)} Deposit Bonus! Added ${addedTurnover.toFixed(0)} turnover.`);
     return { success: true, message: 'Claimed' };
   };
 
@@ -5022,7 +5219,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(updatedUser);
     setAllUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
 
-    const wdOrderId = `wd_${Date.now()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const nowMs = Date.now();
+    const wdOrderId = `wd_${nowMs}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const newWd: WithdrawRequest = {
       id: wdOrderId,
       orderId: wdOrderId,
@@ -5033,10 +5231,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       method,
       number: targetBound,
       status: 'processing',
-      time: new Date().toLocaleString()
+      createdAtMs: nowMs,
+      time: new Date(nowMs).toLocaleString()
     };
-    lastWithdrawsMutationAtRef.current = Date.now();
-    setWithdrawRequests((prev) => [newWd, ...prev]);
+    lastWithdrawsMutationAtRef.current = nowMs;
+    setWithdrawRequests((prev) => [newWd, ...prev.filter((w) => w.id !== wdOrderId && w.orderId !== wdOrderId)]);
     saveWithdrawToFirebase(newWd).catch(() => {});
 
     fetch(apiUrl('/api/withdraws'), {
@@ -5755,15 +5954,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Success' };
   };
 
-  // Shared 30% Pool Crash Game Engine (Aviator + Lucky Jet with up to 3 Simultaneous Slots)
+  // Shared Silent 30% Pool & Rolling Cap Crash Game Engine (Aviator + Lucky Jet + PLANE)
   const placeCrashBet = async (
-    game: 'aviator' | 'luckyjet',
+    game: 'aviator' | 'luckyjet' | 'plane',
     roundId: string,
     amount: number,
     autoCashout?: number,
     slot?: 1 | 2 | 3
   ) => {
-    const label = game === 'luckyjet' ? 'Lucky Jet' : 'Aviator';
+    const label = game === 'luckyjet' ? 'Lucky Jet' : game === 'plane' ? 'PLANE' : 'Aviator';
     if (!user.isLoggedIn || !user.id) {
       showToast(`Please login first to bet on ${label}`);
       return { success: false, message: 'Please log in first' };
@@ -5781,7 +5980,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Insufficient balance' };
     }
 
-    const betId = `${game === 'luckyjet' ? 'lj' : 'av'}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const prefix = game === 'luckyjet' ? 'lj' : game === 'plane' ? 'pl' : 'av';
+    const betId = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const newBal = +(user.balance - amount).toFixed(2);
     const updatedUser = syncUserEverywhere({
       ...user,
@@ -5805,10 +6005,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setAviatorBets((prev) => [newBet, ...prev]);
 
+    const txType: Transaction['type'] =
+      game === 'luckyjet' ? 'luckyjet_bet' : game === 'plane' ? 'plane_bet' : 'aviator_bet';
     const tx: Transaction = {
       id: `tx_${Date.now()}_${game}`,
       userId: user.id,
-      type: game === 'luckyjet' ? 'luckyjet_bet' : 'aviator_bet',
+      type: txType,
       title: `${label} Bet`,
       detail: `Round #${roundId.slice(-5)}${autoCashout ? ` • Auto @ ${autoCashout.toFixed(2)}x` : ''}`,
       amount: -amount,
@@ -5818,6 +6020,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [tx, ...prev]);
     saveTransactionToFirebase(tx).catch(() => {});
+
+    rollingCrashFallbackRef.current.wagered = +(rollingCrashFallbackRef.current.wagered + amount).toFixed(2);
 
     try {
       const res = await fetch(apiUrl('/api/crash/bet'), {
@@ -5837,7 +6041,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!data) throw new Error('Static deploy fallback');
       if (data?.pool) {
         setCrashPoolStates((prev) => ({ ...prev, [game]: data.pool }));
-        saveCrashStateToFirebase(data.pool).catch(() => {});
+        if (game === 'aviator' || game === 'luckyjet') {
+          saveCrashStateToFirebase(data.pool).catch(() => {});
+        }
       }
     } catch {
       const curPool = crashPoolStatesRef.current[game];
@@ -5863,8 +6069,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...(hit500Rule
           ? {
               forcedCrashMultiplier: 1.0,
-              forcedCrashedAtMs: Date.now(),
-              forcedReason: 'Network connection unstable'
+              forcedCrashedAtMs: Date.now()
             }
           : {}),
         bets: [
@@ -5883,14 +6088,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: Date.now()
       };
       setCrashPoolStates((prev) => ({ ...prev, [game]: nextPool }));
-      saveCrashStateToFirebase(nextPool).catch(() => {});
+      if (game === 'aviator' || game === 'luckyjet') {
+        saveCrashStateToFirebase(nextPool).catch(() => {});
+      }
     }
 
     showToast(`${label} Bet Placed: ৳${amount}`);
     return { success: true, message: 'Bet placed', betId };
   };
 
-  const cancelCrashBet = async (game: 'aviator' | 'luckyjet', betId: string) => {
+  const cancelCrashBet = async (game: 'aviator' | 'luckyjet' | 'plane', betId: string) => {
     const target = aviatorBets.find((b) => b.id === betId && b.status === 'active');
     if (!target) return { success: false, message: 'No active slot bet to cancel' };
 
@@ -5902,6 +6109,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     } catch {}
 
+    rollingCrashFallbackRef.current.wagered = Math.max(
+      0,
+      +(rollingCrashFallbackRef.current.wagered - target.amount).toFixed(2)
+    );
     setAviatorBets((prev) => prev.filter((b) => b.id !== betId));
     const refundedBal = +(Number(userRef.current.balance || 0) + target.amount).toFixed(2);
     const updatedUser = syncUserEverywhere({
@@ -5921,18 +6132,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: Date.now()
       };
       setCrashPoolStates((prev) => ({ ...prev, [game]: nextPool }));
-      saveCrashStateToFirebase(nextPool).catch(() => {});
+      if (game === 'aviator' || game === 'luckyjet') {
+        saveCrashStateToFirebase(nextPool).catch(() => {});
+      }
     }
     showToast(`Bet cancelled & ৳${target.amount} refunded`);
     return { success: true, message: 'Bet cancelled' };
   };
 
-  const cashOutCrashBet = async (game: 'aviator' | 'luckyjet', betId: string, multiplier: number) => {
-    const label = game === 'luckyjet' ? 'Lucky Jet' : 'Aviator';
+  const cashOutCrashBet = async (game: 'aviator' | 'luckyjet' | 'plane', betId: string, multiplier: number) => {
+    const label = game === 'luckyjet' ? 'Lucky Jet' : game === 'plane' ? 'PLANE' : 'Aviator';
     const target = aviatorBets.find((b) => b.id === betId && b.status === 'active');
     if (!target) return { success: false, winAmount: 0 };
 
-    // Server authoritative 30% payout check first
+    // Server authoritative silent 30% payout check first
     try {
       const res = await fetch(apiUrl('/api/crash/cashout'), {
         method: 'POST',
@@ -5957,23 +6170,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (data?.pool) {
         setCrashPoolStates((prev) => ({ ...prev, [game]: data.pool }));
-        saveCrashStateToFirebase(data.pool).catch(() => {});
+        if (game === 'aviator' || game === 'luckyjet') {
+          saveCrashStateToFirebase(data.pool).catch(() => {});
+        }
       }
     } catch {
-      // Static deploy fallback: enforce identical 30% cap from crashPoolStates
+      // Static deploy fallback: enforce identical silent 30% rolling cap from crashPoolStates
       const curPool = crashPoolStatesRef.current[game];
-      if (curPool && curPool.roundId === target.roundId) {
-        const activeBets = (curPool.bets || []).filter((b) => b.status === 'active');
-        const uniqueUsers = new Set(activeBets.map((b) => b.userId)).size;
-        const evalRes = evaluateCrash30Cap({
-          totalPool: curPool.totalPool || target.amount,
-          totalPaidOut: curPool.totalPaidOut || 0,
-          activeBetAmount: target.amount,
-          currentMultiplier: multiplier,
-          activePlayerCount: Math.max(1, uniqueUsers)
-        });
-        if (evalRes.shouldForceCrash) {
-          const crashAt = Math.max(1.0, +(multiplier - 0.01).toFixed(2));
+      const activeBets = (curPool?.bets || []).filter((b) => b.status === 'active');
+      const uniqueUsers = new Set(activeBets.map((b) => b.userId)).size;
+      const evalRes = evaluateCrash30Cap({
+        totalPool: curPool?.totalPool || target.amount,
+        totalPaidOut: curPool?.totalPaidOut || 0,
+        activeBetAmount: target.amount,
+        currentMultiplier: multiplier,
+        activePlayerCount: Math.max(1, uniqueUsers),
+        rollingWagered: rollingCrashFallbackRef.current.wagered,
+        rollingPaidOut: rollingCrashFallbackRef.current.paidOut
+      });
+      if (evalRes.shouldForceCrash) {
+        const crashAt = Math.max(1.0, +(multiplier - 0.01).toFixed(2));
+        if (curPool && curPool.roundId === target.roundId) {
           const forcedPool: CrashPoolState = {
             ...curPool,
             forcedCrashMultiplier: crashAt,
@@ -5982,16 +6199,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updatedAt: Date.now()
           };
           setCrashPoolStates((prev) => ({ ...prev, [game]: forcedPool }));
-          saveCrashStateToFirebase(forcedPool).catch(() => {});
-          setAviatorBets((prev) =>
-            prev.map((b) => (b.id === betId && b.status === 'active' ? { ...b, status: 'lost', winAmount: 0 } : b))
-          );
-          return { success: false, winAmount: 0, crashed: true, crashPoint: crashAt };
+          if (game === 'aviator' || game === 'luckyjet') {
+            saveCrashStateToFirebase(forcedPool).catch(() => {});
+          }
         }
+        setAviatorBets((prev) =>
+          prev.map((b) => (b.id === betId && b.status === 'active' ? { ...b, status: 'lost', winAmount: 0 } : b))
+        );
+        return { success: false, winAmount: 0, crashed: true, crashPoint: crashAt };
       }
     }
 
     const winAmount = +(target.amount * multiplier).toFixed(2);
+    rollingCrashFallbackRef.current.paidOut = +(rollingCrashFallbackRef.current.paidOut + winAmount).toFixed(2);
     const poolNow = crashPoolStatesRef.current[game];
     if (poolNow && poolNow.roundId === target.roundId) {
       const syncedPool: CrashPoolState = {
@@ -6003,7 +6223,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: Date.now()
       };
       setCrashPoolStates((prev) => ({ ...prev, [game]: syncedPool }));
-      saveCrashStateToFirebase(syncedPool).catch(() => {});
+      if (game === 'aviator' || game === 'luckyjet') {
+        saveCrashStateToFirebase(syncedPool).catch(() => {});
+      }
     }
     setAviatorBets((prev) =>
       prev.map((b) =>
@@ -6021,10 +6243,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     setUser(updatedUser);
 
+    const winTxType: Transaction['type'] =
+      game === 'luckyjet' ? 'luckyjet_win' : game === 'plane' ? 'plane_win' : 'aviator_win';
     const tx: Transaction = {
       id: `tx_${Date.now()}_${game}w`,
       userId: userRef.current.id,
-      type: game === 'luckyjet' ? 'luckyjet_win' : 'aviator_win',
+      type: winTxType,
       title: `${label} Cashed Out @ ${multiplier.toFixed(2)}x`,
       detail: `Round #${target.roundId.slice(-5)} • Profit +৳${(winAmount - target.amount).toFixed(2)}`,
       amount: winAmount,
@@ -6567,16 +6791,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveSupportMessageToFirebase(savedMsg).catch(() => {});
   };
 
-  // Extra First Deposit Bonus Tier Collector (1-time per tier)
+  // Extra First Deposit Bonus Tier Collector (Strict 1-time lifetime single-tier collect after completed deposit)
   const claimExtraFirstDepositBonus = (tierDeposit: number, bonusAmount: number) => {
     if (!user.isLoggedIn || !user.id) {
       return { success: false, message: 'Please log in first to collect bonus!' };
     }
-    const existingClaims = { ...(user.claimedFirstDepositTiers || {}) };
-    const key = String(tierDeposit);
-    if (existingClaims[key]) {
-      return { success: false, message: 'You have already collected this tier bonus!' };
+    const hasCompletedDeposit =
+      (Number(user.totalDeposited) || 0) > 0 ||
+      depositRequests.some((d) => d.userId === user.id && d.status === 'approved');
+    if (!hasCompletedDeposit) {
+      return { success: false, message: 'Complete your first deposit first to unlock!' };
     }
+    const existingClaims = { ...(user.claimedFirstDepositTiers || {}) };
+    if (Object.values(existingClaims).some(Boolean)) {
+      return { success: false, message: 'You have already collected your Extra First Deposit Bonus!' };
+    }
+    const key = String(tierDeposit);
     if ((Number(user.totalDeposited) || 0) < tierDeposit) {
       return { success: false, message: `Deposit at least ৳${tierDeposit.toLocaleString()} to unlock!` };
     }
@@ -6960,6 +7190,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('This account has been banned. Please contact Customer Care.');
       return { success: false, message: 'Account banned' };
     }
+    const tzOffset =
+      typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
+        ? adminSettingsRef.current.timezoneOffsetMinutes
+        : 360;
+    const liveInfo = getEwiWingoPeriodInfo(mode, Date.now(), tzOffset);
+    if (liveInfo.timeRemaining <= 5) {
+      showToast('Betting closed for final 5 seconds!');
+      return { success: false, message: 'Betting closed for final 5 seconds!' };
+    }
     const totalAmount = +(amount * multiplier).toFixed(2);
     if (totalAmount < 10 || isNaN(totalAmount)) {
       return { success: false, message: 'Minimum bet is ৳10' };
@@ -7101,6 +7340,132 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultSize: size,
       gameLabel: `EWI WinGo ${mode}`
     });
+  };
+
+  // EWI ROULETTE European Single-Zero Engine
+  const placeRouletteBet = (
+    periodNumber: string,
+    betType: RouletteBetType,
+    label: string,
+    numbers: number[],
+    amount: number,
+    payoutMultiplier: number
+  ) => {
+    if (!user.isLoggedIn || !user.id) {
+      showToast('Please login first to place EWI ROULETTE bets!');
+      return { success: false, message: 'Login required' };
+    }
+    if (user.isBanned) {
+      showToast('This account has been banned. Please contact Customer Care.');
+      return { success: false, message: 'Account banned' };
+    }
+    const liveState = getEwiRouletteState(Date.now());
+    if (liveState.phase !== 'betting' || liveState.timeRemaining <= 1) {
+      showToast('Bets closed for this spin!');
+      return { success: false, message: 'Bets closed for this spin' };
+    }
+    const cleanAmt = +Number(amount || 0).toFixed(2);
+    if (cleanAmt < 10 || isNaN(cleanAmt)) {
+      return { success: false, message: 'Minimum chip bet is ৳10' };
+    }
+    if (user.balance < cleanAmt) {
+      showToast('Insufficient balance! Please deposit first.');
+      return { success: false, message: 'Insufficient balance' };
+    }
+
+    const newBal = +(user.balance - cleanAmt).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...user,
+      balance: newBal,
+      exp: user.exp + Math.round(cleanAmt),
+      turnoverCompleted: +((user.turnoverCompleted || 0) + cleanAmt).toFixed(2)
+    });
+    setUser(updatedUser);
+
+    const betEntry: RouletteBet = {
+      id: `rl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      userId: user.id,
+      periodNumber,
+      betType,
+      label,
+      numbers: [...numbers],
+      amount: cleanAmt,
+      payoutMultiplier,
+      status: 'pending',
+      time: new Date().toTimeString().slice(0, 8)
+    };
+    rouletteBetsRef.current = [betEntry, ...rouletteBetsRef.current];
+    setRouletteBets((prev) => [betEntry, ...prev]);
+
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_rlb`,
+      userId: user.id,
+      type: 'roulette_bet',
+      title: `EWI ROULETTE (${label})`,
+      detail: `Round #${periodNumber.slice(-5)} • ${payoutMultiplier}:1`,
+      amount: -cleanAmt,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+    return { success: true, message: 'Bet placed', betId: betEntry.id };
+  };
+
+  const settleRouletteRound = (periodNumber: string, winningNumber: number) => {
+    if (settledRoulettePeriodsRef.current.has(periodNumber)) return;
+    const pendingForRound = rouletteBetsRef.current.filter(
+      (b) => b.periodNumber === periodNumber && b.status === 'pending' && (!userRef.current.id || b.userId === userRef.current.id)
+    );
+    if (pendingForRound.length === 0) return;
+
+    settledRoulettePeriodsRef.current.add(periodNumber);
+    if (settledRoulettePeriodsRef.current.size > 200) {
+      const first = settledRoulettePeriodsRef.current.values().next().value;
+      if (first) settledRoulettePeriodsRef.current.delete(first);
+    }
+
+    let totalWinCredit = 0;
+    const evalMap = new Map<string, { won: boolean; winAmount: number }>();
+    for (const pb of pendingForRound) {
+      const res = computeRouletteBetPayout(pb.betType, pb.numbers, pb.amount, winningNumber);
+      evalMap.set(pb.id, res);
+      totalWinCredit = +(totalWinCredit + res.winAmount).toFixed(2);
+    }
+
+    rouletteBetsRef.current = rouletteBetsRef.current.map((b) => {
+      const res = evalMap.get(b.id);
+      if (!res) return b;
+      return {
+        ...b,
+        status: res.won ? ('won' as const) : ('lost' as const),
+        winAmount: res.winAmount,
+        winningNumber
+      };
+    });
+    setRouletteBets(rouletteBetsRef.current);
+
+    if (totalWinCredit > 0) {
+      const nextBal = +(userRef.current.balance + totalWinCredit).toFixed(2);
+      const updatedUser = syncUserEverywhere({ ...userRef.current, balance: nextBal });
+      setUser(updatedUser);
+      const winTx: Transaction = {
+        id: `tx_${Date.now()}_rlw`,
+        userId: userRef.current.id,
+        type: 'roulette_win',
+        title: `EWI ROULETTE Win (#${winningNumber})`,
+        detail: `Round #${periodNumber.slice(-5)} • Winning Number ${winningNumber}`,
+        amount: totalWinCredit,
+        balanceAfter: nextBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      };
+      setTransactions((prev) => [winTx, ...prev]);
+      saveTransactionToFirebase(winTx).catch(() => {});
+      confetti({ particleCount: 70, spread: 60 });
+      showToast(`EWI ROULETTE Won +৳${totalWinCredit.toFixed(2)}!`);
+    }
   };
 
   // WinGo Win Streak Claim (Same day, 12:00 AM reset, 1x/day, 3x turnover)
@@ -7807,6 +8172,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         attendance,
         adminSettings,
         language,
+        theme,
+        setTheme,
+        toggleTheme,
         toastMessage,
         activeTab,
         isNavigating,
@@ -7840,6 +8208,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ewiWingoBets,
         placeEwiWingoBet,
         settleEwiWingoRound,
+        rouletteBets,
+        placeRouletteBet,
+        settleRouletteRound,
         setActiveTab,
         setLanguage,
         showToast,

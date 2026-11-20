@@ -46,13 +46,11 @@ export const CustomerService: React.FC = () => {
   const [viewMode, setViewMode] = useState<'menu' | 'chat'>('menu');
   const [selectedTopic, setSelectedTopic] = useState<SupportTopicId | null>(null);
 
-  // Interactive Support Ticket / Issue Inputs
   const [issueTrxId, setIssueTrxId] = useState('');
   const [issueAmount, setIssueAmount] = useState('');
   const [issueNote, setIssueNote] = useState('');
   const [usdtDraft, setUsdtDraft] = useState('');
 
-  // Live 2-Way Admin Chat state (no auto-reply bot)
   const myMessages = supportMessages.filter((m) => m.userId === (user.id || 'guest'));
   const [inputMessage, setInputMessage] = useState('');
   const [isSendingPhoto, setIsSendingPhoto] = useState(false);
@@ -195,15 +193,15 @@ export const CustomerService: React.FC = () => {
   const activeTopicMeta = supportItems.find((s) => s.id === selectedTopic);
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] text-slate-900 pb-24">
-      {/* Light-Mode Clean Top Navbar */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-amber-200 px-4 py-3 flex items-center justify-between shadow-2xs">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
+      {/* Top Navbar */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-cyan-100 px-4 py-3 flex items-center justify-between shadow-2xs">
         <button
           onClick={() => {
             setActiveTab(user.isLoggedIn ? 'account' : 'home');
             window.location.hash = user.isLoggedIn ? '#/account' : '#/';
           }}
-          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-amber-50 active:scale-95"
+          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-cyan-50 active:scale-95"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
@@ -216,20 +214,20 @@ export const CustomerService: React.FC = () => {
           </h1>
         </div>
 
-        <span className="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+        <span className="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full whitespace-nowrap">
           24/7 Live
         </span>
       </div>
 
       {/* Mode Switcher */}
       <div className="px-4 pt-3">
-        <div className="bg-white rounded-2xl p-1 border border-amber-200 shadow-2xs grid grid-cols-2 gap-1">
+        <div className="bg-white rounded-2xl p-1 border border-slate-200 shadow-2xs grid grid-cols-2 gap-1">
           <button
             onClick={() => setViewMode('menu')}
             className={`py-2.5 rounded-xl text-xs font-black transition-all ${
               viewMode === 'menu'
-                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-amber-50/50'
+                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-cyan-50/50'
             }`}
           >
             Self-Service Center
@@ -238,8 +236,8 @@ export const CustomerService: React.FC = () => {
             onClick={() => setViewMode('chat')}
             className={`py-2.5 rounded-xl text-xs font-black transition-all ${
               viewMode === 'chat'
-                ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-amber-50/50'
+                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-cyan-50/50'
             }`}
           >
             Live Chat Support
@@ -249,17 +247,16 @@ export const CustomerService: React.FC = () => {
 
       {viewMode === 'menu' ? (
         <div className="p-4 space-y-4">
-          {/* Light Mode Card Menu matching 6th Picture with Golden Circle Badges */}
-          <div className="bg-white rounded-3xl shadow-xs border border-slate-100 divide-y divide-slate-100 overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-xs border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             {supportItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setSelectedTopic(item.id)}
-                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-amber-50/40 active:bg-amber-50 transition-colors"
+                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-cyan-50/40 active:bg-cyan-50 transition-colors"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FDE68A] via-[#FBBF24] to-[#D97706] text-slate-900 flex items-center justify-center flex-shrink-0 shadow-xs">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
                     {item.icon}
                   </div>
                   <div className="min-w-0">
@@ -276,11 +273,11 @@ export const CustomerService: React.FC = () => {
             ))}
           </div>
 
-          {/* Quick Account Diagnostics Card (Light Mode) */}
-          <div className="bg-white rounded-3xl p-4 border border-amber-200 shadow-xs space-y-2">
+          {/* Quick Account Diagnostics Card */}
+          <div className="bg-white rounded-3xl p-4 border border-cyan-100 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#D97706]" />
+                <ShieldCheck className="w-4 h-4 text-cyan-600" />
                 <span>Quick Account Status</span>
               </span>
               <span className="text-[11px] font-mono font-bold text-slate-500">
@@ -288,21 +285,21 @@ export const CustomerService: React.FC = () => {
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-1 text-center tabular-nums">
-              <div className="bg-[#FFFDF7] rounded-2xl p-2 border border-amber-200">
+              <div className="bg-slate-50 rounded-2xl p-2 border border-slate-200">
                 <div className="text-[10px] text-slate-500 font-semibold">Pending Dep</div>
                 <div className="text-sm font-black text-slate-900">
                   {myDeposits.filter((d) => d.status === 'pending').length}
                 </div>
               </div>
-              <div className="bg-[#FFFDF7] rounded-2xl p-2 border border-amber-200">
+              <div className="bg-slate-50 rounded-2xl p-2 border border-slate-200">
                 <div className="text-[10px] text-slate-500 font-semibold">Pending WD</div>
                 <div className="text-sm font-black text-slate-900">
                   {myWithdraws.filter((w) => w.status === 'pending' || w.status === 'processing').length}
                 </div>
               </div>
-              <div className="bg-[#FFFDF7] rounded-2xl p-2 border border-amber-200">
+              <div className="bg-slate-50 rounded-2xl p-2 border border-slate-200">
                 <div className="text-[10px] text-slate-500 font-semibold">Turnover Left</div>
-                <div className="text-sm font-black text-[#B45309]">
+                <div className="text-sm font-black text-cyan-700">
                   ৳{remainingTurnover.toFixed(0)}
                 </div>
               </div>
@@ -311,8 +308,8 @@ export const CustomerService: React.FC = () => {
         </div>
       ) : (
         <div className="p-4">
-          <div className="bg-white rounded-3xl p-4 shadow-xs border border-amber-200 space-y-3 min-h-[430px] flex flex-col">
-            <div className="text-center text-[11px] text-slate-500 font-bold pb-2 border-b border-amber-100 flex items-center justify-between">
+          <div className="bg-white rounded-3xl p-4 shadow-xs border border-cyan-100 space-y-3 min-h-[430px] flex flex-col">
+            <div className="text-center text-[11px] text-slate-500 font-bold pb-2 border-b border-slate-100 flex items-center justify-between">
               <span>EWI 777 Official Live Agent Chat</span>
               <span className="text-[10px] text-emerald-600 font-black">Human Support</span>
             </div>
@@ -320,7 +317,7 @@ export const CustomerService: React.FC = () => {
             <div className="flex-1 space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
               {myMessages.length === 0 ? (
                 <div className="text-center py-12 px-4 text-xs text-slate-400 space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto">
+                  <div className="w-12 h-12 rounded-2xl bg-cyan-50 flex items-center justify-center mx-auto">
                     <CustomerServiceLogo size={32} />
                   </div>
                   <p className="font-semibold text-slate-500">
@@ -334,14 +331,14 @@ export const CustomerService: React.FC = () => {
                     className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
                   >
                     {m.sender === 'admin' && (
-                      <span className="text-[10px] font-black text-[#B45309] mb-0.5 px-1">
+                      <span className="text-[10px] font-black text-cyan-700 mb-0.5 px-1">
                         EWI 777 Agent
                       </span>
                     )}
                     <div
                       className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs font-semibold leading-relaxed shadow-2xs space-y-2 ${
                         m.sender === 'user'
-                          ? 'bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white rounded-tr-xs'
+                          ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white rounded-tr-xs'
                           : 'bg-slate-50 text-slate-800 border border-slate-200 rounded-tl-xs'
                       }`}
                     >
@@ -375,11 +372,11 @@ export const CustomerService: React.FC = () => {
                 e.preventDefault();
                 handleSendChat();
               }}
-              className="flex items-center gap-2 pt-2 border-t border-amber-100"
+              className="flex items-center gap-2 pt-2 border-t border-slate-100"
             >
               <label
                 title="Send photo from gallery"
-                className={`w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 text-[#B45309] flex items-center justify-center cursor-pointer hover:bg-amber-100 active:scale-95 flex-shrink-0 ${
+                className={`w-10 h-10 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center cursor-pointer hover:bg-cyan-100 active:scale-95 flex-shrink-0 ${
                   isSendingPhoto ? 'opacity-50 pointer-events-none' : ''
                 }`}
               >
@@ -397,11 +394,11 @@ export const CustomerService: React.FC = () => {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 placeholder="Write a message to support agent..."
-                className="flex-1 bg-[#FFFDF7] border border-amber-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#D97706]"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
               />
               <button
                 type="submit"
-                className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white flex items-center justify-center shadow-xs active:scale-95 flex-shrink-0"
+                className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white flex items-center justify-center shadow-xs active:scale-95 flex-shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -430,13 +427,13 @@ export const CustomerService: React.FC = () => {
         </div>
       )}
 
-      {/* Light-Mode Problem Resolution Drawer / Modal */}
+      {/* Problem Resolution Drawer */}
       {selectedTopic && activeTopicMeta && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl border border-amber-200 max-h-[88vh] flex flex-col overflow-hidden text-slate-900">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-[#FFFDF7]">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl border border-cyan-100 max-h-[88vh] flex flex-col overflow-hidden text-slate-900">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FDE68A] via-[#FBBF24] to-[#D97706] text-slate-900 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 text-white flex items-center justify-center">
                   {activeTopicMeta.icon}
                 </div>
                 <div>
@@ -455,11 +452,11 @@ export const CustomerService: React.FC = () => {
             <div className="p-5 overflow-y-auto space-y-4 text-xs">
               {selectedTopic === 'deposit_not_received' && (
                 <>
-                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-amber-900">How to resolve Deposit Not Received:</div>
-                    <p>1. Verify your bKash/Nagad SMS has the exact <strong>10-character TRX ID</strong> and that you sent money to the current active number on the Deposit screen.</p>
-                    <p>2. Standard deposit verification takes <strong>2 to 3 hours</strong> during peak hours.</p>
-                    <p>3. Submit your TRX ID below to prioritize manual verification with Finance Support.</p>
+                  <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-1.5 text-slate-700 leading-relaxed">
+                    <div className="font-black text-cyan-900">How to resolve Deposit Not Received:</div>
+                    <p>1. Verify your bKash/Nagad SMS has the exact <strong>10-character TRX ID</strong> or EWI PAY order confirmation.</p>
+                    <p>2. Standard deposit verification takes <strong>5 to 30 minutes</strong> during peak hours.</p>
+                    <p>3. Submit your TRX / Order ID below to prioritize verification with Finance Support.</p>
                   </div>
 
                   {myDeposits.length > 0 && (
@@ -472,7 +469,7 @@ export const CustomerService: React.FC = () => {
                             <div className="text-[10px] font-mono text-slate-500">TRX: {d.trxId}</div>
                           </div>
                           <span className={`font-black uppercase text-[10px] ${
-                            d.status === 'approved' ? 'text-emerald-600' : d.status === 'rejected' ? 'text-rose-600' : 'text-amber-600'
+                            d.status === 'approved' ? 'text-emerald-600' : d.status === 'rejected' ? 'text-rose-600' : 'text-cyan-700'
                           }`}>
                             {d.status}
                           </span>
@@ -487,18 +484,18 @@ export const CustomerService: React.FC = () => {
                       value={issueTrxId}
                       onChange={(e) => setIssueTrxId(e.target.value)}
                       placeholder="Enter TRX ID (e.g. 9G7H2K1L8M)"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase text-slate-800"
                     />
                     <input
                       type="number"
                       value={issueAmount}
                       onChange={(e) => setIssueAmount(e.target.value)}
                       placeholder="Deposit Amount (৳)"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800"
                     />
                     <button
                       onClick={() => handleSubmitUrgentTicket('Deposit Verification Request')}
-                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
+                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md"
                     >
                       Submit Deposit Priority Check
                     </button>
@@ -508,11 +505,11 @@ export const CustomerService: React.FC = () => {
 
               {selectedTopic === 'withdrawal_problem' && (
                 <>
-                  <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-blue-900">Why Withdrawal might be delayed or blocked:</div>
-                    <p>1. <strong>Turnover Requirement:</strong> Your remaining turnover must be ৳0. Current remaining: <strong className="text-[#B45309]">৳{remainingTurnover.toFixed(2)}</strong>.</p>
+                  <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 space-y-1.5 text-slate-700 leading-relaxed">
+                    <div className="font-black text-sky-900">Why Withdrawal might be delayed or blocked:</div>
+                    <p>1. <strong>Turnover Requirement:</strong> Your remaining turnover must be ৳0. Current remaining: <strong className="text-cyan-700">৳{remainingTurnover.toFixed(2)}</strong>.</p>
                     <p>2. <strong>Wallet Mismatch:</strong> Ensure your bound bKash/Nagad number is active for Cash-In / Personal.</p>
-                    <p>3. <strong>Processing Window:</strong> Payouts settle in 5–15 minutes (up to 2 hours during banking maintenance).</p>
+                    <p>3. <strong>Processing Window:</strong> Payouts settle in 5–15 minutes via EWI PAY.</p>
                   </div>
 
                   {myWithdraws.length > 0 && (
@@ -524,7 +521,7 @@ export const CustomerService: React.FC = () => {
                             <div className="font-bold text-slate-800">{w.method} · ৳{w.amount}</div>
                             <div className="text-[10px] font-mono text-slate-500">{w.number}</div>
                           </div>
-                          <span className="font-black uppercase text-[10px] text-amber-600">{w.status}</span>
+                          <span className="font-black uppercase text-[10px] text-cyan-700">{w.status}</span>
                         </div>
                       ))}
                     </div>
@@ -535,11 +532,11 @@ export const CustomerService: React.FC = () => {
                     value={issueNote}
                     onChange={(e) => setIssueNote(e.target.value)}
                     placeholder="Describe withdrawal issue or order number..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-800"
                   />
                   <button
                     onClick={() => handleSubmitUrgentTicket('Withdrawal Issue Escalation')}
-                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
+                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md"
                   >
                     Escalate Withdrawal to Live Support
                   </button>
@@ -549,7 +546,7 @@ export const CustomerService: React.FC = () => {
               {selectedTopic === 'change_login_password' && (
                 <>
                   {user.isLoggedIn && (
-                    <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                    <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 flex items-center justify-between gap-2">
                       <div>
                         <div className="font-black text-slate-900">Know your current password?</div>
                         <div className="text-[11px] text-slate-500">Update it instantly inside security settings</div>
@@ -560,16 +557,16 @@ export const CustomerService: React.FC = () => {
                           setActiveTab('change-login-password');
                           window.location.hash = '#/change-login-password';
                         }}
-                        className="px-3.5 py-2 rounded-full bg-[#D97706] text-white font-black text-[11px] whitespace-nowrap"
+                        className="px-3.5 py-2 rounded-full bg-cyan-600 text-white font-black text-[11px] whitespace-nowrap"
                       >
                         Change Now
                       </button>
                     </div>
                   )}
 
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-amber-200 space-y-3">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                     <div className="font-black text-slate-900 flex items-center gap-1.5">
-                      <Lock className="w-4 h-4 text-[#D97706]" />
+                      <Lock className="w-4 h-4 text-cyan-600" />
                       <span>Password Reset / Recovery</span>
                     </div>
                     <p className="text-xs font-semibold text-slate-600 leading-relaxed">
@@ -582,7 +579,7 @@ export const CustomerService: React.FC = () => {
                         setViewMode('chat');
                         handleSendChat('Hello, I need help resetting or recovering my account password.');
                       }}
-                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md active:scale-98"
+                      className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md active:scale-98"
                     >
                       Message Customer Care →
                     </button>
@@ -605,7 +602,7 @@ export const CustomerService: React.FC = () => {
                       setActiveTab('wallet');
                       window.location.hash = '#/wallet';
                     }}
-                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
+                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md"
                   >
                     Open E-Wallet Bind Manager →
                   </button>
@@ -625,7 +622,7 @@ export const CustomerService: React.FC = () => {
                     value={usdtDraft}
                     onChange={(e) => setUsdtDraft(e.target.value)}
                     placeholder="Paste your TRC20 USDT address (starts with T...)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-slate-800"
                   />
                   <button
                     onClick={() => {
@@ -636,7 +633,7 @@ export const CustomerService: React.FC = () => {
                       handleSubmitUrgentTicket(`Bind USDT TRC20 Address: ${usdtDraft.trim()}`);
                       setUsdtDraft('');
                     }}
-                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md"
+                    className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md"
                   >
                     Submit USDT Address Verification
                   </button>
@@ -645,8 +642,8 @@ export const CustomerService: React.FC = () => {
 
               {selectedTopic === 'agent_consultation' && (
                 <>
-                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-amber-900">EWI 777 Official Agent Consultation:</div>
+                  <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-1.5 text-slate-700 leading-relaxed">
+                    <div className="font-black text-cyan-900">EWI 777 Official Agent Consultation:</div>
                     <p>• Earn daily Agent Salary from <strong>৳300</strong> (3 recharge members) up to <strong>৳100,000</strong> (1,000 members).</p>
                     <p>• Ensure team total recharge is ≥10× salary, own deposit ≥25% of team recharge, and team bets exceed 3× team recharge.</p>
                     <p>• Multi-tier referral rebates (0.60% / 0.18% / 0.05%) settle automatically daily at 01:00 AM.</p>
@@ -658,7 +655,7 @@ export const CustomerService: React.FC = () => {
                         setActiveTab('salary');
                         window.location.hash = '#/salary';
                       }}
-                      className="py-3 rounded-full bg-slate-900 text-amber-300 font-black text-xs"
+                      className="py-3 rounded-full bg-slate-900 text-cyan-300 font-black text-xs"
                     >
                       Open Agent Salary →
                     </button>
@@ -668,7 +665,7 @@ export const CustomerService: React.FC = () => {
                         setViewMode('chat');
                         handleSendChat('I need EWI 777 Agent Consultation with a Teacher');
                       }}
-                      className="py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs"
+                      className="py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs"
                     >
                       Ask Teacher Live
                     </button>
@@ -724,8 +721,8 @@ export const CustomerService: React.FC = () => {
 
               {selectedTopic === 'apply_77_bonus' && (
                 <>
-                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-[#B45309]">How to Claim 200% Deposit Bonus:</div>
+                  <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-1.5 text-slate-700 leading-relaxed">
+                    <div className="font-black text-cyan-800">How to Claim 200% Deposit Bonus:</div>
                     <p>1. Your account must be registered and logged in.</p>
                     <p>2. Complete a minimum deposit of <strong>৳200</strong> or enter an active 200% Deposit Bonus Gift Code in <strong>/gifts</strong>.</p>
                     <p>3. Submit your application below if you need support assistance activating your bonus.</p>
@@ -743,7 +740,7 @@ export const CustomerService: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleSubmitUrgentTicket(`Apply 200% Bonus (UID: ${user.uid || 'N/A'})`)}
-                      className="py-3 rounded-full bg-gradient-to-r from-[#B45309] via-[#D97706] to-[#F59E0B] text-white font-black text-xs shadow-md flex items-center justify-center gap-1"
+                      className="py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md flex items-center justify-center gap-1"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Apply Now</span>
@@ -756,9 +753,9 @@ export const CustomerService: React.FC = () => {
                 <>
                   <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 space-y-1.5 text-slate-700 leading-relaxed">
                     <div className="font-black text-sky-900">EWI 777 Official Telegram Channel:</div>
-                    <p>• Receive daily WinGo signal alerts & Aviator streak highlights</p>
+                    <p>• Receive daily WinGo signal alerts &amp; Aviator streak highlights</p>
                     <p>• Get instant drops of limited-claim Gift Codes every day</p>
-                    <p>• Stay notified of EWI 777 VIP & Agent salary promotions</p>
+                    <p>• Stay notified of EWI 777 VIP &amp; Agent salary promotions</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button

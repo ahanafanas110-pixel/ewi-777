@@ -14,7 +14,7 @@ export const LanguagePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
       <Header
         title={getTranslation(language, 'language')}
         showBack
@@ -25,9 +25,9 @@ export const LanguagePage: React.FC = () => {
       />
 
       <div className="p-4 space-y-4">
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-amber-200 space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-amber-100">
-            <div className="w-11 h-11 rounded-2xl bg-amber-50 text-[#B45309] flex items-center justify-center">
+        <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-200 space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+            <div className="w-11 h-11 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center">
               <Globe className="w-5 h-5" />
             </div>
             <div>
@@ -41,8 +41,8 @@ export const LanguagePage: React.FC = () => {
               onClick={() => handleSelect('en')}
               className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
                 language === 'en'
-                  ? 'border-[#D97706] bg-amber-50/70 text-[#B45309] shadow-xs'
-                  : 'border-slate-100 hover:bg-slate-50 text-slate-700'
+                  ? 'border-cyan-600 bg-cyan-50/70 text-cyan-800 shadow-xs'
+                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
               }`}
             >
               <div className="flex items-center gap-3.5">
@@ -53,7 +53,7 @@ export const LanguagePage: React.FC = () => {
                 </div>
               </div>
               {language === 'en' && (
-                <span className="w-6 h-6 rounded-full bg-[#D97706] text-white flex items-center justify-center">
+                <span className="w-6 h-6 rounded-full bg-cyan-600 text-white flex items-center justify-center">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </span>
               )}
@@ -63,8 +63,8 @@ export const LanguagePage: React.FC = () => {
               onClick={() => handleSelect('bn')}
               className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
                 language === 'bn'
-                  ? 'border-[#D97706] bg-amber-50/70 text-[#B45309] shadow-xs'
-                  : 'border-slate-100 hover:bg-slate-50 text-slate-700'
+                  ? 'border-cyan-600 bg-cyan-50/70 text-cyan-800 shadow-xs'
+                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
               }`}
             >
               <div className="flex items-center gap-3.5">
@@ -75,7 +75,7 @@ export const LanguagePage: React.FC = () => {
                 </div>
               </div>
               {language === 'bn' && (
-                <span className="w-6 h-6 rounded-full bg-[#D97706] text-white flex items-center justify-center">
+                <span className="w-6 h-6 rounded-full bg-cyan-600 text-white flex items-center justify-center">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </span>
               )}

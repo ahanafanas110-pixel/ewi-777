@@ -122,7 +122,7 @@ export default async function handler(req: IncomingMessage & { method?: string; 
         site: cfg.siteSlug,
         user_id: cleanUserId,
         method: providerSlug || methodStr,
-        channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
+        channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI PAY'),
         return_url: resolvedReturnUrl
       })
     });
@@ -180,13 +180,14 @@ export default async function handler(req: IncomingMessage & { method?: string; 
       userPhone: String(senderNumber || cleanUserId),
       method: methodStr,
       provider: providerSlug || methodLower,
-      channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI-Pay Gateway'),
+      channel: channel || (isUsdt ? 'Binance / USDT TRC20' : 'EWI PAY'),
       amount: numAmt,
       ...(isUsdt && numUsd > 0 ? { usdAmount: numUsd } : {}),
       senderNumber: String(senderNumber || cleanUserId),
       trxId: String(upstreamJson?.trx_id || upstreamJson?.trxId || uniqueOrderId).toUpperCase(),
       status: 'pending',
-      time: new Date().toLocaleString()
+      time: new Date().toLocaleString(),
+      createdAtMs: Date.now()
     },
     gateway: upstreamJson
   });
