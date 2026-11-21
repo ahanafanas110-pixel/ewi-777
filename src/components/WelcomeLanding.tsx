@@ -44,16 +44,16 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
       </header>
 
       {/* Main Content */}
-      <main className="px-4 flex-1 flex flex-col items-center justify-center py-4 space-y-5">
-        <div className="w-full rounded-3xl overflow-hidden bg-white border border-cyan-200 shadow-[0_14px_36px_rgba(8,145,178,0.14)]">
+      <main className="px-4 flex-1 flex flex-col items-center justify-center py-2 space-y-4 max-w-md mx-auto w-full">
+        <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[768/1030] mx-auto overflow-hidden select-none pointer-events-none">
           <img
             src={welcomeLightImg}
             alt="EWI 777 Official"
-            className="w-full h-64 sm:h-72 object-cover block"
+            className="w-full h-full object-cover object-top mix-blend-multiply [mask-image:radial-gradient(ellipse_92%_90%_at_50%_46%,black_64%,transparent_100%)] [-webkit-mask-image:radial-gradient(ellipse_92%_90%_at_50%_46%,black_64%,transparent_100%)] block"
           />
         </div>
 
-        <div className="text-center space-y-1.5 px-2">
+        <div className="text-center space-y-1.5 px-2 -mt-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-[11px] font-black text-cyan-800 uppercase tracking-wider">
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" />
             <span>EWI 777 Official Portal</span>
