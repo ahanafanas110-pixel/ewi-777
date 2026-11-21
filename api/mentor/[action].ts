@@ -99,17 +99,27 @@ export default async function handler(req: IncomingMessage & { method?: string; 
   const mentors: any[] = Array.isArray(settingsDoc.mentors) ? settingsDoc.mentors : [];
 
   if (actionSegment === 'login') {
-    const username = String(body?.username || '').trim();
+    const username = String(body?.username || '').trim().replace(/^@+/, '');
     const password = String(body?.password || '');
     if (!username || !password) {
-      return sendJson(res, 400, { success: false, message: 'Username and password are required.' });
+      return sendJson(res, 400, { success: false, ip: clientIp, message: 'Username and password are required.' });
+    }
+
+    if (mentors.length === 0) {
+      return sendJson(res, 400, {
+        success: false,
+        ip: clientIp,
+        message: 'No Mentor accounts created yet. Ask Admin to create your Mentor account in Admin Panel → Mentors first.'
+      });
     }
 
     const matched = mentors.find(
-      (m) => String(m.username || '').trim().toLowerCase() === username.toLowerCase() && m.active !== false
+      (m) =>
+        String(m.username || '').trim().replace(/^@+/, '').toLowerCase() === username.toLowerCase() &&
+        m.active !== false
     );
 
-    if (!matched || matched.password !== password) {
+    if (!matched || (matched.password !== password && matched.password !== password.trim())) {
       await blockMentorIpPermanently(
         settingsDoc,
         clientIp,
@@ -120,7 +130,7 @@ export default async function handler(req: IncomingMessage & { method?: string; 
         success: false,
         mentorBlocked: true,
         ip: clientIp,
-        message: 'Invalid Mentor credentials! Your IP has been permanently blocked.'
+        message: 'Invalid Mentor credentials! Your IP has been permanently blocked. Ask Admin to unblock it.'
       });
     }
 
@@ -136,7 +146,7 @@ export default async function handler(req: IncomingMessage & { method?: string; 
         success: false,
         mentorBlocked: true,
         ip: clientIp,
-        message: `IP mismatch (${clientIp} ≠ authorized IP)! Your IP has been permanently blocked.`
+        message: `IP mismatch (${clientIp} ≠ authorized ${allowedIp || 'unset'})! Your IP has been permanently blocked.`
       });
     }
 

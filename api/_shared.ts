@@ -123,7 +123,7 @@ export function extractClientIpNode(req: IncomingMessage): string {
   } else if (req.socket?.remoteAddress) {
     ip = req.socket.remoteAddress;
   }
-  return ip.replace(/^::ffff:/, '') || 'Unknown';
+  return normalizeIpValue(ip) || 'Unknown';
 }
 
 export function parseDeviceNameNode(userAgent?: string): string {
@@ -168,7 +168,9 @@ export function parseDeviceNameNode(userAgent?: string): string {
 }
 
 export function normalizeIpValue(ip: string): string {
-  return String(ip || '').trim().replace(/^::ffff:/, '');
+  const cleaned = String(ip || '').trim().replace(/^::ffff:/i, '');
+  if (cleaned === '::1' || cleaned === '0:0:0:0:0:0:0:1') return '127.0.0.1';
+  return cleaned;
 }
 
 export function sha256HexNode(val: string): string {

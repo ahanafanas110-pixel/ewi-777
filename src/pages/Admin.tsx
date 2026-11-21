@@ -155,7 +155,8 @@ export const Admin: React.FC = () => {
     heartbeatAdminAccess,
     kickAdminSession,
     banIpGlobally,
-    unbanIpGlobally
+    unbanIpGlobally,
+    visitorIpInfo
   } = useApp();
 
   // Admin Login Form (Direct 1-Step Verification + Single-Session Lock)
@@ -419,6 +420,8 @@ export const Admin: React.FC = () => {
   const [mAllowedIp, setMAllowedIp] = useState('');
   const [mBudget, setMBudget] = useState('5000');
   const [mentorBudgetEdits, setMentorBudgetEdits] = useState<Record<string, string>>({});
+  const [mentorIpEdits, setMentorIpEdits] = useState<Record<string, string>>({});
+  const [mentorPassEdits, setMentorPassEdits] = useState<Record<string, string>>({});
 
   // 6 Payment Gateways Editor State
   const buildDefaultGateways = (list?: PaymentGatewaySlot[]): PaymentGatewaySlot[] => {
@@ -5647,13 +5650,14 @@ export const Admin: React.FC = () => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  const cleanUser = mUsername.trim().toLowerCase();
-                  if (!mName.trim() || !cleanUser || !mPassword.trim() || !mAllowedIp.trim()) {
+                  const cleanUser = mUsername.trim().replace(/^@+/, '').toLowerCase();
+                  const cleanIp = mAllowedIp.trim().replace(/^::ffff:/i, '').replace(/^::1$/, '127.0.0.1');
+                  if (!mName.trim() || !cleanUser || !mPassword.trim() || !cleanIp) {
                     showToast('Fill Mentor Name, Username, Password & Authorized IP');
                     return;
                   }
                   const curMentors = adminSettings.mentors || [];
-                  if (curMentors.some((m) => m.username.toLowerCase() === cleanUser)) {
+                  if (curMentors.some((m) => m.username.replace(/^@+/, '').toLowerCase() === cleanUser)) {
                     showToast('Mentor username already exists!');
                     return;
                   }
@@ -5662,13 +5666,16 @@ export const Admin: React.FC = () => {
                     name: mName.trim(),
                     username: cleanUser,
                     password: mPassword.trim(),
-                    allowedIp: mAllowedIp.trim(),
+                    allowedIp: cleanIp,
                     giftCodeBudget: Math.max(0, Number(mBudget) || 0),
                     giftCodeSpent: 0,
                     active: true,
                     createdAt: new Date().toLocaleString('en-GB')
                   };
-                  updateAdminSettings({ mentors: [created, ...curMentors] });
+                  const unblockedList = (adminSettings.mentorBlockedIps || []).filter(
+                    (b) => b.ip.trim().replace(/^::ffff:/i, '') !== cleanIp
+                  );
+                  updateAdminSettings({ mentors: [created, ...curMentors], mentorBlockedIps: unblockedList });
                   setMName('');
                   setMUsername('');
                   setMPassword('');
@@ -5686,6 +5693,38 @@ export const Admin: React.FC = () => {
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       Mentor Login URL: <span className="font-mono font-bold text-[#0891B2]">/#/mentor-ewi777-panel</span> (No self-signup allowed)
                     </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('mentor');
+                        window.location.hash = '#/mentor-ewi777-panel';
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#0891B2] text-white text-[11px] font-black"
+                    >
+                      Open Mentor Portal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/#/mentor-ewi777-panel`;
+                        navigator.clipboard?.writeText(url).catch(() => {});
+                        showToast('Mentor Portal link copied!');
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-50 border border-cyan-200 text-[#0891B2] text-[11px] font-black"
+                    >
+                      Copy Mentor Link
+                    </button>
+                    {visitorIpInfo?.ip && visitorIpInfo.ip !== 'Unknown' && (
+                      <button
+                        type="button"
+                        onClick={() => setMAllowedIp(visitorIpInfo.ip)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold"
+                      >
+                        Use My IP ({visitorIpInfo.ip})
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -5741,6 +5780,53 @@ export const Admin: React.FC = () => {
                 </button>
               </form>
 
+              {/* Mentor Blocked IPs Quick Unblock Panel */}
+              {(adminSettings.mentorBlockedIps || []).length > 0 && (
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] font-black text-rose-700 uppercase tracking-wider">
+                      Mentor Blocked IPs ({(adminSettings.mentorBlockedIps || []).length}) — Unblock Required Before Login
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateAdminSettings({ mentorBlockedIps: [] });
+                        showToast('All Mentor blocked IPs cleared!');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-black"
+                    >
+                      Unblock All
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(adminSettings.mentorBlockedIps || []).map((b) => (
+                      <div
+                        key={b.ip}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-rose-200 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-mono font-bold text-slate-900 truncate">{b.ip}</div>
+                          <div className="text-[10px] text-slate-500 truncate">{b.reason}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateAdminSettings({
+                              mentorBlockedIps: (adminSettings.mentorBlockedIps || []).filter((x) => x.ip !== b.ip)
+                            });
+                            showToast(`Unblocked Mentor IP ${b.ip}`);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-black flex-shrink-0 inline-flex items-center gap-1"
+                        >
+                          <Unlock className="w-3 h-3" />
+                          <span>Unblock</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Mentors Table */}
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 font-black text-xs text-slate-700 uppercase">
@@ -5750,8 +5836,8 @@ export const Admin: React.FC = () => {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-3">MENTOR</th>
-                        <th className="px-4 py-3">ALLOWED IP</th>
+                        <th className="px-4 py-3">MENTOR / PASSWORD</th>
+                        <th className="px-4 py-3">ALLOWED IP (100% LOCK)</th>
                         <th className="px-4 py-3">GIFT BUDGET / SPENT</th>
                         <th className="px-4 py-3">STATUS</th>
                         <th className="px-4 py-3 text-right">CONTROLS</th>
@@ -5766,14 +5852,88 @@ export const Admin: React.FC = () => {
                         </tr>
                       ) : (
                         (adminSettings.mentors || []).map((m) => (
-                          <tr key={m.id} className="hover:bg-slate-50">
+                          <tr key={m.id} className="hover:bg-slate-50 align-top">
                             <td className="px-4 py-3">
                               <div className="font-bold text-slate-900">{m.name}</div>
-                              <div className="text-[10px] font-mono text-slate-500">
-                                @{m.username} • Pass: {m.password}
+                              <div className="text-[10px] font-mono text-slate-500 mb-1.5">
+                                Username: <span className="font-bold text-slate-700">{m.username}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={mentorPassEdits[m.id] ?? m.password}
+                                  onChange={(e) =>
+                                    setMentorPassEdits((p) => ({ ...p, [m.id]: e.target.value }))
+                                  }
+                                  className="w-28 px-2 py-1 rounded bg-slate-50 border border-slate-200 font-mono text-[11px]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextPass = String(mentorPassEdits[m.id] ?? m.password).trim();
+                                    if (nextPass.length < 4) {
+                                      showToast('Password must be at least 4 characters');
+                                      return;
+                                    }
+                                    updateAdminSettings({
+                                      mentors: (adminSettings.mentors || []).map((x) =>
+                                        x.id === m.id ? { ...x, password: nextPass } : x
+                                      )
+                                    });
+                                    showToast(`Updated password for ${m.name}`);
+                                  }}
+                                  className="px-2 py-1 rounded bg-slate-700 text-white text-[10px] font-black"
+                                >
+                                  Save Pass
+                                </button>
                               </div>
                             </td>
-                            <td className="px-4 py-3 font-mono font-bold text-[#0891B2]">{m.allowedIp}</td>
+                            <td className="px-4 py-3">
+                              <div className="font-mono font-bold text-[#0891B2] mb-1.5">{m.allowedIp}</div>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={mentorIpEdits[m.id] ?? m.allowedIp}
+                                  onChange={(e) =>
+                                    setMentorIpEdits((p) => ({ ...p, [m.id]: e.target.value }))
+                                  }
+                                  className="w-32 px-2 py-1 rounded bg-slate-50 border border-slate-200 font-mono text-[11px]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextIp = String(mentorIpEdits[m.id] ?? m.allowedIp)
+                                      .trim()
+                                      .replace(/^::ffff:/i, '')
+                                      .replace(/^::1$/, '127.0.0.1');
+                                    if (!nextIp) return;
+                                    updateAdminSettings({
+                                      mentors: (adminSettings.mentors || []).map((x) =>
+                                        x.id === m.id ? { ...x, allowedIp: nextIp } : x
+                                      ),
+                                      mentorBlockedIps: (adminSettings.mentorBlockedIps || []).filter(
+                                        (b) => b.ip.trim().replace(/^::ffff:/i, '') !== nextIp
+                                      )
+                                    });
+                                    showToast(`Updated Allowed IP for ${m.name} -> ${nextIp}`);
+                                  }}
+                                  className="px-2 py-1 rounded bg-cyan-600 text-white text-[10px] font-black"
+                                >
+                                  Save IP
+                                </button>
+                                {visitorIpInfo?.ip && visitorIpInfo.ip !== 'Unknown' && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setMentorIpEdits((p) => ({ ...p, [m.id]: visitorIpInfo.ip }))
+                                    }
+                                    className="px-2 py-1 rounded bg-cyan-50 border border-cyan-200 text-[#0891B2] text-[10px] font-bold"
+                                  >
+                                    My IP
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-3">
                               <div className="font-mono font-bold text-slate-900">
                                 ৳{Number(m.giftCodeSpent || 0).toFixed(0)} / ৳{Number(m.giftCodeBudget || 0).toFixed(0)}

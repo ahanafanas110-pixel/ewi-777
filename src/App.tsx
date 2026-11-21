@@ -73,7 +73,14 @@ export const isAuthorizedMentorRoute = (): boolean => {
   if (typeof window === 'undefined') return false;
   const p = window.location.pathname.replace(/\/+$/, '').toLowerCase();
   const h = window.location.hash.replace(/^#+/, '').split('?')[0].replace(/\/+$/, '').toLowerCase();
-  return p === MENTOR_ACCESS_ROUTE || h === MENTOR_ACCESS_ROUTE || h === 'mentor-ewi777-panel';
+  return (
+    p === MENTOR_ACCESS_ROUTE ||
+    p.startsWith(`${MENTOR_ACCESS_ROUTE}/`) ||
+    h === MENTOR_ACCESS_ROUTE ||
+    h === 'mentor-ewi777-panel' ||
+    h.startsWith(`${MENTOR_ACCESS_ROUTE}/`) ||
+    h.startsWith('mentor-ewi777-panel/')
+  );
 };
 
 const MainApp: React.FC = () => {
@@ -159,6 +166,9 @@ const MainApp: React.FC = () => {
       }
       if (isAuthorizedAdminRoute() && window.location.hash !== `#${ADMIN_ACCESS_ROUTE}`) {
         window.location.hash = `#${ADMIN_ACCESS_ROUTE}`;
+      }
+      if (isAuthorizedMentorRoute() && window.location.hash !== `#${MENTOR_ACCESS_ROUTE}`) {
+        window.location.hash = `#${MENTOR_ACCESS_ROUTE}`;
       }
     };
     validateAdminRoute();
@@ -327,7 +337,7 @@ const MainApp: React.FC = () => {
     );
   }
 
-  if (activeTab === 'mentor' && isAuthorizedMentorRoute()) {
+  if ((activeTab === 'mentor' || isAuthorizedMentorRoute()) && isAuthorizedMentorRoute()) {
     return (
       <div className="min-h-screen w-full bg-[#F8FAFC] text-slate-900 selection:bg-cyan-500 selection:text-white">
         {isNavigating ? <PageSkeleton /> : <MentorPanel />}

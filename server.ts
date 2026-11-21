@@ -13,8 +13,11 @@ import { BINARY_MARKETS } from './src/constants/markets';
 import { getRequestOrigin } from './api/ewi-pay/_config';
 import { processEwiPayWebhookPayload } from './api/ewi-pay/_firestoreSync';
 import {
+  getFirestoreDoc,
+  listFirestoreCollection,
   normalizeIpValue,
   parseDeviceNameNode,
+  patchFirestoreDoc,
   SESSION_TTL_MS,
   signMentorToken
 } from './api/_shared';
@@ -55,7 +58,7 @@ function extractClientIp(req: express.Request): string {
   } else if (req.socket?.remoteAddress) {
     ip = req.socket.remoteAddress;
   }
-  return ip.replace(/^::ffff:/, '') || 'Unknown';
+  return normalizeIpValue(ip) || 'Unknown';
 }
 
 interface IpIntelResult {
@@ -931,14 +934,32 @@ async function startServer() {
     });
   });
 
-  app.get('/api/security/status', (req, res) => {
+  const getSyncedMentorSettingsDoc = async (): Promise<Record<string, any>> => {
+    const fbDoc = await getFirestoreDoc('appConfig', 'settings').catch(() => null);
+    if (fbDoc && typeof fbDoc === 'object') {
+      const fbTs = Number(fbDoc.updatedAt || 0);
+      const localTs = Number(store.settings?.updatedAt || 0);
+      const preferRemote = fbTs >= localTs;
+      const merged = preferRemote
+        ? { ...store.settings, ...fbDoc }
+        : { ...fbDoc, ...store.settings };
+      if (preferRemote) {
+        store.settings = { ...store.settings, ...merged };
+      }
+      return merged;
+    }
+    return store.settings || {};
+  };
+
+  app.get('/api/security/status', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
     const deviceName = parseDeviceNameNode(String(req.headers['user-agent'] || ''));
-    const banned: string[] = Array.isArray(store.settings?.bannedIps)
-      ? store.settings.bannedIps.map((x: any) => normalizeIpValue(String(x)))
+    const settingsDoc = await getSyncedMentorSettingsDoc();
+    const banned: string[] = Array.isArray(settingsDoc?.bannedIps)
+      ? settingsDoc.bannedIps.map((x: any) => normalizeIpValue(String(x)))
       : [];
-    const mentorBlocked = Array.isArray(store.settings?.mentorBlockedIps) ? store.settings.mentorBlockedIps : [];
+    const mentorBlocked = Array.isArray(settingsDoc?.mentorBlockedIps) ? settingsDoc.mentorBlockedIps : [];
     res.json({
       success: true,
       ip: clientIp,
@@ -1291,6 +1312,7 @@ async function startServer() {
     const nextSettings = {
       ...store.settings,
       ...incoming,
+      updatedAt: Number(incoming.updatedAt || Date.now()),
       popupCustomized: touchesPopup ? true : Boolean(store.settings.popupCustomized),
       bannersCustomized:
         typeof incoming.bannersCustomized === 'boolean'
@@ -1723,11 +1745,16 @@ async function startServer() {
     res.status(400).json({ success: false, message: 'Unsupported session action' });
   });
 
-  // 5D. Mentor Governance & Strict 7-Feature API (Zero money amounts/totals exposed)
-  const blockMentorIpExpress = (clientIp: string, reason: string, attemptedUsername?: string) => {
+  // 5D. Mentor Governance & Strict 7-Feature API (Zero money amounts/totals exposed, synced with Firestore)
+  const blockMentorIpExpress = async (
+    settingsDoc: Record<string, any>,
+    clientIp: string,
+    reason: string,
+    attemptedUsername?: string
+  ) => {
     const nowMs = Date.now();
-    const prevBlocked = Array.isArray(store.settings.mentorBlockedIps) ? store.settings.mentorBlockedIps : [];
-    store.settings.mentorBlockedIps = [
+    const prevBlocked = Array.isArray(settingsDoc.mentorBlockedIps) ? settingsDoc.mentorBlockedIps : [];
+    const nextBlocked = [
       {
         ip: clientIp,
         reason,
@@ -1737,7 +1764,7 @@ async function startServer() {
       },
       ...prevBlocked.filter((x: any) => normalizeIpValue(String(x?.ip || '')) !== clientIp)
     ].slice(0, 200);
-    store.settings.mentorLogs = [
+    const nextLogs = [
       {
         id: `mlog_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
         mentorId: 'security',
@@ -1749,41 +1776,69 @@ async function startServer() {
         time: new Date(nowMs).toLocaleString('en-GB'),
         timestamp: nowMs
       },
-      ...(Array.isArray(store.settings.mentorLogs) ? store.settings.mentorLogs : [])
+      ...(Array.isArray(settingsDoc.mentorLogs) ? settingsDoc.mentorLogs : [])
     ].slice(0, 300);
+    store.settings.mentorBlockedIps = nextBlocked;
+    store.settings.mentorLogs = nextLogs;
     store.settings.updatedAt = nowMs;
     saveStore(store);
+    await patchFirestoreDoc('appConfig', 'settings', {
+      ...settingsDoc,
+      mentorBlockedIps: nextBlocked,
+      mentorLogs: nextLogs,
+      updatedAt: nowMs
+    }).catch(() => false);
   };
 
-  app.post('/api/mentor/login', (req, res) => {
+  app.post('/api/mentor/login', async (req, res) => {
     const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
-    const blockedList: any[] = Array.isArray(store.settings.mentorBlockedIps) ? store.settings.mentorBlockedIps : [];
+    const settingsDoc = await getSyncedMentorSettingsDoc();
+    const bannedIps: string[] = Array.isArray(settingsDoc.bannedIps)
+      ? settingsDoc.bannedIps.map((x: any) => normalizeIpValue(String(x)))
+      : [];
+    if (clientIp !== 'Unknown' && bannedIps.includes(clientIp)) {
+      return res.status(403).json({ success: false, bannedIp: true, ip: clientIp, message: 'Your IP address is globally banned.' });
+    }
+    const blockedList: any[] = Array.isArray(settingsDoc.mentorBlockedIps) ? settingsDoc.mentorBlockedIps : [];
     if (blockedList.some((b) => normalizeIpValue(String(b?.ip || '')) === clientIp)) {
       return res.status(403).json({
         success: false,
         mentorBlocked: true,
         ip: clientIp,
-        message: 'This IP has been permanently blocked from Mentor access.'
+        message: 'This IP has been permanently blocked from Mentor access. Contact Admin to unblock.'
       });
     }
-    const username = String(req.body?.username || '').trim();
+    const username = String(req.body?.username || '').trim().replace(/^@+/, '');
     const password = String(req.body?.password || '');
-    const mentors: any[] = Array.isArray(store.settings.mentors) ? store.settings.mentors : [];
+    if (!username || !password) {
+      return res.status(400).json({ success: false, ip: clientIp, message: 'Username and password are required.' });
+    }
+    const mentors: any[] = Array.isArray(settingsDoc.mentors) ? settingsDoc.mentors : [];
+    if (mentors.length === 0) {
+      return res.status(400).json({
+        success: false,
+        ip: clientIp,
+        message: 'No Mentor accounts created yet. Ask Admin to create your Mentor account in Admin Panel → Mentors first.'
+      });
+    }
     const matched = mentors.find(
-      (m) => String(m.username || '').trim().toLowerCase() === username.toLowerCase() && m.active !== false
+      (m) =>
+        String(m.username || '').trim().replace(/^@+/, '').toLowerCase() === username.toLowerCase() &&
+        m.active !== false
     );
-    if (!matched || matched.password !== password) {
-      blockMentorIpExpress(clientIp, 'Invalid Mentor username or password attempt', username);
+    if (!matched || (matched.password !== password && matched.password !== password.trim())) {
+      await blockMentorIpExpress(settingsDoc, clientIp, 'Invalid Mentor username or password attempt', username);
       return res.status(403).json({
         success: false,
         mentorBlocked: true,
         ip: clientIp,
-        message: 'Invalid Mentor credentials! Your IP has been permanently blocked.'
+        message: 'Invalid Mentor credentials! Your IP has been permanently blocked. Ask Admin to unblock it.'
       });
     }
     const allowedIp = normalizeIpValue(String(matched.allowedIp || ''));
     if (!allowedIp || allowedIp !== clientIp) {
-      blockMentorIpExpress(
+      await blockMentorIpExpress(
+        settingsDoc,
         clientIp,
         `IP mismatch for Mentor "${matched.username}" (expected ${allowedIp || 'unset'}, got ${clientIp})`,
         username
@@ -1792,14 +1847,14 @@ async function startServer() {
         success: false,
         mentorBlocked: true,
         ip: clientIp,
-        message: `IP mismatch (${clientIp} ≠ authorized IP)! Your IP has been permanently blocked.`
+        message: `IP mismatch (${clientIp} ≠ authorized ${allowedIp || 'unset'})! Your IP has been permanently blocked.`
       });
     }
     const nowMs = Date.now();
-    store.settings.mentors = mentors.map((m) =>
+    const nextMentors = mentors.map((m) =>
       m.id === matched.id ? { ...m, lastLoginAt: new Date(nowMs).toLocaleString('en-GB'), lastLoginIp: clientIp } : m
     );
-    store.settings.mentorLogs = [
+    const nextLogs = [
       {
         id: `mlog_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
         mentorId: matched.id,
@@ -1811,10 +1866,18 @@ async function startServer() {
         time: new Date(nowMs).toLocaleString('en-GB'),
         timestamp: nowMs
       },
-      ...(Array.isArray(store.settings.mentorLogs) ? store.settings.mentorLogs : [])
+      ...(Array.isArray(settingsDoc.mentorLogs) ? settingsDoc.mentorLogs : [])
     ].slice(0, 300);
+    store.settings.mentors = nextMentors;
+    store.settings.mentorLogs = nextLogs;
     store.settings.updatedAt = nowMs;
     saveStore(store);
+    await patchFirestoreDoc('appConfig', 'settings', {
+      ...settingsDoc,
+      mentors: nextMentors,
+      mentorLogs: nextLogs,
+      updatedAt: nowMs
+    }).catch(() => false);
     res.json({
       success: true,
       token: signMentorToken(matched.id, clientIp),
@@ -1830,20 +1893,63 @@ async function startServer() {
     });
   });
 
-  app.post('/api/mentor/data', (req, res) => {
+  app.post('/api/mentor/data', async (req, res) => {
     const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
     const { mentorId, token } = req.body || {};
-    const mentors: any[] = Array.isArray(store.settings.mentors) ? store.settings.mentors : [];
+    const settingsDoc = await getSyncedMentorSettingsDoc();
+    const mentors: any[] = Array.isArray(settingsDoc.mentors) ? settingsDoc.mentors : [];
     const mentor = mentors.find((m) => m.id === mentorId && m.active !== false);
     if (!mentor || normalizeIpValue(String(mentor.allowedIp || '')) !== clientIp || signMentorToken(mentor.id, clientIp) !== token) {
       return res.status(401).json({ success: false, message: 'Mentor session invalid or IP changed.' });
     }
+    const [fbUsers, fbWithdraws, fbDeposits, fbMsgs] = await Promise.all([
+      listFirestoreCollection('users', 400).catch(() => []),
+      listFirestoreCollection('withdraws', 250).catch(() => []),
+      listFirestoreCollection('deposits', 300).catch(() => []),
+      listFirestoreCollection('supportMessages', 400).catch(() => [])
+    ]);
+    const userMap = new Map<string, any>();
+    (store.users || []).forEach((u: any) => {
+      if (u?.id) userMap.set(String(u.id), u);
+    });
+    fbUsers.forEach(({ id, data }) => {
+      userMap.set(String(data.id || id), { ...userMap.get(String(data.id || id)), ...data, id: data.id || id });
+    });
+    const mergedUsers = Array.from(userMap.values());
+
+    const wdMap = new Map<string, any>();
+    (store.withdraws || []).forEach((w: any) => {
+      if (w?.id) wdMap.set(String(w.id), w);
+    });
+    fbWithdraws.forEach(({ id, data }) => {
+      wdMap.set(String(data.id || id), { ...wdMap.get(String(data.id || id)), ...data, id: data.id || id });
+    });
+    const mergedWithdraws = Array.from(wdMap.values());
+
+    const depMap = new Map<string, any>();
+    (store.deposits || []).forEach((d: any) => {
+      if (d?.id) depMap.set(String(d.id), d);
+    });
+    fbDeposits.forEach(({ id, data }) => {
+      depMap.set(String(data.id || id), { ...depMap.get(String(data.id || id)), ...data, id: data.id || id });
+    });
+    const mergedDeposits = Array.from(depMap.values());
+
+    const msgMap = new Map<string, any>();
+    (store.supportMessages || []).forEach((m: any) => {
+      if (m?.id) msgMap.set(String(m.id), m);
+    });
+    fbMsgs.forEach(({ id, data }) => {
+      msgMap.set(String(data.id || id), { ...msgMap.get(String(data.id || id)), ...data, id: data.id || id });
+    });
+    const mergedMsgs = Array.from(msgMap.values()).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)).slice(-400);
+
     const ipCounts = new Map<string, number>();
-    (store.users || []).forEach((u) => {
+    mergedUsers.forEach((u) => {
       const ip = normalizeIpValue(String(u.lastIp || u.registeredIp || ''));
       if (ip && ip !== 'Unknown') ipCounts.set(ip, (ipCounts.get(ip) || 0) + 1);
     });
-    const sanitizedUsers = (store.users || []).map((u) => {
+    const sanitizedUsers = mergedUsers.map((u) => {
       const primaryIp = normalizeIpValue(String(u.lastIp || u.registeredIp || 'Unknown'));
       return {
         id: u.id,
@@ -1866,33 +1972,35 @@ async function startServer() {
         isBanned: Boolean(u.isBanned)
       };
     });
-    const sanitizedWithdraws = (store.withdraws || []).map((w) => ({
-      id: w.id,
-      orderId: w.orderId || w.id,
-      userId: w.userId,
-      userName: w.userName,
-      userPhone: w.userPhone,
-      method: w.method,
-      number: w.number,
-      status: w.status,
-      time: w.time,
-      createdAtMs: w.createdAtMs || 0,
-      adminNote: w.adminNote || '',
-      rejectionReason: w.rejectionReason || '',
-      userMessage: w.userMessage || ''
-    }));
+    const sanitizedWithdraws = mergedWithdraws
+      .map((w) => ({
+        id: w.id,
+        orderId: w.orderId || w.id,
+        userId: w.userId,
+        userName: w.userName,
+        userPhone: w.userPhone,
+        method: w.method,
+        number: w.number,
+        status: w.status,
+        time: w.time,
+        createdAtMs: w.createdAtMs || 0,
+        adminNote: w.adminNote || '',
+        rejectionReason: w.rejectionReason || '',
+        userMessage: w.userMessage || ''
+      }))
+      .sort((a, b) => b.createdAtMs - a.createdAtMs);
     const todayYmd = new Date().toISOString().slice(0, 10);
-    const todayRegistrationsCount = (store.users || []).filter((u) => String(u.createdAt || '').startsWith(todayYmd)).length;
+    const todayRegistrationsCount = mergedUsers.filter((u) => String(u.createdAt || '').startsWith(todayYmd)).length;
     const binarySet = new Set<string>();
     const mfsSet = new Set<string>();
-    (store.deposits || []).forEach((d) => {
+    mergedDeposits.forEach((d) => {
       if (d.status !== 'approved') return;
       const key = String(d.userId || d.userPhone || d.id);
       const m = String(d.method || '').toLowerCase();
       if (m === 'usdt' || m.includes('binary')) binarySet.add(key);
       else if (m === 'bkash' || m === 'nagad' || m === 'rocket') mfsSet.add(key);
     });
-    const myGiftCodes = (Array.isArray(store.settings.activeGiftCodes) ? store.settings.activeGiftCodes : []).filter(
+    const myGiftCodes = (Array.isArray(settingsDoc.activeGiftCodes) ? settingsDoc.activeGiftCodes : []).filter(
       (g: any) => g.createdByMentorId === mentor.id
     );
     res.json({
@@ -1913,23 +2021,24 @@ async function startServer() {
       },
       users: sanitizedUsers,
       withdraws: sanitizedWithdraws,
-      supportMessages: (store.supportMessages || []).slice(-400),
+      supportMessages: mergedMsgs,
       giftCodes: myGiftCodes
     });
   });
 
-  app.post('/api/mentor/action', (req, res) => {
+  app.post('/api/mentor/action', async (req, res) => {
     const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
     const { mentorId, token, op } = req.body || {};
-    const mentors: any[] = Array.isArray(store.settings.mentors) ? store.settings.mentors : [];
+    const settingsDoc = await getSyncedMentorSettingsDoc();
+    const mentors: any[] = Array.isArray(settingsDoc.mentors) ? settingsDoc.mentors : [];
     const mentor = mentors.find((m) => m.id === mentorId && m.active !== false);
     if (!mentor || normalizeIpValue(String(mentor.allowedIp || '')) !== clientIp || signMentorToken(mentor.id, clientIp) !== token) {
       return res.status(401).json({ success: false, message: 'Mentor session invalid or IP changed.' });
     }
     const nowMs = Date.now();
     const nowStr = new Date(nowMs).toLocaleString('en-GB');
-    const pushLog = (action: string, detail: string, extra?: Record<string, any>) => {
-      store.settings.mentorLogs = [
+    const pushLog = async (action: string, detail: string, extra?: Record<string, any>, extraSettings?: Record<string, any>) => {
+      const nextLogs = [
         {
           id: `mlog_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
           mentorId: mentor.id,
@@ -1942,9 +2051,17 @@ async function startServer() {
           timestamp: nowMs,
           ...(extra || {})
         },
-        ...(Array.isArray(store.settings.mentorLogs) ? store.settings.mentorLogs : [])
+        ...(Array.isArray(settingsDoc.mentorLogs) ? settingsDoc.mentorLogs : [])
       ].slice(0, 300);
-      store.settings.updatedAt = nowMs;
+      const nextSettings = {
+        ...settingsDoc,
+        ...(extraSettings || {}),
+        mentorLogs: nextLogs,
+        updatedAt: nowMs
+      };
+      store.settings = { ...store.settings, ...nextSettings };
+      saveStore(store);
+      await patchFirestoreDoc('appConfig', 'settings', nextSettings).catch(() => false);
     };
 
     if (op === 'support_reply') {
@@ -1961,14 +2078,14 @@ async function startServer() {
         sender: 'admin',
         repliedByRole: 'mentor',
         repliedByName: mentor.name,
-        text: String(text || '').trim(),
-        imageUrl: typeof imageUrl === 'string' && imageUrl.startsWith('data:image/') ? imageUrl : undefined,
+        text: String(text || '').trim().slice(0, 4000),
+        ...(typeof imageUrl === 'string' && imageUrl.startsWith('data:image/') ? { imageUrl: imageUrl.slice(0, 320000) } : {}),
         time: new Date(nowMs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
         timestamp: nowMs
       };
       store.supportMessages = [...store.supportMessages, msg].slice(-500);
-      pushLog('support_reply', `Replied to chat (${userUid || userId}): ${msg.text.slice(0, 80)}`, { targetUid: String(userUid || userId) });
-      saveStore(store);
+      await patchFirestoreDoc('supportMessages', msg.id, msg).catch(() => false);
+      await pushLog('support_reply', `Replied to chat (${userUid || userId}): ${msg.text.slice(0, 80)}`, { targetUid: String(userUid || userId) });
       return res.json({ success: true, message: msg });
     }
 
@@ -1977,47 +2094,77 @@ async function startServer() {
       if (status !== 'processing' && status !== 'rejected') {
         return res.status(403).json({ success: false, message: 'Mentors can only set Processing or Rejected.' });
       }
-      const wd = (store.withdraws || []).find((w) => w.id === withdrawId || w.orderId === withdrawId);
+      const wdLocal = (store.withdraws || []).find((w) => w.id === withdrawId || w.orderId === withdrawId);
+      const wdFb = await getFirestoreDoc('withdraws', String(withdrawId || '')).catch(() => null);
+      const wd = wdFb || wdLocal;
       if (!wd) return res.status(404).json({ success: false, message: 'Withdraw not found' });
       if (wd.status === 'completed') return res.status(400).json({ success: false, message: 'Already completed' });
       const prevSt = wd.status;
       const cleanNote = String(note || '').trim() || (status === 'rejected' ? 'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ' : 'Processing by Mentor');
-      wd.status = status;
-      wd.adminNote = cleanNote;
-      if (status === 'rejected') {
-        wd.rejectionReason = cleanNote;
-        wd.userMessage = cleanNote;
-        if (prevSt !== 'rejected') {
-          const u = (store.users || []).find((x) => x.id === wd.userId || x.uid === wd.userId);
-          if (u) {
-            u.balance = +(Number(u.balance || 0) + Number(wd.amount || 0)).toFixed(2);
-            u.updatedAt = nowMs;
+      const updatedWd = {
+        ...wd,
+        status,
+        adminNote: cleanNote,
+        ...(status === 'rejected' ? { rejectionReason: cleanNote, userMessage: cleanNote } : {})
+      };
+      if (wdLocal) Object.assign(wdLocal, updatedWd);
+      await patchFirestoreDoc('withdraws', String(wd.id || withdrawId), updatedWd).catch(() => false);
+      if (status === 'rejected' && prevSt !== 'rejected') {
+        const uLocal = (store.users || []).find((x) => x.id === wd.userId || x.uid === wd.userId);
+        const uFb = await getFirestoreDoc('users', String(wd.userId || '')).catch(() => null);
+        const targetUser = uFb || uLocal;
+        if (targetUser) {
+          const nextBal = +(Number(targetUser.balance || 0) + Number(wd.amount || 0)).toFixed(2);
+          if (uLocal) {
+            uLocal.balance = nextBal;
+            uLocal.updatedAt = nowMs;
           }
+          await patchFirestoreDoc('users', String(targetUser.id || wd.userId), {
+            ...targetUser,
+            balance: nextBal,
+            updatedAt: nowMs
+          }).catch(() => false);
         }
       }
-      pushLog('withdraw_updated', `Marked withdrawal ${wd.orderId || withdrawId} as ${status.toUpperCase()}`, { targetUid: String(wd.userId || '') });
-      saveStore(store);
+      await pushLog('withdraw_updated', `Marked withdrawal ${wd.orderId || withdrawId} as ${status.toUpperCase()} (${cleanNote})`, { targetUid: String(wd.userId || '') });
       return res.json({ success: true });
     }
 
     if (op === 'release_holding') {
-      const u = (store.users || []).find((x) => x.id === req.body?.userId || x.uid === req.body?.userId);
+      const targetKey = String(req.body?.userId || '');
+      const uLocal = (store.users || []).find((x) => x.id === targetKey || x.uid === targetKey);
+      const uFb = await getFirestoreDoc('users', targetKey).catch(() => null);
+      const u = uFb || uLocal;
       if (!u) return res.status(404).json({ success: false, message: 'User not found' });
-      u.lockedBalance = 0;
-      u.updatedAt = nowMs;
-      pushLog('holding_released', `Released holding balance for UID ${u.uid || u.id}`, { targetUid: String(u.uid || u.id) });
-      saveStore(store);
+      if (uLocal) {
+        uLocal.lockedBalance = 0;
+        uLocal.updatedAt = nowMs;
+      }
+      await patchFirestoreDoc('users', String(u.id || targetKey), { ...u, lockedBalance: 0, updatedAt: nowMs }).catch(() => false);
+      await pushLog('holding_released', `Released holding balance for UID ${u.uid || u.id}`, { targetUid: String(u.uid || u.id) });
       return res.json({ success: true });
     }
 
     if (op === 'adjust_turnover') {
-      const u = (store.users || []).find((x) => x.id === req.body?.userId || x.uid === req.body?.userId);
+      const targetKey = String(req.body?.userId || '');
+      const uLocal = (store.users || []).find((x) => x.id === targetKey || x.uid === targetKey);
+      const uFb = await getFirestoreDoc('users', targetKey).catch(() => null);
+      const u = uFb || uLocal;
       if (!u) return res.status(404).json({ success: false, message: 'User not found' });
-      u.turnoverRequired = Math.max(0, Number(req.body?.turnoverRequired ?? u.turnoverRequired ?? 0));
-      u.turnoverCompleted = Math.max(0, Number(req.body?.turnoverCompleted ?? u.turnoverCompleted ?? 0));
-      u.updatedAt = nowMs;
-      pushLog('turnover_adjusted', `Adjusted turnover for UID ${u.uid || u.id}`, { targetUid: String(u.uid || u.id) });
-      saveStore(store);
+      const nextReq = Math.max(0, Number(req.body?.turnoverRequired ?? u.turnoverRequired ?? 0));
+      const nextComp = Math.max(0, Number(req.body?.turnoverCompleted ?? u.turnoverCompleted ?? 0));
+      if (uLocal) {
+        uLocal.turnoverRequired = nextReq;
+        uLocal.turnoverCompleted = nextComp;
+        uLocal.updatedAt = nowMs;
+      }
+      await patchFirestoreDoc('users', String(u.id || targetKey), {
+        ...u,
+        turnoverRequired: nextReq,
+        turnoverCompleted: nextComp,
+        updatedAt: nowMs
+      }).catch(() => false);
+      await pushLog('turnover_adjusted', `Adjusted turnover for UID ${u.uid || u.id}`, { targetUid: String(u.uid || u.id) });
       return res.json({ success: true });
     }
 
@@ -2028,7 +2175,7 @@ async function startServer() {
       const turnoverAmount = Math.max(0, Number(req.body?.turnoverAmount) || amount);
       const targetUid = String(req.body?.targetUid || '').trim().toUpperCase();
       const reason = String(req.body?.reason || `Mentor Gift (${mentor.name})`).trim();
-      const existing: any[] = Array.isArray(store.settings.activeGiftCodes) ? store.settings.activeGiftCodes : [];
+      const existing: any[] = Array.isArray(settingsDoc.activeGiftCodes) ? settingsDoc.activeGiftCodes : [];
       if (existing.some((c) => String(c.code || '').toUpperCase() === code)) {
         return res.status(409).json({ success: false, message: 'Gift code already exists!' });
       }
@@ -2055,28 +2202,50 @@ async function startServer() {
         createdByMentorName: mentor.name,
         claimRecords: []
       };
-      store.settings.activeGiftCodes = [newGift, ...existing];
-      store.settings.mentors = mentors.map((m) => (m.id === mentor.id ? { ...m, giftCodeSpent: +(spent + totalCost).toFixed(2) } : m));
-      pushLog('gift_code_created', `Created Gift Code ${code} (৳${amount} × ${maxClaims} = ৳${totalCost})`, { code, amount: totalCost, targetUid });
-      saveStore(store);
+      const nextMentors = mentors.map((m) => (m.id === mentor.id ? { ...m, giftCodeSpent: +(spent + totalCost).toFixed(2) } : m));
+      await pushLog('gift_code_created', `Created Gift Code ${code} (৳${amount} × ${maxClaims} = ৳${totalCost})`, { code, amount: totalCost, targetUid }, {
+        activeGiftCodes: [newGift, ...existing],
+        mentors: nextMentors
+      });
       return res.json({ success: true, giftCode: newGift, giftCodeSpent: +(spent + totalCost).toFixed(2) });
     }
 
     if (op === 'send_notice') {
       const { targetUid, title, message } = req.body;
+      const cleanTitle = String(title || '').trim();
+      const cleanMessage = String(message || '').trim();
+      if (!cleanTitle || !cleanMessage) {
+        return res.status(400).json({ success: false, message: 'Title and message are required.' });
+      }
+      let resolvedUserId = 'ALL';
+      if (targetUid && String(targetUid).trim().toUpperCase() !== 'ALL') {
+        const cleanUid = String(targetUid).trim().toUpperCase();
+        const fbUsers = await listFirestoreCollection('users', 400).catch(() => []);
+        const allCandidates = [...(store.users || []), ...fbUsers.map((x) => x.data)];
+        const matchedUser = allCandidates.find(
+          (u: any) =>
+            String(u.uid || '').toUpperCase() === cleanUid ||
+            String(u.id || '').toUpperCase() === cleanUid ||
+            String(u.phone || '') === String(targetUid).trim()
+        );
+        if (!matchedUser) {
+          return res.status(404).json({ success: false, message: `User UID "${cleanUid}" not found.` });
+        }
+        resolvedUserId = String(matchedUser.id);
+      }
       const notif = {
         id: `notif_m_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
-        userId: targetUid && String(targetUid).toUpperCase() !== 'ALL' ? String(targetUid) : 'ALL',
-        title: String(title || '').trim(),
-        message: String(message || '').trim(),
+        userId: resolvedUserId,
+        title: cleanTitle.slice(0, 300),
+        message: cleanMessage.slice(0, 3000),
         reason: `Sent by Mentor ${mentor.name}`,
         type: 'system',
         read: false,
         time: nowStr
       };
       store.notifications = [notif, ...(store.notifications || [])].slice(0, 200);
-      pushLog('broadcast_sent', `Sent notice "${notif.title}"`, { targetUid: String(targetUid || 'ALL') });
-      saveStore(store);
+      await patchFirestoreDoc('notifications', notif.id, notif).catch(() => false);
+      await pushLog('broadcast_sent', `Sent notice "${notif.title}"`, { targetUid: resolvedUserId === 'ALL' ? 'ALL' : String(targetUid || '') });
       return res.json({ success: true });
     }
 
@@ -2088,10 +2257,9 @@ async function startServer() {
       if (!newPassword || String(newPassword).trim().length < 6) {
         return res.status(400).json({ success: false, message: 'New password must be at least 6 characters.' });
       }
-      store.settings.mentors = mentors.map((m) => (m.id === mentor.id ? { ...m, password: String(newPassword).trim() } : m));
-      pushLog('password_changed', `Mentor ${mentor.username} updated password`);
-      saveStore(store);
-      return res.json({ success: true });
+      const nextMentors = mentors.map((m) => (m.id === mentor.id ? { ...m, password: String(newPassword).trim() } : m));
+      await pushLog('password_changed', `Mentor ${mentor.username} updated password`, undefined, { mentors: nextMentors });
+      return res.json({ success: true, message: 'Mentor password updated successfully!' });
     }
 
     res.status(400).json({ success: false, message: 'Unknown mentor action' });

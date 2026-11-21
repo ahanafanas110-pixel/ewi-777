@@ -2950,7 +2950,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         target === 'login' &&
         hash !== '#/login' &&
         !hash.toLowerCase().includes('admin-ewi777-panel-009') &&
-        !pathnameLower.includes('admin-ewi777-panel-009')
+        !pathnameLower.includes('admin-ewi777-panel-009') &&
+        !hash.toLowerCase().includes('mentor-ewi777-panel') &&
+        !pathnameLower.includes('mentor-ewi777-panel')
       ) {
         window.location.hash = '#/login';
       }
@@ -3005,6 +3007,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? '#/'
         : targetTab === 'admin'
         ? '#/admin-ewi777-panel-009'
+        : targetTab === 'mentor'
+        ? '#/mentor-ewi777-panel'
         : `#/${targetTab}`;
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;

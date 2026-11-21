@@ -116,6 +116,28 @@ export const MentorPanel: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isIpBlocked, setIsIpBlocked] = useState(false);
+  const [detectedIp, setDetectedIp] = useState<string>('');
+
+  const refreshIpStatus = async (showNotice = false) => {
+    try {
+      const r = await fetch(apiUrl('/api/security/status'), { cache: 'no-store' });
+      const data = await r.json().catch(() => null);
+      if (!data?.success) return;
+      if (data.ip) setDetectedIp(String(data.ip));
+      const blockedNow = Boolean(data.isMentorBlocked);
+      setIsIpBlocked(blockedNow);
+      if (!blockedNow) setLoginError(null);
+      if (showNotice) {
+        showToast(blockedNow ? `IP ${data.ip} is still blocked.` : `IP ${data.ip} is unblocked! You can sign in now.`);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (mentorSession) return;
+    refreshIpStatus(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mentorSession]);
 
   // Dashboard Data State
   const [activeTab, setTab] = useState<MentorTab>('support');
@@ -260,16 +282,18 @@ export const MentorPanel: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: username.trim(),
+          username: username.trim().replace(/^@+/, ''),
           password
         })
       });
       const data = await res.json().catch(() => null);
+      if (data?.ip) setDetectedIp(String(data.ip));
       if (!res.ok || !data?.success || !data.token || !data.mentor) {
-        if (data?.mentorBlocked) setIsIpBlocked(true);
+        setIsIpBlocked(Boolean(data?.mentorBlocked));
         setLoginError(data?.message || 'Authentication failed.');
         return;
       }
+      setIsIpBlocked(false);
       const nextSess = {
         mentorId: data.mentor.id,
         token: data.token,
@@ -375,17 +399,32 @@ export const MentorPanel: React.FC = () => {
             <p className="text-xs text-slate-500">
               Authorized Mentors only. Accounts are provisioned by Admin with strict IP matching.
             </p>
+            {detectedIp && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-mono font-bold text-slate-700">
+                <span>Your Current IP:</span>
+                <span className="text-[#0891B2]">{detectedIp}</span>
+              </div>
+            )}
           </div>
 
           {isIpBlocked && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-xs text-rose-700">
-              <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="font-black">IP PERMANENTLY BLOCKED</div>
-                <div className="mt-0.5">
-                  Failed login or IP mismatch detected. Ask the Administrator to unblock your IP.
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-start justify-between gap-2.5 text-xs text-rose-700">
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-black">IP PERMANENTLY BLOCKED</div>
+                  <div className="mt-0.5">
+                    Failed login or IP mismatch detected. Ask the Administrator to unblock your IP ({detectedIp || 'Current IP'}).
+                  </div>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => refreshIpStatus(true)}
+                className="px-2.5 py-1.5 rounded-lg bg-white border border-rose-200 text-rose-700 text-[10px] font-black flex-shrink-0"
+              >
+                Re-check
+              </button>
             </div>
           )}
 
