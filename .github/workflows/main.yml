@@ -58,3 +58,19 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD_2 }}
           server-dir: /ewi777.kesug.com/htdocs/
           local-dir: ./dist/
+
+  vercel-deploy:
+    name: Trigger Vercel Production Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel Deploy Hook (if configured)
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            curl -fsSL -X POST "$VERCEL_DEPLOY_HOOK"
+            echo "Vercel deployment triggered successfully."
+          else
+            echo "VERCEL_DEPLOY_HOOK secret not set; relying on Vercel Git integration."
+          fi
+

@@ -16,10 +16,184 @@ import {
   RefreshCw,
   Share2,
   ShieldCheck,
+  Star,
   Trophy,
   Users,
+  Volume2,
+  VolumeX,
   X
 } from 'lucide-react';
+import ludoHeroImg from '../assets/images/ludo_realistic_icon_1795251767143.jpg';
+
+// Lightweight Web Audio API board FX synthesizer (safe fallback if blocked)
+function playLudoSound(
+  type: 'roll' | 'move' | 'capture' | 'home' | 'win',
+  enabled: boolean
+) {
+  if (!enabled || typeof window === 'undefined') return;
+  try {
+    const AudioCtx =
+      window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    const playTone = (freq: number, startOffset: number, dur: number, oscType: OscillatorType, gainVal: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = oscType;
+      osc.frequency.setValueAtTime(freq, now + startOffset);
+      gain.gain.setValueAtTime(0.001, now + startOffset);
+      gain.gain.exponentialRampToValueAtTime(gainVal, now + startOffset + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + startOffset + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + startOffset);
+      osc.stop(now + startOffset + dur + 0.02);
+    };
+
+    if (type === 'roll') {
+      [0, 0.07, 0.14, 0.22].forEach((offset, i) => {
+        playTone(220 + i * 45, offset, 0.055, 'triangle', 0.06);
+      });
+    } else if (type === 'move') {
+      playTone(460, 0, 0.08, 'sine', 0.08);
+      playTone(620, 0.035, 0.07, 'triangle', 0.05);
+    } else if (type === 'capture') {
+      playTone(540, 0, 0.09, 'sawtooth', 0.06);
+      playTone(280, 0.07, 0.16, 'triangle', 0.08);
+    } else if (type === 'home') {
+      playTone(523.25, 0, 0.12, 'sine', 0.08);
+      playTone(659.25, 0.08, 0.14, 'sine', 0.08);
+      playTone(783.99, 0.16, 0.22, 'sine', 0.09);
+    } else if (type === 'win') {
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+        playTone(freq, idx * 0.09, 0.35, 'triangle', 0.09);
+      });
+    }
+
+    window.setTimeout(() => {
+      ctx.close().catch(() => {});
+    }, 900);
+  } catch {}
+}
+
+// 3D Pip Layout helper for die faces 1-6
+const DICE_PIP_SLOTS: Record<number, number[]> = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8]
+};
+
+const RealisticDiceCube: React.FC<{
+  value: number | null;
+  rolling: boolean;
+  accentHex: string;
+  canTap: boolean;
+  onTap?: () => void;
+}> = ({ value, rolling, accentHex, canTap, onTap }) => {
+  const face = value && value >= 1 && value <= 6 ? value : 6;
+  const activePips = DICE_PIP_SLOTS[face] || DICE_PIP_SLOTS[6];
+
+  return (
+    <button
+      type="button"
+      disabled={!canTap}
+      onClick={onTap}
+      aria-label="Ludo Dice"
+      style={{
+        boxShadow: canTap
+          ? `0 6px 18px ${accentHex}40, inset 0 2px 3px rgba(255,255,255,0.95)`
+          : '0 4px 10px rgba(15,23,42,0.12), inset 0 2px 3px rgba(255,255,255,0.9)'
+      }}
+      className={`relative w-14 h-14 rounded-2xl bg-gradient-to-br from-white via-[#F8FAFC] to-[#E2E8F0] border-2 border-slate-300 border-b-[5px] border-b-slate-400/80 p-2 grid grid-cols-3 grid-rows-3 place-items-center transition-transform duration-200 ${
+        rolling
+          ? 'animate-spin scale-95'
+          : canTap
+          ? 'cursor-pointer hover:scale-105 active:translate-y-0.5 ring-2 ring-cyan-400/50'
+          : 'cursor-default'
+      }`}
+    >
+      {Array.from({ length: 9 }).map((_, idx) => {
+        const hasPip = activePips.includes(idx);
+        const isCenterAce = face === 1 && idx === 4;
+        return (
+          <span
+            key={idx}
+            className={`rounded-full transition-all duration-150 ${
+              hasPip
+                ? isCenterAce
+                  ? 'w-3.5 h-3.5 bg-gradient-to-br from-rose-500 to-rose-700 shadow-inner'
+                  : 'w-2.5 h-2.5 bg-gradient-to-br from-slate-800 to-slate-950 shadow-inner'
+                : 'w-2 h-2 opacity-0'
+            }`}
+          />
+        );
+      })}
+      {!value && !rolling && (
+        <span className="sr-only">Tap to roll</span>
+      )}
+    </button>
+  );
+};
+
+// Realistic 3D sculpted Ludo Pawn SVG
+const LudoPawnSvg: React.FC<{ color: LudoPlayer['color']; isValid: boolean; uid: string }> = ({
+  color,
+  isValid,
+  uid
+}) => {
+  const palette: Record<
+    LudoPlayer['color'],
+    { light: string; mid: string; dark: string; rim: string }
+  > = {
+    red: { light: '#FDA4AF', mid: '#E11D48', dark: '#9F1239', rim: '#FFF1F2' },
+    green: { light: '#6EE7B7', mid: '#059669', dark: '#065F46', rim: '#ECFDF5' },
+    yellow: { light: '#67E8F9', mid: '#0891B2', dark: '#155E75', rim: '#ECFEFF' },
+    blue: { light: '#93C5FD', mid: '#2563EB', dark: '#1E3A8A', rim: '#EFF6FF' }
+  };
+  const pal = palette[color];
+  const gradId = `pawn_${uid}_${color}_${isValid ? 'v' : 'n'}`;
+
+  return (
+    <svg
+      viewBox="0 0 36 42"
+      className="w-full h-full drop-shadow-[0_3px_3px_rgba(15,23,42,0.45)] overflow-visible"
+    >
+      <defs>
+        <radialGradient id={gradId} cx="35%" cy="30%" r="65%">
+          <stop offset="0%" stopColor={pal.light} />
+          <stop offset="55%" stopColor={pal.mid} />
+          <stop offset="100%" stopColor={pal.dark} />
+        </radialGradient>
+      </defs>
+      {/* Contact shadow */}
+      <ellipse cx="18" cy="37.5" rx="11.5" ry="3.6" fill="rgba(15,23,42,0.34)" />
+      {/* Base pedestal */}
+      <path
+        d="M8.5 34.5 C8.5 30 11.5 23 18 19 C24.5 23 27.5 30 27.5 34.5 C27.5 36.8 23.2 38 18 38 C12.8 38 8.5 36.8 8.5 34.5 Z"
+        fill={`url(#${gradId})`}
+        stroke={pal.rim}
+        strokeWidth="1.6"
+      />
+      {/* Sculpted pawn head */}
+      <circle
+        cx="18"
+        cy="13.5"
+        r="9.2"
+        fill={`url(#${gradId})`}
+        stroke={pal.rim}
+        strokeWidth="1.7"
+      />
+      {/* Inner crown jewel */}
+      <circle cx="18" cy="13.5" r="4.1" fill={pal.rim} fillOpacity="0.92" />
+      <circle cx="15" cy="10.2" r="2.2" fill="#FFFFFF" fillOpacity="0.72" />
+    </svg>
+  );
+};
 
 const FINISHED_STEP = 56;
 const SAFE_INDICES = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
@@ -387,6 +561,7 @@ export const LudoGame: React.FC = () => {
 
   const onlineTimerRef = useRef<number | null>(null);
   const settledRoomIdsRef = useRef<Set<string>>(new Set());
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   const parsedStake = Math.max(20, Math.min(50000, Math.floor(Number(stakeInput) || 20)));
   const parsedRoomStake = Math.max(20, Math.min(50000, Math.floor(Number(roomStakeDraft) || 20)));
@@ -556,6 +731,7 @@ export const LudoGame: React.FC = () => {
       );
 
       if (wonGame) {
+        playLudoSound('win', soundEnabled);
         const prize =
           prev.mode === 'online_2p'
             ? +(prev.stake * 1.9).toFixed(2)
@@ -580,6 +756,10 @@ export const LudoGame: React.FC = () => {
             : `${mover.name} won the match!`
         };
       }
+
+      if (captured) playLudoSound('capture', soundEnabled);
+      else if (reachedHome) playLudoSound('home', soundEnabled);
+      else playLudoSound('move', soundEnabled);
 
       const bonusTurn = prev.diceValue === 6 || captured || reachedHome;
       const nextTurnIdx = bonusTurn ? prev.turnIdx : (prev.turnIdx + 1) % nextPlayers.length;
@@ -648,6 +828,7 @@ export const LudoGame: React.FC = () => {
           );
 
           if (wonGame) {
+            playLudoSound('win', soundEnabled);
             settleLudoMatch(0, prev.mode, `${mover.name} finished first`, prev.stake);
             return {
               ...prev,
@@ -659,6 +840,10 @@ export const LudoGame: React.FC = () => {
               statusText: `${mover.name} won the match!`
             };
           }
+
+          if (captured) playLudoSound('capture', soundEnabled);
+          else if (reachedHome) playLudoSound('home', soundEnabled);
+          else playLudoSound('move', soundEnabled);
 
           const bonusTurn = roll === 6 || captured || reachedHome;
           const nextTurnIdx = bonusTurn ? prev.turnIdx : (prev.turnIdx + 1) % nextPlayers.length;
@@ -693,6 +878,7 @@ export const LudoGame: React.FC = () => {
     if (!onlineMatch || onlineMatch.finished || onlineMatch.rolling || onlineMatch.awaitingMove) return;
     if (onlineMatch.turnIdx !== 0) return;
 
+    playLudoSound('roll', soundEnabled);
     setOnlineMatch((prev) => (prev ? { ...prev, rolling: true, statusText: 'Rolling dice...' } : prev));
     window.setTimeout(() => {
       setOnlineMatch((prev) => {
@@ -943,10 +1129,15 @@ export const LudoGame: React.FC = () => {
         : finishedCount >= 1;
 
     if (shouldEnd) {
+      playLudoSound('win', soundEnabled);
       await syncRoomMoveToServer(activeRoom, nextPlayers, activeRoom.currentTurnIdx, roomDice, 'finished');
       await finishAndSettleRoom(activeRoom, nextPlayers);
       return;
     }
+
+    if (captured) playLudoSound('capture', soundEnabled);
+    else if (reachedHome) playLudoSound('home', soundEnabled);
+    else playLudoSound('move', soundEnabled);
 
     const bonus = roomDice === 6 || captured || reachedHome;
     let nextTurn = bonus
@@ -972,6 +1163,7 @@ export const LudoGame: React.FC = () => {
     const turnPlayer = activeRoom.players[activeRoom.currentTurnIdx];
     if (!turnPlayer || turnPlayer.userId !== user.id) return;
 
+    playLudoSound('roll', soundEnabled);
     setRoomDiceRolling(true);
     window.setTimeout(async () => {
       const roll = Math.floor(Math.random() * 6) + 1;
@@ -1030,118 +1222,206 @@ export const LudoGame: React.FC = () => {
     validTokenIndices: Set<number>,
     onTokenTap: (playerIdx: number, tokenIdx: number) => void
   ) => {
-    // Build a map of track cell -> tokens stacked cleanly
     const activeTurnColor = players[turnIdx]?.color;
 
+    // Group tokens by cell position so stacked pawns separate neatly instead of overlapping
+    const cellGroups = new Map<string, Array<{ pIdx: number; tIdx: number }>>();
+    const tokenPositions: Array<{
+      p: LudoPlayer;
+      pIdx: number;
+      tIdx: number;
+      step: number;
+      r: number;
+      c: number;
+      key: string;
+    }> = [];
+
+    players.forEach((p, pIdx) => {
+      p.tokens.forEach((step, tIdx) => {
+        const [r, c] = getTokenCoord(p.color, step, tIdx);
+        const key = `${r.toFixed(1)}_${c.toFixed(1)}`;
+        tokenPositions.push({ p, pIdx, tIdx, step, r, c, key });
+        const arr = cellGroups.get(key) || [];
+        arr.push({ pIdx, tIdx });
+        cellGroups.set(key, arr);
+      });
+    });
+
     return (
-      <div className="relative w-full max-w-[380px] aspect-square mx-auto bg-white rounded-2xl border-2 border-slate-300 shadow-sm overflow-hidden select-none">
-        {/* 15x15 Grid Backdrop */}
-        <div className="grid grid-cols-[repeat(15,minmax(0,1fr))] grid-rows-[repeat(15,minmax(0,1fr))] w-full h-full">
-          {Array.from({ length: 225 }).map((_, idx) => {
-            const r = Math.floor(idx / 15);
-            const c = idx % 15;
+      <div className="w-full max-w-[400px] mx-auto p-2.5 sm:p-3 rounded-[28px] bg-gradient-to-br from-[#5C3A21] via-[#7A4B2A] to-[#432714] border border-[#3B210F] shadow-[0_18px_38px_rgba(15,23,42,0.22),inset_0_1px_1px_rgba(255,255,255,0.28)] select-none">
+        <div className="relative w-full aspect-square bg-[#FAF7F0] rounded-2xl border-2 border-[#C8B8A2] shadow-[inset_0_2px_6px_rgba(15,23,42,0.14)] overflow-hidden">
+          {/* 15x15 Grid Backdrop */}
+          <div className="grid grid-cols-[repeat(15,minmax(0,1fr))] grid-rows-[repeat(15,minmax(0,1fr))] w-full h-full">
+            {Array.from({ length: 225 }).map((_, idx) => {
+              const r = Math.floor(idx / 15);
+              const c = idx % 15;
 
-            // Corner Yards
-            const inRedYard = r < 6 && c < 6;
-            const inGreenYard = r < 6 && c >= 9;
-            const inYellowYard = r >= 9 && c >= 9;
-            const inBlueYard = r >= 9 && c < 6;
-            const inCenter = r >= 6 && r <= 8 && c >= 6 && c <= 8;
+              const inRedYard = r < 6 && c < 6;
+              const inGreenYard = r < 6 && c >= 9;
+              const inYellowYard = r >= 9 && c >= 9;
+              const inBlueYard = r >= 9 && c < 6;
+              const inCenter = r >= 6 && r <= 8 && c >= 6 && c <= 8;
 
-            if (inRedYard || inGreenYard || inYellowYard || inBlueYard || inCenter) {
-              return <div key={idx} className="w-full h-full" />;
-            }
+              if (inRedYard || inGreenYard || inYellowYard || inBlueYard || inCenter) {
+                return <div key={idx} className="w-full h-full" />;
+              }
 
-            // Home Columns & Start Squares
-            let cellBg = 'bg-white';
-            let isStar = false;
-            if ((r === 7 && c >= 1 && c <= 5) || (r === 6 && c === 1)) cellBg = 'bg-rose-500/85';
-            else if ((c === 7 && r >= 1 && r <= 5) || (r === 1 && c === 8)) cellBg = 'bg-emerald-500/85';
-            else if ((r === 7 && c >= 9 && c <= 13) || (r === 8 && c === 13)) cellBg = 'bg-cyan-600/85';
-            else if ((c === 7 && r >= 9 && r <= 13) || (r === 13 && c === 6)) cellBg = 'bg-blue-600/85';
+              let cellBg = 'bg-[#FAF7F0]';
+              let isStar = false;
+              let entryArrow: string | null = null;
 
-            // Star safe squares
-            if (
-              (r === 2 && c === 6) ||
-              (r === 6 && c === 12) ||
-              (r === 12 && c === 8) ||
-              (r === 8 && c === 2) ||
-              (r === 6 && c === 1) ||
-              (r === 1 && c === 8) ||
-              (r === 8 && c === 13) ||
-              (r === 13 && c === 6)
-            ) {
-              isStar = true;
-            }
+              if ((r === 7 && c >= 1 && c <= 5) || (r === 6 && c === 1)) {
+                cellBg = 'bg-gradient-to-br from-rose-500 to-rose-600 shadow-inner';
+              } else if ((c === 7 && r >= 1 && r <= 5) || (r === 1 && c === 8)) {
+                cellBg = 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-inner';
+              } else if ((r === 7 && c >= 9 && c <= 13) || (r === 8 && c === 13)) {
+                cellBg = 'bg-gradient-to-br from-cyan-500 to-cyan-700 shadow-inner';
+              } else if ((c === 7 && r >= 9 && r <= 13) || (r === 13 && c === 6)) {
+                cellBg = 'bg-gradient-to-br from-blue-500 to-blue-700 shadow-inner';
+              }
 
+              // Entry arrows into each color's home column
+              if (r === 7 && c === 0) entryArrow = '→';
+              else if (r === 0 && c === 7) entryArrow = '↓';
+              else if (r === 7 && c === 14) entryArrow = '←';
+              else if (r === 14 && c === 7) entryArrow = '↑';
+
+              // Star safe squares
+              if (
+                (r === 2 && c === 6) ||
+                (r === 6 && c === 12) ||
+                (r === 12 && c === 8) ||
+                (r === 8 && c === 2) ||
+                (r === 6 && c === 1) ||
+                (r === 1 && c === 8) ||
+                (r === 8 && c === 13) ||
+                (r === 13 && c === 6)
+              ) {
+                isStar = true;
+              }
+
+              return (
+                <div
+                  key={idx}
+                  className={`w-full h-full border-[0.5px] border-slate-300/80 flex items-center justify-center relative ${cellBg}`}
+                >
+                  {isStar && (
+                    <div
+                      className={`w-[72%] h-[72%] rounded-full flex items-center justify-center ${
+                        cellBg.startsWith('bg-[#FAF7F0]')
+                          ? 'bg-slate-200/70 text-slate-500'
+                          : 'bg-white/20 text-white'
+                      }`}
+                    >
+                      <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
+                    </div>
+                  )}
+                  {!isStar && entryArrow && (
+                    <span
+                      className={`text-[10px] sm:text-xs font-black leading-none ${
+                        r === 7 && c === 0
+                          ? 'text-rose-600'
+                          : r === 0 && c === 7
+                          ? 'text-emerald-600'
+                          : r === 7 && c === 14
+                          ? 'text-cyan-700'
+                          : 'text-blue-600'
+                      }`}
+                    >
+                      {entryArrow}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 4 Corner Yards */}
+          {(
+            [
+              {
+                color: 'red',
+                cls: 'top-0 left-0 bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700',
+                ring: 'ring-rose-300'
+              },
+              {
+                color: 'green',
+                cls: 'top-0 right-0 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700',
+                ring: 'ring-emerald-300'
+              },
+              {
+                color: 'yellow',
+                cls: 'bottom-0 right-0 bg-gradient-to-br from-cyan-500 via-cyan-600 to-cyan-700',
+                ring: 'ring-cyan-200'
+              },
+              {
+                color: 'blue',
+                cls: 'bottom-0 left-0 bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700',
+                ring: 'ring-blue-300'
+              }
+            ] as const
+          ).map((yard) => {
+            const isTurn = activeTurnColor === yard.color;
             return (
               <div
-                key={idx}
-                className={`w-full h-full border-[0.5px] border-slate-200 flex items-center justify-center ${cellBg}`}
+                key={yard.color}
+                className={`absolute w-[40%] h-[40%] ${yard.cls} p-[5.5%] flex items-center justify-center border border-black/15 transition-all duration-300 ${
+                  isTurn ? `ring-4 ring-inset ${yard.ring} brightness-105` : ''
+                }`}
               >
-                {isStar && (
-                  <span
-                    className={`text-[10px] leading-none font-black ${
-                      cellBg === 'bg-white' ? 'text-slate-400' : 'text-white'
-                    }`}
-                  >
-                    ★
-                  </span>
-                )}
+                <div className="w-full h-full bg-[#FAF7F0] rounded-2xl shadow-[inset_0_3px_8px_rgba(15,23,42,0.18)] border border-white/80" />
               </div>
             );
           })}
-        </div>
 
-        {/* 4 Yard Overlays */}
-        {(
-          [
-            { color: 'red', cls: 'top-0 left-0 bg-rose-500' },
-            { color: 'green', cls: 'top-0 right-0 bg-emerald-500' },
-            { color: 'yellow', cls: 'bottom-0 right-0 bg-cyan-600' },
-            { color: 'blue', cls: 'bottom-0 left-0 bg-blue-600' }
-          ] as const
-        ).map((yard) => {
-          const isTurn = activeTurnColor === yard.color;
-          return (
-            <div
-              key={yard.color}
-              className={`absolute w-[40%] h-[40%] ${yard.cls} p-3 flex items-center justify-center border border-slate-200 ${
-                isTurn ? 'ring-2 ring-inset ring-white/90' : ''
-              }`}
-            >
-              <div className="w-full h-full bg-white rounded-2xl grid grid-cols-2 grid-rows-2 p-2.5 gap-2 shadow-inner">
-                {[0, 1, 2, 3].map((slot) => (
-                  <div
-                    key={slot}
-                    className={`rounded-full border-2 ${COLOR_STYLES[yard.color].border} ${COLOR_STYLES[yard.color].lightBg}`}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+          {/* Exact-Aligned Recessed Home Sockets inside each Yard */}
+          {(Object.keys(YARD_SLOTS) as LudoPlayer['color'][]).map((color) =>
+            YARD_SLOTS[color].map(([sr, sc], idx) => (
+              <div
+                key={`pad_${color}_${idx}`}
+                style={{
+                  top: `${((sr + 0.5) / 15) * 100}%`,
+                  left: `${((sc + 0.5) / 15) * 100}%`
+                }}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 w-[7.8%] h-[7.8%] rounded-full border-2 ${COLOR_STYLES[color].border} ${COLOR_STYLES[color].lightBg} shadow-[inset_0_2px_4px_rgba(15,23,42,0.16)] pointer-events-none z-10`}
+              />
+            ))
+          )}
 
-        {/* Center 3x3 Winning Home Triangles */}
-        <svg
-          viewBox="0 0 100 100"
-          className="absolute top-[40%] left-[40%] w-[20%] h-[20%] pointer-events-none border border-slate-300"
-        >
-          <polygon points="0,0 50,50 0,100" fill="#EF4444" />
-          <polygon points="0,0 100,0 50,50" fill="#10B981" />
-          <polygon points="100,0 100,100 50,50" fill="#0891B2" />
-          <polygon points="0,100 100,100 50,50" fill="#3B82F6" />
-          <circle cx="50" cy="50" r="14" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
-        </svg>
+          {/* Center 3x3 Winning Home Triangles with Crown Medallion */}
+          <svg
+            viewBox="0 0 100 100"
+            className="absolute top-[40%] left-[40%] w-[20%] h-[20%] pointer-events-none border border-slate-400/70 shadow-inner"
+          >
+            <polygon points="0,0 50,50 0,100" fill="#E11D48" />
+            <polygon points="0,0 100,0 50,50" fill="#059669" />
+            <polygon points="100,0 100,100 50,50" fill="#0891B2" />
+            <polygon points="0,100 100,100 50,50" fill="#2563EB" />
+            <line x1="0" y1="0" x2="100" y2="100" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />
+            <line x1="100" y1="0" x2="0" y2="100" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />
+            <circle cx="50" cy="50" r="18" fill="#FAF7F0" stroke="#0891B2" strokeWidth="2.5" />
+          </svg>
+          <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 pointer-events-none text-[#0891B2] z-10">
+            <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-cyan-100" />
+          </div>
 
-        {/* Live Tokens */}
-        {players.map((p, pIdx) =>
-          p.tokens.map((step, tIdx) => {
-            const [r, c] = getTokenCoord(p.color, step, tIdx);
+          {/* Live 3D Sculpted Pawns with Smart Multi-Token Stacking */}
+          {tokenPositions.map(({ p, pIdx, tIdx, step, r, c, key }) => {
             const isValid = pIdx === turnIdx && validTokenIndices.has(tIdx);
-            // Tiny micro-offset if multiple tokens of same/other player overlap
-            const microX = ((pIdx + tIdx) % 2 === 0 ? -1 : 1) * (step >= 0 && step < FINISHED_STEP ? 1.5 : 0);
-            const microY = (tIdx < 2 ? -1 : 1) * (step >= 0 && step < FINISHED_STEP ? 1.5 : 0);
+            const group = cellGroups.get(key) || [];
+            const stackIdx = group.findIndex((g) => g.pIdx === pIdx && g.tIdx === tIdx);
+            const stackTotal = group.length;
+
+            let offsetX = 0;
+            let offsetY = 0;
+            let stackScale = 1;
+            if (stackTotal > 1 && step >= 0) {
+              const angle = (stackIdx / stackTotal) * Math.PI * 2;
+              const radius = stackTotal === 2 ? 4.2 : 5.2;
+              offsetX = Math.cos(angle) * radius;
+              offsetY = Math.sin(angle) * radius;
+              stackScale = stackTotal >= 3 ? 0.76 : 0.85;
+            }
 
             return (
               <button
@@ -1150,22 +1430,24 @@ export const LudoGame: React.FC = () => {
                 disabled={!isValid}
                 onClick={() => onTokenTap(pIdx, tIdx)}
                 style={{
-                  top: `calc(${((r + 0.5) / 15) * 100}% + ${microY}px)`,
-                  left: `calc(${((c + 0.5) / 15) * 100}% + ${microX}px)`
+                  top: `calc(${((r + 0.5) / 15) * 100}% + ${offsetY}px)`,
+                  left: `calc(${((c + 0.5) / 15) * 100}% + ${offsetX}px)`,
+                  transform: `translate(-50%, -56%) scale(${isValid ? 1.24 : stackScale})`
                 }}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 w-[5.5%] h-[5.5%] min-w-[18px] min-h-[18px] rounded-full border-2 border-white shadow-md transition-all duration-200 flex items-center justify-center ${
-                  COLOR_STYLES[p.color].bg
-                } ${
+                className={`absolute w-[6.6%] h-[7.6%] min-w-[20px] min-h-[23px] transition-all duration-200 flex items-center justify-center ${
                   isValid
-                    ? 'z-30 scale-125 ring-4 ring-cyan-300 animate-pulse cursor-pointer'
+                    ? 'z-30 cursor-pointer drop-shadow-[0_0_8px_rgba(6,182,212,0.9)] animate-bounce'
                     : 'z-20 cursor-default'
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-white/90" />
+                {isValid && (
+                  <span className="absolute -bottom-0.5 w-[90%] h-[36%] rounded-full border-2 border-cyan-300 bg-cyan-400/25 animate-ping pointer-events-none" />
+                )}
+                <LudoPawnSvg color={p.color} isValid={isValid} uid={`${pIdx}_${tIdx}`} />
               </button>
             );
-          })
-        )}
+          })}
+        </div>
       </div>
     );
   };
@@ -1193,12 +1475,44 @@ export const LudoGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="px-3 py-1 rounded-full bg-white/15 border border-white/25 text-xs font-mono font-black tabular-nums">
-          ৳{Number(user.balance || 0).toFixed(0)}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSoundEnabled((v) => !v)}
+            aria-label={soundEnabled ? 'Mute sound' : 'Unmute sound'}
+            className="p-1.5 rounded-full bg-white/15 border border-white/20 hover:bg-white/25 active:scale-95"
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-cyan-200" />}
+          </button>
+          <div className="px-2.5 py-1 rounded-full bg-white/15 border border-white/25 text-xs font-mono font-black tabular-nums">
+            ৳{Number(user.balance || 0).toFixed(0)}
+          </div>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-3 pt-4 space-y-4">
+        {/* Realistic Lobby Showcase Banner when idle */}
+        {!onlineMatch && !activeRoom && (
+          <div className="bg-white border border-cyan-100 rounded-3xl p-3.5 shadow-xs flex items-center gap-3.5">
+            <img
+              src={ludoHeroImg}
+              alt="EWI Ludo Royal Board"
+              className="w-16 h-16 rounded-2xl object-cover border border-cyan-100 shadow-xs flex-shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-black text-slate-900">EWI Royal Ludo Club</span>
+                <span className="px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-[#0891B2] text-[9px] font-black uppercase">
+                  Live Table
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                3D Wooden Board • Play fast online battles or invite friends with a private password room.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Mode Switcher: Online Match vs Friends Room */}
         <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <button
@@ -1386,25 +1700,30 @@ export const LudoGame: React.FC = () => {
                   }
                 )}
 
-                {/* Dice Control Bar */}
+                {/* Dice Control Bar with Realistic 3D Pip Dice */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`w-12 h-12 rounded-2xl border-2 border-cyan-200 bg-cyan-50 flex items-center justify-center font-mono text-2xl font-black text-[#0891B2] ${
-                        onlineMatch.rolling ? 'animate-spin' : ''
-                      }`}
-                    >
-                      {onlineMatch.diceValue ?? '🎲'}
-                    </div>
+                    <RealisticDiceCube
+                      value={onlineMatch.diceValue}
+                      rolling={onlineMatch.rolling}
+                      accentHex={COLOR_STYLES[onlineMatch.players[onlineMatch.turnIdx]?.color || 'red'].hex}
+                      canTap={
+                        !onlineMatch.finished &&
+                        !onlineMatch.rolling &&
+                        !onlineMatch.awaitingMove &&
+                        onlineMatch.turnIdx === 0
+                      }
+                      onTap={handleOnlineHumanRoll}
+                    />
                     <div>
                       <div className="text-xs font-black text-slate-900">
                         {onlineMatch.turnIdx === 0 ? 'Your Turn' : `${onlineMatch.players[onlineMatch.turnIdx]?.name}'s Turn`}
                       </div>
                       <div className="text-[10px] text-slate-500">
                         {onlineMatch.awaitingMove
-                          ? 'Select a pulsing token on the board'
+                          ? 'Select a glowing pawn on the board'
                           : onlineMatch.turnIdx === 0
-                          ? 'Roll 6 to bring a token out'
+                          ? 'Tap dice or Roll 6 to bring a pawn out'
                           : 'Waiting for opponent move...'}
                       </div>
                     </div>
@@ -1424,6 +1743,31 @@ export const LudoGame: React.FC = () => {
                     {onlineMatch.rolling ? 'Rolling...' : 'ROLL DICE'}
                   </button>
                 </div>
+
+                {onlineMatch.finished && (
+                  <div className="bg-white border border-cyan-200 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-50 text-[#0891B2] flex items-center justify-center flex-shrink-0">
+                        <Trophy className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-slate-900">
+                          {onlineMatch.winnerIdx === 0
+                            ? 'Victory! Prize Credited'
+                            : `${onlineMatch.players[onlineMatch.winnerIdx ?? 1]?.name} Won This Round`}
+                        </div>
+                        <div className="text-[11px] text-slate-500">{onlineMatch.statusText}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOnlineMatch(null)}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white text-xs font-black whitespace-nowrap"
+                    >
+                      Play Again
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1571,13 +1915,17 @@ export const LudoGame: React.FC = () => {
                     {activeRoom.status === 'playing' && (
                       <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-xs">
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`w-12 h-12 rounded-2xl border-2 border-cyan-200 bg-cyan-50 flex items-center justify-center font-mono text-2xl font-black text-[#0891B2] ${
-                              roomDiceRolling ? 'animate-spin' : ''
-                            }`}
-                          >
-                            {roomDice ?? activeRoom.lastRoll ?? '🎲'}
-                          </div>
+                          <RealisticDiceCube
+                            value={roomDice ?? activeRoom.lastRoll ?? null}
+                            rolling={roomDiceRolling}
+                            accentHex={COLOR_STYLES[activeRoom.players[activeRoom.currentTurnIdx]?.color || 'red'].hex}
+                            canTap={
+                              !roomDiceRolling &&
+                              !roomAwaitingMove &&
+                              activeRoom.players[activeRoom.currentTurnIdx]?.userId === user.id
+                            }
+                            onTap={handleRoomDiceRoll}
+                          />
                           <div>
                             <div className="text-xs font-black text-slate-900">
                               Turn: {activeRoom.players[activeRoom.currentTurnIdx]?.name}
@@ -1585,8 +1933,8 @@ export const LudoGame: React.FC = () => {
                             <div className="text-[10px] text-slate-500">
                               {activeRoom.players[activeRoom.currentTurnIdx]?.userId === user.id
                                 ? roomAwaitingMove
-                                  ? 'Tap glowing token to move'
-                                  : 'Your turn to roll dice'
+                                  ? 'Tap glowing pawn to move'
+                                  : 'Tap dice or press Roll Dice'
                                 : 'Waiting for friend to play...'}
                             </div>
                           </div>

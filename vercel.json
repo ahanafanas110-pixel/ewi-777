@@ -1,7 +1,13 @@
 {
   "framework": "vite",
+  "installCommand": "npm install --legacy-peer-deps --no-audit --no-fund",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.ts": {
+      "includeFiles": "firebase-applet-config.json"
+    }
+  },
   "headers": [
     {
       "source": "/",
