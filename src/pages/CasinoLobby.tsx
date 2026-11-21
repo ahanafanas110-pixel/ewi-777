@@ -1,23 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowLeft, ArrowRight, Plus, Clock, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, ShieldCheck } from 'lucide-react';
 import { CustomerServiceLogo } from '../components/BrandLogos';
-import { PlaneGameLogo } from '../components/DashboardArtwork';
-import { getEwiRouletteState } from '../utils/syncedMarkets';
-import rouletteTileImg from '../assets/images/tile_casino_roulette_edited_1795168518026.jpg';
+import { PlaneGameLogo, TileLudoIcon } from '../components/DashboardArtwork';
+import casinoTileImg from '../assets/images/tile_casino_roulette_edited_1795168518026.jpg';
 
 export const CasinoLobby: React.FC = () => {
   const { user, adminSettings, setActiveTab, showToast } = useApp();
-  const [rouletteState, setRouletteState] = useState(() =>
-    getEwiRouletteState(Date.now(), adminSettings.timezoneOffsetMinutes ?? 360)
-  );
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setRouletteState(getEwiRouletteState(Date.now(), adminSettings.timezoneOffsetMinutes ?? 360));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [adminSettings.timezoneOffsetMinutes]);
 
   const isGameActive = (id: string) => {
     const games = adminSettings.games;
@@ -46,7 +35,7 @@ export const CasinoLobby: React.FC = () => {
           </button>
           <div>
             <h1 className="text-base font-black text-slate-900 leading-tight">Casino Lobby</h1>
-            <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">Live Tables &amp; Crash</p>
+            <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">Live Rooms &amp; Crash</p>
           </div>
         </div>
 
@@ -89,80 +78,58 @@ export const CasinoLobby: React.FC = () => {
             </div>
             <h2 className="text-lg font-black leading-tight">Live Casino Collection</h2>
             <p className="text-[11px] text-cyan-50 font-medium">
-              Play European Auto-Roulette &amp; PLANE Crash in crisp Taka (৳) rooms.
+              Play EWI Ludo multiplayer boards &amp; PLANE Crash in crisp Taka (৳) rooms.
             </p>
           </div>
           <img
-            src={rouletteTileImg}
+            src={casinoTileImg}
             alt="Casino"
             className="w-16 h-16 rounded-2xl object-cover border-2 border-white/50 shadow-md flex-shrink-0"
           />
         </div>
 
-        {/* Game 1: EWI ROULETTE */}
+        {/* Game 1: EWI LUDO */}
         <div
           onClick={() => {
-            if (!isGameActive('game_ewi_roulette')) {
-              showToast('EWI ROULETTE is currently offline for maintenance');
+            if (!isGameActive('game_ludo')) {
+              showToast('EWI Ludo is currently offline for maintenance');
               return;
             }
-            goTab('ewi-roulette', '#/ewi-roulette');
+            goTab('ludo', '#/ludo');
           }}
           className="bg-white rounded-3xl p-4 border border-cyan-200 shadow-sm hover:border-cyan-400 cursor-pointer active:scale-99 transition-all space-y-3"
         >
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <img
-                src={rouletteTileImg}
-                alt="EWI ROULETTE"
-                className="w-14 h-14 rounded-2xl object-cover border border-cyan-200 flex-shrink-0 shadow-xs"
-              />
+              <div className="w-14 h-14 rounded-2xl overflow-hidden border border-cyan-200 flex-shrink-0 shadow-xs">
+                <TileLudoIcon />
+              </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-black text-base text-slate-900">EWI ROULETTE</span>
+                  <span className="font-black text-base text-slate-900">EWI LUDO</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
                     NEW
                   </span>
                   <span className="px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 text-[9px] font-black uppercase">
-                    LIVE
+                    2P / 4P
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 font-semibold truncate mt-0.5">
-                  European Auto-Roulette • Straight 36X · Racetrack · Stats
+                  Online Tables &amp; Password Rooms • Stakes ৳20–৳50,000
                 </p>
               </div>
             </div>
 
             <div className="text-right flex-shrink-0">
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-800 font-mono font-black text-xs tabular-nums">
-                <Clock className="w-3 h-3" />
-                <span>{rouletteState.phaseRemaining}s</span>
-              </div>
-              <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">{rouletteState.phase}</div>
+              <div className="text-sm font-mono font-black text-cyan-700 tabular-nums">1.9x / 90%</div>
+              <div className="text-[10px] text-emerald-600 font-black">Instant Win</div>
             </div>
           </div>
 
-          {/* Recent Winning Numbers */}
-          <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100">
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-              {rouletteState.history.slice(0, 7).map((item) => (
-                <span
-                  key={item.roundId}
-                  className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center text-white flex-shrink-0 tabular-nums ${
-                    item.color === 'green'
-                      ? 'bg-emerald-600'
-                      : item.color === 'red'
-                      ? 'bg-rose-600'
-                      : 'bg-slate-800'
-                  }`}
-                >
-                  {item.number}
-                </span>
-              ))}
-            </div>
-
-            <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black text-xs flex items-center gap-1 shadow-xs whitespace-nowrap">
-              <span>Play Roulette</span>
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-600 font-semibold">৳20 → ৳38 (2P) • 4P Split Mode</span>
+            <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black flex items-center gap-1 shadow-xs whitespace-nowrap">
+              <span>Play Ludo</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </div>

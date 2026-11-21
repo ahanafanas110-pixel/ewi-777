@@ -246,6 +246,19 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["game", "roundId", "totalPool", "totalPaidOut"]
+    },
+    "LudoRoom": {
+      "title": "LudoRoom",
+      "description": "Password-protected multiplayer Ludo room synced in real time across invited players.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 32 },
+        "hostUserId": { "type": "string", "maxLength": 128 },
+        "stake": { "type": "number" },
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished", "cancelled"] }
+      },
+      "required": ["id", "code", "hostUserId", "stake", "status"]
     }
   },
   "firestore": {
@@ -304,6 +317,10 @@
     "/crashState/{gameId}": {
       "schema": { "$ref": "#/entities/CrashPoolState" },
       "description": "Shared Aviator and Lucky Jet 30% pool payout cap state."
+    },
+    "/ludoRooms/{roomId}": {
+      "schema": { "$ref": "#/entities/LudoRoom" },
+      "description": "Real-time password-protected friend Ludo rooms."
     }
   }
 }

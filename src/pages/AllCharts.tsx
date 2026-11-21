@@ -9,8 +9,7 @@ import {
   RotateCcw,
   Users,
   Calendar,
-  CheckCircle2,
-  Clock
+  CheckCircle2
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 
@@ -120,6 +119,8 @@ export const AllCharts: React.FC = () => {
     user,
     adminSettings,
     referrals,
+    ewiWingoBets,
+    sendSupportMessage,
     claimWinGoStreakBonus,
     claimWinGoSixStepRefund,
     setActiveTab,
@@ -153,20 +154,111 @@ export const AllCharts: React.FC = () => {
   const today = getLocalDateStr();
   const todayStreak = user.lastWinGoStreakDate === today ? Number(user.winGoStreakCount || 0) : 0;
   const streakAlreadyClaimed = user.claimedWinGoStreakDate === today;
+  const isStreakEligible = todayStreak >= 3 && !streakAlreadyClaimed;
 
   const userReferrals = referrals.filter(
     (r) => r.referrerCode === user.inviteCode || r.referrerCode === user.uid
   );
   const qualifiedDailyRefers = userReferrals.filter((r) => (Number(r.depositAmount) || 0) >= 500).length;
 
+  const qualifiedWeeklyTier = WEEKLY_DEPOSIT_ROWS.filter(
+    (r) => (Number(user.totalDeposited) || 0) >= r.deposit
+  ).pop() || null;
+
+  const qualifiedAgentTier = AGENT_WEEKLY_SALARY_ROWS.filter(
+    (r) => userReferrals.length >= r.invites
+  ).pop() || null;
+
+  const qualifiedDailyTier = DAILY_REFER_ROWS.filter(
+    (r) => qualifiedDailyRefers >= r.members
+  ).pop() || null;
+
+  const myEwiSettled = ewiWingoBets.filter((b) => b.userId === user.id && b.status !== 'pending');
+  const latestSixEwi = myEwiSettled.slice(0, 6);
+  const refundKey = latestSixEwi.map((b) => b.id).join(',');
+  const isRefundEligible =
+    latestSixEwi.length === 6 &&
+    latestSixEwi.every((b) => b.status === 'lost') &&
+    !(user.claimedWingoRefunds || []).includes(refundKey);
+
+  const sendBonusChatNotice = (chartTitle: string, qualifiedDetail: string) => {
+    sendSupportMessage({
+      userId: user.id || 'guest',
+      userUid: user.uid || 'GUEST',
+      userNickname: user.nickname || user.phone || 'Member',
+      userPhone: user.phone || user.email || '',
+      sender: 'user',
+      text: `[Bonus Application] UID: ${user.uid || 'GUEST'} | Chart: ${chartTitle} | Qualified: ${qualifiedDetail}`
+    }).catch(() => {});
+  };
+
+  const handleApplyWeeklyDeposit = () => {
+    if (!qualifiedWeeklyTier) {
+      showToast('Not eligible yet — reach at least ৳5,000 total deposit first.');
+      return;
+    }
+    sendBonusChatNotice(
+      'Weekly Deposit Bonus',
+      `৳${(user.totalDeposited || 0).toLocaleString()} deposited (Tier +৳${qualifiedWeeklyTier.bonus.toLocaleString()})`
+    );
+    showToast('Weekly deposit bonus application sent to Customer Care!');
+    goCustomerCare();
+  };
+
   const handleStreakClaim = () => {
+    if (!isStreakEligible) {
+      showToast(
+        streakAlreadyClaimed
+          ? 'Today’s WinGo Streak Bonus is already claimed'
+          : 'Not eligible yet — reach 3+ consecutive wins on WinGo today.'
+      );
+      return;
+    }
     const res = claimWinGoStreakBonus();
-    if (!res.success) showToast(res.message);
+    if (!res.success) {
+      showToast(res.message);
+      return;
+    }
+    sendBonusChatNotice('WinGo Win Streak Bonus', `${todayStreak} Consecutive Wins Claimed`);
+  };
+
+  const handleApplyAgentWeekly = () => {
+    if (!qualifiedAgentTier) {
+      showToast('Not eligible yet — reach at least 5 active invites first.');
+      return;
+    }
+    sendBonusChatNotice(
+      'Agent Weekly Salary',
+      `${userReferrals.length} Invites (Weekly Salary Tier ৳${qualifiedAgentTier.salary.toLocaleString()})`
+    );
+    showToast('Agent salary application sent to Customer Care!');
+    goCustomerCare();
+  };
+
+  const handleApplyDailyRefer = () => {
+    if (!qualifiedDailyTier) {
+      showToast('Not eligible yet — reach at least 3 qualified refers (৳500+ deposit).');
+      return;
+    }
+    sendBonusChatNotice(
+      'Daily Refer Milestone Bonus',
+      `${qualifiedDailyRefers} Qualified Members (Tier +৳${qualifiedDailyTier.bonus.toLocaleString()})`
+    );
+    showToast('Daily Refer bonus confirmation sent to Customer Care!');
+    goCustomerCare();
   };
 
   const handleSixStepRefund = () => {
+    if (!isRefundEligible) {
+      showToast('Not eligible yet — requires 6 consecutive lost EWI WinGo rounds.');
+      return;
+    }
     const res = claimWinGoSixStepRefund();
-    if (!res.success) showToast(res.message);
+    if (!res.success) {
+      showToast(res.message);
+      return;
+    }
+    sendBonusChatNotice('EWI WinGo 6-Step 100% Refund', '6 Consecutive Losses Refunded');
   };
 
   return (
@@ -263,11 +355,19 @@ export const AllCharts: React.FC = () => {
               </div>
               <button
                 type="button"
-                onClick={goCustomerCare}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
+                onClick={handleApplyWeeklyDeposit}
+                className={`w-full py-3.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+                  qualifiedWeeklyTier
+                    ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-md active:scale-98'
+                    : 'bg-slate-200 text-slate-500 opacity-50 blur-[0.5px]'
+                }`}
               >
                 <Headphones className="w-4 h-4" />
-                <span>Contact Customer Care to Claim</span>
+                <span>
+                  {qualifiedWeeklyTier
+                    ? `Apply Bonus (+৳${qualifiedWeeklyTier.bonus.toLocaleString()})`
+                    : 'Reach ৳5,000 Deposit to Unlock'}
+                </span>
               </button>
             </div>
           </div>
@@ -346,15 +446,16 @@ export const AllCharts: React.FC = () => {
               </div>
               <button
                 type="button"
-                disabled={streakAlreadyClaimed}
                 onClick={handleStreakClaim}
-                className={`px-4 py-2.5 rounded-full text-xs font-black whitespace-nowrap ${
+                className={`px-4 py-2.5 rounded-full text-xs font-black whitespace-nowrap transition-all ${
                   streakAlreadyClaimed
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-sm active:scale-95'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed opacity-70'
+                    : isStreakEligible
+                    ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-sm active:scale-95'
+                    : 'bg-slate-200 text-slate-500 opacity-50 blur-[0.5px]'
                 }`}
               >
-                {streakAlreadyClaimed ? 'Claimed ✓' : 'Claim Streak'}
+                {streakAlreadyClaimed ? 'Claimed ✓' : isStreakEligible ? 'Claim Streak' : 'Locked'}
               </button>
             </div>
 
@@ -433,11 +534,19 @@ export const AllCharts: React.FC = () => {
               </div>
               <button
                 type="button"
-                onClick={goCustomerCare}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
+                onClick={handleApplyAgentWeekly}
+                className={`w-full py-3.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+                  qualifiedAgentTier
+                    ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-md active:scale-98'
+                    : 'bg-slate-200 text-slate-500 opacity-50 blur-[0.5px]'
+                }`}
               >
                 <Headphones className="w-4 h-4" />
-                <span>Contact Customer Care for Weekly Salary</span>
+                <span>
+                  {qualifiedAgentTier
+                    ? `Apply Weekly Salary (৳${qualifiedAgentTier.salary.toLocaleString()})`
+                    : 'Reach 5 Active Invites to Unlock'}
+                </span>
               </button>
             </div>
           </div>
@@ -501,6 +610,22 @@ export const AllCharts: React.FC = () => {
                 })}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleApplyDailyRefer}
+              className={`w-full py-3.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+                qualifiedDailyTier
+                  ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-md active:scale-98'
+                  : 'bg-slate-200 text-slate-500 opacity-50 blur-[0.5px]'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {qualifiedDailyTier
+                  ? `Apply / Verify Refer Bonus (+৳${qualifiedDailyTier.bonus.toLocaleString()})`
+                  : 'Invite 3 Qualified Members to Unlock'}
+              </span>
+            </button>
           </div>
         )}
 
@@ -566,10 +691,18 @@ export const AllCharts: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSixStepRefund}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 active:scale-98"
+                className={`w-full py-3.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+                  isRefundEligible
+                    ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-md active:scale-98'
+                    : 'bg-slate-200 text-slate-500 opacity-50 blur-[0.5px]'
+                }`}
               >
                 <Gift className="w-4 h-4" />
-                <span>Verify &amp; Claim 100% 6-Step Loss Refund</span>
+                <span>
+                  {isRefundEligible
+                    ? 'Verify & Claim 100% 6-Step Loss Refund'
+                    : 'Requires 6 Consecutive Losses to Unlock'}
+                </span>
               </button>
             </div>
           </div>

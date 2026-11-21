@@ -44,6 +44,8 @@ import { PlaneGame } from './pages/PlaneGame';
 import { CasinoLobby } from './pages/CasinoLobby';
 import { SlotsLobby } from './pages/SlotsLobby';
 import { EwiRoulette } from './pages/EwiRoulette';
+import { LudoGame } from './pages/LudoGame';
+import { MentorPanel } from './pages/MentorPanel';
 import { WelcomeLanding } from './components/WelcomeLanding';
 import { ExtraFirstDepositModal } from './components/AccountIcons';
 import { WinGoResultPopupModal } from './components/WinGoAssets';
@@ -51,6 +53,7 @@ import { CustomerServiceLogo } from './components/BrandLogos';
 import { Wrench, ShieldCheck, Ban, PowerOff, LogOut } from 'lucide-react';
 
 export const ADMIN_ACCESS_ROUTE = '/admin-ewi777-panel-009';
+export const MENTOR_ACCESS_ROUTE = '/mentor-ewi777-panel';
 
 const isLegacyAdminPath = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -66,6 +69,13 @@ export const isAuthorizedAdminRoute = (): boolean => {
   return p === ADMIN_ACCESS_ROUTE || h === ADMIN_ACCESS_ROUTE || h === 'admin-ewi777-panel-009';
 };
 
+export const isAuthorizedMentorRoute = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const p = window.location.pathname.replace(/\/+$/, '').toLowerCase();
+  const h = window.location.hash.replace(/^#+/, '').split('?')[0].replace(/\/+$/, '').toLowerCase();
+  return p === MENTOR_ACCESS_ROUTE || h === MENTOR_ACCESS_ROUTE || h === 'mentor-ewi777-panel';
+};
+
 const MainApp: React.FC = () => {
   const {
     user,
@@ -77,7 +87,8 @@ const MainApp: React.FC = () => {
     adminSettings,
     wingoResultPopup,
     clearWingoResultPopup,
-    setFirstDepositModalOpen
+    setFirstDepositModalOpen,
+    visitorIpInfo
   } = useApp();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const lastMainTabRef = useRef<string>('');
@@ -247,6 +258,14 @@ const MainApp: React.FC = () => {
         ) : (
           <Login onOpenLanguage={() => setShowLanguageModal(true)} />
         );
+      case 'mentor':
+        return isAuthorizedMentorRoute() ? (
+          <MentorPanel />
+        ) : (
+          <Login onOpenLanguage={() => setShowLanguageModal(true)} />
+        );
+      case 'ludo':
+        return <LudoGame />;
       case 'gold-market':
         return <BinaryMarket initialMarketMode="gold" />;
       case 'binary':
@@ -308,6 +327,15 @@ const MainApp: React.FC = () => {
     );
   }
 
+  if (activeTab === 'mentor' && isAuthorizedMentorRoute()) {
+    return (
+      <div className="min-h-screen w-full bg-[#F8FAFC] text-slate-900 selection:bg-cyan-500 selection:text-white">
+        {isNavigating ? <PageSkeleton /> : <MentorPanel />}
+        <Toast />
+      </div>
+    );
+  }
+
   const isGuestWelcome = activeTab === 'home' && !user.isLoggedIn;
   const showBottomNav =
     !isGuestWelcome &&
@@ -319,14 +347,29 @@ const MainApp: React.FC = () => {
       'promotion',
       'wallet',
       'account',
-      'login',
-      'register',
-      'registration',
       'customer-service'
     ].includes(activeTab);
 
   const isSiteOff = adminSettings.siteEnabled === false && !isAuthorizedAdminRoute();
+  const isIpBanned = Boolean(visitorIpInfo?.isBannedIp && !isAuthorizedAdminRoute());
   const isUserBanned = Boolean(user.isLoggedIn && user.isBanned);
+
+  if (isIpBanned) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center text-slate-900">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-600 to-red-700 text-white flex items-center justify-center shadow-lg mb-5">
+          <Ban className="w-10 h-10" />
+        </div>
+        <h1 className="text-xl font-black text-slate-900 mb-2">Access Restricted (IP Blocked)</h1>
+        <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl mb-3">
+          IP: {visitorIpInfo.ip || 'Detected'}
+        </p>
+        <p className="text-xs text-slate-600 max-w-xs leading-relaxed">
+          Your network IP has been restricted from accessing EWI 777 by the platform security administrator.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex justify-center bg-slate-200 selection:bg-cyan-500 selection:text-white">

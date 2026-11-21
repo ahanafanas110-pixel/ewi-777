@@ -29,7 +29,9 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
           <span>{language === 'bn' ? 'সাপোর্ট' : 'Care'}</span>
         </button>
 
-        <Ewi777Logo height={44} logoUrl={adminSettings.appLogoUrl} />
+        <div className="px-3.5 py-1.5 rounded-2xl bg-white border border-cyan-200 shadow-sm flex items-center justify-center">
+          <Ewi777Logo height={56} logoUrl={adminSettings.appLogoUrl} />
+        </div>
 
         <button
           type="button"

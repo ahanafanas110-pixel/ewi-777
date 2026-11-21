@@ -192,7 +192,7 @@ export async function processEwiPayWebhookPayload(payload: any): Promise<{
             balance: nextBal,
             exp: Number(userFound.data.exp || 0) + depAmt,
             totalDeposited: +(Number(userFound.data.totalDeposited || 0) + depAmt).toFixed(2),
-            turnoverRequired: +(Number(userFound.data.turnoverRequired || 0) + depAmt * 2).toFixed(2),
+            turnoverRequired: +(Number(userFound.data.turnoverRequired || 0) + depAmt * 1).toFixed(2),
             updatedAt: Date.now()
           };
           await patchDoc('users', userFound.docId, nextUser);
@@ -200,7 +200,7 @@ export async function processEwiPayWebhookPayload(payload: any): Promise<{
             id: `tx_wh_dep_${depFound.docId}`,
             userId: userFound.data.id || userFound.docId,
             type: 'deposit',
-            title: `Deposit Completed (${dep.method || 'EWI-Pay'})`,
+            title: `Deposit Completed (${dep.method || 'EWI PAY'})`,
             detail: `Order: ${dep.trxId || depFound.docId}`,
             amount: totalCredit,
             balanceAfter: nextBal,
@@ -229,7 +229,7 @@ export async function processEwiPayWebhookPayload(payload: any): Promise<{
       await patchDoc('deposits', depFound.docId, {
         ...depFound.data,
         status: 'rejected',
-        adminNote: rejectionReason || 'Rejected by EWI-Pay Gateway',
+        adminNote: rejectionReason || 'Rejected by EWI PAY Gateway',
         ...(rejectionReason ? { rejectionReason } : {})
       });
       return { eventType: eventType || 'deposit.rejected', targetId: depFound.docId, actionTaken: 'deposit_rejected' };
@@ -314,7 +314,7 @@ export async function processEwiPayWebhookPayload(payload: any): Promise<{
             id: `tx_wh_wdr_${wdFound.docId}`,
             userId: userFound.data.id || userFound.docId,
             type: 'withdraw',
-            title: `Withdraw Rejected & Refunded (${wd.method || 'EWI-Pay'})`,
+            title: `Withdraw Rejected & Refunded (${wd.method || 'EWI PAY'})`,
             detail: rejectionReason || userMessage,
             amount: wdAmt,
             balanceAfter: nextBal,

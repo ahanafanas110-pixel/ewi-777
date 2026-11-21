@@ -46,7 +46,10 @@ import {
   Clock,
   ShieldAlert,
   Wifi,
-  Rocket
+  Rocket,
+  UserCheck,
+  Shield,
+  Unlock
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
@@ -54,10 +57,13 @@ import { getNextBinaryCandlePreview, formatOffsetLabel } from '../utils/syncedMa
 import { apiUrl } from '../utils/phoneAndApi';
 import { BINARY_MARKET_MAP } from '../constants/markets';
 import {
+  ActiveAdminSession,
   GameItem,
   GiftCodeItem,
   MarketControlMode,
+  MentorAccount,
   MinesPatternMode,
+  PaymentGatewaySlot,
   User,
   WinGoBet,
   WinGoMode
@@ -75,6 +81,7 @@ type AdminNavTab =
   | 'giftcodes'
   | 'support'
   | 'access_logs'
+  | 'mentors'
   | 'settings';
 
 function formatElapsedDuration(enteredAtMs: number, nowMs: number): string {
@@ -145,15 +152,19 @@ export const Admin: React.FC = () => {
     sendSupportMessage,
     adminAccessLogs,
     logAdminAccessEntry,
-    heartbeatAdminAccess
+    heartbeatAdminAccess,
+    kickAdminSession,
+    banIpGlobally,
+    unbanIpGlobally
   } = useApp();
 
-  // Admin Login Form (Direct 1-Step Verification)
+  // Admin Login Form (Direct 1-Step Verification + Single-Session Lock)
   const [adminPhone, setAdminPhone] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [showAdminPass, setShowAdminPass] = useState(false);
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [sessionConflict, setSessionConflict] = useState<ActiveAdminSession | null>(null);
 
   // Support Chat Inbox State
   const [selectedChatUserId, setSelectedChatUserId] = useState<string>('');
@@ -260,6 +271,7 @@ export const Admin: React.FC = () => {
   // =================== DEPOSITS & WITHDRAWS FILTER STATE ===================
   const [depSearch, setDepSearch] = useState('');
   const [depFilter, setDepFilter] = useState<'pending' | 'processing' | 'approved' | 'rejected' | 'all'>('pending');
+  const [depChannelFilter, setDepChannelFilter] = useState<'all' | 'bkash_nagad' | 'binary_usdt'>('all');
   const [wdFilter, setWdFilter] = useState<'pending' | 'processing' | 'completed' | 'rejected' | 'all'>('pending');
   const [rejectWithdrawModal, setRejectWithdrawModal] = useState<{
     id: string;
@@ -400,6 +412,55 @@ export const Admin: React.FC = () => {
   const [minesPatternDraft, setMinesPatternDraft] = useState<MinesPatternMode>(adminSettings.minesPattern || 'RANDOM');
   const [binaryBiasDraft, setBinaryBiasDraft] = useState<'AUTO' | 'BULL' | 'BEAR'>(adminSettings.binaryNextCandleBias || 'AUTO');
 
+  // Mentor Provisioning State
+  const [mName, setMName] = useState('');
+  const [mUsername, setMUsername] = useState('');
+  const [mPassword, setMPassword] = useState('');
+  const [mAllowedIp, setMAllowedIp] = useState('');
+  const [mBudget, setMBudget] = useState('5000');
+  const [mentorBudgetEdits, setMentorBudgetEdits] = useState<Record<string, string>>({});
+
+  // 6 Payment Gateways Editor State
+  const buildDefaultGateways = (list?: PaymentGatewaySlot[]): PaymentGatewaySlot[] => {
+    const defaults: PaymentGatewaySlot[] = [
+      { id: 'gw_1', name: 'bKash Agent #1', type: 'bkash', accountNumber: adminSettings.bkashNumber || '', accountLabel: 'Send Money / Cash Out', minAmount: 100, maxAmount: 25000, instructions: 'Send Money to bKash number', active: true },
+      { id: 'gw_2', name: 'Nagad Agent #1', type: 'nagad', accountNumber: adminSettings.nagadNumber || '', accountLabel: 'Send Money', minAmount: 100, maxAmount: 25000, instructions: 'Send Money to Nagad number', active: true },
+      { id: 'gw_3', name: 'Rocket Wallet', type: 'rocket', accountNumber: adminSettings.rocketNumber || '', accountLabel: 'Personal / Agent', minAmount: 100, maxAmount: 25000, instructions: 'Send Money to Rocket number', active: Boolean(adminSettings.rocketNumber) },
+      { id: 'gw_4', name: 'USDT TRC20', type: 'usdt', accountNumber: adminSettings.usdtAddress || '', accountLabel: 'TRC20 Address', minAmount: 5, maxAmount: 10000, instructions: 'Deposit exact TRC20 USDT', active: Boolean(adminSettings.usdtAddress) },
+      { id: 'gw_5', name: 'Local Bank Transfer', type: 'bank', accountNumber: '', accountLabel: 'Account Number', minAmount: 500, maxAmount: 50000, instructions: 'Bank / NPSB transfer', active: false },
+      { id: 'gw_6', name: 'Binance / Custom Pay', type: 'custom', accountNumber: adminSettings.binancePayId || '', accountLabel: 'Pay ID', minAmount: 100, maxAmount: 50000, instructions: 'Instant merchant transfer', active: Boolean(adminSettings.binancePayId) }
+    ];
+    return defaults.map((def, idx) => (list && list[idx] ? { ...def, ...list[idx] } : def));
+  };
+  const [gwSlots, setGwSlots] = useState<PaymentGatewaySlot[]>(() => buildDefaultGateways(adminSettings.paymentGateways));
+
+  // Single-Session Admin 12s Heartbeat Check
+  useEffect(() => {
+    if (!isAdminLoggedIn) return;
+    const runHeartbeat = async () => {
+      let sid = '';
+      try {
+        sid = sessionStorage.getItem('ewi777_admin_session_id') || '';
+      } catch {}
+      if (!sid) return;
+      try {
+        const res = await fetch(apiUrl('/api/admin/sessions'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'heartbeat', sessionId: sid })
+        });
+        const data = await res.json().catch(() => null);
+        if (res.status === 409 || data?.kicked) {
+          showToast('Admin session ended from another device.');
+          adminLogout();
+        }
+      } catch {}
+    };
+    const hbTimer = setInterval(runHeartbeat, 12000);
+    return () => clearInterval(hbTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdminLoggedIn]);
+
   // Keep draft inputs hydrated whenever server settings sync or admin logs in
   const settingsSyncSignature = JSON.stringify({
     bkash: adminSettings.bkashNumber,
@@ -485,6 +546,9 @@ export const Admin: React.FC = () => {
     setPopupEnabledDraft(Boolean(adminSettings.enableSystemPopup));
     setWingoSyncPath(adminSettings.wingoSyncPath || 'wingo');
     setWingoPattern(adminSettings.wingoPattern || '1,2,3,4,5');
+    if (Array.isArray(adminSettings.paymentGateways) && adminSettings.paymentGateways.length > 0) {
+      setGwSlots(buildDefaultGateways(adminSettings.paymentGateways));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdminLoggedIn, settingsSyncSignature]);
 
@@ -809,6 +873,7 @@ export const Admin: React.FC = () => {
     e.preventDefault();
     if (isVerifyingLogin) return;
     setLoginError(null);
+    setSessionConflict(null);
 
     if (!adminPhone.trim() || !adminPass.trim()) {
       setLoginError('Please enter both Admin Phone and Password');
@@ -819,8 +884,10 @@ export const Admin: React.FC = () => {
       const res = await adminLogin(adminPhone.trim(), adminPass.trim());
       if (!res.success) {
         setLoginError(res.message);
+        if (res.sessionConflict) setSessionConflict(res.sessionConflict);
       } else {
         setLoginError(null);
+        setSessionConflict(null);
         setAdminPhone('');
         setAdminPass('');
       }
@@ -1212,6 +1279,18 @@ export const Admin: React.FC = () => {
               </div>
             </div>
 
+            {sessionConflict && (
+              <div className="p-3.5 rounded-xl bg-cyan-50 border border-cyan-300 text-xs text-slate-800 space-y-1">
+                <div className="font-black text-[#0891B2] uppercase">Active Session Locked On Another Device</div>
+                <div className="font-mono text-[11px]">
+                  Device: <strong>{sessionConflict.deviceName}</strong> • IP: <strong>{sessionConflict.ip}</strong>
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  Signed in: {sessionConflict.loggedInAt}. Sign out or kick the session from that device first.
+                </div>
+              </div>
+            )}
+
             {loginError && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 text-center">
                 {loginError}
@@ -1270,6 +1349,13 @@ export const Admin: React.FC = () => {
       (d.sessionId || '').toLowerCase().includes(q) ||
       (d.id || '').toLowerCase().includes(q);
     if (!matchesQ) return false;
+    if (depChannelFilter !== 'all') {
+      const mLower = String(d.method || '').toLowerCase();
+      const chLower = String(d.channel || '').toLowerCase();
+      const isBinaryUsdt = mLower === 'usdt' || chLower.includes('usdt') || chLower.includes('binary') || chLower.includes('binance');
+      if (depChannelFilter === 'binary_usdt' && !isBinaryUsdt) return false;
+      if (depChannelFilter === 'bkash_nagad' && isBinaryUsdt) return false;
+    }
     if (depFilter === 'all') return true;
     return d.status === depFilter;
   });
@@ -1301,6 +1387,7 @@ export const Admin: React.FC = () => {
     { id: 'withdraws', label: 'Withdraws', icon: <ArrowUpCircle className="w-4 h-4" />, badge: pendingWdCount || undefined },
     { id: 'giftcodes', label: 'Gift Codes', icon: <Gift className="w-4 h-4" /> },
     { id: 'support', label: 'Support Chat', icon: <MessageSquare className="w-4 h-4" />, badge: unansweredSupportCount || undefined },
+    { id: 'mentors', label: 'Mentor Control', icon: <UserCheck className="w-4 h-4" />, badge: (adminSettings.mentors || []).length || undefined },
     { id: 'access_logs', label: 'IP & Entry Logs', icon: <Globe className="w-4 h-4" />, badge: adminAccessLogs.length || undefined },
     { id: 'settings', label: 'App Settings', icon: <Settings className="w-4 h-4" /> },
   ];
@@ -1316,6 +1403,7 @@ export const Admin: React.FC = () => {
     withdraws: 'WITHDRAWS',
     giftcodes: 'GIFT CODES',
     support: 'SUPPORT CHAT INBOX',
+    mentors: 'MENTOR GOVERNANCE & AUDIT',
     access_logs: 'VISITOR IP & ENTRY TIMELINE',
     settings: 'APP SETTINGS'
   };
@@ -2613,7 +2701,7 @@ export const Admin: React.FC = () => {
                       </div>
 
                       {goldNext && (
-                        <div className="p-2.5 rounded-xl bg-white border border-amber-500/25 flex items-center justify-between text-xs">
+                        <div className="p-2.5 rounded-xl bg-white border border-cyan-500/25 flex items-center justify-between text-xs">
                           <div>
                             <div className="text-[10px] font-bold text-cyan-700">
                               NEXT XAU/USD CANDLE ({goldNext.timeLabel} {formatOffsetLabel(tzOffsetDraft)})
@@ -3208,37 +3296,60 @@ export const Admin: React.FC = () => {
                       type="button"
                       onClick={() => {
                         syncEwiPayTransactions();
-                        showToast('Synced live EWI-Pay transactions');
+                        showToast('Synced live EWI PAY transactions');
                       }}
                       className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 text-white text-xs font-black flex items-center gap-1.5"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Sync EWI-Pay Live</span>
+                      <span>Sync EWI PAY Live</span>
                     </button>
                     <span className="text-xs text-slate-500 font-mono">{filteredDeposits.length} requests</span>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5">
-                  {([
-                    { id: 'pending', label: 'Pending' },
-                    { id: 'processing', label: 'Processing' },
-                    { id: 'approved', label: 'Completed' },
-                    { id: 'rejected', label: 'Rejected' },
-                    { id: 'all', label: 'All' }
-                  ] as const).map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setDepFilter(tab.id)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                        depFilter === tab.id
-                          ? 'bg-cyan-50 border-blue-500 text-cyan-700'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { id: 'pending', label: 'Pending' },
+                      { id: 'processing', label: 'Processing' },
+                      { id: 'approved', label: 'Completed' },
+                      { id: 'rejected', label: 'Rejected' },
+                      { id: 'all', label: 'All' }
+                    ] as const).map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setDepFilter(tab.id)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                          depFilter === tab.id
+                            ? 'bg-cyan-50 border-cyan-500 text-cyan-700'
+                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { id: 'all', label: 'All Channels' },
+                      { id: 'bkash_nagad', label: 'bKash & Nagad' },
+                      { id: 'binary_usdt', label: 'Binary & USDT' }
+                    ] as const).map((ch) => (
+                      <button
+                        key={ch.id}
+                        type="button"
+                        onClick={() => setDepChannelFilter(ch.id)}
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
+                          depChannelFilter === ch.id
+                            ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] border-transparent text-white'
+                            : 'bg-slate-50 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {ch.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -3423,7 +3534,7 @@ export const Admin: React.FC = () => {
                                 gwObj?.reason ||
                                 gwObj?.withdrawal?.reason ||
                                 gwObj?.message ||
-                                'Rejected by EWI-Pay Gateway'
+                                'Rejected by EWI PAY Gateway'
                             ).trim();
                             const usrMsg = String(gwObj?.userMessage || stData?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
                             updateWithdrawStatus(w.id, 'rejected', reason || undefined, undefined, {
@@ -3436,13 +3547,13 @@ export const Admin: React.FC = () => {
                         await syncServerDataNow();
                         showToast(
                           updatedCount > 0
-                            ? `Synced ${updatedCount} withdrawal(s) from EWI-Pay`
+                            ? `Synced ${updatedCount} withdrawal(s) from EWI PAY`
                             : processingItems.length > 0
                             ? `Checked ${processingItems.length} processing withdrawal(s) — still in queue`
                             : 'Refreshed withdrawal list'
                         );
                       } catch {
-                        showToast('Failed to check EWI-Pay withdrawal status');
+                        showToast('Failed to check EWI PAY withdrawal status');
                       } finally {
                         setIsSyncingWithdraws(false);
                       }
@@ -3450,7 +3561,7 @@ export const Admin: React.FC = () => {
                     className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 disabled:opacity-60 text-white text-xs font-black flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncingWithdraws ? 'animate-spin' : ''}`} />
-                    <span>{isSyncingWithdraws ? 'Checking...' : 'Sync EWI-Pay Withdraws'}</span>
+                    <span>{isSyncingWithdraws ? 'Checking...' : 'Sync EWI PAY Withdraws'}</span>
                   </button>
                   <span className="text-xs text-slate-500 font-mono whitespace-nowrap">
                     {filteredWithdraws.length} requests
@@ -3514,7 +3625,7 @@ export const Admin: React.FC = () => {
                               </span>
                               {w.ewiPayWithdrawId && (
                                 <div className="text-[10px] font-mono text-cyan-700/90 mt-1">
-                                  EWI-Pay: {w.ewiPayWithdrawId}
+                                  EWI PAY: {w.ewiPayWithdrawId}
                                 </div>
                               )}
                               {w.payoutTrxId && (
@@ -3535,10 +3646,10 @@ export const Admin: React.FC = () => {
                                     <button
                                       type="button"
                                       onClick={() => updateWithdrawStatus(w.id, 'processing')}
-                                      title="Send withdrawal request to EWI-Pay & mark Processing"
+                                      title="Send withdrawal request to EWI PAY & mark Processing"
                                       className="px-2 py-1 rounded-md bg-cyan-50 border border-cyan-300 text-cyan-700 text-[10px] font-black whitespace-nowrap"
                                     >
-                                      {w.status === 'processing' ? 'RETRY EWI-PAY' : 'PROC → EWI-PAY'}
+                                      {w.status === 'processing' ? 'RETRY EWI PAY' : 'PROC → EWI PAY'}
                                     </button>
                                   )}
                                   <button
@@ -3620,7 +3731,7 @@ export const Admin: React.FC = () => {
                         active: true
                       });
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#B45309] to-[#F59E0B] text-slate-900 text-xs font-black flex items-center gap-1 shadow-sm"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white text-xs font-black flex items-center gap-1 shadow-sm"
                   >
                     <Gift className="w-3.5 h-3.5" />
                     <span>+ 200% DEP BONUS</span>
@@ -4088,13 +4199,138 @@ export const Admin: React.FC = () => {
                 </div>
               </div>
 
-              {/* EWI-Pay Deposit & Withdraw API Configuration */}
+              {/* 6 Payment Gateways Configuration */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-black text-cyan-700 tracking-wider uppercase">
+                      6 Payment Gateways Manager
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Manage up to 6 deposit gateways displayed on the Deposit More Channels tab.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateAdminSettings({ paymentGateways: gwSlots });
+                      showToast('Saved 6 Payment Gateways!');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs"
+                  >
+                    SAVE 6 PAYMENT GATEWAYS
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                  {gwSlots.map((slot, idx) => (
+                    <div key={slot.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-[#0891B2] uppercase">
+                          Gateway #{idx + 1}
+                        </span>
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={slot.active}
+                            onChange={(e) =>
+                              setGwSlots((prev) =>
+                                prev.map((g, gi) => (gi === idx ? { ...g, active: e.target.checked } : g))
+                              )
+                            }
+                          />
+                          <span>Active</span>
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={slot.name}
+                          onChange={(e) =>
+                            setGwSlots((prev) =>
+                              prev.map((g, gi) => (gi === idx ? { ...g, name: e.target.value } : g))
+                            )
+                          }
+                          placeholder="Gateway Name"
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
+                        />
+                        <select
+                          value={slot.type}
+                          onChange={(e) =>
+                            setGwSlots((prev) =>
+                              prev.map((g, gi) =>
+                                gi === idx ? { ...g, type: e.target.value as PaymentGatewaySlot['type'] } : g
+                              )
+                            )
+                          }
+                          className="px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-800"
+                        >
+                          <option value="bkash">bKash</option>
+                          <option value="nagad">Nagad</option>
+                          <option value="rocket">Rocket</option>
+                          <option value="usdt">USDT</option>
+                          <option value="bank">Bank</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      <input
+                        type="text"
+                        value={slot.accountNumber}
+                        onChange={(e) =>
+                          setGwSlots((prev) =>
+                            prev.map((g, gi) => (gi === idx ? { ...g, accountNumber: e.target.value } : g))
+                          )
+                        }
+                        placeholder="Account / Wallet Number"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-mono font-bold text-slate-900"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          value={slot.minAmount ?? 100}
+                          onChange={(e) =>
+                            setGwSlots((prev) =>
+                              prev.map((g, gi) => (gi === idx ? { ...g, minAmount: Number(e.target.value) || 0 } : g))
+                            )
+                          }
+                          placeholder="Min"
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-mono"
+                        />
+                        <input
+                          type="number"
+                          value={slot.maxAmount ?? 25000}
+                          onChange={(e) =>
+                            setGwSlots((prev) =>
+                              prev.map((g, gi) => (gi === idx ? { ...g, maxAmount: Number(e.target.value) || 0 } : g))
+                            )
+                          }
+                          placeholder="Max"
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-mono"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={slot.instructions || ''}
+                        onChange={(e) =>
+                          setGwSlots((prev) =>
+                            prev.map((g, gi) => (gi === idx ? { ...g, instructions: e.target.value } : g))
+                          )
+                        }
+                        placeholder="Instructions"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px]"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* EWI PAY Deposit & Withdraw API Configuration */}
               <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-xs font-black text-cyan-700 tracking-wider flex items-center gap-1.5">
                       <Globe className="w-4 h-4" />
-                      <span>EWI-PAY DEPOSIT &amp; WITHDRAW API SETTINGS</span>
+                      <span>EWI PAY DEPOSIT &amp; WITHDRAW API SETTINGS</span>
                     </h3>
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       Configure live bKash &amp; Nagad checkout, deposit verification, and auto-withdraw API endpoints.
@@ -4411,11 +4647,11 @@ export const Admin: React.FC = () => {
                         nagadWithdrawStatusUrl: ewiNagadWithdrawStatusUrl.trim() || `${cleanBase}/api/v1/nagad/withdrawals/:id/status`
                       }
                     });
-                    showToast('Saved EWI-Pay Deposit & Withdraw API Configuration!');
+                    showToast('Saved EWI PAY Deposit & Withdraw API Configuration!');
                   }}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-110 text-white font-black text-xs"
                 >
-                  SAVE EWI-PAY API CONFIG
+                  SAVE EWI PAY API CONFIG
                 </button>
               </div>
 
@@ -4684,7 +4920,7 @@ export const Admin: React.FC = () => {
                             : 'bg-slate-50 border-slate-200 hover:border-slate-200'
                         }`}
                       >
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#D97706] to-[#B45309] text-slate-900 font-black text-xs flex items-center justify-center flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0891B2] to-[#0D9488] text-white font-black text-xs flex items-center justify-center flex-shrink-0">
                           {(thread.userNickname || 'M')[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -4693,7 +4929,7 @@ export const Admin: React.FC = () => {
                               {thread.userNickname}
                             </span>
                             {thread.hasUnanswered && (
-                              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                              <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" />
                             )}
                           </div>
                           <div className="text-[10px] font-mono text-slate-500 truncate">
@@ -4808,7 +5044,18 @@ export const Admin: React.FC = () => {
                               {m.text && <div className="break-words">{m.text}</div>}
                             </div>
                             <span className="text-[10px] text-slate-500 mt-0.5 px-1">
-                              {m.sender === 'admin' ? 'Admin' : activeThread.userNickname} •{' '}
+                              {m.sender === 'admin' ? (
+                                m.repliedByRole === 'mentor' ? (
+                                  <span className="font-bold text-[#0891B2]">
+                                    Mentor • {m.repliedByName || 'Support'}
+                                  </span>
+                                ) : (
+                                  'Admin'
+                                )
+                              ) : (
+                                activeThread.userNickname
+                              )}{' '}
+                              •{' '}
                               {m.timestamp
                                 ? new Date(m.timestamp).toLocaleTimeString('en-US', {
                                     hour: '2-digit',
@@ -4860,6 +5107,105 @@ export const Admin: React.FC = () => {
           {/* =================== VISITOR IP, MULTI-ACCOUNT & VPN SECURITY MONITOR =================== */}
           {navTab === 'access_logs' && (
             <div className="space-y-4">
+              {/* Active Admin Single-Session Lock & Global IP Unblock Controls */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
+                <div className="bg-white border border-cyan-200 rounded-2xl p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-[#0891B2] uppercase tracking-wider flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>Active Admin Session</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => kickAdminSession()}
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black hover:bg-rose-100"
+                    >
+                      Kick Active Session
+                    </button>
+                  </div>
+                  {adminSettings.activeAdminSession ? (
+                    <div className="text-xs space-y-1 font-mono">
+                      <div className="font-bold text-slate-900">
+                        {adminSettings.activeAdminSession.deviceName}
+                      </div>
+                      <div className="text-[11px] text-[#0891B2]">
+                        IP: {adminSettings.activeAdminSession.ip}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        Active since {adminSettings.activeAdminSession.loggedInAt}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500">No session record synced.</div>
+                  )}
+                </div>
+
+                <div className="bg-white border border-rose-200 rounded-2xl p-4 space-y-2">
+                  <div className="text-[10px] font-black text-rose-700 uppercase tracking-wider">
+                    Global Banned IPs ({(adminSettings.bannedIps || []).length})
+                  </div>
+                  {(adminSettings.bannedIps || []).length === 0 ? (
+                    <div className="text-xs text-slate-500">No IPs globally banned.</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      {(adminSettings.bannedIps || []).map((ipAddr) => (
+                        <div
+                          key={ipAddr}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-[11px] font-mono font-bold text-rose-700"
+                        >
+                          <span>{ipAddr}</span>
+                          <button
+                            type="button"
+                            onClick={() => unbanIpGlobally(ipAddr)}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-white text-emerald-700 font-black"
+                          >
+                            Unban
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
+                  <div className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                    Mentor Blocked IPs ({(adminSettings.mentorBlockedIps || []).length})
+                  </div>
+                  {(adminSettings.mentorBlockedIps || []).length === 0 ? (
+                    <div className="text-xs text-slate-500">No Mentor IPs locked out.</div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-24 overflow-y-auto">
+                      {(adminSettings.mentorBlockedIps || []).map((b) => (
+                        <div
+                          key={b.ip}
+                          className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[11px]"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-mono font-bold text-slate-900 truncate">{b.ip}</div>
+                            <div className="text-[9px] text-slate-500 truncate">{b.reason}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateAdminSettings({
+                                mentorBlockedIps: (adminSettings.mentorBlockedIps || []).filter(
+                                  (x) => x.ip !== b.ip
+                                )
+                              });
+                              showToast(`Unblocked Mentor IP ${b.ip}`);
+                            }}
+                            className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-black flex-shrink-0 inline-flex items-center gap-1"
+                          >
+                            <Unlock className="w-3 h-3" />
+                            <span>Unblock</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Security KPI Strip + Refresh */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-white border border-cyan-200 rounded-2xl p-3.5 flex items-center justify-between">
@@ -4938,7 +5284,7 @@ export const Admin: React.FC = () => {
               </div>
 
               {/* 1. SAME-IP MULTI-ACCOUNT CLUSTERS */}
-              <div className="bg-white border border-amber-500/30 rounded-2xl p-4 space-y-3">
+              <div className="bg-white border border-cyan-200 rounded-2xl p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-xs font-black text-cyan-700 uppercase tracking-wider">
@@ -5293,6 +5639,270 @@ export const Admin: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* =================== MENTOR GOVERNANCE & A-TO-Z AUDIT =================== */}
+          {navTab === 'mentors' && (
+            <div className="space-y-4">
+              {/* Create Mentor Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cleanUser = mUsername.trim().toLowerCase();
+                  if (!mName.trim() || !cleanUser || !mPassword.trim() || !mAllowedIp.trim()) {
+                    showToast('Fill Mentor Name, Username, Password & Authorized IP');
+                    return;
+                  }
+                  const curMentors = adminSettings.mentors || [];
+                  if (curMentors.some((m) => m.username.toLowerCase() === cleanUser)) {
+                    showToast('Mentor username already exists!');
+                    return;
+                  }
+                  const created: MentorAccount = {
+                    id: `mnt_${Date.now()}`,
+                    name: mName.trim(),
+                    username: cleanUser,
+                    password: mPassword.trim(),
+                    allowedIp: mAllowedIp.trim(),
+                    giftCodeBudget: Math.max(0, Number(mBudget) || 0),
+                    giftCodeSpent: 0,
+                    active: true,
+                    createdAt: new Date().toLocaleString('en-GB')
+                  };
+                  updateAdminSettings({ mentors: [created, ...curMentors] });
+                  setMName('');
+                  setMUsername('');
+                  setMPassword('');
+                  setMAllowedIp('');
+                  setMBudget('5000');
+                  showToast(`Mentor ${created.name} created (Portal: /#/mentor-ewi777-panel)`);
+                }}
+                className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-black text-cyan-700 uppercase tracking-wider">
+                      Provision IP-Locked Mentor Account
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Mentor Login URL: <span className="font-mono font-bold text-[#0891B2]">/#/mentor-ewi777-panel</span> (No self-signup allowed)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+                  <input
+                    type="text"
+                    required
+                    value={mName}
+                    onChange={(e) => setMName(e.target.value)}
+                    placeholder="Display Name"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={mUsername}
+                    onChange={(e) => setMUsername(e.target.value)}
+                    placeholder="Username"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={mPassword}
+                    onChange={(e) => setMPassword(e.target.value)}
+                    placeholder="Initial Password"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={mAllowedIp}
+                    onChange={(e) => setMAllowedIp(e.target.value)}
+                    placeholder="Exact Allowed IP"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    required
+                    value={mBudget}
+                    onChange={(e) => setMBudget(e.target.value)}
+                    placeholder="Gift Budget ৳"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs"
+                >
+                  + CREATE MENTOR ACCOUNT
+                </button>
+              </form>
+
+              {/* Mentors Table */}
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-200 font-black text-xs text-slate-700 uppercase">
+                  Active Mentors ({(adminSettings.mentors || []).length})
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3">MENTOR</th>
+                        <th className="px-4 py-3">ALLOWED IP</th>
+                        <th className="px-4 py-3">GIFT BUDGET / SPENT</th>
+                        <th className="px-4 py-3">STATUS</th>
+                        <th className="px-4 py-3 text-right">CONTROLS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {(adminSettings.mentors || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-500">
+                            No Mentors provisioned yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        (adminSettings.mentors || []).map((m) => (
+                          <tr key={m.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-slate-900">{m.name}</div>
+                              <div className="text-[10px] font-mono text-slate-500">
+                                @{m.username} • Pass: {m.password}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-mono font-bold text-[#0891B2]">{m.allowedIp}</td>
+                            <td className="px-4 py-3">
+                              <div className="font-mono font-bold text-slate-900">
+                                ৳{Number(m.giftCodeSpent || 0).toFixed(0)} / ৳{Number(m.giftCodeBudget || 0).toFixed(0)}
+                              </div>
+                              <div className="flex items-center gap-1 mt-1">
+                                <input
+                                  type="number"
+                                  value={mentorBudgetEdits[m.id] ?? String(m.giftCodeBudget || 0)}
+                                  onChange={(e) =>
+                                    setMentorBudgetEdits((p) => ({ ...p, [m.id]: e.target.value }))
+                                  }
+                                  className="w-20 px-2 py-1 rounded bg-slate-50 border border-slate-200 font-mono text-[11px]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextBudget = Math.max(0, Number(mentorBudgetEdits[m.id] ?? m.giftCodeBudget) || 0);
+                                    updateAdminSettings({
+                                      mentors: (adminSettings.mentors || []).map((x) =>
+                                        x.id === m.id ? { ...x, giftCodeBudget: nextBudget } : x
+                                      )
+                                    });
+                                    showToast(`Updated gift budget for ${m.name}`);
+                                  }}
+                                  className="px-2 py-1 rounded bg-cyan-600 text-white text-[10px] font-black"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                  m.active !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                }`}
+                              >
+                                {m.active !== false ? 'ACTIVE' : 'PAUSED'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="inline-flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateAdminSettings({
+                                      mentors: (adminSettings.mentors || []).map((x) =>
+                                        x.id === m.id ? { ...x, active: x.active === false } : x
+                                      )
+                                    });
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-slate-100 text-slate-800 text-[10px] font-black"
+                                >
+                                  {m.active !== false ? 'Pause' : 'Enable'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateAdminSettings({
+                                      mentors: (adminSettings.mentors || []).filter((x) => x.id !== m.id)
+                                    });
+                                    showToast(`Deleted Mentor ${m.name}`);
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-rose-50 text-rose-700 text-[10px] font-black"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* A-to-Z Mentor Activity Audit Trail */}
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-200 font-black text-xs text-slate-700 uppercase">
+                  A-to-Z Mentor Activity &amp; Gift Code Audit ({(adminSettings.mentorLogs || []).length})
+                </div>
+                <div className="overflow-x-auto max-h-[380px]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2.5">MENTOR</th>
+                        <th className="px-4 py-2.5">ACTION</th>
+                        <th className="px-4 py-2.5">DETAILS</th>
+                        <th className="px-4 py-2.5">IP</th>
+                        <th className="px-4 py-2.5">TIME</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {(adminSettings.mentorLogs || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-500">
+                            No Mentor audit logs recorded yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        (adminSettings.mentorLogs || []).map((log) => (
+                          <tr key={log.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-2.5 font-bold text-slate-900">
+                              {log.mentorName}
+                              <div className="text-[10px] font-mono text-slate-500">@{log.mentorUsername}</div>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                  log.action.includes('failed') || log.action.includes('blocked')
+                                    ? 'bg-rose-50 text-rose-700'
+                                    : 'bg-cyan-50 text-[#0891B2]'
+                                }`}
+                              >
+                                {log.action.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-700">{log.detail}</td>
+                            <td className="px-4 py-2.5 font-mono text-[11px] text-[#0891B2]">{log.ip}</td>
+                            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{log.time}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
@@ -5493,7 +6103,7 @@ export const Admin: React.FC = () => {
                               prev && prev.id === liveUser.id ? { ...prev, lockedBalance: 0 } : prev
                             );
                           }}
-                          className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-amber-400 text-slate-950 font-black text-[10px] whitespace-nowrap active:scale-95"
+                          className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-black text-[10px] whitespace-nowrap active:scale-95"
                         >
                           Release Locked
                         </button>
@@ -5665,7 +6275,7 @@ export const Admin: React.FC = () => {
                   type="checkbox"
                   checked={balLocked}
                   onChange={(e) => setBalLocked(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded accent-amber-500"
+                  className="mt-0.5 h-4 w-4 rounded accent-cyan-600"
                 />
                 <div>
                   <div className="text-[11px] font-black text-cyan-700">Locked (Non-Withdrawable)</div>
@@ -6278,7 +6888,7 @@ export const Admin: React.FC = () => {
                     min={1}
                     value={giftModal.depositBonusPercent}
                     onChange={(e) => setGiftModal({ ...giftModal, depositBonusPercent: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-amber-500/50 font-mono font-black text-cyan-700"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-cyan-400 font-mono font-black text-cyan-700"
                   />
                   <div className="flex gap-1 mt-1">
                     {['100', '150', '200', '300'].map((pct) => (
@@ -6288,7 +6898,7 @@ export const Admin: React.FC = () => {
                         onClick={() => setGiftModal({ ...giftModal, depositBonusPercent: pct })}
                         className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${
                           giftModal.depositBonusPercent === pct
-                            ? 'bg-cyan-600 text-slate-950 border-amber-300'
+                            ? 'bg-cyan-600 text-white border-cyan-600'
                             : 'bg-slate-50 text-slate-500 border-slate-200'
                         }`}
                       >
@@ -6382,7 +6992,7 @@ export const Admin: React.FC = () => {
               <select
                 value={giftModal.targetUid}
                 onChange={(e) => setGiftModal({ ...giftModal, targetUid: e.target.value })}
-                className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-amber-200"
+                className="w-full px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-900"
               >
                 <option value="">ALL USERS (Anyone can redeem)</option>
                 {allUsers

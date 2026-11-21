@@ -156,7 +156,7 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
         <circle cx="-18" cy="0" r="3.5" fill="#0E7490" />
         <circle cx="18" cy="0" r="3.5" fill="#0E7490" />
         <rect x="-15" y="-9" width="30" height="18" rx="2" stroke="#FFF7B8" strokeWidth="0.8" fill="none" opacity="0.7" />
-        <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳100</text>
+        <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">Day 1 ৳1</text>
       </g>
 
       <g transform="translate(214, 76) rotate(16)" filter="url(#pa_drop_shadow)">
@@ -164,7 +164,7 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
         <circle cx="-18" cy="0" r="3.5" fill="#0E7490" />
         <circle cx="18" cy="0" r="3.5" fill="#0E7490" />
         <rect x="-15" y="-9" width="30" height="18" rx="2" stroke="#FFF7B8" strokeWidth="0.8" fill="none" opacity="0.7" />
-        <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳500</text>
+        <text x="0" y="4" fill="#7A4E00" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">Day 7 ৳7</text>
       </g>
 
       <g transform="translate(68, 28) rotate(12)">
@@ -182,8 +182,8 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
         <rect x="88" y="40" width="84" height="78" rx="10" fill="#ECFEFF" />
         <rect x="88" y="36" width="84" height="80" rx="10" fill="#FFFFFF" />
         <path d="M88 46 C88 40.477 92.477 36 98 36 L162 36 C167.523 36 172 40.477 172 46 L172 58 L88 58 Z" fill="url(#pa_cal_header)" />
-        <text x="130" y="49" fill="#FFFFFF" fontSize="9" fontWeight="900" letterSpacing="1" textAnchor="middle" fontFamily="sans-serif">
-          7 DAYS CHECK-IN
+        <text x="130" y="49" fill="#FFFFFF" fontSize="8.5" fontWeight="900" letterSpacing="0.8" textAnchor="middle" fontFamily="sans-serif">
+          DAILY SIGN-IN
         </text>
         {[98, 114, 130, 146, 162].map((x, i) => (
           <g key={i}>
@@ -211,7 +211,7 @@ export const PinkAttendanceIllustration: React.FC<{ className?: string }> = ({ c
 
         <g transform="translate(148, 88)">
           <rect x="-14" y="-7" width="28" height="14" rx="4" fill="url(#pa_gold)" />
-          <text x="0" y="3.5" fill="#7A4E00" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳1200</text>
+          <text x="0" y="3.5" fill="#7A4E00" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">৳1-৳7</text>
         </g>
 
         <rect x="94" y="102" width="72" height="6" rx="3" fill="#CFFAFE" />

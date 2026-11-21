@@ -17,7 +17,8 @@ import {
   TileBinaryIcon,
   TileGoldIcon,
   TileCasinoIcon,
-  TileSlotsIcon
+  TileSlotsIcon,
+  TileLudoIcon
 } from '../components/DashboardArtwork';
 import { GameItem } from '../types';
 
@@ -36,7 +37,9 @@ const ALLOWED_TABS = [
   'aviator',
   'luckyjet',
   'plane',
+  'ewi-roulette',
   'roulette',
+  'ludo',
   'binary',
   'gold-market',
   'mines',
@@ -148,7 +151,9 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           'game_binary',
           'game_gold_market',
           'game_mines',
-          'game_coinflip'
+          'game_coinflip',
+          'game_ewi_roulette',
+          'game_ludo'
         ].includes(g.id)
     )
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -332,7 +337,27 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           )}
         </div>
 
-        {/* 4×2 Tile Grid */}
+        {/* Marquee Announcement Bar (Directly Below Hero Carousel) */}
+        <div className="bg-white rounded-2xl px-3 py-2 border border-cyan-100 shadow-xs flex items-center gap-2 overflow-hidden">
+          <div className="w-7 h-7 rounded-full bg-cyan-50 border border-cyan-100 text-cyan-700 flex items-center justify-center flex-shrink-0">
+            <Volume2 className="w-4 h-4" />
+          </div>
+          <div className="flex-1 overflow-hidden whitespace-nowrap text-xs text-slate-600 font-medium">
+            <div className="animate-marquee inline-block">
+              {adminSettings.marqueeText ||
+                'Notice: Welcome to EWI 777 Official! Play EWI Ludo & PLANE in Casino, EWI Roulette, Lucky Jet & Aviator in Slots, instant EWI PAY bKash/Nagad deposits & withdrawals.'}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => goTab('activity')}
+            className="flex-shrink-0 px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 hover:bg-cyan-100 font-bold text-[11px] active:scale-95 whitespace-nowrap"
+          >
+            Detail
+          </button>
+        </div>
+
+        {/* 4×2 Locked Square Tile Grid with Water-Drop Gloss */}
         <div className="grid grid-cols-4 gap-2.5">
           {HOME_TILES.map((tile) => (
             <button
@@ -341,8 +366,21 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               onClick={tile.onClick}
               className="flex flex-col items-center gap-1.5 group active:scale-95 transition-transform"
             >
-              <div className="w-full aspect-square rounded-2xl flex items-center justify-center p-1.5 bg-white border border-slate-200 shadow-xs group-hover:border-cyan-400 transition-all">
-                {tile.icon}
+              <div className="relative w-full aspect-square rounded-2xl flex items-center justify-center p-1 bg-white border border-cyan-100 shadow-[0_6px_16px_rgba(8,145,178,0.10)] group-hover:border-cyan-400 overflow-hidden transition-all">
+                <div className="w-full h-full rounded-xl overflow-hidden">{tile.icon}</div>
+                {/* Water-drop specular sheen overlay */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/55 via-transparent to-cyan-400/10"
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -top-2 -left-2 w-9 h-9 rounded-full bg-white/40 blur-[2px]"
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-2 right-2 w-2 h-2 rounded-full bg-white/75 shadow-[0_0_6px_rgba(255,255,255,0.9)]"
+                />
               </div>
               <span className="text-[11px] font-bold tracking-tight text-center leading-tight whitespace-nowrap truncate max-w-full text-slate-700">
                 {tile.label}
@@ -351,23 +389,37 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           ))}
         </div>
 
-        {/* Marquee Announcement Bar */}
-        <div className="bg-white rounded-2xl px-3 py-2 border border-slate-200 shadow-xs flex items-center gap-2 overflow-hidden">
-          <div className="w-7 h-7 rounded-full bg-cyan-50 border border-cyan-100 text-cyan-700 flex items-center justify-center flex-shrink-0">
-            <Volume2 className="w-4 h-4" />
-          </div>
-          <div className="flex-1 overflow-hidden whitespace-nowrap text-xs text-slate-600 font-medium">
-            <div className="animate-marquee inline-block">
-              {adminSettings.marqueeText ||
-                'Notice: Welcome to EWI 777 Official! Play EWI Roulette & PLANE in Casino, Lucky Jet & Aviator in Slots, instant EWI PAY bKash/Nagad deposits & withdrawals, synchronized WinGo, K3, 5D, Gold & Binary Markets.'}
+        {/* Featured EWI Ludo Card */}
+        <div
+          onClick={() => {
+            if (!isGameActive('game_ludo')) {
+              showToast('EWI Ludo is currently offline for maintenance');
+              return;
+            }
+            goTab('ludo');
+          }}
+          className="bg-white rounded-3xl p-3.5 border border-cyan-200 shadow-xs hover:border-cyan-400 cursor-pointer active:scale-99 transition-all flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative w-12 h-12 rounded-2xl overflow-hidden border border-cyan-200 shadow-xs flex-shrink-0">
+              <TileLudoIcon />
+              <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/45 via-transparent to-cyan-400/10" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-sm text-slate-900">EWI LUDO</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase">
+                  NEW
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-semibold truncate">
+                Online 2P/4P &amp; Private Friends Rooms • ৳20–৳50,000
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => goTab('activity')}
-            className="flex-shrink-0 px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 hover:bg-cyan-100 font-bold text-[11px] active:scale-95 whitespace-nowrap"
-          >
-            Detail
-          </button>
+          <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-xs">
+            Play Ludo →
+          </span>
         </div>
 
         {/* Custom Admin-Added Games */}

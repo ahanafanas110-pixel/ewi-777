@@ -1,28 +1,23 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 import type { IncomingMessage, ServerResponse } from 'http';
+import {
+  extractClientIpNode,
+  getFirestoreDoc,
+  normalizeIpValue,
+  parseDeviceNameNode,
+  patchFirestoreDoc,
+  readBodyJson,
+  sendJson,
+  SESSION_TTL_MS,
+  setCorsHeaders,
+  sha256HexNode
+} from '../_shared';
 
-const DEFAULT_PHONE_HASH = '0aab39f411ae77619215a3cd679005519c52baa0758214ec51901ea355d006f1';
-const DEFAULT_PASS_HASH = '07882c957ec3bb16b8f5ec021707910625689e5e011811ce855fb5aeeddc1874';
-
-function sha256Hex(val: string): string {
-  return crypto.createHash('sha256').update(val).digest('hex');
-}
-
-function getFirebaseConfigSafe(): { projectId: string; firestoreDatabaseId: string; apiKey: string } {
-  try {
-    const raw = fs.readFileSync(path.resolve(process.cwd(), 'firebase-applet-config.json'), 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return {
-      projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0882665131',
-      firestoreDatabaseId:
-        process.env.FIREBASE_DATABASE_ID || 'ai-studio-win777premiumonl-cf3c2f52-bee9-47a8-ac01-331a160d69bc',
-      apiKey: process.env.FIREBASE_API_KEY || ''
-    };
-  }
-}
+const OLD_PHONE_HASH = '0aab39f411ae77619215a3cd679005519c52baa0758214ec51901ea355d006f1';
+const OLD_PASS_HASH = '07882c957ec3bb16b8f5ec021707910625689e5e011811ce855fb5aeeddc1874';
+const DEFAULT_PHONE_HASH = '27c75197134a88ef96daf2bdb444e3d6a0a394b9fa857b886c42b1988dd75d47';
+const DEFAULT_PASS_HASH = 'bfbbb4e8bb9a402d888fd5133a41cf3d2423b82849d05bb63b2be5740f322814';
+const ADMIN_2FA_SECRET = process.env.ADMIN_2FA_SECRET || 'EWI777-2FA-CORE-9941-SEC-X82';
 
 function normalizePhoneServer(phone: string): string {
   if (!phone) return '';
@@ -31,107 +26,108 @@ function normalizePhoneServer(phone: string): string {
   else if (cleaned.startsWith('+880')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('8800')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('880')) cleaned = '0' + cleaned.slice(3);
-  else if (/^1[3-9]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
+  else if (/^1[35789]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
   return cleaned;
 }
 
-async function readBodyJson(req: any): Promise<any> {
-  if (req.body && typeof req.body === 'object') return req.body;
-  if (typeof req.body === 'string') {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return {};
-    }
-  }
-  return new Promise((resolve) => {
-    let raw = '';
-    req.on('data', (chunk: Buffer | string) => {
-      raw += chunk.toString();
-    });
-    req.on('end', () => {
-      try {
-        resolve(raw ? JSON.parse(raw) : {});
-      } catch {
-        resolve({});
-      }
-    });
-    req.on('error', () => resolve({}));
-  });
-}
-
-async function fetchLiveAdminCredentialHashes(): Promise<{ phoneHash: string; passwordHash: string }> {
-  const envPhone = process.env.ADMIN_PHONE ? normalizePhoneServer(process.env.ADMIN_PHONE) : '';
-  const envPass = process.env.ADMIN_PASSWORD || '';
-  const fallback = {
-    phoneHash: envPhone ? sha256Hex(envPhone) : DEFAULT_PHONE_HASH,
-    passwordHash: envPass ? sha256Hex(envPass) : DEFAULT_PASS_HASH
-  };
-  try {
-    const firebaseConfig = getFirebaseConfigSafe();
-    if (!firebaseConfig.projectId) return fallback;
-    const keyQuery = firebaseConfig.apiKey ? `?key=${firebaseConfig.apiKey}` : '';
-    const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents/appConfig/settings${keyQuery}`;
-    const res = await fetch(url);
-    if (!res.ok) return fallback;
-    const data = await res.json();
-    const fields = data?.fields || {};
-    const phoneHash =
-      fields.adminPhoneHash?.stringValue ||
-      (fields.adminPhone?.stringValue ? sha256Hex(normalizePhoneServer(fields.adminPhone.stringValue)) : '') ||
-      fallback.phoneHash;
-    const passwordHash =
-      fields.adminPasswordHash?.stringValue ||
-      (fields.adminPassword?.stringValue ? sha256Hex(fields.adminPassword.stringValue) : '') ||
-      fallback.passwordHash;
-    return { phoneHash, passwordHash };
-  } catch {
-    return fallback;
-  }
-}
-
 export default async function handler(req: IncomingMessage & { method?: string; body?: any }, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
-  res.setHeader('Cache-Control', 'no-store');
+  setCorsHeaders(res);
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
     return;
   }
-
-  const sendJson = (statusCode: number, payload: any) => {
-    res.statusCode = statusCode;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(payload));
-  };
-
   if (req.method !== 'POST') {
-    return sendJson(405, { success: false, message: 'Method not allowed' });
+    return sendJson(res, 405, { success: false, message: 'Method not allowed' });
   }
 
   const body = await readBodyJson(req);
-  const { phone, password, route } = body || {};
+  const { phone, password, route, sessionId, deviceName, forceTakeover } = body || {};
 
   if (route && String(route) !== '/admin-ewi777-panel-009') {
-    return sendJson(403, { success: false, message: 'Unauthorized admin access route!' });
+    return sendJson(res, 403, { success: false, message: 'Unauthorized admin access route!' });
   }
 
   const rawPhone = String(phone || '').trim();
   const rawPass = String(password || '');
   if (!rawPhone || rawPass.length < 4) {
-    return sendJson(400, { success: false, message: 'Please enter a valid Admin Phone and Password.' });
+    return sendJson(res, 400, { success: false, message: 'Please enter a valid Admin Phone and Password.' });
   }
 
-  const creds = await fetchLiveAdminCredentialHashes();
+  const clientIp = normalizeIpValue(extractClientIpNode(req)) || 'Unknown';
+  const resolvedDevice = String(deviceName || '').trim() || parseDeviceNameNode(String(req.headers?.['user-agent'] || ''));
+
+  const settingsDoc = (await getFirestoreDoc('appConfig', 'settings')) || {};
+  const bannedIps: string[] = Array.isArray(settingsDoc.bannedIps) ? settingsDoc.bannedIps.map(normalizeIpValue) : [];
+  if (clientIp !== 'Unknown' && bannedIps.includes(clientIp)) {
+    return sendJson(res, 403, { success: false, bannedIp: true, message: 'Access denied: Your IP address is blocked.' });
+  }
+
+  const envPhone = process.env.ADMIN_PHONE ? normalizePhoneServer(process.env.ADMIN_PHONE) : '';
+  const envPass = process.env.ADMIN_PASSWORD || '';
+  const fallbackPhoneHash = envPhone ? sha256HexNode(envPhone) : DEFAULT_PHONE_HASH;
+  const fallbackPassHash = envPass ? sha256HexNode(envPass) : DEFAULT_PASS_HASH;
+
+  const rawFbPhoneHash =
+    settingsDoc.adminPhoneHash ||
+    (settingsDoc.adminPhone ? sha256HexNode(normalizePhoneServer(String(settingsDoc.adminPhone))) : '');
+  const rawFbPassHash =
+    settingsDoc.adminPasswordHash ||
+    (settingsDoc.adminPassword ? sha256HexNode(String(settingsDoc.adminPassword)) : '');
+
+  const expectedPhoneHash = rawFbPhoneHash && rawFbPhoneHash !== OLD_PHONE_HASH ? rawFbPhoneHash : fallbackPhoneHash;
+  const expectedPassHash = rawFbPassHash && rawFbPassHash !== OLD_PASS_HASH ? rawFbPassHash : fallbackPassHash;
+
   const inputPhone = normalizePhoneServer(rawPhone);
-  const inputPhoneHash = sha256Hex(inputPhone);
-  const inputPassHash = sha256Hex(rawPass);
-
-  if (inputPhoneHash !== creds.phoneHash || inputPassHash !== creds.passwordHash) {
-    return sendJson(401, { success: false, message: 'Invalid Admin Phone or Password!' });
+  if (sha256HexNode(inputPhone) !== expectedPhoneHash || sha256HexNode(rawPass) !== expectedPassHash) {
+    return sendJson(res, 401, { success: false, message: 'Invalid Admin Number or Password!' });
   }
 
-  return sendJson(200, { success: true, requires2FA: true });
+  // Enforce Single-Session Admin Lock
+  const nowMs = Date.now();
+  const active = settingsDoc.activeAdminSession;
+  const incomingSid = String(sessionId || '').trim() || `adm_${nowMs}_${Math.random().toString(36).slice(2, 8)}`;
+  const isStillAlive =
+    active &&
+    active.sessionId &&
+    active.sessionId !== incomingSid &&
+    nowMs - Number(active.lastSeenAtMs || active.loggedInAtMs || 0) < SESSION_TTL_MS;
+
+  if (isStillAlive && !forceTakeover) {
+    return sendJson(res, 409, {
+      success: false,
+      sessionConflict: true,
+      activeSession: active,
+      message: `Admin is already active on ${active.deviceName || 'another device'} (IP: ${active.ip || 'Unknown'}). Kick that session from the active device first.`
+    });
+  }
+
+  const nextSession = {
+    sessionId: incomingSid,
+    ip: clientIp,
+    deviceName: resolvedDevice,
+    loggedInAt: new Date(nowMs).toLocaleString('en-GB'),
+    loggedInAtMs: nowMs,
+    lastSeenAtMs: nowMs
+  };
+  await patchFirestoreDoc('appConfig', 'settings', {
+    ...settingsDoc,
+    activeAdminSession: nextSession,
+    updatedAt: nowMs
+  });
+
+  const sessionToken = crypto
+    .createHmac('sha256', ADMIN_2FA_SECRET)
+    .update(`ADMIN_SESSION:${expectedPhoneHash}:${incomingSid}:${Math.floor(nowMs / 86400000)}`)
+    .digest('hex')
+    .slice(0, 32);
+
+  return sendJson(res, 200, {
+    success: true,
+    requires2FA: false,
+    sessionToken,
+    sessionId: incomingSid,
+    activeSession: nextSession,
+    message: 'Admin authenticated'
+  });
 }

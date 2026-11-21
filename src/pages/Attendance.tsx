@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowLeft, Check, Gift } from 'lucide-react';
-import checkinBanner from '../assets/images/ewi777_checkin_banner_1794826719310.jpg';
+import { PinkAttendanceIllustration } from '../components/PinkActivityIllustrations';
 
 export const Attendance: React.FC = () => {
   const { attendance, claimAttendanceReward, language, setActiveTab, setLanguage } = useApp();
@@ -43,13 +43,9 @@ export const Attendance: React.FC = () => {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Official EWI 777 Daily Check-In Banner */}
-        <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-xs bg-white">
-          <img
-            src={checkinBanner}
-            alt="EWI 777 Daily Check-In"
-            className="w-full h-32 object-cover"
-          />
+        {/* Official EWI 777 Daily Check-In Vector Card */}
+        <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-xs bg-white h-32">
+          <PinkAttendanceIllustration className="w-full h-full object-cover" />
         </div>
 
         {/* Summary Card */}

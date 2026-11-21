@@ -34,8 +34,12 @@ import {
   EwiWingoMode,
   EwiWingoBet,
   RouletteBet,
-  RouletteBetType
+  RouletteBetType,
+  ActiveAdminSession,
+  LudoRoomMode,
+  LudoBetRecord
 } from '../types';
+import { getClientDeviceName } from '../utils/deviceInfo';
 import confetti from 'canvas-confetti';
 import {
   checkBoundWalletInFirebase,
@@ -171,6 +175,8 @@ interface AppContextType {
     userNickname?: string;
     userPhone?: string;
     sender: 'user' | 'admin';
+    repliedByRole?: 'admin' | 'mentor';
+    repliedByName?: string;
     text: string;
     imageUrl?: string;
   }) => Promise<void>;
@@ -228,9 +234,16 @@ interface AppContextType {
   login: (phoneOrEmail: string, pass: string, remember: boolean) => Promise<{ success: boolean; message: string }>;
   register: (phoneOrEmail: string, pass: string, inviteCode?: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
-  adminLogin: (phone: string, pass: string) => Promise<{ success: boolean; message: string; requires2FA?: boolean }>;
+  adminLogin: (phone: string, pass: string) => Promise<{ success: boolean; message: string; requires2FA?: boolean; sessionConflict?: ActiveAdminSession }>;
   verifyAdmin2FA: (phone: string, pass: string, code: string) => Promise<{ success: boolean; message: string }>;
   adminLogout: () => void;
+  visitorIpInfo: { ip: string; deviceName: string; isBannedIp: boolean };
+  banIpGlobally: (ip: string) => Promise<void>;
+  unbanIpGlobally: (ip: string) => Promise<void>;
+  kickAdminSession: () => Promise<void>;
+  ludoBets: LudoBetRecord[];
+  placeLudoBet: (stake: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode) => { success: boolean; message: string };
+  settleLudoMatch: (winAmount: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode, detail: string, stake: number) => void;
   adminAccessLogs: AdminAccessLog[];
   logAdminAccessEntry: (
     action: AdminAccessLog['action'],
@@ -423,7 +436,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     slug: 'ewi-roulette',
     title: 'EWI ROULETTE',
     imageUrl: '',
-    category: 'Casino',
+    category: 'Slots',
     badge: '36X',
     price: '36X',
     sortOrder: 6.2,
@@ -431,6 +444,20 @@ export const DEFAULT_GAMES: GameItem[] = [
     featured: true,
     targetTab: 'ewi-roulette',
     htmlCode: '<!-- EWI 777 European Single-Zero Roulette -->\n<div class="ewi-game" data-game="ewi-roulette">EWI ROULETTE Live</div>'
+  },
+  {
+    id: 'game_ludo',
+    slug: 'ewi-ludo',
+    title: 'EWI Ludo',
+    imageUrl: '',
+    category: 'Casino',
+    badge: '1.9X',
+    price: '1.9X',
+    sortOrder: 6.3,
+    active: true,
+    featured: true,
+    targetTab: 'ludo',
+    htmlCode: '<!-- EWI 777 Multiplayer & Match Ludo -->\n<div class="ewi-game" data-game="ludo">EWI Ludo Live</div>'
   },
   {
     id: 'game_binary',
@@ -728,6 +755,12 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   activeGiftCodes: [],
   games: DEFAULT_GAMES,
   broadcasts: [],
+  mentors: [],
+  mentorLogs: [],
+  bannedIps: [],
+  mentorBlockedIps: [],
+  paymentGateways: [],
+  activeAdminSession: null,
   adminPhoneHash: DEFAULT_ADMIN_PHONE_HASH,
   adminPasswordHash: DEFAULT_ADMIN_PASS_HASH
 };
@@ -736,18 +769,11 @@ const INITIAL_REFERRALS: ReferralMember[] = [];
 
 const INITIAL_TRANSACTIONS: Transaction[] = [];
 
-// Helper to calculate VIP level based on cumulative deposits
+// Helper to calculate VIP level based on cumulative deposits (VIP 1 starts at ৳2,000 -> VIP 9 at ৳15,000,000)
 export const calculateVipFromDeposit = (totalDeposited: number): number => {
-  if (totalDeposited >= 15000000) return 10;
-  if (totalDeposited >= 5000000) return 9;
-  if (totalDeposited >= 1500000) return 8;
-  if (totalDeposited >= 500000) return 7;
-  if (totalDeposited >= 150000) return 6;
-  if (totalDeposited >= 50000) return 5;
-  if (totalDeposited >= 15000) return 4;
-  if (totalDeposited >= 5000) return 3;
-  if (totalDeposited >= 2000) return 2;
-  if (totalDeposited >= 500) return 1;
+  for (let i = VIP_TIERS.length - 1; i >= 0; i--) {
+    if (totalDeposited >= VIP_TIERS[i].requiredDeposit) return VIP_TIERS[i].level;
+  }
   return 0;
 };
 
@@ -766,7 +792,8 @@ export const PUBLIC_UNAUTH_TABS = new Set([
   'register',
   'registration',
   'customer-service',
-  'admin'
+  'admin',
+  'mentor'
 ]);
 
 const MONTHLY_VIP_MS = 30 * 24 * 60 * 60 * 1000;
@@ -783,7 +810,7 @@ export function applyAutoVipRewards(targetUser: User): {
   }
 
   const totalDep = Number(targetUser.totalDeposited) || 0;
-  const computedLevel = Math.max(targetUser.vipLevel || 0, calculateVipFromDeposit(totalDep));
+  const computedLevel = calculateVipFromDeposit(totalDep);
   const claimed = { ...(targetUser.claimedVipBonuses || {}) };
   const monthlyLast = { ...(targetUser.vipMonthlyLastClaim || {}) };
   const now = Date.now();
@@ -892,6 +919,15 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     const target = cleanHash || cleanPath;
 
     if (
+      target === 'mentor-ewi777-panel' ||
+      cleanHash === 'mentor-ewi777-panel' ||
+      cleanPath === 'mentor-ewi777-panel' ||
+      full.includes('/mentor-ewi777-panel') ||
+      full.includes('#/mentor-ewi777-panel')
+    ) {
+      return 'mentor';
+    }
+    if (
       target === 'admin-ewi777-panel-009' ||
       cleanHash === 'admin-ewi777-panel-009' ||
       cleanPath === 'admin-ewi777-panel-009' ||
@@ -955,6 +991,7 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'casino' || cleanHash === 'casino' || full.includes('/casino') || full.includes('#/casino')) resolved = 'casino';
     else if (target === 'slots' || cleanHash === 'slots' || full.includes('/slots') || full.includes('#/slots')) resolved = 'slots';
     else if (target === 'ewi-roulette' || target === 'roulette' || cleanHash === 'ewi-roulette' || full.includes('/ewi-roulette') || full.includes('#/ewi-roulette')) resolved = 'ewi-roulette';
+    else if (target === 'ludo' || target === 'ewi-ludo' || cleanHash === 'ludo' || full.includes('/ludo') || full.includes('#/ludo')) resolved = 'ludo';
   } catch {}
 
   if (!isLoggedIn && !PUBLIC_UNAUTH_TABS.has(resolved)) {
@@ -1168,7 +1205,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (g.id === 'game_luckyjet') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
           if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
+          if (g.id === 'game_ewi_roulette') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
+          if (g.id === 'game_ludo') return { ...g, category: 'Casino' as const, targetTab: 'ludo' };
           if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
           if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
           if (g.id === 'game_gold_market') {
@@ -1332,6 +1371,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const rouletteBetsRef = useRef<RouletteBet[]>(rouletteBets);
   rouletteBetsRef.current = rouletteBets;
+  const [ludoBets, setLudoBets] = useState<LudoBetRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('ewi777_ludo_bets');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+  const [visitorIpInfo, setVisitorIpInfo] = useState<{ ip: string; deviceName: string; isBannedIp: boolean }>(() => ({
+    ip: '',
+    deviceName: getClientDeviceName(),
+    isBannedIp: false
+  }));
   const settledK3PeriodsRef = useRef<Set<string>>(new Set());
   const settledD5PeriodsRef = useRef<Set<string>>(new Set());
   const settledEwiWingoPeriodsRef = useRef<Set<string>>(new Set());
@@ -1847,6 +1898,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
               const normalizedGames = mergedGamesList.map((g: GameItem) => {
                 if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
+                if (g.id === 'game_ewi_roulette') return { ...g, category: 'Slots' as const };
+                if (g.id === 'game_ludo') return { ...g, category: 'Casino' as const, targetTab: 'ludo' };
                 if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
                 if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
                 if (g.id === 'game_gold_market') {
@@ -3408,7 +3461,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: trimmed, password: pass, clientTimezone: tz })
+        body: JSON.stringify({ identifier: trimmed, password: pass, clientTimezone: tz, deviceName: getClientDeviceName() })
       });
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
@@ -3472,6 +3525,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       turnoverRequired: Number(existing.turnoverRequired) || 0,
       turnoverCompleted: Number(existing.turnoverCompleted) || 0,
       lastLogin: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      deviceName: existing.deviceName || getClientDeviceName(),
       isLoggedIn: true
     };
 
@@ -3604,6 +3658,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       illegalBetCount: 0,
       minesRoundSeq: 0,
       boundWallets: [],
+      deviceName: getClientDeviceName(),
       attendanceState: {
         claimedDays: [],
         streak: 0
@@ -3618,7 +3673,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch(apiUrl('/api/auth/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: newUser, clientTimezone: tz })
+        body: JSON.stringify({ user: newUser, clientTimezone: tz, deviceName: getClientDeviceName() })
       });
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
@@ -3814,6 +3869,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cleanPass.length < 4) {
       return { success: false, message: 'Administrator password must be at least 4 characters.' };
     }
+    let sessionId = '';
+    try {
+      sessionId = sessionStorage.getItem('ewi777_admin_session_id') || '';
+      if (!sessionId) {
+        sessionId = `adm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        sessionStorage.setItem('ewi777_admin_session_id', sessionId);
+      }
+    } catch {
+      sessionId = `adm_${Date.now()}`;
+    }
     try {
       const res = await fetch(apiUrl('/api/admin/login'), {
         method: 'POST',
@@ -3821,12 +3886,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         body: JSON.stringify({
           phone: cleanPhone,
           password: cleanPass,
+          sessionId,
+          deviceName: getClientDeviceName(),
           route: '/admin-ewi777-panel-009'
         })
       });
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('application/json')) {
         const data = await res.json().catch(() => ({}));
+        if (res.status === 409 && data.sessionConflict) {
+          return {
+            success: false,
+            message: data.message || 'Another device is already logged into the Admin Panel!',
+            sessionConflict: data.activeSession
+          };
+        }
         if (res.ok && data.success) {
           if (data.sessionToken) {
             sessionStorage.setItem('ewi777_admin_token', String(data.sessionToken));
@@ -3920,7 +3994,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminLogout = () => {
+    const sid = (() => {
+      try {
+        return sessionStorage.getItem('ewi777_admin_session_id') || '';
+      } catch {
+        return '';
+      }
+    })();
     sessionStorage.removeItem('ewi777_admin_token');
+    if (sid) {
+      fetch(apiUrl('/api/admin/sessions'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout', sessionId: sid })
+      }).catch(() => {});
+    }
     setIsAdminLoggedIn(false);
     showToast('Admin logged out');
     const nextTab = userRef.current.isLoggedIn ? 'home' : 'login';
@@ -4605,7 +4693,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const depositAmt = req.amount;
     const isUsdtDeposit = String(req.method || '').toUpperCase() === 'USDT';
     const usdtBonusCredit = isUsdtDeposit ? +(depositAmt * 0.02).toFixed(2) : 0;
-    const depositTurnover = depositAmt * 2;
+    const depositTurnover = depositAmt * 1;
     const totalTurnoverAdded = depositTurnover;
     const totalCredit = +(depositAmt + usdtBonusCredit).toFixed(2);
 
@@ -5324,7 +5412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userId: user.id,
       type: 'withdraw',
       title: `Withdraw to ${method} (${targetBound})`,
-      detail: `Order ${wdOrderId} • Processing via EWI-Pay`,
+      detail: `Order ${wdOrderId} • Processing via EWI PAY`,
       amount: -amount,
       balanceAfter: newBal,
       time: new Date().toLocaleString(),
@@ -5335,7 +5423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTransactions((prev) => [newTx, ...prev]);
     saveTransactionToFirebase(newTx).catch(() => {});
-    showToast(`Withdrawal of ৳${amount} sent to EWI-Pay! Status: Processing`);
+    showToast(`Withdrawal of ৳${amount} sent to EWI PAY! Status: Processing`);
     return { success: true, message: 'Success' };
   };
 
@@ -5701,9 +5789,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const totalCost = amount * multiplier;
     if (totalCost <= 0) return { success: false, message: 'Invalid bet amount' };
-    if (user.balance < totalCost) {
-      showToast('Insufficient balance');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < totalCost) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient balance');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
 
     const currentPeriodNum = wingoMarkets[mode].period;
@@ -5892,9 +5981,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Minimum Binary trade is ৳10');
       return { success: false, message: 'Minimum Binary trade is ৳10' };
     }
-    if (user.balance < amount) {
-      showToast('Insufficient balance');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < amount) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient balance');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
 
     const spec = BINARY_MARKET_MAP[asset];
@@ -5975,9 +6065,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`Minimum ${label} bet is ৳10`);
       return { success: false, message: `Minimum ${label} bet is ৳10` };
     }
-    if (user.balance < amount) {
-      showToast('Insufficient wallet balance');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < amount) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient wallet balance');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
 
     const prefix = game === 'luckyjet' ? 'lj' : game === 'plane' ? 'pl' : 'av';
@@ -5986,7 +6077,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedUser = syncUserEverywhere({
       ...user,
       balance: newBal,
-      lockedBalance: Math.min(Number(user.lockedBalance || 0), newBal),
       exp: user.exp + amount,
       turnoverCompleted: (user.turnoverCompleted || 0) + amount
     });
@@ -6277,9 +6367,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (amount < 10) {
       return { success: false, message: 'Minimum Aviator bet is ৳10' };
     }
-    if (user.balance < amount) {
-      showToast('Insufficient wallet balance');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < amount) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient wallet balance');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
 
     const betId = `av_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -6400,9 +6491,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Minimum bet is ৳10');
       return { success: false, message: 'Minimum bet is ৳10' };
     }
-    if (user.balance < amount) {
-      showToast('Insufficient wallet balance');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < amount) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient wallet balance');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
     const newBal = +(user.balance - amount).toFixed(2);
     const updatedUser = syncUserEverywhere({
@@ -6470,9 +6562,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Minimum Coin Flip bet is ৳10');
       return { success: false, message: 'Minimum Coin Flip bet is ৳10' };
     }
-    if (user.balance < amount) {
-      showToast('Insufficient wallet balance');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < amount) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient wallet balance');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
     const newBal = +(user.balance - amount).toFixed(2);
     const updatedUser = syncUserEverywhere({
@@ -6747,13 +6840,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Award credited' };
   };
 
-  // Real-Time Support Chat Messenger (2-way User <-> Admin synced to BOTH Express & Firebase)
+  // Real-Time Support Chat Messenger (2-way User <-> Admin/Mentor synced to BOTH Express & Firebase)
   const sendSupportMessage = async (payload: {
     userId: string;
     userUid?: string;
     userNickname?: string;
     userPhone?: string;
     sender: 'user' | 'admin';
+    repliedByRole?: 'admin' | 'mentor';
+    repliedByName?: string;
     text: string;
     imageUrl?: string;
   }) => {
@@ -6780,6 +6875,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userNickname: payload.userNickname,
         userPhone: payload.userPhone,
         sender: payload.sender,
+        ...(payload.repliedByRole ? { repliedByRole: payload.repliedByRole } : {}),
+        ...(payload.repliedByName ? { repliedByName: payload.repliedByName } : {}),
         text: payload.text.trim(),
         imageUrl: payload.imageUrl,
         time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
@@ -6857,8 +6954,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (totalAmount <= 0 || isNaN(totalAmount)) {
       return { success: false, message: 'Invalid bet amount' };
     }
-    if (user.balance < totalAmount) {
-      return { success: false, message: 'Insufficient balance! Please deposit first.' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < totalAmount) {
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient balance! Please deposit first.' };
     }
     const newBal = +(user.balance - totalAmount).toFixed(2);
     const updatedUser = syncUserEverywhere({
@@ -7039,8 +7137,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (totalAmount <= 0 || isNaN(totalAmount)) {
       return { success: false, message: 'Invalid bet amount' };
     }
-    if (user.balance < totalAmount) {
-      return { success: false, message: 'Insufficient balance! Please deposit first.' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < totalAmount) {
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient balance! Please deposit first.' };
     }
     const newBal = +(user.balance - totalAmount).toFixed(2);
     const updatedUser = syncUserEverywhere({
@@ -7203,9 +7302,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (totalAmount < 10 || isNaN(totalAmount)) {
       return { success: false, message: 'Minimum bet is ৳10' };
     }
-    if (user.balance < totalAmount) {
-      showToast('Insufficient balance!');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < totalAmount) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient balance!');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
 
     const newBal = +(user.balance - totalAmount).toFixed(2);
@@ -7368,9 +7468,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cleanAmt < 10 || isNaN(cleanAmt)) {
       return { success: false, message: 'Minimum chip bet is ৳10' };
     }
-    if (user.balance < cleanAmt) {
-      showToast('Insufficient balance! Please deposit first.');
-      return { success: false, message: 'Insufficient balance' };
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < cleanAmt) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient balance! Please deposit first.');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
 
     const newBal = +(user.balance - cleanAmt).toFixed(2);
@@ -7385,7 +7486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const betEntry: RouletteBet = {
       id: `rl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       userId: user.id,
-      periodNumber,
+      roundId: periodNumber,
       betType,
       label,
       numbers: [...numbers],
@@ -7416,7 +7517,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const settleRouletteRound = (periodNumber: string, winningNumber: number) => {
     if (settledRoulettePeriodsRef.current.has(periodNumber)) return;
     const pendingForRound = rouletteBetsRef.current.filter(
-      (b) => b.periodNumber === periodNumber && b.status === 'pending' && (!userRef.current.id || b.userId === userRef.current.id)
+      (b) => b.roundId === periodNumber && b.status === 'pending' && (!userRef.current.id || b.userId === userRef.current.id)
     );
     if (pendingForRound.length === 0) return;
 
@@ -7429,9 +7530,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let totalWinCredit = 0;
     const evalMap = new Map<string, { won: boolean; winAmount: number }>();
     for (const pb of pendingForRound) {
-      const res = computeRouletteBetPayout(pb.betType, pb.numbers, pb.amount, winningNumber);
-      evalMap.set(pb.id, res);
-      totalWinCredit = +(totalWinCredit + res.winAmount).toFixed(2);
+      const winAmount = computeRouletteBetPayout(pb.numbers, winningNumber, pb.amount, pb.payoutMultiplier);
+      evalMap.set(pb.id, { won: winAmount > 0, winAmount });
+      totalWinCredit = +(totalWinCredit + winAmount).toFixed(2);
     }
 
     rouletteBetsRef.current = rouletteBetsRef.current.map((b) => {
@@ -7964,7 +8065,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id, status: 'processing', ewiPayWithdrawId: gwId })
             }).catch(() => {});
-            showToast(`Sent to EWI-Pay (${gwId}) — auto-syncing completion`);
+            showToast(`Sent to EWI PAY (${gwId}) — auto-syncing completion`);
           } else {
             const errMsg = String(
               gwData?.gateway?.message || gwData?.gateway?.error || gwData?.message || ''
@@ -7973,7 +8074,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         })
         .catch(() => {
-          showToast('Moved to Processing (EWI-Pay request queued)');
+          showToast('Moved to Processing (EWI PAY request queued)');
         });
     }
 
@@ -8135,6 +8236,178 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Broadcast deleted');
   };
 
+  // Global IP Ban & Security Status Polling
+  useEffect(() => {
+    let active = true;
+    const pollSecurity = async () => {
+      try {
+        const res = await fetch(apiUrl('/api/security/status'), { cache: 'no-store' }).catch(() => null);
+        const ct = res?.headers.get('content-type') || '';
+        if (res && res.ok && ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (!active || !data) return;
+          const ip = String(data.ip || '').trim();
+          const bannedList = Array.isArray(adminSettingsRef.current.bannedIps)
+            ? adminSettingsRef.current.bannedIps
+            : [];
+          const isBanned = Boolean(data.isBannedIp) || (ip !== '' && bannedList.includes(ip));
+          setVisitorIpInfo({
+            ip,
+            deviceName: String(data.deviceName || getClientDeviceName()),
+            isBannedIp: isBanned
+          });
+        }
+      } catch {}
+    };
+    pollSecurity();
+    const iv = setInterval(pollSecurity, 15000);
+    return () => {
+      active = false;
+      clearInterval(iv);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visitorIpInfo.ip) return;
+    const isBannedNow = Boolean(
+      Array.isArray(adminSettings.bannedIps) && adminSettings.bannedIps.includes(visitorIpInfo.ip)
+    );
+    setVisitorIpInfo((prev) => (prev.isBannedIp === isBannedNow ? prev : { ...prev, isBannedIp: isBannedNow }));
+  }, [adminSettings.bannedIps, visitorIpInfo.ip]);
+
+  const banIpGlobally = async (ip: string) => {
+    const clean = String(ip || '').trim();
+    if (!clean) return;
+    const cur = Array.isArray(adminSettingsRef.current.bannedIps) ? adminSettingsRef.current.bannedIps : [];
+    const next = cur.includes(clean) ? cur : [...cur, clean];
+    updateAdminSettings({ bannedIps: next });
+    await fetch(apiUrl('/api/security/ban-ip'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip: clean, action: 'ban' })
+    }).catch(() => {});
+    showToast(`Banned IP ${clean} globally`);
+  };
+
+  const unbanIpGlobally = async (ip: string) => {
+    const clean = String(ip || '').trim();
+    if (!clean) return;
+    const cur = Array.isArray(adminSettingsRef.current.bannedIps) ? adminSettingsRef.current.bannedIps : [];
+    const next = cur.filter((x) => x !== clean);
+    updateAdminSettings({ bannedIps: next });
+    await fetch(apiUrl('/api/security/ban-ip'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip: clean, action: 'unban' })
+    }).catch(() => {});
+    showToast(`Unbanned IP ${clean}`);
+  };
+
+  const kickAdminSession = async () => {
+    updateAdminSettings({ activeAdminSession: null });
+    await fetch(apiUrl('/api/admin/sessions'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'kick' })
+    }).catch(() => {});
+    showToast('Active admin session cleared!');
+  };
+
+  const placeLudoBet = (stake: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode) => {
+    if (!user.isLoggedIn || !user.id) {
+      showToast('Please log in first to play EWI Ludo');
+      return { success: false, message: 'Login required' };
+    }
+    if (user.isBanned) {
+      showToast('Your account is banned by Administrator!');
+      return { success: false, message: 'Account banned' };
+    }
+    const cleanStake = +Number(stake || 0).toFixed(2);
+    if (cleanStake < 20 || cleanStake > 50000 || isNaN(cleanStake)) {
+      return { success: false, message: 'Stake must be between ৳20 and ৳50,000' };
+    }
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < cleanStake) {
+      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient wallet balance!');
+      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
+    }
+
+    const newBal = +(user.balance - cleanStake).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...user,
+      balance: newBal,
+      exp: user.exp + cleanStake,
+      turnoverCompleted: (user.turnoverCompleted || 0) + cleanStake
+    });
+    setUser(updatedUser);
+
+    const tx: Transaction = {
+      id: `tx_${Date.now()}_ldb`,
+      userId: user.id,
+      type: 'ludo_bet',
+      title: `EWI Ludo Entry (${mode.replace('_', ' ').toUpperCase()})`,
+      detail: `Match stake ৳${cleanStake.toFixed(0)}`,
+      amount: -cleanStake,
+      balanceAfter: newBal,
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+    return { success: true, message: 'Ludo match started' };
+  };
+
+  const settleLudoMatch = (
+    winAmount: number,
+    mode: 'online_2p' | 'online_4p' | LudoRoomMode,
+    detail: string,
+    stake: number
+  ) => {
+    const cleanWin = +Math.max(0, Number(winAmount || 0)).toFixed(2);
+    const rec: LudoBetRecord = {
+      id: `ld_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      userId: userRef.current.id || 'guest',
+      mode,
+      stake,
+      winAmount: cleanWin,
+      status: cleanWin > 0 ? 'won' : 'lost',
+      time: new Date().toLocaleTimeString('en-US', { hour12: false })
+    };
+    setLudoBets((prev) => {
+      const next = [rec, ...prev].slice(0, 40);
+      try {
+        localStorage.setItem('ewi777_ludo_bets', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (cleanWin > 0 && userRef.current.id) {
+      const nextBal = +(Number(userRef.current.balance || 0) + cleanWin).toFixed(2);
+      const updatedUser = syncUserEverywhere({
+        ...userRef.current,
+        balance: nextBal,
+        turnoverCompleted: (userRef.current.turnoverCompleted || 0) + cleanWin
+      });
+      setUser(updatedUser);
+
+      const tx: Transaction = {
+        id: `tx_${Date.now()}_ldw`,
+        userId: userRef.current.id,
+        type: 'ludo_win',
+        title: `EWI Ludo Prize Won!`,
+        detail: `${detail} • +৳${cleanWin.toFixed(2)}`,
+        amount: cleanWin,
+        balanceAfter: nextBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      };
+      setTransactions((prev) => [tx, ...prev]);
+      saveTransactionToFirebase(tx).catch(() => {});
+      confetti({ particleCount: 75, spread: 65 });
+      showToast(`EWI Ludo Won +৳${cleanWin.toFixed(2)}!`);
+    }
+  };
+
   const currentPeriod = wingoMarkets[activeWingoMode].period;
   const timeRemaining = wingoMarkets[activeWingoMode].timeRemaining;
   const historyResults = wingoMarkets[activeWingoMode].history;
@@ -8220,6 +8493,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminLogin,
         verifyAdmin2FA,
         adminLogout,
+        visitorIpInfo,
+        banIpGlobally,
+        unbanIpGlobally,
+        kickAdminSession,
+        ludoBets,
+        placeLudoBet,
+        settleLudoMatch,
         adminAccessLogs,
         logAdminAccessEntry,
         heartbeatAdminAccess,

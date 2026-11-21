@@ -29,7 +29,8 @@ import type {
   User,
   WinGoBet,
   WithdrawRequest,
-  AppNotification
+  AppNotification,
+  LudoRoom
 } from '../types';
 
 const app = initializeApp(firebaseConfig);
@@ -799,3 +800,50 @@ export async function saveCrashStateToFirebase(state: CrashPoolState): Promise<v
   }
 }
 
+// ================= REAL-TIME PRIVATE LUDO ROOMS =================
+export function subscribeLudoRoomsInFirebase(onUpdate: (rooms: LudoRoom[]) => void): Unsubscribe {
+  const path = 'ludoRooms';
+  const q = query(collection(db, 'ludoRooms'), orderBy('updatedAt', 'desc'), limit(60));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: LudoRoom[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as LudoRoom;
+        if (data && data.id) list.push(data);
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeLudoRoomByIdInFirebase(
+  roomId: string,
+  onUpdate: (room: LudoRoom | null) => void
+): Unsubscribe {
+  const cleanId = sanitizeFirestoreId(roomId);
+  const path = `ludoRooms/${cleanId}`;
+  return onSnapshot(
+    doc(db, 'ludoRooms', cleanId),
+    (snap) => {
+      onUpdate(snap.exists() ? (snap.data() as LudoRoom) : null);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.GET, path);
+    }
+  );
+}
+
+export async function saveLudoRoomToFirebase(room: LudoRoom): Promise<void> {
+  if (!room?.id) return;
+  const id = sanitizeFirestoreId(room.id);
+  const path = `ludoRooms/${id}`;
+  try {
+    await setDoc(doc(db, 'ludoRooms', id), stripUndefinedDeep({ ...room, id }), { merge: true });
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.WRITE, path);
+  }
+}

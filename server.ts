@@ -12,6 +12,12 @@ import {
 import { BINARY_MARKETS } from './src/constants/markets';
 import { getRequestOrigin } from './api/ewi-pay/_config';
 import { processEwiPayWebhookPayload } from './api/ewi-pay/_firestoreSync';
+import {
+  normalizeIpValue,
+  parseDeviceNameNode,
+  SESSION_TTL_MS,
+  signMentorToken
+} from './api/_shared';
 
 const EWI_PAY_DEFAULT_BASE = 'https://ewi-pay.vercel.app';
 const EWI_PAY_DEFAULT_KEY = process.env.EWI_PAY_API_KEY || 'ewi_live_ewi777_88789947264e';
@@ -200,6 +206,8 @@ interface ServerStore {
   referrals: any[];
   marketPools: Record<string, any>;
   crashPools: Record<string, any>;
+  ludoRooms: Record<string, any>;
+  notifications: any[];
   crashRolling?: { wagered: number; paidOut: number };
   settings: any;
 }
@@ -243,6 +251,8 @@ const DEFAULT_STORE: ServerStore = {
   referrals: [],
   marketPools: {},
   crashPools: {},
+  ludoRooms: {},
+  notifications: [],
   crashRolling: { wagered: 0, paidOut: 0 },
   settings: {
     bkashNumber: '',
@@ -297,6 +307,12 @@ const DEFAULT_STORE: ServerStore = {
     activeGiftCodes: [],
     games: [],
     broadcasts: [],
+    mentors: [],
+    mentorLogs: [],
+    bannedIps: [],
+    mentorBlockedIps: [],
+    paymentGateways: [],
+    activeAdminSession: null,
     adminPhoneHash: DEFAULT_ADMIN_PHONE_HASH,
     adminPasswordHash: DEFAULT_ADMIN_PASS_HASH
   }
@@ -383,6 +399,8 @@ function loadStore(): ServerStore {
         referrals: Array.isArray(parsed.referrals) ? parsed.referrals : [],
         marketPools: parsed.marketPools && typeof parsed.marketPools === 'object' ? parsed.marketPools : {},
         crashPools: parsed.crashPools && typeof parsed.crashPools === 'object' ? parsed.crashPools : {},
+        ludoRooms: parsed.ludoRooms && typeof parsed.ludoRooms === 'object' ? parsed.ludoRooms : {},
+        notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
         crashRolling:
           parsed.crashRolling && typeof parsed.crashRolling === 'object'
             ? {
@@ -564,6 +582,26 @@ async function startServer() {
   );
   app.use(express.static(path.join(__dirname, 'public')));
 
+  // Global IP Ban check on API routes (allows /api/security/* and /api/settings GET so client can render lock screen)
+  app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/security/') || req.path === '/settings' && req.method === 'GET' || req.path.startsWith('/ewi-pay/webhook')) {
+      return next();
+    }
+    const clientIp = normalizeIpValue(extractClientIp(req));
+    const banned: string[] = Array.isArray(store.settings?.bannedIps)
+      ? store.settings.bannedIps.map((x: any) => normalizeIpValue(String(x)))
+      : [];
+    if (clientIp && clientIp !== 'Unknown' && banned.includes(clientIp)) {
+      return res.status(403).json({
+        success: false,
+        bannedIp: true,
+        ip: clientIp,
+        message: 'Access denied: Your IP address has been restricted by Administrator.'
+      });
+    }
+    return next();
+  });
+
   // =================== GLOBAL API ROUTES ===================
 
   // 1. Deposits API (Shared across all phones/devices worldwide)
@@ -713,6 +751,7 @@ async function startServer() {
 
     const clientIp = extractClientIp(req);
     const intel = await inspectIpIntelligence(clientIp, clientTimezone, req.headers);
+    const resolvedDevice = String(clientUser.deviceName || '').trim() || parseDeviceNameNode(String(req.headers['user-agent'] || ''));
 
     const sanitized = {
       ...clientUser,
@@ -727,6 +766,7 @@ async function startServer() {
       minesRoundSeq: 0,
       registeredIp: clientIp,
       lastIp: clientIp,
+      deviceName: resolvedDevice,
       isVpn: intel.isVpn,
       ...(intel.vpnReason ? { vpnReason: intel.vpnReason } : {}),
       ...(intel.country ? { ipCountry: intel.country } : {}),
@@ -755,7 +795,7 @@ async function startServer() {
   });
 
   app.post('/api/auth/login', async (req, res) => {
-    const { identifier, password, clientTimezone } = req.body;
+    const { identifier, password, clientTimezone, deviceName } = req.body;
     if (!identifier || !password) {
       return res.status(400).json({ success: false, message: 'Phone/email and password are required' });
     }
@@ -794,6 +834,7 @@ async function startServer() {
     const intel = await inspectIpIntelligence(clientIp, clientTimezone, req.headers);
     existing.lastIp = clientIp;
     if (!existing.registeredIp) existing.registeredIp = clientIp;
+    existing.deviceName = String(deviceName || '').trim() || parseDeviceNameNode(String(req.headers['user-agent'] || '')) || existing.deviceName;
     existing.isVpn = intel.isVpn;
     if (intel.vpnReason) existing.vpnReason = intel.vpnReason;
     else delete existing.vpnReason;
@@ -845,6 +886,7 @@ async function startServer() {
         balance: Number(u.balance) || 0,
         registeredIp: regIp || primaryIp || 'Unknown',
         lastIp: primaryIp || 'Unknown',
+        deviceName: u.deviceName || '',
         isVpn: Boolean(u.isVpn),
         vpnReason: u.vpnReason || '',
         ipCountry: u.ipCountry || '',
@@ -887,6 +929,40 @@ async function startServer() {
       vpnUsers,
       totalTrackedUsers: (store.users || []).length
     });
+  });
+
+  app.get('/api/security/status', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
+    const deviceName = parseDeviceNameNode(String(req.headers['user-agent'] || ''));
+    const banned: string[] = Array.isArray(store.settings?.bannedIps)
+      ? store.settings.bannedIps.map((x: any) => normalizeIpValue(String(x)))
+      : [];
+    const mentorBlocked = Array.isArray(store.settings?.mentorBlockedIps) ? store.settings.mentorBlockedIps : [];
+    res.json({
+      success: true,
+      ip: clientIp,
+      deviceName,
+      isBannedIp: clientIp !== 'Unknown' && banned.includes(clientIp),
+      isMentorBlocked:
+        clientIp !== 'Unknown' && mentorBlocked.some((b: any) => normalizeIpValue(String(b?.ip || '')) === clientIp)
+    });
+  });
+
+  app.post('/api/security/ban-ip', (req, res) => {
+    const targetIp = normalizeIpValue(String(req.body?.ip || ''));
+    const unban = Boolean(req.body?.unban);
+    if (!targetIp || targetIp === 'Unknown') {
+      return res.status(400).json({ success: false, message: 'Valid IP required' });
+    }
+    const prev: string[] = Array.isArray(store.settings?.bannedIps)
+      ? store.settings.bannedIps.map((x: any) => normalizeIpValue(String(x))).filter(Boolean)
+      : [];
+    const nextBanned = unban ? prev.filter((x) => x !== targetIp) : Array.from(new Set([...prev, targetIp]));
+    store.settings.bannedIps = nextBanned;
+    store.settings.updatedAt = Date.now();
+    saveStore(store);
+    res.json({ success: true, bannedIps: nextBanned });
   });
 
   app.post('/api/users/sync', (req, res) => {
@@ -1534,7 +1610,7 @@ async function startServer() {
   });
 
   app.post('/api/admin/login', (req, res) => {
-    const { phone, password, route } = req.body || {};
+    const { phone, password, route, sessionId, deviceName, forceTakeover } = req.body || {};
     if (route && String(route) !== '/admin-ewi777-panel-009') {
       recordServerAccessLog(req, 'login_failed', String(phone || ''));
       return res.status(403).json({ success: false, message: 'Unauthorized admin access route!' });
@@ -1556,13 +1632,568 @@ async function startServer() {
       recordServerAccessLog(req, 'login_failed', inputPhone);
       return res.status(401).json({ success: false, message: 'Invalid Admin Number or Password!' });
     }
+
+    const nowMs = Date.now();
+    const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
+    const resolvedDevice = String(deviceName || '').trim() || parseDeviceNameNode(String(req.headers['user-agent'] || ''));
+    const active = store.settings.activeAdminSession;
+    const incomingSid = String(sessionId || '').trim() || `adm_${nowMs}_${Math.random().toString(36).slice(2, 8)}`;
+    const isStillAlive =
+      active &&
+      active.sessionId &&
+      active.sessionId !== incomingSid &&
+      nowMs - Number(active.lastSeenAtMs || active.loggedInAtMs || 0) < SESSION_TTL_MS;
+
+    if (isStillAlive && !forceTakeover) {
+      return res.status(409).json({
+        success: false,
+        sessionConflict: true,
+        activeSession: active,
+        message: `Admin is already logged in on ${active.deviceName || 'another device'} (IP: ${active.ip || 'Unknown'}). End that session first.`
+      });
+    }
+
+    const nextSession = {
+      sessionId: incomingSid,
+      ip: clientIp,
+      deviceName: resolvedDevice,
+      loggedInAt: new Date(nowMs).toLocaleString('en-GB'),
+      loggedInAtMs: nowMs,
+      lastSeenAtMs: nowMs
+    };
+    store.settings.activeAdminSession = nextSession;
+    store.settings.updatedAt = nowMs;
     recordServerAccessLog(req, 'login_success', inputPhone);
     const sessionToken = crypto
       .createHmac('sha256', ADMIN_2FA_SECRET)
-      .update(`ADMIN_SESSION:${expectedPhoneHash}:${Math.floor(Date.now() / 86400000)}`)
+      .update(`ADMIN_SESSION:${expectedPhoneHash}:${incomingSid}:${Math.floor(nowMs / 86400000)}`)
       .digest('hex')
       .slice(0, 32);
-    res.json({ success: true, requires2FA: false, sessionToken, message: 'Admin authenticated' });
+    res.json({
+      success: true,
+      requires2FA: false,
+      sessionToken,
+      sessionId: incomingSid,
+      activeSession: nextSession,
+      message: 'Admin authenticated'
+    });
+  });
+
+  app.get('/api/admin/sessions', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const nowMs = Date.now();
+    const active = store.settings.activeAdminSession || null;
+    const valid =
+      active && nowMs - Number(active.lastSeenAtMs || active.loggedInAtMs || 0) < SESSION_TTL_MS ? active : null;
+    res.json({ success: true, activeSession: valid });
+  });
+
+  app.post('/api/admin/sessions', (req, res) => {
+    const { action, sessionId } = req.body || {};
+    const nowMs = Date.now();
+    const active = store.settings.activeAdminSession || null;
+    const valid =
+      active && nowMs - Number(active.lastSeenAtMs || active.loggedInAtMs || 0) < SESSION_TTL_MS ? active : null;
+
+    if (action === 'kick' || action === 'logout') {
+      if (action === 'logout' && valid && sessionId && valid.sessionId !== sessionId) {
+        return res.json({ success: true, activeSession: valid });
+      }
+      store.settings.activeAdminSession = null;
+      store.settings.updatedAt = nowMs;
+      saveStore(store);
+      return res.json({ success: true, activeSession: null, kicked: action === 'kick' });
+    }
+    if (action === 'heartbeat') {
+      if (valid && sessionId && valid.sessionId !== sessionId) {
+        return res.status(409).json({
+          success: false,
+          kicked: true,
+          activeSession: valid,
+          message: 'Your admin session was ended.'
+        });
+      }
+      if (valid && (!sessionId || valid.sessionId === sessionId)) {
+        store.settings.activeAdminSession = { ...valid, lastSeenAtMs: nowMs };
+        saveStore(store);
+        return res.json({ success: true, activeSession: store.settings.activeAdminSession });
+      }
+      return res.json({ success: true, activeSession: valid });
+    }
+    res.status(400).json({ success: false, message: 'Unsupported session action' });
+  });
+
+  // 5D. Mentor Governance & Strict 7-Feature API (Zero money amounts/totals exposed)
+  const blockMentorIpExpress = (clientIp: string, reason: string, attemptedUsername?: string) => {
+    const nowMs = Date.now();
+    const prevBlocked = Array.isArray(store.settings.mentorBlockedIps) ? store.settings.mentorBlockedIps : [];
+    store.settings.mentorBlockedIps = [
+      {
+        ip: clientIp,
+        reason,
+        ...(attemptedUsername ? { attemptedUsername } : {}),
+        blockedAt: new Date(nowMs).toLocaleString('en-GB'),
+        blockedAtMs: nowMs
+      },
+      ...prevBlocked.filter((x: any) => normalizeIpValue(String(x?.ip || '')) !== clientIp)
+    ].slice(0, 200);
+    store.settings.mentorLogs = [
+      {
+        id: `mlog_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+        mentorId: 'security',
+        mentorName: 'Mentor Gatekeeper',
+        mentorUsername: attemptedUsername || 'unknown',
+        ip: clientIp,
+        action: 'login_failed_blocked',
+        detail: reason,
+        time: new Date(nowMs).toLocaleString('en-GB'),
+        timestamp: nowMs
+      },
+      ...(Array.isArray(store.settings.mentorLogs) ? store.settings.mentorLogs : [])
+    ].slice(0, 300);
+    store.settings.updatedAt = nowMs;
+    saveStore(store);
+  };
+
+  app.post('/api/mentor/login', (req, res) => {
+    const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
+    const blockedList: any[] = Array.isArray(store.settings.mentorBlockedIps) ? store.settings.mentorBlockedIps : [];
+    if (blockedList.some((b) => normalizeIpValue(String(b?.ip || '')) === clientIp)) {
+      return res.status(403).json({
+        success: false,
+        mentorBlocked: true,
+        ip: clientIp,
+        message: 'This IP has been permanently blocked from Mentor access.'
+      });
+    }
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    const mentors: any[] = Array.isArray(store.settings.mentors) ? store.settings.mentors : [];
+    const matched = mentors.find(
+      (m) => String(m.username || '').trim().toLowerCase() === username.toLowerCase() && m.active !== false
+    );
+    if (!matched || matched.password !== password) {
+      blockMentorIpExpress(clientIp, 'Invalid Mentor username or password attempt', username);
+      return res.status(403).json({
+        success: false,
+        mentorBlocked: true,
+        ip: clientIp,
+        message: 'Invalid Mentor credentials! Your IP has been permanently blocked.'
+      });
+    }
+    const allowedIp = normalizeIpValue(String(matched.allowedIp || ''));
+    if (!allowedIp || allowedIp !== clientIp) {
+      blockMentorIpExpress(
+        clientIp,
+        `IP mismatch for Mentor "${matched.username}" (expected ${allowedIp || 'unset'}, got ${clientIp})`,
+        username
+      );
+      return res.status(403).json({
+        success: false,
+        mentorBlocked: true,
+        ip: clientIp,
+        message: `IP mismatch (${clientIp} ≠ authorized IP)! Your IP has been permanently blocked.`
+      });
+    }
+    const nowMs = Date.now();
+    store.settings.mentors = mentors.map((m) =>
+      m.id === matched.id ? { ...m, lastLoginAt: new Date(nowMs).toLocaleString('en-GB'), lastLoginIp: clientIp } : m
+    );
+    store.settings.mentorLogs = [
+      {
+        id: `mlog_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+        mentorId: matched.id,
+        mentorName: matched.name,
+        mentorUsername: matched.username,
+        ip: clientIp,
+        action: 'login_success',
+        detail: 'Mentor signed in with exact IP match',
+        time: new Date(nowMs).toLocaleString('en-GB'),
+        timestamp: nowMs
+      },
+      ...(Array.isArray(store.settings.mentorLogs) ? store.settings.mentorLogs : [])
+    ].slice(0, 300);
+    store.settings.updatedAt = nowMs;
+    saveStore(store);
+    res.json({
+      success: true,
+      token: signMentorToken(matched.id, clientIp),
+      ip: clientIp,
+      mentor: {
+        id: matched.id,
+        name: matched.name,
+        username: matched.username,
+        allowedIp: matched.allowedIp,
+        giftCodeBudget: Number(matched.giftCodeBudget || 0),
+        giftCodeSpent: Number(matched.giftCodeSpent || 0)
+      }
+    });
+  });
+
+  app.post('/api/mentor/data', (req, res) => {
+    const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
+    const { mentorId, token } = req.body || {};
+    const mentors: any[] = Array.isArray(store.settings.mentors) ? store.settings.mentors : [];
+    const mentor = mentors.find((m) => m.id === mentorId && m.active !== false);
+    if (!mentor || normalizeIpValue(String(mentor.allowedIp || '')) !== clientIp || signMentorToken(mentor.id, clientIp) !== token) {
+      return res.status(401).json({ success: false, message: 'Mentor session invalid or IP changed.' });
+    }
+    const ipCounts = new Map<string, number>();
+    (store.users || []).forEach((u) => {
+      const ip = normalizeIpValue(String(u.lastIp || u.registeredIp || ''));
+      if (ip && ip !== 'Unknown') ipCounts.set(ip, (ipCounts.get(ip) || 0) + 1);
+    });
+    const sanitizedUsers = (store.users || []).map((u) => {
+      const primaryIp = normalizeIpValue(String(u.lastIp || u.registeredIp || 'Unknown'));
+      return {
+        id: u.id,
+        uid: u.uid || '',
+        nickname: u.nickname || 'Member',
+        phone: u.phone || u.email || '',
+        registeredIp: normalizeIpValue(String(u.registeredIp || '')) || 'Unknown',
+        lastIp: primaryIp || 'Unknown',
+        deviceName: u.deviceName || 'Unknown Device',
+        isVpn: Boolean(u.isVpn),
+        vpnReason: u.vpnReason || '',
+        ipCountry: u.ipCountry || '',
+        ipIsp: u.ipIsp || '',
+        sameIpCount: primaryIp !== 'Unknown' ? ipCounts.get(primaryIp) || 1 : 1,
+        hasHoldingBalance: Number(u.lockedBalance || 0) > 0,
+        turnoverRequired: Number(u.turnoverRequired || 0),
+        turnoverCompleted: Number(u.turnoverCompleted || 0),
+        createdAt: u.createdAt || '',
+        lastLogin: u.lastLogin || '',
+        isBanned: Boolean(u.isBanned)
+      };
+    });
+    const sanitizedWithdraws = (store.withdraws || []).map((w) => ({
+      id: w.id,
+      orderId: w.orderId || w.id,
+      userId: w.userId,
+      userName: w.userName,
+      userPhone: w.userPhone,
+      method: w.method,
+      number: w.number,
+      status: w.status,
+      time: w.time,
+      createdAtMs: w.createdAtMs || 0,
+      adminNote: w.adminNote || '',
+      rejectionReason: w.rejectionReason || '',
+      userMessage: w.userMessage || ''
+    }));
+    const todayYmd = new Date().toISOString().slice(0, 10);
+    const todayRegistrationsCount = (store.users || []).filter((u) => String(u.createdAt || '').startsWith(todayYmd)).length;
+    const binarySet = new Set<string>();
+    const mfsSet = new Set<string>();
+    (store.deposits || []).forEach((d) => {
+      if (d.status !== 'approved') return;
+      const key = String(d.userId || d.userPhone || d.id);
+      const m = String(d.method || '').toLowerCase();
+      if (m === 'usdt' || m.includes('binary')) binarySet.add(key);
+      else if (m === 'bkash' || m === 'nagad' || m === 'rocket') mfsSet.add(key);
+    });
+    const myGiftCodes = (Array.isArray(store.settings.activeGiftCodes) ? store.settings.activeGiftCodes : []).filter(
+      (g: any) => g.createdByMentorId === mentor.id
+    );
+    res.json({
+      success: true,
+      ip: clientIp,
+      mentor: {
+        id: mentor.id,
+        name: mentor.name,
+        username: mentor.username,
+        allowedIp: mentor.allowedIp,
+        giftCodeBudget: Number(mentor.giftCodeBudget || 0),
+        giftCodeSpent: Number(mentor.giftCodeSpent || 0)
+      },
+      countsOnly: {
+        todayRegistrationsCount,
+        binaryDepositorsCount: binarySet.size,
+        bkashNagadDepositorsCount: mfsSet.size
+      },
+      users: sanitizedUsers,
+      withdraws: sanitizedWithdraws,
+      supportMessages: (store.supportMessages || []).slice(-400),
+      giftCodes: myGiftCodes
+    });
+  });
+
+  app.post('/api/mentor/action', (req, res) => {
+    const clientIp = normalizeIpValue(extractClientIp(req)) || 'Unknown';
+    const { mentorId, token, op } = req.body || {};
+    const mentors: any[] = Array.isArray(store.settings.mentors) ? store.settings.mentors : [];
+    const mentor = mentors.find((m) => m.id === mentorId && m.active !== false);
+    if (!mentor || normalizeIpValue(String(mentor.allowedIp || '')) !== clientIp || signMentorToken(mentor.id, clientIp) !== token) {
+      return res.status(401).json({ success: false, message: 'Mentor session invalid or IP changed.' });
+    }
+    const nowMs = Date.now();
+    const nowStr = new Date(nowMs).toLocaleString('en-GB');
+    const pushLog = (action: string, detail: string, extra?: Record<string, any>) => {
+      store.settings.mentorLogs = [
+        {
+          id: `mlog_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+          mentorId: mentor.id,
+          mentorName: mentor.name,
+          mentorUsername: mentor.username,
+          ip: clientIp,
+          action,
+          detail,
+          time: nowStr,
+          timestamp: nowMs,
+          ...(extra || {})
+        },
+        ...(Array.isArray(store.settings.mentorLogs) ? store.settings.mentorLogs : [])
+      ].slice(0, 300);
+      store.settings.updatedAt = nowMs;
+    };
+
+    if (op === 'support_reply') {
+      const { userId, userUid, userNickname, userPhone, text, imageUrl } = req.body;
+      if (!userId || (!String(text || '').trim() && !imageUrl)) {
+        return res.status(400).json({ success: false, message: 'Message or image required' });
+      }
+      const msg = {
+        id: `cs_${nowMs}_${Math.random().toString(36).slice(2, 7)}`,
+        userId: String(userId),
+        userUid: String(userUid || ''),
+        userNickname: String(userNickname || 'Member'),
+        userPhone: String(userPhone || ''),
+        sender: 'admin',
+        repliedByRole: 'mentor',
+        repliedByName: mentor.name,
+        text: String(text || '').trim(),
+        imageUrl: typeof imageUrl === 'string' && imageUrl.startsWith('data:image/') ? imageUrl : undefined,
+        time: new Date(nowMs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        timestamp: nowMs
+      };
+      store.supportMessages = [...store.supportMessages, msg].slice(-500);
+      pushLog('support_reply', `Replied to chat (${userUid || userId}): ${msg.text.slice(0, 80)}`, { targetUid: String(userUid || userId) });
+      saveStore(store);
+      return res.json({ success: true, message: msg });
+    }
+
+    if (op === 'withdraw_update') {
+      const { withdrawId, status, note } = req.body;
+      if (status !== 'processing' && status !== 'rejected') {
+        return res.status(403).json({ success: false, message: 'Mentors can only set Processing or Rejected.' });
+      }
+      const wd = (store.withdraws || []).find((w) => w.id === withdrawId || w.orderId === withdrawId);
+      if (!wd) return res.status(404).json({ success: false, message: 'Withdraw not found' });
+      if (wd.status === 'completed') return res.status(400).json({ success: false, message: 'Already completed' });
+      const prevSt = wd.status;
+      const cleanNote = String(note || '').trim() || (status === 'rejected' ? 'আপনি কিছুক্ষণ পর আবার চেষ্টা করুন ধন্যবাদ' : 'Processing by Mentor');
+      wd.status = status;
+      wd.adminNote = cleanNote;
+      if (status === 'rejected') {
+        wd.rejectionReason = cleanNote;
+        wd.userMessage = cleanNote;
+        if (prevSt !== 'rejected') {
+          const u = (store.users || []).find((x) => x.id === wd.userId || x.uid === wd.userId);
+          if (u) {
+            u.balance = +(Number(u.balance || 0) + Number(wd.amount || 0)).toFixed(2);
+            u.updatedAt = nowMs;
+          }
+        }
+      }
+      pushLog('withdraw_updated', `Marked withdrawal ${wd.orderId || withdrawId} as ${status.toUpperCase()}`, { targetUid: String(wd.userId || '') });
+      saveStore(store);
+      return res.json({ success: true });
+    }
+
+    if (op === 'release_holding') {
+      const u = (store.users || []).find((x) => x.id === req.body?.userId || x.uid === req.body?.userId);
+      if (!u) return res.status(404).json({ success: false, message: 'User not found' });
+      u.lockedBalance = 0;
+      u.updatedAt = nowMs;
+      pushLog('holding_released', `Released holding balance for UID ${u.uid || u.id}`, { targetUid: String(u.uid || u.id) });
+      saveStore(store);
+      return res.json({ success: true });
+    }
+
+    if (op === 'adjust_turnover') {
+      const u = (store.users || []).find((x) => x.id === req.body?.userId || x.uid === req.body?.userId);
+      if (!u) return res.status(404).json({ success: false, message: 'User not found' });
+      u.turnoverRequired = Math.max(0, Number(req.body?.turnoverRequired ?? u.turnoverRequired ?? 0));
+      u.turnoverCompleted = Math.max(0, Number(req.body?.turnoverCompleted ?? u.turnoverCompleted ?? 0));
+      u.updatedAt = nowMs;
+      pushLog('turnover_adjusted', `Adjusted turnover for UID ${u.uid || u.id}`, { targetUid: String(u.uid || u.id) });
+      saveStore(store);
+      return res.json({ success: true });
+    }
+
+    if (op === 'create_gift_code') {
+      const code = String(req.body?.code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+      const amount = Math.max(1, Number(req.body?.amount) || 0);
+      const maxClaims = Math.max(1, Math.floor(Number(req.body?.maxClaims) || 1));
+      const turnoverAmount = Math.max(0, Number(req.body?.turnoverAmount) || amount);
+      const targetUid = String(req.body?.targetUid || '').trim().toUpperCase();
+      const reason = String(req.body?.reason || `Mentor Gift (${mentor.name})`).trim();
+      const existing: any[] = Array.isArray(store.settings.activeGiftCodes) ? store.settings.activeGiftCodes : [];
+      if (existing.some((c) => String(c.code || '').toUpperCase() === code)) {
+        return res.status(409).json({ success: false, message: 'Gift code already exists!' });
+      }
+      const totalCost = +(amount * maxClaims).toFixed(2);
+      const budget = Number(mentor.giftCodeBudget || 0);
+      const spent = Number(mentor.giftCodeSpent || 0);
+      if (spent + totalCost > budget) {
+        return res.status(403).json({ success: false, message: `Insufficient Mentor Budget! Remaining: ৳${Math.max(0, budget - spent).toFixed(2)}` });
+      }
+      const newGift = {
+        code,
+        rewardType: 'fixed',
+        amount,
+        maxClaims,
+        claimedCount: 0,
+        turnoverAmount,
+        createdAt: nowMs,
+        claimedBy: [],
+        active: true,
+        ...(targetUid ? { targetUid } : {}),
+        reason,
+        note: `Created by Mentor ${mentor.name}`,
+        createdByMentorId: mentor.id,
+        createdByMentorName: mentor.name,
+        claimRecords: []
+      };
+      store.settings.activeGiftCodes = [newGift, ...existing];
+      store.settings.mentors = mentors.map((m) => (m.id === mentor.id ? { ...m, giftCodeSpent: +(spent + totalCost).toFixed(2) } : m));
+      pushLog('gift_code_created', `Created Gift Code ${code} (৳${amount} × ${maxClaims} = ৳${totalCost})`, { code, amount: totalCost, targetUid });
+      saveStore(store);
+      return res.json({ success: true, giftCode: newGift, giftCodeSpent: +(spent + totalCost).toFixed(2) });
+    }
+
+    if (op === 'send_notice') {
+      const { targetUid, title, message } = req.body;
+      const notif = {
+        id: `notif_m_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+        userId: targetUid && String(targetUid).toUpperCase() !== 'ALL' ? String(targetUid) : 'ALL',
+        title: String(title || '').trim(),
+        message: String(message || '').trim(),
+        reason: `Sent by Mentor ${mentor.name}`,
+        type: 'system',
+        read: false,
+        time: nowStr
+      };
+      store.notifications = [notif, ...(store.notifications || [])].slice(0, 200);
+      pushLog('broadcast_sent', `Sent notice "${notif.title}"`, { targetUid: String(targetUid || 'ALL') });
+      saveStore(store);
+      return res.json({ success: true });
+    }
+
+    if (op === 'change_password') {
+      const { currentPassword, newPassword } = req.body;
+      if (String(currentPassword || '') !== mentor.password) {
+        return res.status(401).json({ success: false, message: 'Current password incorrect' });
+      }
+      if (!newPassword || String(newPassword).trim().length < 6) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters.' });
+      }
+      store.settings.mentors = mentors.map((m) => (m.id === mentor.id ? { ...m, password: String(newPassword).trim() } : m));
+      pushLog('password_changed', `Mentor ${mentor.username} updated password`);
+      saveStore(store);
+      return res.json({ success: true });
+    }
+
+    res.status(400).json({ success: false, message: 'Unknown mentor action' });
+  });
+
+  // 5E. EWI Ludo Private Friend Rooms API
+  app.get('/api/ludo/rooms', (_req, res) => {
+    const rooms = Object.values(store.ludoRooms || {})
+      .map((r: any) => ({ ...r, password: r.password ? '***' : '' }))
+      .sort((a: any, b: any) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+    res.json({ success: true, rooms });
+  });
+
+  app.post('/api/ludo/create', (req, res) => {
+    const { userId, uid, name, mode, stake, password } = req.body || {};
+    const numStake = Number(stake) || 0;
+    if (!userId || numStake < 20 || numStake > 50000 || !String(password || '').trim()) {
+      return res.status(400).json({ success: false, message: 'Stake must be ৳20–৳50,000 and password is required.' });
+    }
+    const nowMs = Date.now();
+    const maxPlayers = mode === '2p_winner' ? 2 : 4;
+    const code = `LUDO${Math.floor(100000 + Math.random() * 900000)}`;
+    const roomId = `ludo_${code}_${nowMs}`;
+    const room = {
+      id: roomId,
+      code,
+      password: String(password).trim(),
+      hostUserId: String(userId),
+      hostName: String(name || 'Host'),
+      mode: mode === '4p_split' ? '4p_split' : mode === '4p_winner' ? '4p_winner' : '2p_winner',
+      maxPlayers,
+      stake: numStake,
+      status: 'waiting',
+      players: [
+        { slotIndex: 0, color: 'red', userId: String(userId), uid: String(uid || ''), name: String(name || 'Player 1'), isBot: false, tokens: [-1, -1, -1, -1] }
+      ],
+      currentTurnIdx: 0,
+      createdAt: new Date(nowMs).toLocaleString('en-GB'),
+      createdAtMs: nowMs,
+      updatedAt: nowMs
+    };
+    store.ludoRooms[roomId] = room;
+    saveStore(store);
+    res.json({ success: true, room });
+  });
+
+  app.post('/api/ludo/join', (req, res) => {
+    const { code, password, userId, uid, name } = req.body || {};
+    const cleanCode = String(code || '').trim().toUpperCase();
+    const roomEntry = Object.values(store.ludoRooms || {}).find((r: any) => String(r.code || '').toUpperCase() === cleanCode);
+    if (!roomEntry) return res.status(404).json({ success: false, message: 'Ludo room not found.' });
+    if (String(roomEntry.password || '') !== String(password || '').trim()) {
+      return res.status(401).json({ success: false, message: 'Incorrect room password!' });
+    }
+    const players: any[] = Array.isArray(roomEntry.players) ? roomEntry.players : [];
+    if (!players.some((p) => p.userId === userId)) {
+      if (roomEntry.status !== 'waiting' || players.length >= Number(roomEntry.maxPlayers || 2)) {
+        return res.status(409).json({ success: false, message: 'Room is already full or started.' });
+      }
+      const colors = Number(roomEntry.maxPlayers) === 2 ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'];
+      const slotIdx = players.length;
+      players.push({
+        slotIndex: slotIdx,
+        color: colors[slotIdx] || 'blue',
+        userId: String(userId),
+        uid: String(uid || ''),
+        name: String(name || `Player ${slotIdx + 1}`),
+        isBot: false,
+        tokens: [-1, -1, -1, -1]
+      });
+      roomEntry.players = players;
+      if (players.length >= Number(roomEntry.maxPlayers || 2)) roomEntry.status = 'playing';
+      roomEntry.updatedAt = Date.now();
+      saveStore(store);
+    }
+    res.json({ success: true, room: roomEntry });
+  });
+
+  app.post('/api/ludo/move', (req, res) => {
+    const { roomId, players, currentTurnIdx, lastRoll, status } = req.body || {};
+    const room = store.ludoRooms?.[String(roomId || '')];
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    if (Array.isArray(players)) room.players = players;
+    if (typeof currentTurnIdx === 'number') room.currentTurnIdx = currentTurnIdx;
+    if (typeof lastRoll === 'number') room.lastRoll = lastRoll;
+    if (status) room.status = status;
+    room.updatedAt = Date.now();
+    saveStore(store);
+    res.json({ success: true, room });
+  });
+
+  app.post('/api/ludo/settle', (req, res) => {
+    const { roomId, payouts, winnerUserId, winnerSummary } = req.body || {};
+    const room = store.ludoRooms?.[String(roomId || '')];
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    room.status = 'finished';
+    if (winnerUserId) room.winnerUserId = winnerUserId;
+    if (winnerSummary) room.winnerSummary = winnerSummary;
+    if (Array.isArray(payouts)) room.payouts = payouts;
+    room.updatedAt = Date.now();
+    saveStore(store);
+    res.json({ success: true, room });
   });
 
   app.post('/api/admin/verify-2fa', (req, res) => {
@@ -1616,7 +2247,7 @@ async function startServer() {
   });
 
   app.post('/api/support/messages', (req, res) => {
-    const { userId, userUid, userNickname, userPhone, sender, text, imageUrl } = req.body || {};
+    const { userId, userUid, userNickname, userPhone, sender, text, imageUrl, repliedByRole, repliedByName } = req.body || {};
     if (!userId || (!String(text || '').trim() && !imageUrl)) {
       return res.status(400).json({ success: false, message: 'Message text or image is required' });
     }
@@ -1628,6 +2259,8 @@ async function startServer() {
       userNickname: String(userNickname || 'Member'),
       userPhone: String(userPhone || ''),
       sender: sender === 'admin' ? 'admin' : 'user',
+      ...(repliedByRole ? { repliedByRole: repliedByRole === 'mentor' ? 'mentor' : 'admin' } : {}),
+      ...(repliedByName ? { repliedByName: String(repliedByName) } : {}),
       text: String(text || '').trim(),
       imageUrl: typeof imageUrl === 'string' && imageUrl.startsWith('data:image/') ? imageUrl : undefined,
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
@@ -2413,7 +3046,7 @@ async function startServer() {
         gateway: upstreamJson
       });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err?.message || 'EWI-Pay checkout error' });
+      res.status(500).json({ success: false, message: err?.message || 'EWI PAY checkout error' });
     }
   });
 
@@ -2753,7 +3386,7 @@ async function startServer() {
         if (uIdx >= 0 && depAmt > 0) {
           store.users[uIdx].balance = +(Number(store.users[uIdx].balance || 0) + depAmt + bonus).toFixed(2);
           store.users[uIdx].totalDeposited = +(Number(store.users[uIdx].totalDeposited || 0) + depAmt).toFixed(2);
-          store.users[uIdx].turnoverRequired = +(Number(store.users[uIdx].turnoverRequired || 0) + depAmt * 2).toFixed(2);
+          store.users[uIdx].turnoverRequired = +(Number(store.users[uIdx].turnoverRequired || 0) + depAmt * 1).toFixed(2);
           store.users[uIdx].updatedAt = Date.now();
         }
         saveStore(store);
@@ -2764,7 +3397,7 @@ async function startServer() {
       );
       if (matchedDep && matchedDep.status !== 'approved' && matchedDep.status !== 'rejected') {
         matchedDep.status = 'rejected';
-        matchedDep.rejectionReason = rejectionReason || 'Rejected by EWI-Pay Gateway';
+        matchedDep.rejectionReason = rejectionReason || 'Rejected by EWI PAY Gateway';
         matchedDep.adminNote = matchedDep.rejectionReason;
         saveStore(store);
       }

@@ -32,17 +32,48 @@ const BINARY_ONLY_CATEGORIES: Array<'All' | BinaryMarketCategory> = [
 ];
 
 const TIMEFRAMES = [
-  { label: '30 sec', sec: 30 },
-  { label: '1 min', sec: 60 },
-  { label: '3 min', sec: 180 },
-  { label: '5 min', sec: 300 },
-  { label: '15 min', sec: 900 },
-  { label: '30 min', sec: 1800 },
-  { label: '1 hour', sec: 3600 },
-  { label: '1 day', sec: 86400 },
-  { label: '15 day', sec: 1296000 },
-  { label: '30 day', sec: 2592000 }
+  { label: '30s', sec: 30 },
+  { label: '1m', sec: 60 },
+  { label: '2m', sec: 120 },
+  { label: '3m', sec: 180 },
+  { label: '5m', sec: 300 },
+  { label: '10m', sec: 600 },
+  { label: '15m', sec: 900 },
+  { label: '30m', sec: 1800 },
+  { label: '1h', sec: 3600 },
+  { label: '1d', sec: 86400 },
+  { label: '15d', sec: 1296000 },
+  { label: '30d', sec: 2592000 }
 ];
+
+function formatDurationLabel(sec: number): string {
+  if (sec < 60) return `${sec} sec`;
+  if (sec < 3600) {
+    const mins = Math.round(sec / 60);
+    return `${mins} min`;
+  }
+  if (sec < 86400 && sec % 3600 === 0) {
+    const hrs = Math.round(sec / 3600);
+    return `${hrs} hr`;
+  }
+  if (sec % 86400 === 0) {
+    const days = Math.round(sec / 86400);
+    return `${days} day`;
+  }
+  const mins = Math.round(sec / 60);
+  return `${mins} min`;
+}
+
+function getCandleIntervalForExpiry(sec: number): number {
+  const std = [30, 60, 180, 300, 900, 1800, 3600, 86400, 1296000, 2592000];
+  if (std.includes(sec)) return sec;
+  if (sec < 60) return 30;
+  if (sec <= 300) return 60;
+  if (sec <= 1800) return 300;
+  if (sec <= 3600) return 900;
+  if (sec <= 86400) return 3600;
+  return 86400;
+}
 
 const QUICK_AMOUNTS = [10, 50, 100, 500, 1000];
 
@@ -73,7 +104,8 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
   const [selectedCategory, setSelectedCategory] = useState<'All' | BinaryMarketCategory>('All');
   const [selectedAsset, setSelectedAsset] = useState<string>(isGoldMode ? 'XAU/USD' : 'BTC/USDT');
   const [showAssetPicker, setShowAssetPicker] = useState<boolean>(false);
-  const [selectedTimeframe, setSelectedTimeframe] = useState<number>(30);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<number>(60);
+  const [customMinutesStr, setCustomMinutesStr] = useState<string>('1');
   const [tradeAmount, setTradeAmount] = useState<number>(100);
   const [customAmountStr, setCustomAmountStr] = useState<string>('100');
   const [pendingTradeMode, setPendingTradeMode] = useState<boolean>(false);
@@ -120,15 +152,16 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     (isGoldMode ? binaryMarkets['XAU/USD'] : binaryMarkets['BTC/USDT']);
   const assetPrice = activeQuote?.price ?? activeSpec.basePrice;
   const currentSecEpoch = Math.floor(nowTime / 1000);
+  const chartCandleSec = getCandleIntervalForExpiry(selectedTimeframe);
   const tfSecRemaining = Math.max(1, selectedTimeframe - (currentSecEpoch % selectedTimeframe));
   const tfCountdownLabel = formatCountdownClock(tfSecRemaining);
-  const activeTfObj = TIMEFRAMES.find((t) => t.sec === selectedTimeframe) || TIMEFRAMES[0];
+  const activeDurationLabel = formatDurationLabel(selectedTimeframe);
 
   const assetCandles = useMemo(
     () =>
       getSyncedBinaryCandlesForTimeframe(
         activeSpec,
-        selectedTimeframe,
+        chartCandleSec,
         nowTime,
         adminSettings.binaryNextCandleBias || 'AUTO',
         offsetMinutes,
@@ -136,7 +169,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
         assetPrice
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeSpec, selectedTimeframe, currentSecEpoch, adminSettings.binaryNextCandleBias, offsetMinutes, assetPrice]
+    [activeSpec, chartCandleSec, currentSecEpoch, adminSettings.binaryNextCandleBias, offsetMinutes, assetPrice]
   );
 
   const payoutPct = Math.round(activeSpec.payoutRate * 100);
@@ -154,8 +187,8 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     spec: activeSpec,
     activeOrders: assetActiveOrders,
     secRemaining: tfSecRemaining,
-    timeframeSec: selectedTimeframe,
-    timeframeLabel: activeTfObj.label,
+    timeframeSec: chartCandleSec,
+    timeframeLabel: activeDurationLabel,
     offsetMinutes,
     visibleCount,
     panOffset
@@ -167,8 +200,8 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     spec: activeSpec,
     activeOrders: assetActiveOrders,
     secRemaining: tfSecRemaining,
-    timeframeSec: selectedTimeframe,
-    timeframeLabel: activeTfObj.label,
+    timeframeSec: chartCandleSec,
+    timeframeLabel: activeDurationLabel,
     offsetMinutes,
     visibleCount,
     panOffset
@@ -535,7 +568,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
 
           <div className="flex items-center gap-1.5">
             {isGoldMode ? (
-              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-2xs">
+              <span className="px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 bg-[#0B2235] border border-cyan-500/40 text-cyan-200 shadow-2xs">
                 <GoldMarketLogo size={14} className="rounded-sm" />
                 <span>GOLD TRADING</span>
               </span>
@@ -699,7 +732,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
           </div>
 
           <div className="text-right">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Candle Close ({activeTfObj.label})</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase">Expiry ({activeDurationLabel})</div>
             <div className="text-base font-mono font-black text-cyan-700 tabular-nums">
               {tfCountdownLabel}
             </div>
@@ -815,7 +848,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 text-[10px]">
             <span className="font-bold text-slate-500">
-              Showing {Math.min(visibleCount, assetCandles.length || visibleCount)}/{assetCandles.length || 96} candles ({activeTfObj.label})
+              Showing {Math.min(visibleCount, assetCandles.length || visibleCount)}/{assetCandles.length || 96} candles ({formatDurationLabel(chartCandleSec)})
               {panOffset > 0 ? ` • History (-${panOffset})` : ' • Live'}
             </span>
             <div className="flex items-center gap-1">
@@ -969,26 +1002,88 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             </span>
           </div>
 
-          {/* Trade Duration Selector (30 sec .. 30 day) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
+          {/* Trade Duration Selector (Custom Minutes + Presets) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                Trade Duration (Seconds / Time)
+                Trade Expiry Time (Minutes / Preset)
               </span>
               <span className="text-[11px] font-black text-cyan-700 tabular-nums">
-                Active: {activeTfObj.label}
+                Active: {activeDurationLabel}
               </span>
             </div>
-            <div className="grid grid-cols-5 gap-1.5">
+
+            {/* Custom Minute Stepper & Direct Input */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const curMin = Math.max(1, Math.round(selectedTimeframe / 60));
+                  const nextMin = Math.max(1, curMin - 1);
+                  setCustomMinutesStr(String(nextMin));
+                  setSelectedTimeframe(nextMin * 60);
+                  setPanOffset(0);
+                }}
+                className="w-9 h-9 rounded-lg bg-white border border-slate-200 hover:border-cyan-400 text-slate-700 flex items-center justify-center active:scale-95"
+                aria-label="Decrease minutes"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <div className="flex-1 flex items-center justify-center gap-1.5 px-2">
+                <Clock className="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" />
+                <input
+                  type="number"
+                  min={1}
+                  max={43200}
+                  value={customMinutesStr}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setCustomMinutesStr(raw);
+                    const parsed = Math.floor(Number(raw));
+                    if (!isNaN(parsed) && parsed >= 1 && parsed <= 43200) {
+                      setSelectedTimeframe(parsed * 60);
+                      setPanOffset(0);
+                    }
+                  }}
+                  onBlur={() => {
+                    const parsed = Math.floor(Number(customMinutesStr));
+                    if (isNaN(parsed) || parsed < 1) {
+                      const fallbackMin = Math.max(1, Math.round(selectedTimeframe / 60));
+                      setCustomMinutesStr(String(fallbackMin));
+                    }
+                  }}
+                  aria-label="Trade duration in minutes"
+                  className="w-16 bg-white border border-slate-200 rounded-lg py-1 px-2 text-center font-mono font-black text-sm text-slate-900 focus:outline-none focus:border-cyan-500 tabular-nums"
+                />
+                <span className="text-[11px] font-black text-slate-600 whitespace-nowrap">Minutes</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const curMin = Math.max(0, Math.round(selectedTimeframe / 60));
+                  const nextMin = Math.min(43200, curMin + 1);
+                  setCustomMinutesStr(String(nextMin));
+                  setSelectedTimeframe(nextMin * 60);
+                  setPanOffset(0);
+                }}
+                className="w-9 h-9 rounded-lg bg-white border border-slate-200 hover:border-cyan-400 text-slate-700 flex items-center justify-center active:scale-95"
+                aria-label="Increase minutes"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-6 gap-1.5">
               {TIMEFRAMES.map((tf) => (
                 <button
                   key={tf.sec}
                   type="button"
                   onClick={() => {
                     setSelectedTimeframe(tf.sec);
+                    setCustomMinutesStr(tf.sec >= 60 ? String(Math.round(tf.sec / 60)) : '1');
                     setPanOffset(0);
                   }}
-                  className={`py-2 px-1 rounded-lg text-[11px] font-black transition-all tabular-nums whitespace-nowrap ${
+                  className={`py-1.5 px-1 rounded-lg text-[11px] font-black transition-all tabular-nums whitespace-nowrap ${
                     selectedTimeframe === tf.sec
                       ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-700 hover:bg-cyan-50'

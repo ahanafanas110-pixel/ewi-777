@@ -63,6 +63,7 @@ export interface User {
   vpnReason?: string;
   ipCountry?: string;
   ipIsp?: string;
+  deviceName?: string;
   updatedAt?: number;
 }
 
@@ -73,6 +74,8 @@ export interface SupportMessage {
   userNickname?: string;
   userPhone?: string;
   sender: 'user' | 'admin';
+  repliedByRole?: 'admin' | 'mentor';
+  repliedByName?: string;
   text: string;
   imageUrl?: string;
   time: string;
@@ -190,7 +193,9 @@ export interface Transaction {
     | 'wingo_refund'
     | 'turnover_penalty'
     | 'roulette_bet'
-    | 'roulette_win';
+    | 'roulette_win'
+    | 'ludo_bet'
+    | 'ludo_win';
   title: string;
   detail?: string;
   amount: number;
@@ -499,10 +504,81 @@ export interface AdminSettings {
   games?: GameItem[];
   broadcasts?: BroadcastNotice[];
   ewiPayConfig?: EwiPayApiConfig;
+  mentors?: MentorAccount[];
+  mentorLogs?: MentorActivityLog[];
+  bannedIps?: string[];
+  mentorBlockedIps?: Array<{
+    ip: string;
+    reason: string;
+    attemptedUsername?: string;
+    blockedAt: string;
+    blockedAtMs: number;
+  }>;
+  paymentGateways?: PaymentGatewaySlot[];
+  activeAdminSession?: ActiveAdminSession | null;
   adminPhone?: string;
   adminPassword?: string;
   adminPhoneHash?: string;
   adminPasswordHash?: string;
+}
+
+export interface MentorAccount {
+  id: string;
+  name: string;
+  username: string;
+  password: string;
+  allowedIp: string;
+  giftCodeBudget: number;
+  giftCodeSpent: number;
+  active: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
+  lastLoginIp?: string;
+}
+
+export interface MentorActivityLog {
+  id: string;
+  mentorId: string;
+  mentorName: string;
+  mentorUsername: string;
+  ip: string;
+  action:
+    | 'login_success'
+    | 'login_failed_blocked'
+    | 'gift_code_created'
+    | 'withdraw_updated'
+    | 'holding_released'
+    | 'turnover_adjusted'
+    | 'support_reply'
+    | 'broadcast_sent'
+    | 'password_changed';
+  detail: string;
+  amount?: number;
+  targetUid?: string;
+  code?: string;
+  time: string;
+  timestamp: number;
+}
+
+export interface PaymentGatewaySlot {
+  id: string;
+  name: string;
+  type: 'bkash' | 'nagad' | 'rocket' | 'usdt' | 'bank' | 'custom';
+  accountNumber: string;
+  accountLabel?: string;
+  instructions?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  active: boolean;
+}
+
+export interface ActiveAdminSession {
+  sessionId: string;
+  ip: string;
+  deviceName: string;
+  loggedInAt: string;
+  loggedInAtMs: number;
+  lastSeenAtMs: number;
 }
 
 export interface EwiPayApiConfig {
@@ -644,9 +720,50 @@ export interface RouletteBet {
   payoutMultiplier: number;
   status: 'pending' | 'won' | 'lost';
   winAmount?: number;
+  winningNumber?: number;
   time: string;
 }
 
+export interface LudoPlayer {
+  slotIndex: number;
+  color: 'red' | 'green' | 'yellow' | 'blue';
+  userId: string;
+  uid?: string;
+  name: string;
+  isBot?: boolean;
+  tokens: number[]; // -1 = yard, 0..51 = shared track steps from home entry, 52..57 = home column, 57 = finished
+  finishedRank?: number;
+}
 
+export type LudoRoomMode = '2p_winner' | '4p_winner' | '4p_split';
 
+export interface LudoRoom {
+  id: string;
+  code: string;
+  password: string;
+  hostUserId: string;
+  hostName: string;
+  mode: LudoRoomMode;
+  maxPlayers: 2 | 4;
+  stake: number;
+  status: 'waiting' | 'playing' | 'finished' | 'cancelled';
+  players: LudoPlayer[];
+  currentTurnIdx: number;
+  lastRoll?: number;
+  winnerUserId?: string;
+  winnerSummary?: string;
+  payouts?: Array<{ userId: string; name: string; rank: number; amount: number }>;
+  createdAt: string;
+  createdAtMs: number;
+  updatedAt: number;
+}
 
+export interface LudoBetRecord {
+  id: string;
+  userId: string;
+  mode: 'online_2p' | 'online_4p' | LudoRoomMode;
+  stake: number;
+  winAmount: number;
+  status: 'won' | 'lost';
+  time: string;
+}

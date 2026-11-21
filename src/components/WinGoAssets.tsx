@@ -163,14 +163,14 @@ export const WinGoResultPopupModal: React.FC<ResultPopupModalProps> = ({ popup, 
           className="absolute top-0 left-1/2 -translate-x-1/2 z-20 pointer-events-none select-none"
           style={{
             textShadow: isWin
-              ? '0 0 28px rgba(251, 191, 36, 0.85), 0 4px 12px rgba(0, 0, 0, 0.45)'
+              ? '0 0 28px rgba(6, 182, 212, 0.85), 0 4px 12px rgba(0, 0, 0, 0.45)'
               : '0 0 28px rgba(239, 68, 68, 0.85), 0 4px 12px rgba(0, 0, 0, 0.45)'
           }}
         >
           <span
             className={`text-[46px] font-black italic tracking-wider uppercase leading-none bg-clip-text text-transparent ${
               isWin
-                ? 'bg-gradient-to-b from-[#FFE875] via-[#FFB71B] to-[#E68A00]'
+                ? 'bg-gradient-to-b from-[#22D3EE] via-[#06B6D4] to-[#0D9488]'
                 : 'bg-gradient-to-b from-[#FF8C8C] via-[#F04444] to-[#C81E1E]'
             }`}
           >
@@ -235,7 +235,7 @@ export const WinGoResultPopupModal: React.FC<ResultPopupModalProps> = ({ popup, 
                         : badge.tone === 'orange'
                         ? 'bg-[#FB923C]'
                         : badge.tone === 'amber'
-                        ? 'bg-[#D97706]'
+                        ? 'bg-[#0891B2]'
                         : 'bg-slate-600';
                     return (
                       <span

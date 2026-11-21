@@ -1,7 +1,7 @@
 import React from 'react';
 import aviatorGameIconImg from '../assets/images/game_icon_aviator_3d_1794734299543.jpg';
 import minesGameIconImg from '../assets/images/game_icon_mines_3d_1794734301052.jpg';
-import goldMarketIconImg from '../assets/images/ewi777_gold_icon_1794909589461.jpg';
+import goldMarketIconImg from '../assets/images/gold_trading_emblem_1795251766450.jpg';
 
 /**
  * Crisp Cyan/Slate Safe Plate Logo (keeps PinkSafePlateLogo export name for compatibility)

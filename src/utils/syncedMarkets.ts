@@ -1166,7 +1166,7 @@ export function getEwiRouletteState(nowMs = Date.now(), offsetMinutes = 360): Ew
   const winningNumber = getRouletteNumberForRound(roundIndex);
   const winningColor = getRouletteNumberColor(winningNumber);
 
-  const d = getOffsetDate(offsetMinutes, nowMs);
+  const d = new Date(nowMs + offsetMinutes * 60000);
   const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(
     d.getUTCDate()
   ).padStart(2, '0')}`;
@@ -1177,7 +1177,7 @@ export function getEwiRouletteState(nowMs = Date.now(), offsetMinutes = 360): Ew
   for (let i = 1; i <= 50; i++) {
     const prevIdx = roundIndex - i;
     const num = getRouletteNumberForRound(prevIdx);
-    const prevD = getOffsetDate(offsetMinutes, prevIdx * ROULETTE_ROUND_MS);
+    const prevD = new Date(prevIdx * ROULETTE_ROUND_MS + offsetMinutes * 60000);
     const prevYmd = `${prevD.getUTCFullYear()}${String(prevD.getUTCMonth() + 1).padStart(2, '0')}${String(
       prevD.getUTCDate()
     ).padStart(2, '0')}`;

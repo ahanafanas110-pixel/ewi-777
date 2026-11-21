@@ -26,7 +26,7 @@ service cloud.firestore {
 
     function isValidAppSettings(data) {
       return data is map
-        && data.keys().size() <= 85
+        && data.keys().size() <= 120
         && (!('appName' in data) || (data.appName is string && data.appName.size() <= 120))
         && (!('appLogoUrl' in data) || (data.appLogoUrl is string && data.appLogoUrl.size() <= 350000))
         && (!('marqueeText' in data) || (data.marqueeText is string && data.marqueeText.size() <= 2000))
@@ -41,7 +41,7 @@ service cloud.firestore {
     function isValidUser(data, userId) {
       return data is map
         && data.keys().hasAll(['id', 'balance'])
-        && data.keys().size() <= 80
+        && data.keys().size() <= 100
         && data.id is string && data.id == userId
         && data.balance is number && data.balance >= 0
         && (!('nickname' in data) || (data.nickname is string && data.nickname.size() <= 80))
@@ -72,11 +72,13 @@ service cloud.firestore {
     function isValidSupportMessage(data, messageId) {
       return data is map
         && data.keys().hasAll(['id', 'userId', 'sender', 'timestamp'])
-        && data.keys().size() <= 15
+        && data.keys().size() <= 20
         && data.id is string && data.id == messageId
         && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
         && data.sender in ['user', 'admin']
         && data.timestamp is number
+        && (!('repliedByRole' in data) || data.repliedByRole in ['admin', 'mentor'])
+        && (!('repliedByName' in data) || (data.repliedByName is string && data.repliedByName.size() <= 80))
         && (!('text' in data) || (data.text is string && data.text.size() <= 4000))
         && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 350000));
     }
@@ -252,6 +254,17 @@ service cloud.firestore {
         && request.resource.data.keys().size() <= 14
         && request.resource.data.game == gameId
         && (!('bets' in request.resource.data) || (request.resource.data.bets is list && request.resource.data.bets.size() <= 60));
+      allow delete: if false;
+    }
+
+    // Real-time Private Friend Ludo Rooms
+    match /ludoRooms/{roomId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(roomId)
+        && request.resource.data is map
+        && request.resource.data.keys().hasAll(['id', 'code', 'hostUserId', 'stake', 'status'])
+        && request.resource.data.keys().size() <= 24
+        && request.resource.data.id is string && request.resource.data.id == roomId;
       allow delete: if false;
     }
   }

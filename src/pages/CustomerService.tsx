@@ -332,7 +332,9 @@ export const CustomerService: React.FC = () => {
                   >
                     {m.sender === 'admin' && (
                       <span className="text-[10px] font-black text-cyan-700 mb-0.5 px-1">
-                        EWI 777 Agent
+                        {m.repliedByRole === 'mentor'
+                          ? `Mentor • ${m.repliedByName || 'Support'}`
+                          : 'EWI 777 Agent'}
                       </span>
                     )}
                     <div

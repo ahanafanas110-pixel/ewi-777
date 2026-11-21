@@ -3,14 +3,13 @@ import { useApp } from '../context/AppContext';
 import { Header } from '../components/Header';
 import { Gift, ChevronRight } from 'lucide-react';
 import { getTranslation } from '../utils/i18n';
-import { PinkGiftIllustration } from '../components/PinkActivityIllustrations';
+import { PinkGiftIllustration, PinkAttendanceIllustration } from '../components/PinkActivityIllustrations';
 import {
   ActivityAwardSquircleIcon,
   BettingRebateSquircleIcon,
   SuperJackpotSquircleIcon,
   FirstGiftSquircleIcon
 } from '../components/AccountIcons';
-import checkinBanner from '../assets/images/ewi777_checkin_banner_1794826719310.jpg';
 
 export const Activity: React.FC = () => {
   const {
@@ -234,11 +233,7 @@ export const Activity: React.FC = () => {
             className="group bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-2xs hover:shadow-md cursor-pointer active:scale-97 transition-all flex flex-col"
           >
             <div className="w-full h-28 sm:h-32 relative overflow-hidden flex items-center justify-center bg-slate-100">
-              <img
-                src={checkinBanner}
-                alt="EWI777 Daily Check-In"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              />
+              <PinkAttendanceIllustration className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               <span className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] font-black text-cyan-700 shadow-xs">
                 DAILY
               </span>

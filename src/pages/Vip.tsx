@@ -18,7 +18,9 @@ import vipMonthlyChest from '../assets/images/vip_monthly_chest_1794826717578.jp
 
 export const Vip: React.FC = () => {
   const { user, claimVipReward, setActiveTab, showToast } = useApp();
-  const [selectedVipLevel, setSelectedVipLevel] = useState<number>(user.vipLevel || 1);
+  const [selectedVipLevel, setSelectedVipLevel] = useState<number>(
+    Math.min(VIP_TIERS.length, Math.max(1, user.vipLevel || 1))
+  );
 
   const currentTier = VIP_TIERS.find((t) => t.level === selectedVipLevel) || VIP_TIERS[0];
   const userDeposited = user.totalDeposited || 0;
@@ -60,7 +62,7 @@ export const Vip: React.FC = () => {
           </button>
           <div className="flex items-center gap-1.5 font-black text-lg tracking-wide">
             <Award className="w-5 h-5 text-cyan-200" />
-            <span>VIP PRIVILEGE CLUB (1-10)</span>
+            <span>VIP PRIVILEGE CLUB (1-9)</span>
           </div>
           <div className="w-6" />
         </div>
@@ -246,7 +248,7 @@ export const Vip: React.FC = () => {
                     </div>
                     <div className="text-[10px] text-slate-500">
                       {currentTier.monthlyBonus === 0
-                        ? 'Monthly VIP salary starts from VIP 3'
+                        ? 'Monthly VIP salary starts from VIP 2'
                         : 'Auto-credited every 30 days to wallet'}
                     </div>
                   </div>
