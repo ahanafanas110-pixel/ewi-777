@@ -2364,7 +2364,7 @@ async function startServer() {
   });
 
   app.post('/api/ludo/move', async (req, res) => {
-    const { roomId, players, currentTurnIdx, lastRoll, status } = req.body || {};
+    const { roomId, players, currentTurnIdx, lastRoll, status, statusText } = req.body || {};
     let room = store.ludoRooms?.[String(roomId || '')];
     if (!room) {
       room = await getFirestoreDoc('ludoRooms', String(roomId || '')).catch(() => null);
@@ -2374,6 +2374,7 @@ async function startServer() {
     if (typeof currentTurnIdx === 'number') room.currentTurnIdx = currentTurnIdx;
     if (typeof lastRoll === 'number') room.lastRoll = lastRoll;
     if (status) room.status = status;
+    if (typeof statusText === 'string' && statusText) room.statusText = statusText;
     room.updatedAt = Date.now();
     store.ludoRooms[room.id || String(roomId)] = room;
     saveStore(store);
@@ -2416,6 +2417,30 @@ async function startServer() {
       return res.status(409).json({ success: false, message: 'Cannot cancel a match that has already started.' });
     }
     room.status = 'cancelled';
+    room.statusText = `Room ${room.code} cancelled — 90% stake refunded.`;
+    room.updatedAt = Date.now();
+    store.ludoRooms[room.id || String(roomId)] = room;
+    saveStore(store);
+    await patchFirestoreDoc('ludoRooms', String(room.id || roomId), room).catch(() => false);
+    res.json({ success: true, room });
+  });
+
+  app.post('/api/ludo/leave', async (req, res) => {
+    const { roomId, userId, name } = req.body || {};
+    let room = store.ludoRooms?.[String(roomId || '')];
+    if (!room) {
+      room = await getFirestoreDoc('ludoRooms', String(roomId || '')).catch(() => null);
+    }
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    if (room.status !== 'waiting') {
+      return res.status(409).json({ success: false, message: 'Cannot leave & refund after match started.' });
+    }
+    const prevPlayers: any[] = Array.isArray(room.players) ? room.players : [];
+    const nextPlayers = prevPlayers
+      .filter((p) => String(p.userId) !== String(userId || ''))
+      .map((p, idx) => ({ ...p, slotIndex: idx }));
+    room.players = nextPlayers;
+    room.statusText = `${String(name || 'Player')} left room (90% refund).`;
     room.updatedAt = Date.now();
     store.ludoRooms[room.id || String(roomId)] = room;
     saveStore(store);

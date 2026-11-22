@@ -31,6 +31,9 @@ import type {
   WithdrawRequest,
   AppNotification,
   LudoRoom,
+  LudoRoomMessage,
+  LudoVoicePeer,
+  LudoVoiceSignal,
   SportsBet
 } from '../types';
 
@@ -846,6 +849,205 @@ export async function saveLudoRoomToFirebase(room: LudoRoom): Promise<void> {
     await setDoc(doc(db, 'ludoRooms', id), stripUndefinedDeep({ ...room, id }), { merge: true });
   } catch (error) {
     logFirestoreNonFatal(error, OperationType.WRITE, path);
+  }
+}
+
+export async function getLudoRoomByIdFromFirebase(roomId: string): Promise<LudoRoom | null> {
+  const id = sanitizeFirestoreId(roomId);
+  if (!id) return null;
+  const path = `ludoRooms/${id}`;
+  try {
+    const snap = await getDoc(doc(db, 'ludoRooms', id));
+    if (!snap.exists()) return null;
+    const data = snap.data() as LudoRoom;
+    return data && data.id ? data : null;
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.GET, path);
+    return null;
+  }
+}
+
+export async function getLudoRoomsFromFirebase(): Promise<LudoRoom[]> {
+  const path = 'ludoRooms';
+  try {
+    const q = query(collection(db, 'ludoRooms'), orderBy('updatedAt', 'desc'), limit(80));
+    const snap = await getDocs(q);
+    const list: LudoRoom[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as LudoRoom;
+      if (data && data.id) list.push(data);
+    });
+    return list;
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.LIST, path);
+    return [];
+  }
+}
+
+export async function findLudoRoomByCodeInFirebase(code: string): Promise<LudoRoom | null> {
+  const cleanCode = String(code || '').trim().toUpperCase();
+  if (!cleanCode) return null;
+  const rooms = await getLudoRoomsFromFirebase();
+  const matches = rooms.filter((r) => String(r.code || '').trim().toUpperCase() === cleanCode);
+  if (matches.length === 0) return null;
+  const rank = (s?: string) => (s === 'waiting' ? 0 : s === 'playing' ? 1 : s === 'finished' ? 2 : 3);
+  matches.sort((a, b) => {
+    const dr = rank(a.status) - rank(b.status);
+    if (dr !== 0) return dr;
+    return Number(b.updatedAt || 0) - Number(a.updatedAt || 0);
+  });
+  return matches[0];
+}
+
+export function subscribeLudoRoomMessagesInFirebase(
+  roomId: string,
+  onUpdate: (messages: LudoRoomMessage[]) => void
+): Unsubscribe {
+  const id = sanitizeFirestoreId(roomId);
+  if (!id) return () => {};
+  const path = `ludoRooms/${id}/messages`;
+  const q = query(collection(db, 'ludoRooms', id, 'messages'), orderBy('createdAtMs', 'asc'), limit(80));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: LudoRoomMessage[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as LudoRoomMessage;
+        if (data && data.id) list.push(data);
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export async function sendLudoRoomMessageToFirebase(
+  roomId: string,
+  message: LudoRoomMessage
+): Promise<void> {
+  const rId = sanitizeFirestoreId(roomId);
+  const mId = sanitizeFirestoreId(message.id);
+  if (!rId || !mId) return;
+  const path = `ludoRooms/${rId}/messages/${mId}`;
+  const cleanPayload: Record<string, unknown> = {
+    id: mId,
+    roomId: rId,
+    senderId: String(message.senderId || '').slice(0, 128),
+    senderName: String(message.senderName || 'Player').slice(0, 80),
+    type: message.type,
+    createdAtMs: Number(message.createdAtMs || Date.now())
+  };
+  if (message.senderColor) cleanPayload.senderColor = message.senderColor;
+  if (typeof message.text === 'string' && message.text.length > 0) {
+    cleanPayload.text = message.text.slice(0, 400);
+  }
+  if (typeof message.audioData === 'string' && message.audioData.length > 0) {
+    cleanPayload.audioData = message.audioData.slice(0, 140000);
+  }
+  if (typeof message.audioDurationSec === 'number') {
+    cleanPayload.audioDurationSec = Math.max(0, Math.min(15, Number(message.audioDurationSec)));
+  }
+  try {
+    await setDoc(doc(db, 'ludoRooms', rId, 'messages', mId), cleanPayload);
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.CREATE, path);
+  }
+}
+
+export function subscribeLudoVoicePeersInFirebase(
+  roomId: string,
+  onUpdate: (peers: LudoVoicePeer[]) => void
+): Unsubscribe {
+  const id = sanitizeFirestoreId(roomId);
+  if (!id) return () => {};
+  const path = `ludoRooms/${id}/voicePeers`;
+  const q = query(collection(db, 'ludoRooms', id, 'voicePeers'), limit(12));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: LudoVoicePeer[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as LudoVoicePeer;
+        if (data && data.id) list.push(data);
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export async function saveLudoVoicePeerToFirebase(
+  roomId: string,
+  peer: LudoVoicePeer
+): Promise<void> {
+  const rId = sanitizeFirestoreId(roomId);
+  const pId = sanitizeFirestoreId(peer.id || peer.userId);
+  if (!rId || !pId) return;
+  const path = `ludoRooms/${rId}/voicePeers/${pId}`;
+  const cleanPayload: Record<string, unknown> = {
+    id: pId,
+    roomId: rId,
+    userId: String(peer.userId || pId).slice(0, 128),
+    name: String(peer.name || 'Player').slice(0, 80),
+    micActive: Boolean(peer.micActive),
+    updatedAt: Number(peer.updatedAt || Date.now())
+  };
+  if (peer.color) cleanPayload.color = peer.color;
+  try {
+    await setDoc(doc(db, 'ludoRooms', rId, 'voicePeers', pId), cleanPayload, { merge: true });
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.WRITE, path);
+  }
+}
+
+export function subscribeLudoVoiceSignalsInFirebase(
+  roomId: string,
+  onSignals: (signals: LudoVoiceSignal[]) => void
+): Unsubscribe {
+  const id = sanitizeFirestoreId(roomId);
+  if (!id) return () => {};
+  const path = `ludoRooms/${id}/voiceSignals`;
+  const q = query(collection(db, 'ludoRooms', id, 'voiceSignals'), orderBy('createdAtMs', 'asc'), limit(150));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: LudoVoiceSignal[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as LudoVoiceSignal;
+        if (data && data.id) list.push(data);
+      });
+      onSignals(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export async function sendLudoVoiceSignalToFirebase(
+  roomId: string,
+  signal: LudoVoiceSignal
+): Promise<void> {
+  const rId = sanitizeFirestoreId(roomId);
+  const sId = sanitizeFirestoreId(signal.id);
+  if (!rId || !sId) return;
+  const path = `ludoRooms/${rId}/voiceSignals/${sId}`;
+  try {
+    await setDoc(doc(db, 'ludoRooms', rId, 'voiceSignals', sId), {
+      id: sId,
+      roomId: rId,
+      fromUserId: String(signal.fromUserId).slice(0, 128),
+      toUserId: String(signal.toUserId).slice(0, 128),
+      kind: signal.kind,
+      payload: String(signal.payload).slice(0, 16000),
+      createdAtMs: Number(signal.createdAtMs || Date.now())
+    });
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.CREATE, path);
   }
 }
 

@@ -152,6 +152,48 @@ service cloud.firestore {
         && data.route is string && data.route.size() >= 1 && data.route.size() <= 120;
     }
 
+    function isValidLudoMessage(data, roomId, msgId) {
+      return data is map
+        && data.keys().hasAll(['id', 'roomId', 'senderId', 'senderName', 'type', 'createdAtMs'])
+        && data.keys().hasOnly(['id', 'roomId', 'senderId', 'senderName', 'senderColor', 'type', 'text', 'audioData', 'audioDurationSec', 'createdAtMs'])
+        && data.id is string && data.id == msgId
+        && data.roomId is string && data.roomId == roomId
+        && data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80
+        && (!('senderColor' in data) || data.senderColor in ['red', 'green', 'yellow', 'blue'])
+        && data.type in ['text', 'voice', 'quick']
+        && (!('text' in data) || (data.text is string && data.text.size() <= 400))
+        && (!('audioData' in data) || (data.audioData is string && data.audioData.size() <= 140000))
+        && (!('audioDurationSec' in data) || (data.audioDurationSec is number && data.audioDurationSec >= 0 && data.audioDurationSec <= 15))
+        && data.createdAtMs is number;
+    }
+
+    function isValidLudoVoicePeer(data, roomId, peerId) {
+      return data is map
+        && data.keys().hasAll(['id', 'roomId', 'userId', 'micActive', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'roomId', 'userId', 'name', 'color', 'micActive', 'updatedAt'])
+        && data.id is string && data.id == peerId
+        && data.roomId is string && data.roomId == roomId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && (!('name' in data) || (data.name is string && data.name.size() <= 80))
+        && (!('color' in data) || data.color in ['red', 'green', 'yellow', 'blue'])
+        && data.micActive is bool
+        && data.updatedAt is number;
+    }
+
+    function isValidLudoVoiceSignal(data, roomId, signalId) {
+      return data is map
+        && data.keys().hasAll(['id', 'roomId', 'fromUserId', 'toUserId', 'kind', 'payload', 'createdAtMs'])
+        && data.keys().hasOnly(['id', 'roomId', 'fromUserId', 'toUserId', 'kind', 'payload', 'createdAtMs'])
+        && data.id is string && data.id == signalId
+        && data.roomId is string && data.roomId == roomId
+        && data.fromUserId is string && data.fromUserId.size() >= 1 && data.fromUserId.size() <= 128
+        && data.toUserId is string && data.toUserId.size() >= 1 && data.toUserId.size() <= 128
+        && data.kind in ['offer', 'answer', 'ice']
+        && data.payload is string && data.payload.size() >= 1 && data.payload.size() <= 16000
+        && data.createdAtMs is number;
+    }
+
     // Health check document for connection verification
     match /test/connection {
       allow get: if true;
@@ -278,6 +320,30 @@ service cloud.firestore {
         && request.resource.data.keys().size() <= 24
         && request.resource.data.id is string && request.resource.data.id == roomId;
       allow delete: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if true;
+        allow create: if isValidId(roomId) && isValidId(messageId)
+          && isValidLudoMessage(request.resource.data, roomId, messageId)
+          && exists(/databases/$(database)/documents/ludoRooms/$(roomId));
+        allow update, delete: if false;
+      }
+
+      match /voicePeers/{peerId} {
+        allow get, list: if true;
+        allow create, update: if isValidId(roomId) && isValidId(peerId)
+          && isValidLudoVoicePeer(request.resource.data, roomId, peerId)
+          && exists(/databases/$(database)/documents/ludoRooms/$(roomId));
+        allow delete: if false;
+      }
+
+      match /voiceSignals/{signalId} {
+        allow get, list: if true;
+        allow create: if isValidId(roomId) && isValidId(signalId)
+          && isValidLudoVoiceSignal(request.resource.data, roomId, signalId)
+          && exists(/databases/$(database)/documents/ludoRooms/$(roomId));
+        allow update, delete: if false;
+      }
     }
 
     // Live Cricket & Football Team-Only Bets

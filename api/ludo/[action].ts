@@ -116,7 +116,7 @@ export default async function handler(req: IncomingMessage & { method?: string; 
   }
 
   if (action === 'move') {
-    const { roomId, players, currentTurnIdx, lastRoll, status } = body || {};
+    const { roomId, players, currentTurnIdx, lastRoll, status, statusText } = body || {};
     const room = await getFirestoreDoc('ludoRooms', String(roomId || ''));
     if (!room) return sendJson(res, 404, { success: false, message: 'Room not found' });
     const nextRoom = {
@@ -125,6 +125,7 @@ export default async function handler(req: IncomingMessage & { method?: string; 
       ...(typeof currentTurnIdx === 'number' ? { currentTurnIdx } : {}),
       ...(typeof lastRoll === 'number' ? { lastRoll } : {}),
       ...(status ? { status } : {}),
+      ...(typeof statusText === 'string' && statusText ? { statusText } : {}),
       updatedAt: nowMs
     };
     await patchFirestoreDoc('ludoRooms', String(roomId), nextRoom);
@@ -160,7 +161,33 @@ export default async function handler(req: IncomingMessage & { method?: string; 
     if (room.status !== 'waiting') {
       return sendJson(res, 409, { success: false, message: 'Cannot cancel a match that already started.' });
     }
-    const nextRoom = { ...room, status: 'cancelled', updatedAt: nowMs };
+    const nextRoom = {
+      ...room,
+      status: 'cancelled',
+      statusText: `Room ${room.code} cancelled — 90% stake refunded.`,
+      updatedAt: nowMs
+    };
+    await patchFirestoreDoc('ludoRooms', String(roomId), nextRoom);
+    return sendJson(res, 200, { success: true, room: nextRoom });
+  }
+
+  if (action === 'leave') {
+    const { roomId, userId, name } = body || {};
+    const room = await getFirestoreDoc('ludoRooms', String(roomId || ''));
+    if (!room) return sendJson(res, 404, { success: false, message: 'Room not found' });
+    if (room.status !== 'waiting') {
+      return sendJson(res, 409, { success: false, message: 'Cannot leave & refund after match started.' });
+    }
+    const prevPlayers: any[] = Array.isArray(room.players) ? room.players : [];
+    const nextPlayers = prevPlayers
+      .filter((p) => String(p.userId) !== String(userId || ''))
+      .map((p, idx) => ({ ...p, slotIndex: idx }));
+    const nextRoom = {
+      ...room,
+      players: nextPlayers,
+      statusText: `${String(name || 'Player')} left room (90% refund).`,
+      updatedAt: nowMs
+    };
     await patchFirestoreDoc('ludoRooms', String(roomId), nextRoom);
     return sendJson(res, 200, { success: true, room: nextRoom });
   }

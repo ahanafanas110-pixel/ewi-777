@@ -260,6 +260,54 @@
       },
       "required": ["id", "code", "hostUserId", "stake", "status"]
     },
+    "LudoRoomMessage": {
+      "title": "LudoRoomMessage",
+      "description": "Real-time text, quick reaction, and short voice clip message inside a Ludo room.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 80 },
+        "senderColor": { "type": "string", "enum": ["red", "green", "yellow", "blue"] },
+        "type": { "type": "string", "enum": ["text", "voice", "quick"] },
+        "text": { "type": "string", "maxLength": 400 },
+        "audioData": { "type": "string", "maxLength": 140000 },
+        "audioDurationSec": { "type": "number" },
+        "createdAtMs": { "type": "number" }
+      },
+      "required": ["id", "roomId", "senderId", "senderName", "type", "createdAtMs"]
+    },
+    "LudoVoicePeer": {
+      "title": "LudoVoicePeer",
+      "description": "Live microphone presence state for WebRTC voice chat inside a Ludo room.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "color": { "type": "string", "enum": ["red", "green", "yellow", "blue"] },
+        "micActive": { "type": "boolean" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "roomId", "userId", "micActive", "updatedAt"]
+    },
+    "LudoVoiceSignal": {
+      "title": "LudoVoiceSignal",
+      "description": "WebRTC offer/answer/ICE signaling packet relayed via Firestore for live Ludo voice chat.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "fromUserId": { "type": "string", "maxLength": 128 },
+        "toUserId": { "type": "string", "maxLength": 128 },
+        "kind": { "type": "string", "enum": ["offer", "answer", "ice"] },
+        "payload": { "type": "string", "maxLength": 16000 },
+        "createdAtMs": { "type": "number" }
+      },
+      "required": ["id", "roomId", "fromUserId", "toUserId", "kind", "payload", "createdAtMs"]
+    },
     "SportsBet": {
       "title": "SportsBet",
       "description": "Live Cricket and Football team-only bet slip synced across user devices and admin settlement.",
@@ -338,6 +386,18 @@
     "/ludoRooms/{roomId}": {
       "schema": { "$ref": "#/entities/LudoRoom" },
       "description": "Real-time password-protected friend Ludo rooms."
+    },
+    "/ludoRooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/LudoRoomMessage" },
+      "description": "Real-time text & push-to-talk voice messages inside a Ludo room."
+    },
+    "/ludoRooms/{roomId}/voicePeers/{peerId}": {
+      "schema": { "$ref": "#/entities/LudoVoicePeer" },
+      "description": "Live microphone presence records for WebRTC audio inside a Ludo room."
+    },
+    "/ludoRooms/{roomId}/voiceSignals/{signalId}": {
+      "schema": { "$ref": "#/entities/LudoVoiceSignal" },
+      "description": "Ephemeral WebRTC signaling packets for live Ludo voice calls."
     },
     "/sportsBets/{betId}": {
       "schema": { "$ref": "#/entities/SportsBet" },

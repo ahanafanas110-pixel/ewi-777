@@ -247,7 +247,13 @@ interface AppContextType {
   kickAdminSession: () => Promise<void>;
   ludoBets: LudoBetRecord[];
   placeLudoBet: (stake: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode) => { success: boolean; message: string };
-  settleLudoMatch: (winAmount: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode, detail: string, stake: number) => void;
+  settleLudoMatch: (
+    winAmount: number,
+    mode: 'online_2p' | 'online_4p' | LudoRoomMode,
+    detail: string,
+    stake: number,
+    isRefund?: boolean
+  ) => void;
   sportsMatches: SportsMatch[];
   sportsBets: SportsBet[];
   placeSportsBet: (matchId: string, selectedTeam: 'teamA' | 'teamB', amount: number) => Promise<{ success: boolean; message: string }>;
@@ -8554,32 +8560,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     winAmount: number,
     mode: 'online_2p' | 'online_4p' | LudoRoomMode,
     detail: string,
-    stake: number
+    stake: number,
+    isRefund: boolean = false
   ) => {
     const cleanWin = +Math.max(0, Number(winAmount || 0)).toFixed(2);
-    const rec: LudoBetRecord = {
-      id: `ld_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      userId: userRef.current.id || 'guest',
-      mode,
-      stake,
-      winAmount: cleanWin,
-      status: cleanWin > 0 ? 'won' : 'lost',
-      time: new Date().toLocaleTimeString('en-US', { hour12: false })
-    };
-    setLudoBets((prev) => {
-      const next = [rec, ...prev].slice(0, 40);
-      try {
-        localStorage.setItem('ewi777_ludo_bets', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+    if (!isRefund) {
+      const rec: LudoBetRecord = {
+        id: `ld_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        userId: userRef.current.id || 'guest',
+        mode,
+        stake,
+        winAmount: cleanWin,
+        status: cleanWin > 0 ? 'won' : 'lost',
+        time: new Date().toLocaleTimeString('en-US', { hour12: false })
+      };
+      setLudoBets((prev) => {
+        const next = [rec, ...prev].slice(0, 40);
+        try {
+          localStorage.setItem('ewi777_ludo_bets', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
 
     if (cleanWin > 0 && userRef.current.id) {
       const nextBal = +(Number(userRef.current.balance || 0) + cleanWin).toFixed(2);
       const updatedUser = syncUserEverywhere({
         ...userRef.current,
         balance: nextBal,
-        turnoverCompleted: (userRef.current.turnoverCompleted || 0) + cleanWin
+        turnoverCompleted: isRefund
+          ? userRef.current.turnoverCompleted || 0
+          : (userRef.current.turnoverCompleted || 0) + cleanWin
       });
       setUser(updatedUser);
 
@@ -8587,7 +8598,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_ldw`,
         userId: userRef.current.id,
         type: 'ludo_win',
-        title: `EWI Ludo Prize Won!`,
+        title: isRefund ? `EWI Ludo Room Refund (90%)` : `EWI Ludo Prize Won!`,
         detail: `${detail} • +৳${cleanWin.toFixed(2)}`,
         amount: cleanWin,
         balanceAfter: nextBal,
@@ -8596,8 +8607,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setTransactions((prev) => [tx, ...prev]);
       saveTransactionToFirebase(tx).catch(() => {});
-      confetti({ particleCount: 75, spread: 65 });
-      showToast(`EWI Ludo Won +৳${cleanWin.toFixed(2)}!`);
+      if (isRefund) {
+        showToast(`Ludo Refund Credited +৳${cleanWin.toFixed(2)} (90% of ৳${stake})`);
+      } else {
+        confetti({ particleCount: 75, spread: 65 });
+        showToast(`EWI Ludo Won +৳${cleanWin.toFixed(2)}!`);
+      }
     }
   };
 

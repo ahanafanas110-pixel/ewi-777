@@ -3,11 +3,15 @@ import { useApp } from '../context/AppContext';
 import { LudoPlayer, LudoRoom, LudoRoomMode } from '../types';
 import { apiUrl } from '../utils/phoneAndApi';
 import {
+  findLudoRoomByCodeInFirebase,
+  getLudoRoomByIdFromFirebase,
+  getLudoRoomsFromFirebase,
   saveLudoRoomToFirebase,
   subscribeLudoRoomByIdInFirebase,
   subscribeLudoRoomsInFirebase
 } from '../lib/firebase';
 import { Ewi777Logo } from '../components/BrandLogos';
+import { LudoCommsPanel, OnlineChatItem } from '../components/LudoCommsPanel';
 import {
   ArrowLeft,
   Copy,
@@ -16,6 +20,7 @@ import {
   KeyRound,
   Link2,
   Lock,
+  Mic,
   Plus,
   RefreshCw,
   Share2,
@@ -29,24 +34,48 @@ import {
 } from 'lucide-react';
 import ludoHeroImg from '../assets/images/ludo_realistic_icon_1795251767143.jpg';
 
-// Lightweight Web Audio API board FX synthesizer (safe fallback if blocked)
+// Singleton Web Audio API context so sound unlocks on first tap and plays reliably on mobile
+let sharedAudioCtx: AudioContext | null = null;
+function getUnlockedAudioCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  const AudioCtx =
+    window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+    sharedAudioCtx = new AudioCtx();
+  }
+  if (sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+  return sharedAudioCtx;
+}
+
+// Crisp Multi-Layered Web Audio Ludo FX Synthesizer
 function playLudoSound(
-  type: 'roll' | 'move' | 'capture' | 'home' | 'win',
+  type: 'roll' | 'move' | 'capture' | 'home' | 'win' | 'six' | 'chat',
   enabled: boolean
 ) {
   if (!enabled || typeof window === 'undefined') return;
   try {
-    const AudioCtx =
-      window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    const ctx = getUnlockedAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
 
-    const playTone = (freq: number, startOffset: number, dur: number, oscType: OscillatorType, gainVal: number) => {
+    const playTone = (
+      freqStart: number,
+      freqEnd: number | null,
+      startOffset: number,
+      dur: number,
+      oscType: OscillatorType,
+      gainVal: number
+    ) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = oscType;
-      osc.frequency.setValueAtTime(freq, now + startOffset);
+      osc.frequency.setValueAtTime(freqStart, now + startOffset);
+      if (freqEnd !== null) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(40, freqEnd), now + startOffset + dur);
+      }
       gain.gain.setValueAtTime(0.001, now + startOffset);
       gain.gain.exponentialRampToValueAtTime(gainVal, now + startOffset + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + startOffset + dur);
@@ -57,28 +86,33 @@ function playLudoSound(
     };
 
     if (type === 'roll') {
-      [0, 0.07, 0.14, 0.22].forEach((offset, i) => {
-        playTone(220 + i * 45, offset, 0.055, 'triangle', 0.06);
+      [0, 0.065, 0.13, 0.195, 0.27].forEach((offset, i) => {
+        playTone(190 + i * 38, 120 + i * 25, offset, 0.055, 'triangle', 0.08);
       });
     } else if (type === 'move') {
-      playTone(460, 0, 0.08, 'sine', 0.08);
-      playTone(620, 0.035, 0.07, 'triangle', 0.05);
+      playTone(420, 560, 0, 0.075, 'sine', 0.09);
+      playTone(680, 520, 0.03, 0.06, 'triangle', 0.05);
+    } else if (type === 'six') {
+      playTone(659.25, null, 0, 0.1, 'sine', 0.1);
+      playTone(987.77, null, 0.08, 0.16, 'triangle', 0.11);
     } else if (type === 'capture') {
-      playTone(540, 0, 0.09, 'sawtooth', 0.06);
-      playTone(280, 0.07, 0.16, 'triangle', 0.08);
+      // Dramatic cut impact: punchy low drop + crisp slash chime
+      playTone(620, 95, 0, 0.22, 'sawtooth', 0.11);
+      playTone(340, 80, 0.03, 0.26, 'square', 0.07);
+      playTone(880, 440, 0.09, 0.18, 'triangle', 0.09);
     } else if (type === 'home') {
-      playTone(523.25, 0, 0.12, 'sine', 0.08);
-      playTone(659.25, 0.08, 0.14, 'sine', 0.08);
-      playTone(783.99, 0.16, 0.22, 'sine', 0.09);
+      // Celebratory royal ascending harp chime on entering home
+      playTone(523.25, null, 0, 0.14, 'sine', 0.1);
+      playTone(659.25, null, 0.07, 0.16, 'sine', 0.11);
+      playTone(783.99, null, 0.14, 0.18, 'sine', 0.11);
+      playTone(1046.5, null, 0.22, 0.34, 'triangle', 0.12);
     } else if (type === 'win') {
-      [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
-        playTone(freq, idx * 0.09, 0.35, 'triangle', 0.09);
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((freq, idx) => {
+        playTone(freq, null, idx * 0.085, 0.38, 'triangle', 0.11);
       });
+    } else if (type === 'chat') {
+      playTone(580, 760, 0, 0.07, 'sine', 0.05);
     }
-
-    window.setTimeout(() => {
-      ctx.close().catch(() => {});
-    }, 900);
   } catch {}
 }
 
@@ -99,7 +133,17 @@ const RealisticDiceCube: React.FC<{
   canTap: boolean;
   onTap?: () => void;
 }> = ({ value, rolling, accentHex, canTap, onTap }) => {
-  const face = value && value >= 1 && value <= 6 ? value : 6;
+  const [spinFace, setSpinFace] = useState(6);
+
+  useEffect(() => {
+    if (!rolling) return;
+    const iv = window.setInterval(() => {
+      setSpinFace((prev) => ((prev + Math.floor(Math.random() * 5) + 1) % 6) + 1);
+    }, 65);
+    return () => window.clearInterval(iv);
+  }, [rolling]);
+
+  const face = rolling ? spinFace : value && value >= 1 && value <= 6 ? value : 6;
   const activePips = DICE_PIP_SLOTS[face] || DICE_PIP_SLOTS[6];
 
   return (
@@ -110,14 +154,14 @@ const RealisticDiceCube: React.FC<{
       aria-label="Ludo Dice"
       style={{
         boxShadow: canTap
-          ? `0 6px 18px ${accentHex}40, inset 0 2px 3px rgba(255,255,255,0.95)`
-          : '0 4px 10px rgba(15,23,42,0.12), inset 0 2px 3px rgba(255,255,255,0.9)'
+          ? `0 8px 20px ${accentHex}45, inset 0 2px 4px rgba(255,255,255,0.95)`
+          : '0 4px 10px rgba(15,23,42,0.14), inset 0 2px 3px rgba(255,255,255,0.9)'
       }}
-      className={`relative w-14 h-14 rounded-2xl bg-gradient-to-br from-white via-[#F8FAFC] to-[#E2E8F0] border-2 border-slate-300 border-b-[5px] border-b-slate-400/80 p-2 grid grid-cols-3 grid-rows-3 place-items-center transition-transform duration-200 ${
+      className={`relative w-14 h-14 rounded-2xl bg-gradient-to-br from-white via-[#F8FAFC] to-[#CBD5E1] border-2 border-slate-300 border-b-[5px] border-b-slate-400/90 p-2 grid grid-cols-3 grid-rows-3 place-items-center transition-all duration-150 ${
         rolling
-          ? 'animate-spin scale-95'
+          ? 'scale-95 rotate-12 shadow-lg ring-2 ring-cyan-400'
           : canTap
-          ? 'cursor-pointer hover:scale-105 active:translate-y-0.5 ring-2 ring-cyan-400/50'
+          ? 'cursor-pointer hover:scale-105 active:translate-y-0.5 ring-2 ring-cyan-400/60'
           : 'cursor-default'
       }`}
     >
@@ -127,7 +171,7 @@ const RealisticDiceCube: React.FC<{
         return (
           <span
             key={idx}
-            className={`rounded-full transition-all duration-150 ${
+            className={`rounded-full transition-all duration-100 ${
               hasPip
                 ? isCenterAce
                   ? 'w-3.5 h-3.5 bg-gradient-to-br from-rose-500 to-rose-700 shadow-inner'
@@ -137,9 +181,7 @@ const RealisticDiceCube: React.FC<{
           />
         );
       })}
-      {!value && !rolling && (
-        <span className="sr-only">Tap to roll</span>
-      )}
+      {!value && !rolling && <span className="sr-only">Tap to roll</span>}
     </button>
   );
 };
@@ -558,49 +600,269 @@ export const LudoGame: React.FC = () => {
   const [roomStatusText, setRoomStatusText] = useState('Waiting for players...');
   const [roomSixes, setRoomSixes] = useState(0);
 
-  // Join room modal
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [joinCodeDraft, setJoinCodeDraft] = useState('');
   const [joinPassDraft, setJoinPassDraft] = useState('');
+  const [joinPreviewRoom, setJoinPreviewRoom] = useState<LudoRoom | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
 
   const onlineTimerRef = useRef<number | null>(null);
   const onlineTimer2Ref = useRef<number | null>(null);
   const onlineMatchRef = useRef(onlineMatch);
   onlineMatchRef.current = onlineMatch;
+  const activeRoomRef = useRef(activeRoom);
+  activeRoomRef.current = activeRoom;
+  const hostSecretsRef = useRef<Record<string, string>>((() => {
+    try {
+      const raw = sessionStorage.getItem('ewi777_ludo_host_secrets');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  })());
   const onlineSettledRef = useRef(false);
   const settledRoomIdsRef = useRef<Set<string>>(new Set());
   const [soundEnabled, setSoundEnabled] = useState(true);
   const soundEnabledRef = useRef(soundEnabled);
   soundEnabledRef.current = soundEnabled;
 
+  // Board impact visual bursts, live mic speakers, speech bubbles & online chat
+  const [boardBurst, setBoardBurst] = useState<{
+    id: number;
+    kind: 'capture' | 'home';
+    r: number;
+    c: number;
+    label: string;
+  } | null>(null);
+  const [liveSpeakers, setLiveSpeakers] = useState<Set<string>>(new Set());
+  const [liveBubbles, setLiveBubbles] = useState<Record<string, string>>({});
+  const [onlineMessages, setOnlineMessages] = useState<OnlineChatItem[]>([]);
+  const bubbleTimersRef = useRef<Record<string, number>>({});
+
+  const triggerBoardBurst = (kind: 'capture' | 'home', r: number, c: number, label: string) => {
+    const id = Date.now() + Math.random();
+    setBoardBurst({ id, kind, r, c, label });
+    window.setTimeout(() => {
+      setBoardBurst((cur) => (cur && cur.id === id ? null : cur));
+    }, 1500);
+  };
+
+  const triggerChatBubble = (senderId: string, text: string) => {
+    setLiveBubbles((prev) => ({ ...prev, [senderId]: text }));
+    if (bubbleTimersRef.current[senderId]) {
+      window.clearTimeout(bubbleTimersRef.current[senderId]);
+    }
+    bubbleTimersRef.current[senderId] = window.setTimeout(() => {
+      setLiveBubbles((prev) => {
+        const next = { ...prev };
+        delete next[senderId];
+        return next;
+      });
+    }, 4200);
+  };
+
+  const handleSendOnlineMessage = (text: string) => {
+    const myPlayer = onlineMatchRef.current?.players?.[0];
+    const msg: OnlineChatItem = {
+      id: `omsg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      senderId: user.id || 'you',
+      senderName: myPlayer?.name || user.nickname || 'You',
+      senderColor: myPlayer?.color || 'red',
+      text,
+      createdAtMs: Date.now()
+    };
+    setOnlineMessages((prev) => [...prev.slice(-24), msg]);
+    triggerChatBubble(user.id || 'you', text);
+    playLudoSound('chat', soundEnabledRef.current);
+  };
+
   const parsedStake = Math.max(20, Math.min(50000, Math.floor(Number(stakeInput) || 20)));
   const parsedRoomStake = Math.max(20, Math.min(50000, Math.floor(Number(roomStakeDraft) || 20)));
 
-  // Detect ?room=CODE in URL or pending sessionStorage invite on mount
-  useEffect(() => {
-    const codeFromUrl = parseRoomCodeFromLocation();
-    let pendingCode = '';
+  const rememberHostSecret = (code: string, pass: string) => {
+    if (!code || !pass || pass === '***') return;
+    hostSecretsRef.current[code.toUpperCase()] = pass;
     try {
-      pendingCode = (sessionStorage.getItem('ewi777_pending_ludo_room') || '').trim().toUpperCase();
-      if (pendingCode) sessionStorage.removeItem('ewi777_pending_ludo_room');
+      sessionStorage.setItem('ewi777_ludo_host_secrets', JSON.stringify(hostSecretsRef.current));
     } catch {}
-    const resolvedCode = codeFromUrl || pendingCode;
-    if (resolvedCode) {
-      setSection('friends');
-      setJoinCodeDraft(resolvedCode);
-      setJoinModalOpen(true);
-    }
-  }, []);
+  };
 
-  const fetchRoomsList = async () => {
+  const applySafeRoomUpdate = (incoming: LudoRoom, forceNew = false) => {
+    const cur = activeRoomRef.current;
+    if (!forceNew && cur && cur.id === incoming.id) {
+      if (Number(incoming.updatedAt || 0) < Number(cur.updatedAt || 0)) {
+        return;
+      }
+    }
+
+    // Diff previous vs incoming room players to fire capture / home sound & board burst on remote friend moves
+    if (cur && cur.id === incoming.id && cur.status === 'playing' && incoming.status === 'playing') {
+      let sawCapture = false;
+      let sawHome = false;
+      let sawMove = false;
+      let burstCoord: [number, number] = [7, 7];
+
+      incoming.players?.forEach((np, pIdx) => {
+        const op = cur.players?.[pIdx];
+        if (!op) return;
+        np.tokens.forEach((step, tIdx) => {
+          const oldStep = op.tokens?.[tIdx] ?? -1;
+          if (oldStep !== step) {
+            sawMove = true;
+            if (oldStep >= 0 && oldStep < FINISHED_STEP && step === -1) {
+              sawCapture = true;
+            }
+            if (oldStep < FINISHED_STEP && step === FINISHED_STEP) {
+              sawHome = true;
+            }
+            if (step > oldStep) {
+              burstCoord = getTokenCoord(np.color, step, tIdx);
+            }
+          }
+        });
+      });
+
+      if (sawCapture) {
+        playLudoSound('capture', soundEnabledRef.current);
+        triggerBoardBurst('capture', burstCoord[0], burstCoord[1], '💥 CUT!');
+      } else if (sawHome) {
+        playLudoSound('home', soundEnabledRef.current);
+        triggerBoardBurst('home', 7, 7, '👑 HOME!');
+      } else if (sawMove) {
+        playLudoSound('move', soundEnabledRef.current);
+      } else if (incoming.lastRoll === 6 && incoming.updatedAt !== cur.updatedAt) {
+        playLudoSound('six', soundEnabledRef.current);
+      }
+    }
+
+    const knownSecret =
+      hostSecretsRef.current[String(incoming.code || '').toUpperCase()] ||
+      (cur && cur.id === incoming.id && cur.password && cur.password !== '***' ? cur.password : '');
+    const preservedPassword =
+      incoming.password && incoming.password !== '***' ? incoming.password : knownSecret || incoming.password;
+
+    const merged: LudoRoom = { ...incoming, password: preservedPassword };
+    setActiveRoom(merged);
+    if (merged.lastRoll) setRoomDice(merged.lastRoll);
+    if (merged.status === 'playing') {
+      const tp = merged.players?.[merged.currentTurnIdx];
+      setRoomStatusText(merged.statusText || `Match Live! ${tp?.name || 'Player'}'s turn`);
+    } else if (merged.status === 'waiting') {
+      setRoomStatusText(
+        merged.statusText ||
+          `Room ${merged.code} open (${merged.players.length}/${merged.maxPlayers} joined). Share invite link!`
+      );
+    } else if (merged.status === 'finished') {
+      setRoomStatusText(merged.winnerSummary || merged.statusText || 'Match Finished!');
+    }
     try {
-      const res = await fetch(apiUrl('/api/ludo/rooms'), { cache: 'no-store' });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.success && Array.isArray(data.rooms)) {
-        setRoomsList(data.rooms.filter((r: LudoRoom) => r.status !== 'cancelled'));
+      if (merged.status === 'waiting' || merged.status === 'playing') {
+        sessionStorage.setItem('ewi777_active_ludo_room_id', merged.id);
+      } else {
+        sessionStorage.removeItem('ewi777_active_ludo_room_id');
       }
     } catch {}
+  };
+
+  const openJoinModalForCode = async (rawCode: string) => {
+    const clean = rawCode.trim().toUpperCase();
+    if (!clean) return;
+    setSection('friends');
+    setJoinCodeDraft(clean);
+    setJoinPassDraft('');
+    setJoinModalOpen(true);
+    try {
+      const localMatch = roomsList.find((r) => String(r.code || '').toUpperCase() === clean);
+      if (localMatch) {
+        setJoinPreviewRoom(localMatch);
+      }
+      const fbFound = await findLudoRoomByCodeInFirebase(clean);
+      if (fbFound) {
+        setJoinPreviewRoom({ ...fbFound, password: fbFound.password ? '***' : '' });
+        if (fbFound.players?.some((p) => p.userId === user.id) && (fbFound.status === 'waiting' || fbFound.status === 'playing')) {
+          applySafeRoomUpdate(fbFound, true);
+          setJoinModalOpen(false);
+          try {
+            sessionStorage.removeItem('ewi777_pending_ludo_room');
+          } catch {}
+          showToast(`Re-entered Room ${fbFound.code}!`);
+        }
+      }
+    } catch {}
+  };
+
+  // Detect ?room=CODE in URL, hashchange, or pending sessionStorage invite + restore active room
+  useEffect(() => {
+    const checkInviteOrActive = async () => {
+      const codeFromUrl = parseRoomCodeFromLocation();
+      let pendingCode = '';
+      try {
+        pendingCode = (sessionStorage.getItem('ewi777_pending_ludo_room') || '').trim().toUpperCase();
+        if (pendingCode) sessionStorage.removeItem('ewi777_pending_ludo_room');
+      } catch {}
+      const resolvedCode = codeFromUrl || pendingCode;
+      if (resolvedCode) {
+        await openJoinModalForCode(resolvedCode);
+        return;
+      }
+      try {
+        const savedRoomId = sessionStorage.getItem('ewi777_active_ludo_room_id');
+        if (savedRoomId && !activeRoomRef.current) {
+          const restored = await getLudoRoomByIdFromFirebase(savedRoomId);
+          if (restored && (restored.status === 'waiting' || restored.status === 'playing') && restored.players?.some((p) => p.userId === user.id)) {
+            setSection('friends');
+            applySafeRoomUpdate(restored, true);
+          } else {
+            sessionStorage.removeItem('ewi777_active_ludo_room_id');
+          }
+        }
+      } catch {}
+    };
+    checkInviteOrActive();
+    const onHashOrPop = () => {
+      const c = parseRoomCodeFromLocation();
+      if (c) openJoinModalForCode(c);
+    };
+    window.addEventListener('hashchange', onHashOrPop);
+    window.addEventListener('popstate', onHashOrPop);
+    return () => {
+      window.removeEventListener('hashchange', onHashOrPop);
+      window.removeEventListener('popstate', onHashOrPop);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
+
+  const fetchRoomsList = async () => {
+    const mergedMap = new Map<string, LudoRoom>();
+    try {
+      const res = await fetch(apiUrl('/api/ludo/rooms'), { cache: 'no-store' });
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
+        const data = await res.json().catch(() => null);
+        if (data?.success && Array.isArray(data.rooms)) {
+          data.rooms.forEach((r: LudoRoom) => {
+            if (r?.id) mergedMap.set(r.id, r);
+          });
+        }
+      }
+    } catch {}
+    try {
+      const fbRooms = await getLudoRoomsFromFirebase();
+      fbRooms.forEach((r) => {
+        if (!r?.id) return;
+        const cur = mergedMap.get(r.id);
+        if (!cur || Number(r.updatedAt || 0) >= Number(cur.updatedAt || 0)) {
+          mergedMap.set(r.id, { ...r, password: r.password ? '***' : '' });
+        }
+      });
+    } catch {}
+    if (mergedMap.size > 0) {
+      setRoomsList(
+        Array.from(mergedMap.values())
+          .filter((r) => r.status !== 'cancelled' && r.status !== 'finished')
+          .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+      );
+    }
   };
 
   useEffect(() => {
@@ -618,7 +880,7 @@ export const LudoGame: React.FC = () => {
             }
           });
           return Array.from(map.values())
-            .filter((r) => r.status !== 'cancelled')
+            .filter((r) => r.status !== 'cancelled' && r.status !== 'finished')
             .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
         });
       }
@@ -633,28 +895,32 @@ export const LudoGame: React.FC = () => {
   // Subscribe live Firestore updates + polling fallback for active friends room
   useEffect(() => {
     if (!activeRoom?.id) return;
-    const unsub = subscribeLudoRoomByIdInFirebase(activeRoom.id, (updated) => {
+    const targetRoomId = activeRoom.id;
+    const unsub = subscribeLudoRoomByIdInFirebase(targetRoomId, (updated) => {
       if (!updated) return;
-      setActiveRoom(updated);
-      if (updated.lastRoll) setRoomDice(updated.lastRoll);
+      applySafeRoomUpdate(updated);
     });
     const pollIv = window.setInterval(async () => {
       try {
         const res = await fetch(apiUrl('/api/ludo/rooms'), { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (res.ok && data?.success && Array.isArray(data.rooms)) {
-          const found = data.rooms.find((r: LudoRoom) => r.id === activeRoom.id);
-          if (found) setActiveRoom(found);
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (data?.success && Array.isArray(data.rooms)) {
+            const found = data.rooms.find((r: LudoRoom) => r.id === targetRoomId);
+            if (found) applySafeRoomUpdate(found);
+          }
         }
       } catch {}
-    }, 2500);
+    }, 3000);
     return () => {
       unsub();
       clearInterval(pollIv);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoom?.id]);
 
-  // Settle friends room prize cleanly on finish or refund if cancelled while waiting
+  // Settle friends room prize cleanly on finish or 90% refund (e.g. ৳20 -> ৳18) if cancelled while waiting
   useEffect(() => {
     if (!activeRoom) return;
     if (activeRoom.status === 'cancelled') {
@@ -662,22 +928,27 @@ export const LudoGame: React.FC = () => {
       const joined = (activeRoom.players || []).some((p) => p.userId === user.id);
       if (joined) {
         settledRoomIdsRef.current.add(activeRoom.id);
+        const refundAmount = +(Number(activeRoom.stake || 0) * 0.9).toFixed(2);
         settleLudoMatch(
-          activeRoom.stake,
+          refundAmount,
           activeRoom.mode,
-          `Room ${activeRoom.code} cancelled — stake refunded`,
-          activeRoom.stake
+          `Room ${activeRoom.code} cancelled — 90% refund (10% fee)`,
+          activeRoom.stake,
+          true
         );
-        showToast(`Room ${activeRoom.code} cancelled — ৳${activeRoom.stake} refunded.`);
       }
+      try {
+        sessionStorage.removeItem('ewi777_active_ludo_room_id');
+      } catch {}
       setActiveRoom(null);
       return;
     }
     if (activeRoom.status !== 'finished') return;
+    if (!Array.isArray(activeRoom.payouts) || activeRoom.payouts.length === 0) return;
     if (settledRoomIdsRef.current.has(activeRoom.id)) return;
     settledRoomIdsRef.current.add(activeRoom.id);
 
-    const myEntry = (activeRoom.payouts || []).find((p) => p.userId === user.id);
+    const myEntry = activeRoom.payouts.find((p) => p.userId === user.id);
     const myWin = Number(myEntry?.amount || 0);
     settleLudoMatch(
       myWin,
@@ -686,7 +957,7 @@ export const LudoGame: React.FC = () => {
       activeRoom.stake
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRoom?.status, activeRoom?.id]);
+  }, [activeRoom?.status, activeRoom?.id, activeRoom?.payouts?.length]);
 
   // Settle Online match cleanly once when finished (outside state updaters)
   useEffect(() => {
@@ -747,6 +1018,7 @@ export const LudoGame: React.FC = () => {
     }));
 
     onlineSettledRef.current = false;
+    setOnlineMessages([]);
     setOnlineMatch({
       mode,
       stake: val,
@@ -768,12 +1040,19 @@ export const LudoGame: React.FC = () => {
     moverIdx: number,
     tokenIdx: number,
     roll: number
-  ): { nextPlayers: LudoPlayer[]; captured: boolean; reachedHome: boolean; wonGame: boolean } => {
+  ): {
+    nextPlayers: LudoPlayer[];
+    captured: boolean;
+    reachedHome: boolean;
+    wonGame: boolean;
+    landedCoord: [number, number];
+  } => {
     const nextPlayers = players.map((p) => ({ ...p, tokens: [...p.tokens] }));
     const mover = nextPlayers[moverIdx];
     const curStep = mover.tokens[tokenIdx];
     const nextStep = curStep === -1 ? 0 : curStep + roll;
     mover.tokens[tokenIdx] = nextStep;
+    const landedCoord = getTokenCoord(mover.color, nextStep, tokenIdx);
 
     let captured = false;
     const nextGlobal = getGlobalTrackIndex(mover.color, nextStep);
@@ -797,7 +1076,7 @@ export const LudoGame: React.FC = () => {
       mover.finishedRank = takenRanks + 1;
     }
 
-    return { nextPlayers, captured, reachedHome, wonGame };
+    return { nextPlayers, captured, reachedHome, wonGame, landedCoord };
   };
 
   const executeOnlineMove = (tokenIdx: number) => {
@@ -806,7 +1085,7 @@ export const LudoGame: React.FC = () => {
     const mover = cur.players[cur.turnIdx];
     if (!canMoveToken(mover.tokens[tokenIdx], cur.diceValue)) return;
 
-    const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
+    const { nextPlayers, captured, reachedHome, wonGame, landedCoord } = applyTokenMoveOnBoard(
       cur.players,
       cur.turnIdx,
       tokenIdx,
@@ -837,9 +1116,15 @@ export const LudoGame: React.FC = () => {
       return;
     }
 
-    if (captured) playLudoSound('capture', soundEnabled);
-    else if (reachedHome) playLudoSound('home', soundEnabled);
-    else playLudoSound('move', soundEnabled);
+    if (captured) {
+      playLudoSound('capture', soundEnabled);
+      triggerBoardBurst('capture', landedCoord[0], landedCoord[1], '💥 CUT!');
+    } else if (reachedHome) {
+      playLudoSound('home', soundEnabled);
+      triggerBoardBurst('home', 7, 7, '👑 HOME!');
+    } else {
+      playLudoSound('move', soundEnabled);
+    }
 
     const bonusTurn = cur.diceValue === 6 || captured || reachedHome;
     const nextTurnIdx = bonusTurn ? cur.turnIdx : (cur.turnIdx + 1) % nextPlayers.length;
@@ -926,7 +1211,7 @@ export const LudoGame: React.FC = () => {
         }
 
         const chosenToken = pickBestOnlineOpponentMove(snap.players, snap.turnIdx, roll);
-        const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
+        const { nextPlayers, captured, reachedHome, wonGame, landedCoord } = applyTokenMoveOnBoard(
           snap.players,
           snap.turnIdx,
           chosenToken,
@@ -951,9 +1236,15 @@ export const LudoGame: React.FC = () => {
           return;
         }
 
-        if (captured) playLudoSound('capture', soundEnabledRef.current);
-        else if (reachedHome) playLudoSound('home', soundEnabledRef.current);
-        else playLudoSound('move', soundEnabledRef.current);
+        if (captured) {
+          playLudoSound('capture', soundEnabledRef.current);
+          triggerBoardBurst('capture', landedCoord[0], landedCoord[1], '💥 CUT!');
+        } else if (reachedHome) {
+          playLudoSound('home', soundEnabledRef.current);
+          triggerBoardBurst('home', 7, 7, '👑 HOME!');
+        } else {
+          playLudoSound('move', soundEnabledRef.current);
+        }
 
         const bonusTurn = roll === 6 || captured || reachedHome;
         const nextTurnIdx = bonusTurn ? snap.turnIdx : (snap.turnIdx + 1) % nextPlayers.length;
@@ -1030,7 +1321,7 @@ export const LudoGame: React.FC = () => {
         return;
       }
       if (valid.length === 1) {
-        const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
+        const { nextPlayers, captured, reachedHome, wonGame, landedCoord } = applyTokenMoveOnBoard(
           snap.players,
           0,
           valid[0],
@@ -1057,9 +1348,17 @@ export const LudoGame: React.FC = () => {
           );
           return;
         }
-        if (captured) playLudoSound('capture', soundEnabled);
-        else if (reachedHome) playLudoSound('home', soundEnabled);
-        else playLudoSound('move', soundEnabled);
+        if (captured) {
+          playLudoSound('capture', soundEnabled);
+          triggerBoardBurst('capture', landedCoord[0], landedCoord[1], '💥 CUT!');
+        } else if (reachedHome) {
+          playLudoSound('home', soundEnabled);
+          triggerBoardBurst('home', 7, 7, '👑 HOME!');
+        } else if (roll === 6) {
+          playLudoSound('six', soundEnabled);
+        } else {
+          playLudoSound('move', soundEnabled);
+        }
 
         const bonus = roll === 6 || captured || reachedHome;
         const nextTurn = bonus ? 0 : 1 % nextPlayers.length;
@@ -1121,6 +1420,7 @@ export const LudoGame: React.FC = () => {
     setIsCreatingRoom(true);
     try {
       let createdRoom: LudoRoom | null = null;
+      const cleanPass = roomPassDraft.trim();
       try {
         const res = await fetch(apiUrl('/api/ludo/create'), {
           method: 'POST',
@@ -1131,16 +1431,19 @@ export const LudoGame: React.FC = () => {
             name: user.nickname || 'Host',
             mode: roomModeDraft,
             stake,
-            password: roomPassDraft.trim()
+            password: cleanPass
           })
         });
-        const data = await res.json().catch(() => null);
-        if (res.ok && data?.success && data.room) {
-          createdRoom = data.room;
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (data?.success && data.room) {
+            createdRoom = data.room;
+          }
         }
       } catch {}
 
-      // Direct Firestore fallback if API endpoint unavailable
+      // Direct Firestore fallback if API endpoint unavailable (e.g. Cloudflare Workers / Static Edge)
       if (!createdRoom) {
         const nowMs = Date.now();
         const code = `LUDO${Math.floor(100000 + Math.random() * 900000)}`;
@@ -1148,7 +1451,7 @@ export const LudoGame: React.FC = () => {
         createdRoom = {
           id: roomId,
           code,
-          password: roomPassDraft.trim(),
+          password: cleanPass,
           hostUserId: String(user.id),
           hostName: String(user.nickname || 'Host'),
           mode: roomModeDraft,
@@ -1167,6 +1470,7 @@ export const LudoGame: React.FC = () => {
             }
           ],
           currentTurnIdx: 0,
+          statusText: `Room ${code} created! Waiting for friends...`,
           createdAt: new Date(nowMs).toLocaleString('en-GB'),
           createdAtMs: nowMs,
           updatedAt: nowMs
@@ -1176,11 +1480,11 @@ export const LudoGame: React.FC = () => {
       const betRes = placeLudoBet(stake, roomModeDraft);
       if (!betRes.success) return;
 
-      await saveLudoRoomToFirebase(createdRoom).catch(() => {});
-      setActiveRoom(createdRoom);
-      setRoomStatusText(`Room ${createdRoom.code} ready! Share invite link with friends.`);
+      rememberHostSecret(createdRoom.code, cleanPass);
+      await saveLudoRoomToFirebase({ ...createdRoom, password: cleanPass });
+      applySafeRoomUpdate({ ...createdRoom, password: cleanPass }, true);
       fetchRoomsList();
-      showToast(`Room ${createdRoom.code} created!`);
+      showToast(`Room ${createdRoom.code} created! Share invite link below.`);
     } catch {
       showToast('Connection error creating room');
     } finally {
@@ -1196,16 +1500,66 @@ export const LudoGame: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId: activeRoom.id, userId: user.id })
       });
-      const data = await res.json().catch(() => null);
-      const cancelledRoom: LudoRoom = data?.room || { ...activeRoom, status: 'cancelled', updatedAt: Date.now() };
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json().catch(() => null) : null;
+      const cancelledRoom: LudoRoom = data?.room || {
+        ...activeRoom,
+        status: 'cancelled',
+        statusText: `Room ${activeRoom.code} cancelled — 90% stake refunded.`,
+        updatedAt: Date.now()
+      };
       await saveLudoRoomToFirebase(cancelledRoom).catch(() => {});
-      setActiveRoom(cancelledRoom);
+      applySafeRoomUpdate(cancelledRoom, true);
       fetchRoomsList();
     } catch {
-      const cancelledRoom: LudoRoom = { ...activeRoom, status: 'cancelled', updatedAt: Date.now() };
+      const cancelledRoom: LudoRoom = {
+        ...activeRoom,
+        status: 'cancelled',
+        statusText: `Room ${activeRoom.code} cancelled — 90% stake refunded.`,
+        updatedAt: Date.now()
+      };
       await saveLudoRoomToFirebase(cancelledRoom).catch(() => {});
-      setActiveRoom(cancelledRoom);
+      applySafeRoomUpdate(cancelledRoom, true);
     }
+  };
+
+  // Non-host friend leaves while waiting and takes 90% refund (৳20 -> ৳18)
+  const handleLeaveWaitingRoomRefund = async () => {
+    if (!activeRoom || activeRoom.status !== 'waiting' || activeRoom.hostUserId === user.id) return;
+    if (settledRoomIdsRef.current.has(activeRoom.id)) return;
+    settledRoomIdsRef.current.add(activeRoom.id);
+
+    const nextPlayers = (activeRoom.players || [])
+      .filter((p) => p.userId !== user.id)
+      .map((p, idx) => ({ ...p, slotIndex: idx }));
+    const updatedRoom: LudoRoom = {
+      ...activeRoom,
+      players: nextPlayers,
+      statusText: `${user.nickname || 'Friend'} left room (90% refund).`,
+      updatedAt: Date.now()
+    };
+    await saveLudoRoomToFirebase(updatedRoom).catch(() => {});
+    try {
+      await fetch(apiUrl('/api/ludo/leave'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: activeRoom.id, userId: user.id, name: user.nickname || 'Player' })
+      });
+    } catch {}
+
+    const refundAmount = +(Number(activeRoom.stake || 0) * 0.9).toFixed(2);
+    settleLudoMatch(
+      refundAmount,
+      activeRoom.mode,
+      `Left Room ${activeRoom.code} — 90% refund (10% fee)`,
+      activeRoom.stake,
+      true
+    );
+    try {
+      sessionStorage.removeItem('ewi777_active_ludo_room_id');
+    } catch {}
+    setActiveRoom(null);
+    fetchRoomsList();
   };
 
   const handleJoinPrivateRoom = async (e: React.FormEvent) => {
@@ -1222,56 +1576,127 @@ export const LudoGame: React.FC = () => {
     }
     setIsJoiningRoom(true);
     try {
-      let preKnown = roomsList.find((r) => String(r.code || '').toUpperCase() === cleanCode);
-      if (!preKnown) {
-        try {
-          const listRes = await fetch(apiUrl('/api/ludo/rooms'), { cache: 'no-store' });
-          const listData = await listRes.json().catch(() => null);
-          if (listRes.ok && Array.isArray(listData?.rooms)) {
-            preKnown = listData.rooms.find((r: LudoRoom) => String(r.code || '').toUpperCase() === cleanCode);
+      const playableBal = Math.max(
+        0,
+        +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2)
+      );
+
+      let joinedRoom: LudoRoom | null = null;
+      let alreadySeated = false;
+
+      // 1) Try backend API if JSON endpoint exists
+      try {
+        const res = await fetch(apiUrl('/api/ludo/join'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: cleanCode,
+            password: cleanPass,
+            userId: user.id,
+            uid: user.uid,
+            name: user.nickname || 'Player'
+          })
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (res.ok && data?.success && data.room) {
+            joinedRoom = data.room as LudoRoom;
+          } else if (res.status === 401 || res.status === 409) {
+            showToast(data?.message || 'Could not join room');
+            return;
           }
-        } catch {}
-      }
-      const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
-      const alreadySeatedPre = Boolean(preKnown?.players?.some((p) => p.userId === user.id));
-      if (preKnown && !alreadySeatedPre && playableBal < Number(preKnown.stake || 0)) {
-        showToast(`Need ৳${preKnown.stake} balance to join Room ${preKnown.code}!`);
-        return;
+        }
+      } catch {}
+
+      // 2) Direct Firestore join fallback (works on Cloudflare Workers, Vercel, static CDN, or cross-device rooms)
+      if (!joinedRoom) {
+        const fbRoom = await findLudoRoomByCodeInFirebase(cleanCode);
+        if (!fbRoom) {
+          showToast(`Room #${cleanCode} not found! Check code and try again.`);
+          return;
+        }
+        if (fbRoom.status === 'cancelled') {
+          showToast('This room was cancelled by the host.');
+          return;
+        }
+        if (fbRoom.status === 'finished') {
+          showToast('This match has already finished.');
+          return;
+        }
+        if (String(fbRoom.password || '').trim() !== cleanPass) {
+          showToast('Incorrect room password!');
+          return;
+        }
+
+        const existingPlayers = Array.isArray(fbRoom.players) ? [...fbRoom.players] : [];
+        alreadySeated = existingPlayers.some((p) => p.userId === user.id);
+
+        if (!alreadySeated) {
+          if (fbRoom.status !== 'waiting' || existingPlayers.length >= Number(fbRoom.maxPlayers || 2)) {
+            showToast('Room is already full or match already started.');
+            return;
+          }
+          if (playableBal < Number(fbRoom.stake || 0)) {
+            showToast(`Need ৳${fbRoom.stake} balance to join Room ${fbRoom.code}!`);
+            return;
+          }
+          const colors: LudoPlayer['color'][] =
+            Number(fbRoom.maxPlayers) === 2 ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'];
+          const slotIdx = existingPlayers.length;
+          existingPlayers.push({
+            slotIndex: slotIdx,
+            color: colors[slotIdx] || 'blue',
+            userId: String(user.id),
+            uid: String(user.uid || ''),
+            name: String(user.nickname || `Player ${slotIdx + 1}`),
+            isBot: false,
+            tokens: [-1, -1, -1, -1]
+          });
+          const isNowFull = existingPlayers.length >= Number(fbRoom.maxPlayers || 2);
+          joinedRoom = {
+            ...fbRoom,
+            players: existingPlayers,
+            status: isNowFull ? 'playing' : 'waiting',
+            statusText: isNowFull
+              ? `Match Live! ${existingPlayers[0]?.name}'s turn`
+              : `${user.nickname || 'Friend'} joined! Waiting for players...`,
+            updatedAt: Date.now()
+          };
+          await saveLudoRoomToFirebase(joinedRoom);
+        } else {
+          joinedRoom = fbRoom;
+        }
+      } else {
+        // Double-check whether player was already seated before API join
+        const fbPre = await getLudoRoomByIdFromFirebase(joinedRoom.id).catch(() => null);
+        const prePlayers = fbPre?.players || [];
+        // If newly added player is the last player and wasn't host, deduct stake once
+        alreadySeated =
+          joinedRoom.hostUserId === user.id ||
+          (prePlayers.length === joinedRoom.players.length && prePlayers.some((p) => p.userId === user.id));
+        if (!alreadySeated && playableBal < Number(joinedRoom.stake || 0)) {
+          showToast(`Need ৳${joinedRoom.stake} balance to join Room ${joinedRoom.code}!`);
+          return;
+        }
+        await saveLudoRoomToFirebase(joinedRoom).catch(() => {});
       }
 
-      const res = await fetch(apiUrl('/api/ludo/join'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: cleanCode,
-          password: cleanPass,
-          userId: user.id,
-          uid: user.uid,
-          name: user.nickname || 'Player'
-        })
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.success || !data.room) {
-        showToast(data?.message || 'Could not join room');
-        return;
-      }
-      const joinedRoom: LudoRoom = data.room;
-      const isHost = joinedRoom.hostUserId === user.id;
-      if (!isHost && !alreadySeatedPre) {
+      if (!alreadySeated && joinedRoom.hostUserId !== user.id) {
         const betRes = placeLudoBet(joinedRoom.stake, joinedRoom.mode);
         if (!betRes.success) return;
       }
-      await saveLudoRoomToFirebase(joinedRoom).catch(() => {});
-      setActiveRoom(joinedRoom);
+
+      rememberHostSecret(joinedRoom.code, cleanPass);
+      applySafeRoomUpdate(joinedRoom, true);
       setJoinModalOpen(false);
-      setRoomStatusText(
-        joinedRoom.status === 'playing'
-          ? `Match Live! ${joinedRoom.players[joinedRoom.currentTurnIdx]?.name}'s turn`
-          : `Joined Room ${joinedRoom.code}! Waiting for all ${joinedRoom.maxPlayers} friends...`
-      );
-      showToast(`Entered Room ${joinedRoom.code}`);
+      setJoinPreviewRoom(null);
+      try {
+        sessionStorage.removeItem('ewi777_pending_ludo_room');
+      } catch {}
+      showToast(`Entered Room ${joinedRoom.code}!`);
     } catch {
-      showToast('Failed to join room');
+      showToast('Failed to join room. Please check connection and retry.');
     } finally {
       setIsJoiningRoom(false);
     }
@@ -1282,7 +1707,8 @@ export const LudoGame: React.FC = () => {
     nextPlayers: LudoPlayer[],
     nextTurnIdx: number,
     roll: number,
-    nextStatus?: LudoRoom['status']
+    nextStatus?: LudoRoom['status'],
+    nextStatusText?: string
   ) => {
     const optimisticRoom: LudoRoom = {
       ...room,
@@ -1290,10 +1716,11 @@ export const LudoGame: React.FC = () => {
       currentTurnIdx: nextTurnIdx,
       lastRoll: roll,
       status: nextStatus || room.status,
+      statusText: nextStatusText || room.statusText,
       updatedAt: Date.now()
     };
-    setActiveRoom(optimisticRoom);
-    saveLudoRoomToFirebase(optimisticRoom).catch(() => {});
+    applySafeRoomUpdate(optimisticRoom, true);
+    await saveLudoRoomToFirebase(optimisticRoom).catch(() => {});
     try {
       const res = await fetch(apiUrl('/api/ludo/move'), {
         method: 'POST',
@@ -1303,21 +1730,39 @@ export const LudoGame: React.FC = () => {
           players: nextPlayers,
           currentTurnIdx: nextTurnIdx,
           lastRoll: roll,
-          status: nextStatus || room.status
+          status: nextStatus || room.status,
+          statusText: nextStatusText || room.statusText
         })
       });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.room) setActiveRoom(data.room);
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
+        const data = await res.json().catch(() => null);
+        if (data?.room) applySafeRoomUpdate(data.room);
+      }
     } catch {}
   };
 
-  const finishAndSettleRoom = async (room: LudoRoom, nextPlayers: LudoPlayer[]) => {
+  const finishAndSettleRoom = async (room: LudoRoom, nextPlayers: LudoPlayer[], lastRollVal: number) => {
     const payouts = computePayoutsForRoom(room.mode, room.stake, nextPlayers);
     const first = payouts[0];
     const summary =
       room.mode === '4p_split'
         ? `1st ${payouts[0]?.name} (৳${payouts[0]?.amount}) • 2nd ${payouts[1]?.name} (৳${payouts[1]?.amount}) • 3rd ${payouts[2]?.name} (৳${payouts[2]?.amount})`
         : `${first?.name || 'Winner'} won ৳${first?.amount || 0}`;
+    const finishedRoom: LudoRoom = {
+      ...room,
+      players: nextPlayers,
+      lastRoll: lastRollVal,
+      status: 'finished',
+      payouts,
+      winnerUserId: first?.userId,
+      winnerSummary: summary,
+      statusText: summary,
+      updatedAt: Date.now()
+    };
+    // Write complete settlement to Firestore first so ALL connected friends receive payouts everywhere
+    await saveLudoRoomToFirebase(finishedRoom).catch(() => {});
+    applySafeRoomUpdate(finishedRoom, true);
     try {
       const res = await fetch(apiUrl('/api/ludo/settle'), {
         method: 'POST',
@@ -1329,69 +1774,88 @@ export const LudoGame: React.FC = () => {
           winnerSummary: summary
         })
       });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.room) setActiveRoom(data.room);
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
+        const data = await res.json().catch(() => null);
+        if (data?.room) applySafeRoomUpdate(data.room);
+      }
     } catch {}
   };
 
   const executeRoomTokenMove = async (tokenIdx: number) => {
-    if (!activeRoom || activeRoom.status !== 'playing' || roomDice === null || !roomAwaitingMove) return;
-    const turnPlayer = activeRoom.players[activeRoom.currentTurnIdx];
+    const curRoom = activeRoomRef.current;
+    if (!curRoom || curRoom.status !== 'playing' || roomDice === null || !roomAwaitingMove) return;
+    const turnPlayer = curRoom.players[curRoom.currentTurnIdx];
     if (!turnPlayer || turnPlayer.userId !== user.id) return;
     if (!canMoveToken(turnPlayer.tokens[tokenIdx], roomDice)) return;
 
     setRoomAwaitingMove(false);
-    const { nextPlayers, captured, reachedHome } = applyTokenMoveOnBoard(
-      activeRoom.players,
-      activeRoom.currentTurnIdx,
+    const { nextPlayers, captured, reachedHome, landedCoord } = applyTokenMoveOnBoard(
+      curRoom.players,
+      curRoom.currentTurnIdx,
       tokenIdx,
       roomDice
     );
 
     const finishedCount = nextPlayers.filter((p) => p.tokens.every((t) => t === FINISHED_STEP)).length;
     const shouldEnd =
-      activeRoom.mode === '4p_split'
+      curRoom.mode === '4p_split'
         ? finishedCount >= Math.min(3, nextPlayers.length - 1)
         : finishedCount >= 1;
 
     if (shouldEnd) {
       playLudoSound('win', soundEnabled);
-      await syncRoomMoveToServer(activeRoom, nextPlayers, activeRoom.currentTurnIdx, roomDice, 'finished');
-      await finishAndSettleRoom(activeRoom, nextPlayers);
+      await finishAndSettleRoom(curRoom, nextPlayers, roomDice);
       return;
     }
 
-    if (captured) playLudoSound('capture', soundEnabled);
-    else if (reachedHome) playLudoSound('home', soundEnabled);
-    else playLudoSound('move', soundEnabled);
+    if (captured) {
+      playLudoSound('capture', soundEnabled);
+      triggerBoardBurst('capture', landedCoord[0], landedCoord[1], '💥 CUT!');
+    } else if (reachedHome) {
+      playLudoSound('home', soundEnabled);
+      triggerBoardBurst('home', 7, 7, '👑 HOME!');
+    } else {
+      playLudoSound('move', soundEnabled);
+    }
 
     const bonus = roomDice === 6 || captured || reachedHome;
     let nextTurn = bonus
-      ? activeRoom.currentTurnIdx
-      : (activeRoom.currentTurnIdx + 1) % nextPlayers.length;
+      ? curRoom.currentTurnIdx
+      : (curRoom.currentTurnIdx + 1) % nextPlayers.length;
     // Skip players who already finished in 4p_split
     let guard = 0;
     while (nextPlayers[nextTurn]?.tokens.every((t) => t === FINISHED_STEP) && guard < nextPlayers.length) {
       nextTurn = (nextTurn + 1) % nextPlayers.length;
       guard++;
     }
+    const nextText = bonus
+      ? `${turnPlayer.name} rolled ${roomDice} — Bonus roll!`
+      : `${turnPlayer.name} moved. ${nextPlayers[nextTurn]?.name}'s turn`;
     setRoomSixes(bonus && roomDice === 6 ? roomSixes : 0);
-    setRoomStatusText(
-      bonus
-        ? `Bonus turn! Roll again!`
-        : `Moved! Next turn: ${nextPlayers[nextTurn]?.name}`
-    );
-    await syncRoomMoveToServer(activeRoom, nextPlayers, nextTurn, roomDice, 'playing');
+    setRoomStatusText(nextText);
+    await syncRoomMoveToServer(curRoom, nextPlayers, nextTurn, roomDice, 'playing', nextText);
   };
 
   const handleRoomDiceRoll = async () => {
-    if (!activeRoom || activeRoom.status !== 'playing' || roomDiceRolling || roomAwaitingMove) return;
-    const turnPlayer = activeRoom.players[activeRoom.currentTurnIdx];
+    const curRoom = activeRoomRef.current;
+    if (!curRoom || curRoom.status !== 'playing' || roomDiceRolling || roomAwaitingMove) return;
+    const turnPlayer = curRoom.players[curRoom.currentTurnIdx];
     if (!turnPlayer || turnPlayer.userId !== user.id) return;
 
     playLudoSound('roll', soundEnabled);
     setRoomDiceRolling(true);
     window.setTimeout(async () => {
+      const snapRoom = activeRoomRef.current;
+      if (!snapRoom || snapRoom.status !== 'playing') {
+        setRoomDiceRolling(false);
+        return;
+      }
+      const mover = snapRoom.players[snapRoom.currentTurnIdx];
+      if (!mover || mover.userId !== user.id) {
+        setRoomDiceRolling(false);
+        return;
+      }
       const roll = Math.floor(Math.random() * 6) + 1;
       setRoomDice(roll);
       setRoomDiceRolling(false);
@@ -1399,32 +1863,51 @@ export const LudoGame: React.FC = () => {
       const nextSixes = roll === 6 ? roomSixes + 1 : 0;
       if (nextSixes >= 3) {
         setRoomSixes(0);
-        const nxt = (activeRoom.currentTurnIdx + 1) % activeRoom.players.length;
-        setRoomStatusText(`Rolled three 6s! Turn passed to ${activeRoom.players[nxt]?.name}`);
-        await syncRoomMoveToServer(activeRoom, activeRoom.players, nxt, roll, 'playing');
+        const nxt = (snapRoom.currentTurnIdx + 1) % snapRoom.players.length;
+        const msg = `${mover.name} rolled three 6s! Turn passed to ${snapRoom.players[nxt]?.name}`;
+        setRoomStatusText(msg);
+        await syncRoomMoveToServer(snapRoom, snapRoom.players, nxt, roll, 'playing', msg);
         return;
       }
 
-      const valid = getValidTokenIndices(turnPlayer, roll);
+      const valid = getValidTokenIndices(mover, roll);
       if (valid.length === 0) {
         setRoomSixes(0);
-        const nxt = (activeRoom.currentTurnIdx + 1) % activeRoom.players.length;
-        setRoomStatusText(`Rolled ${roll} (No move). ${activeRoom.players[nxt]?.name}'s turn`);
-        await syncRoomMoveToServer(activeRoom, activeRoom.players, nxt, roll, 'playing');
+        const nxt = (snapRoom.currentTurnIdx + 1) % snapRoom.players.length;
+        const msg = `${mover.name} rolled ${roll} (No move). ${snapRoom.players[nxt]?.name}'s turn`;
+        setRoomStatusText(msg);
+        await syncRoomMoveToServer(snapRoom, snapRoom.players, nxt, roll, 'playing', msg);
         return;
       }
 
       setRoomSixes(nextSixes);
       setRoomAwaitingMove(true);
-      setRoomStatusText(`Rolled ${roll}! Tap your highlighted token to move.`);
+      setRoomStatusText(`Rolled ${roll}! Tap glowing pawn or quick button to move.`);
     }, 480);
   };
 
+  const buildInviteUrl = (roomCode: string) => `${window.location.origin}/#/ludo?room=${roomCode}`;
+
   const copyInviteLink = (roomCode: string, roomPass?: string) => {
-    const url = `${window.location.origin}/#/ludo?room=${roomCode}`;
-    const payload = roomPass ? `${url}\nRoom Code: ${roomCode}\nPassword: ${roomPass}` : url;
+    const cleanPass = roomPass && roomPass !== '***' ? roomPass : hostSecretsRef.current[roomCode.toUpperCase()] || '';
+    const url = buildInviteUrl(roomCode);
+    const payload = cleanPass ? `${url}\nRoom Code: ${roomCode}\nPassword: ${cleanPass}` : url;
     navigator.clipboard?.writeText(payload).catch(() => {});
     showToast('Room invite link copied!');
+  };
+
+  const shareInviteNative = async (room: LudoRoom) => {
+    const url = buildInviteUrl(room.code);
+    const cleanPass =
+      room.password && room.password !== '***' ? room.password : hostSecretsRef.current[room.code.toUpperCase()] || '';
+    const text = `Join my EWI Ludo Room #${room.code} (Stake ৳${room.stake})${cleanPass ? ` | Password: ${cleanPass}` : ''}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `EWI Ludo Room #${room.code}`, text, url });
+        return;
+      } catch {}
+    }
+    copyInviteLink(room.code, cleanPass);
   };
 
   // =================== RENDER HELPERS ===================
@@ -1660,9 +2143,9 @@ export const LudoGame: React.FC = () => {
                   left: `calc(${((c + 0.5) / 15) * 100}% + ${offsetX}px)`,
                   transform: `translate(-50%, -56%) scale(${isValid ? 1.24 : stackScale})`
                 }}
-                className={`absolute w-[6.6%] h-[7.6%] min-w-[20px] min-h-[23px] transition-all duration-200 flex items-center justify-center ${
+                className={`absolute w-[6.8%] h-[7.8%] min-w-[26px] min-h-[28px] transition-all duration-200 flex items-center justify-center ${
                   isValid
-                    ? 'z-30 cursor-pointer drop-shadow-[0_0_8px_rgba(6,182,212,0.9)] animate-bounce'
+                    ? 'z-40 cursor-pointer drop-shadow-[0_0_10px_rgba(6,182,212,0.95)] animate-bounce'
                     : 'z-20 cursor-default'
                 }`}
               >
@@ -1926,6 +2409,26 @@ export const LudoGame: React.FC = () => {
                   }
                 )}
 
+                {currentOnlineValidTokens.size > 0 && (
+                  <div className="bg-cyan-50 border border-cyan-200 rounded-2xl p-2.5 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] font-black text-[#0891B2]">
+                      Tap a glowing pawn or quick-move:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from(currentOnlineValidTokens).map((tIdx) => (
+                        <button
+                          key={tIdx}
+                          type="button"
+                          onClick={() => executeOnlineMove(tIdx)}
+                          className="px-3 py-1 rounded-xl bg-[#0891B2] text-white text-[11px] font-black shadow-xs active:scale-95"
+                        >
+                          Pawn #{tIdx + 1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Dice Control Bar with Realistic 3D Pip Dice */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-3">
@@ -2025,7 +2528,12 @@ export const LudoGame: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setActiveRoom(null)}
+                        onClick={() => {
+                          try {
+                            sessionStorage.removeItem('ewi777_active_ludo_room_id');
+                          } catch {}
+                          setActiveRoom(null);
+                        }}
                         className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-[11px] font-bold"
                       >
                         Leave
@@ -2103,7 +2611,7 @@ export const LudoGame: React.FC = () => {
                 )}
 
                 {activeRoom.status === 'waiting' ? (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center space-y-3">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 text-center space-y-3">
                     <div className="w-12 h-12 rounded-2xl bg-cyan-50 text-[#0891B2] flex items-center justify-center mx-auto">
                       <Users className="w-6 h-6" />
                     </div>
@@ -2112,18 +2620,51 @@ export const LudoGame: React.FC = () => {
                         Waiting for Friends ({activeRoom.players.length} / {activeRoom.maxPlayers})
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        Share this room code <strong className="text-[#0891B2]">{activeRoom.code}</strong> or invite
-                        link. Match starts automatically once all {activeRoom.maxPlayers} friends join!
+                        Share this invite link and password. Match starts automatically once all{' '}
+                        {activeRoom.maxPlayers} friends join!
                       </p>
                     </div>
+
+                    {/* Direct Shareable Link + Credentials Box */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-left space-y-1.5">
+                      <div className="text-[10px] font-black text-slate-500 uppercase">Shareable Invite Link</div>
+                      <div className="font-mono text-[11px] text-[#0891B2] break-all select-all">
+                        {buildInviteUrl(activeRoom.code)}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] pt-1 border-t border-slate-200/80">
+                        <span className="font-bold text-slate-700">
+                          Code: <strong className="font-mono text-slate-900">{activeRoom.code}</strong>
+                        </span>
+                        {((activeRoom.password && activeRoom.password !== '***') ||
+                          hostSecretsRef.current[activeRoom.code.toUpperCase()]) && (
+                          <span className="font-bold text-slate-700">
+                            Password:{' '}
+                            <strong className="font-mono text-emerald-700">
+                              {activeRoom.password !== '***'
+                                ? activeRoom.password
+                                : hostSecretsRef.current[activeRoom.code.toUpperCase()]}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                       <button
                         type="button"
                         onClick={() => copyInviteLink(activeRoom.code, activeRoom.password)}
-                        className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white text-xs font-black inline-flex items-center gap-1.5"
+                        className="px-4 py-2.5 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white text-xs font-black inline-flex items-center gap-1.5"
                       >
                         <Copy className="w-3.5 h-3.5" />
-                        <span>Copy Invite Link &amp; Password</span>
+                        <span>Copy Link &amp; Pass</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => shareInviteNative(activeRoom)}
+                        className="px-4 py-2.5 rounded-full bg-cyan-50 border border-cyan-200 text-[#0891B2] text-xs font-black inline-flex items-center gap-1.5"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>Share</span>
                       </button>
                       {activeRoom.hostUserId === user.id && (
                         <button
@@ -2148,6 +2689,44 @@ export const LudoGame: React.FC = () => {
                           executeRoomTokenMove(tIdx);
                         }
                       }
+                    )}
+
+                    {currentRoomValidTokens.size > 0 && (
+                      <div className="bg-cyan-50 border border-cyan-200 rounded-2xl p-2.5 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] font-black text-[#0891B2]">
+                          Tap glowing pawn or quick-move:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Array.from(currentRoomValidTokens).map((tIdx) => (
+                            <button
+                              key={tIdx}
+                              type="button"
+                              onClick={() => executeRoomTokenMove(tIdx)}
+                              className="px-3 py-1 rounded-xl bg-[#0891B2] text-white text-[11px] font-black shadow-xs active:scale-95"
+                            >
+                              Pawn #{tIdx + 1}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeRoom.status === 'finished' && (
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              sessionStorage.removeItem('ewi777_active_ludo_room_id');
+                            } catch {}
+                            setActiveRoom(null);
+                            fetchRoomsList();
+                          }}
+                          className="px-6 py-2.5 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs shadow-sm"
+                        >
+                          Back to Friends Rooms
+                        </button>
+                      </div>
                     )}
 
                     {activeRoom.status === 'playing' && (
@@ -2336,7 +2915,14 @@ export const LudoGame: React.FC = () => {
                           </div>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
+                              if (rm.players?.some((p) => p.userId === user.id)) {
+                                const full = await getLudoRoomByIdFromFirebase(rm.id).catch(() => null);
+                                applySafeRoomUpdate(full || rm, true);
+                                showToast(`Re-entered Room ${rm.code}`);
+                                return;
+                              }
+                              setJoinPreviewRoom(rm);
                               setJoinCodeDraft(rm.code);
                               setJoinPassDraft('');
                               setJoinModalOpen(true);
@@ -2344,7 +2930,7 @@ export const LudoGame: React.FC = () => {
                             className="px-3 py-1.5 rounded-xl bg-[#0891B2] text-white text-[11px] font-black flex items-center gap-1 flex-shrink-0"
                           >
                             <Lock className="w-3 h-3" />
-                            <span>Enter</span>
+                            <span>{rm.players?.some((p) => p.userId === user.id) ? 'Resume' : 'Enter'}</span>
                           </button>
                         </div>
                       ))}
@@ -2413,6 +2999,22 @@ export const LudoGame: React.FC = () => {
             </div>
 
             <div className="space-y-3 text-xs">
+              {joinPreviewRoom && (
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-black text-slate-900 truncate">
+                      Host: {joinPreviewRoom.hostName}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {joinPreviewRoom.mode.replace('_', ' ').toUpperCase()} • {joinPreviewRoom.players.length}/
+                      {joinPreviewRoom.maxPlayers} Joined
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg bg-cyan-100 text-[#0891B2] font-mono font-black flex-shrink-0">
+                    ৳{joinPreviewRoom.stake}
+                  </span>
+                </div>
+              )}
               <div>
                 <label className="text-[11px] font-bold text-slate-600 block mb-1">Room Code</label>
                 <input

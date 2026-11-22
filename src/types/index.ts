@@ -754,6 +754,7 @@ export interface LudoRoom {
   players: LudoPlayer[];
   currentTurnIdx: number;
   lastRoll?: number;
+  statusText?: string;
   winnerUserId?: string;
   winnerSummary?: string;
   payouts?: Array<{ userId: string; name: string; rank: number; amount: number }>;
@@ -770,6 +771,39 @@ export interface LudoBetRecord {
   winAmount: number;
   status: 'won' | 'lost';
   time: string;
+}
+
+export interface LudoRoomMessage {
+  id: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  senderColor?: LudoPlayer['color'];
+  type: 'text' | 'voice' | 'quick';
+  text?: string;
+  audioData?: string;
+  audioDurationSec?: number;
+  createdAtMs: number;
+}
+
+export interface LudoVoicePeer {
+  id: string;
+  roomId: string;
+  userId: string;
+  name?: string;
+  color?: LudoPlayer['color'];
+  micActive: boolean;
+  updatedAt: number;
+}
+
+export interface LudoVoiceSignal {
+  id: string;
+  roomId: string;
+  fromUserId: string;
+  toUserId: string;
+  kind: 'offer' | 'answer' | 'ice';
+  payload: string;
+  createdAtMs: number;
 }
 
 export interface SportsMatch {
