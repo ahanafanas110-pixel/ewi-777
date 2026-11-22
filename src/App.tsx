@@ -46,6 +46,7 @@ import { SlotsLobby } from './pages/SlotsLobby';
 import { EwiRoulette } from './pages/EwiRoulette';
 import { LudoGame } from './pages/LudoGame';
 import { MentorPanel } from './pages/MentorPanel';
+import { SportsBetting } from './pages/SportsBetting';
 import { WelcomeLanding } from './components/WelcomeLanding';
 import { ExtraFirstDepositModal } from './components/AccountIcons';
 import { WinGoResultPopupModal } from './components/WinGoAssets';
@@ -276,6 +277,8 @@ const MainApp: React.FC = () => {
         );
       case 'ludo':
         return <LudoGame />;
+      case 'sports':
+        return <SportsBetting />;
       case 'gold-market':
         return <BinaryMarket initialMarketMode="gold" />;
       case 'binary':

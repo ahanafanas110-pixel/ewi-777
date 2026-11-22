@@ -37,7 +37,9 @@ import {
   RouletteBetType,
   ActiveAdminSession,
   LudoRoomMode,
-  LudoBetRecord
+  LudoBetRecord,
+  SportsMatch,
+  SportsBet
 } from '../types';
 import { getClientDeviceName } from '../utils/deviceInfo';
 import confetti from 'canvas-confetti';
@@ -74,7 +76,9 @@ import {
   subscribeReferralsInFirebase,
   saveReferralToFirebase,
   subscribeCrashStateInFirebase,
-  saveCrashStateToFirebase
+  saveCrashStateToFirebase,
+  subscribeSportsBetsInFirebase,
+  saveSportsBetToFirebase
 } from '../lib/firebase';
 import { BINARY_MARKETS, BINARY_MARKET_MAP } from '../constants/markets';
 import { VIP_TIERS } from '../constants/vipTiers';
@@ -244,6 +248,11 @@ interface AppContextType {
   ludoBets: LudoBetRecord[];
   placeLudoBet: (stake: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode) => { success: boolean; message: string };
   settleLudoMatch: (winAmount: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode, detail: string, stake: number) => void;
+  sportsMatches: SportsMatch[];
+  sportsBets: SportsBet[];
+  placeSportsBet: (matchId: string, selectedTeam: 'teamA' | 'teamB', amount: number) => Promise<{ success: boolean; message: string }>;
+  upsertSportsMatch: (match: Partial<SportsMatch> & { sport: 'cricket' | 'football'; teamA: string; teamB: string }) => Promise<void>;
+  settleSportsMatch: (matchId: string, winner: 'teamA' | 'teamB') => Promise<void>;
   adminAccessLogs: AdminAccessLog[];
   logAdminAccessEntry: (
     action: AdminAccessLog['action'],
@@ -458,6 +467,20 @@ export const DEFAULT_GAMES: GameItem[] = [
     featured: true,
     targetTab: 'ludo',
     htmlCode: '<!-- EWI 777 Multiplayer & Match Ludo -->\n<div class="ewi-game" data-game="ludo">EWI Ludo Live</div>'
+  },
+  {
+    id: 'game_sports',
+    slug: 'live-sports',
+    title: 'Live Cricket & Football',
+    imageUrl: '',
+    category: 'Casino',
+    badge: 'LIVE',
+    price: '1.90X',
+    sortOrder: 6.4,
+    active: true,
+    featured: true,
+    targetTab: 'sports',
+    htmlCode: '<!-- EWI 777 Live Cricket & Football Team Betting -->\n<div class="ewi-game" data-game="sports">Live Sports</div>'
   },
   {
     id: 'game_binary',
@@ -760,6 +783,98 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   bannedIps: [],
   mentorBlockedIps: [],
   paymentGateways: [],
+  sportsMatches: [
+    {
+      id: 'sp_cr_ban_ind',
+      sport: 'cricket',
+      league: 'T20 International Series',
+      teamA: 'Bangladesh Tigers',
+      teamB: 'India Royals',
+      teamAOdds: 2.15,
+      teamBOdds: 1.72,
+      scoreA: '148/4 (15.2)',
+      scoreB: 'Yet to bat',
+      statusText: '1st Innings Live',
+      status: 'live',
+      startTime: 'Live Now',
+      updatedAt: 1700000000000
+    },
+    {
+      id: 'sp_cr_aus_eng',
+      sport: 'cricket',
+      league: 'ODI Champions Clash',
+      teamA: 'Australia',
+      teamB: 'England',
+      teamAOdds: 1.85,
+      teamBOdds: 1.98,
+      scoreA: '264/6 (44.0)',
+      scoreB: 'Target Pending',
+      statusText: 'Live Powerplay',
+      status: 'live',
+      startTime: 'Live Now',
+      updatedAt: 1700000000000
+    },
+    {
+      id: 'sp_cr_bpl_com_syl',
+      sport: 'cricket',
+      league: 'Premier T20 Cup',
+      teamA: 'Comilla Victorians',
+      teamB: 'Sylhet Strikers',
+      teamAOdds: 1.78,
+      teamBOdds: 2.08,
+      scoreA: '0/0',
+      scoreB: '0/0',
+      statusText: 'Starts Today 19:30',
+      status: 'upcoming',
+      startTime: '19:30 BST',
+      updatedAt: 1700000000000
+    },
+    {
+      id: 'sp_fb_rma_fcb',
+      sport: 'football',
+      league: 'La Liga El Clasico',
+      teamA: 'Real Madrid',
+      teamB: 'FC Barcelona',
+      teamAOdds: 1.92,
+      teamBOdds: 1.95,
+      scoreA: '2',
+      scoreB: '1',
+      statusText: "68' 2nd Half Live",
+      status: 'live',
+      startTime: 'Live Now',
+      updatedAt: 1700000000000
+    },
+    {
+      id: 'sp_fb_mci_ars',
+      sport: 'football',
+      league: 'English Premier League',
+      teamA: 'Manchester City',
+      teamB: 'Arsenal',
+      teamAOdds: 1.84,
+      teamBOdds: 2.05,
+      scoreA: '1',
+      scoreB: '1',
+      statusText: "52' Live",
+      status: 'live',
+      startTime: 'Live Now',
+      updatedAt: 1700000000000
+    },
+    {
+      id: 'sp_fb_arg_bra',
+      sport: 'football',
+      league: 'International Friendly',
+      teamA: 'Argentina',
+      teamB: 'Brazil',
+      teamAOdds: 1.88,
+      teamBOdds: 1.96,
+      scoreA: '0',
+      scoreB: '0',
+      statusText: 'Kickoff 21:00',
+      status: 'upcoming',
+      startTime: '21:00 BST',
+      updatedAt: 1700000000000
+    }
+  ],
   activeAdminSession: null,
   adminPhoneHash: DEFAULT_ADMIN_PHONE_HASH,
   adminPasswordHash: DEFAULT_ADMIN_PASS_HASH
@@ -992,6 +1107,18 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'slots' || cleanHash === 'slots' || full.includes('/slots') || full.includes('#/slots')) resolved = 'slots';
     else if (target === 'ewi-roulette' || target === 'roulette' || cleanHash === 'ewi-roulette' || full.includes('/ewi-roulette') || full.includes('#/ewi-roulette')) resolved = 'ewi-roulette';
     else if (target === 'ludo' || target === 'ewi-ludo' || cleanHash === 'ludo' || full.includes('/ludo') || full.includes('#/ludo')) resolved = 'ludo';
+    else if (target === 'sports' || target === 'live-sports' || cleanHash === 'sports' || full.includes('/sports') || full.includes('#/sports')) resolved = 'sports';
+
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const qRoom = sp.get('room');
+      const hIdx = hash.indexOf('?');
+      const hRoom = hIdx >= 0 ? new URLSearchParams(hash.slice(hIdx + 1)).get('room') : null;
+      const roomCode = (qRoom || hRoom || '').trim().toUpperCase();
+      if (roomCode) {
+        sessionStorage.setItem('ewi777_pending_ludo_room', roomCode);
+      }
+    } catch {}
   } catch {}
 
   if (!isLoggedIn && !PUBLIC_UNAUTH_TABS.has(resolved)) {
@@ -1378,6 +1505,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     return [];
   });
+  const [sportsBets, setSportsBets] = useState<SportsBet[]>(() => {
+    try {
+      const saved = localStorage.getItem('ewi777_sports_bets');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+  const settledSportsBetIdsRef = useRef<Set<string>>(new Set());
   const [visitorIpInfo, setVisitorIpInfo] = useState<{ ip: string; deviceName: string; isBannedIp: boolean }>(() => ({
     ip: '',
     deviceName: getClientDeviceName(),
@@ -1740,6 +1875,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const stamped: User = { ...nextUser, updatedAt: ts };
     lastUsersMutationAtRef.current = Date.now();
     if (stamped.id) {
+      if (userRef.current?.id === stamped.id) {
+        userRef.current = stamped;
+      }
       saveUserToFirebase(stamped).catch(() => {});
       fetch(apiUrl('/api/users/sync'), {
         method: 'POST',
@@ -2644,6 +2782,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCrashPoolStates((prev) => ({ ...prev, luckyjet: st }));
     });
 
+    const unsubSportsBets = subscribeSportsBetsInFirebase((fbBets) => {
+      setSportsBets((prev) => {
+        const map = new Map(prev.map((b) => [b.id, b]));
+        let changed = false;
+        for (const fb of fbBets) {
+          const cur = map.get(fb.id);
+          if (!cur || (cur.status === 'pending' && fb.status !== 'pending')) {
+            map.set(fb.id, fb);
+            changed = true;
+          }
+        }
+        if (!changed && prev.length === map.size) return prev;
+        const merged = Array.from(map.values())
+          .sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0))
+          .slice(0, 150);
+        try {
+          localStorage.setItem('ewi777_sports_bets', JSON.stringify(merged));
+        } catch {}
+        return merged;
+      });
+    });
+
     return () => {
       unsubSettings();
       unsubUsers();
@@ -2658,6 +2818,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubReferrals();
       unsubCrashAv();
       unsubCrashLj();
+      unsubSportsBets();
     };
   }, []);
 
@@ -2700,7 +2861,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const applyResolvedWingoOutcome = (mode: WinGoMode, resolvingPeriod: string, resolvedNumber: number, resolvedTime?: string) => {
     const settleKey = `${mode}:${resolvingPeriod}`;
-    if (settledPeriodsRef.current.has(settleKey)) return;
+    const pendingForPeriod = betsRef.current.filter(
+      (b) => b.periodNumber === resolvingPeriod && b.mode === mode && b.status === 'pending'
+    );
+    if (settledPeriodsRef.current.has(settleKey) && pendingForPeriod.length === 0) return;
     settledPeriodsRef.current.add(settleKey);
     if (settledPeriodsRef.current.size > 200) {
       const first = settledPeriodsRef.current.values().next().value;
@@ -2711,12 +2875,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { color, size } = deriveWingoMeta(safeNum);
     const timeStr = resolvedTime || new Date().toTimeString().slice(0, 8);
 
-    const userRoundBets = betsRef.current.filter(
-      (b) =>
-        b.periodNumber === resolvingPeriod &&
-        b.mode === mode &&
-        b.status === 'pending' &&
-        (!userRef.current.id || b.userId === userRef.current.id)
+    const userRoundBets = pendingForPeriod.filter(
+      (b) => !userRef.current.id || b.userId === userRef.current.id
     );
 
     const evalBetOutcome = (b: WinGoBet): { won: boolean; winAmount: number } => {
@@ -2762,50 +2922,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { winAmount } = evalBetOutcome(ub);
       userWinTotal += winAmount;
     }
+    userWinTotal = +userWinTotal.toFixed(2);
 
     const settledBetWrites: WinGoBet[] = [];
-    setBets((prevBets) =>
-      prevBets.map((b) => {
-        if (b.periodNumber === resolvingPeriod && b.mode === mode && b.status === 'pending') {
-          const { won, winAmount } = evalBetOutcome(b);
-          const nextBet: WinGoBet = { ...b, status: won ? ('won' as const) : ('lost' as const), winAmount };
-          settledBetWrites.push(nextBet);
-          return nextBet;
-        }
-        return b;
-      })
-    );
+    const nextBetsList = betsRef.current.map((b) => {
+      if (b.periodNumber === resolvingPeriod && b.mode === mode && b.status === 'pending') {
+        const { won, winAmount } = evalBetOutcome(b);
+        const nextBet: WinGoBet = { ...b, status: won ? ('won' as const) : ('lost' as const), winAmount };
+        settledBetWrites.push(nextBet);
+        return nextBet;
+      }
+      return b;
+    });
+    betsRef.current = nextBetsList;
+    setBets(nextBetsList);
     if (settledBetWrites.length > 0) {
       settledBetWrites.forEach((sb) => saveWingoBetToFirebase(sb).catch(() => {}));
     }
 
-    if (userWinTotal > 0) {
-      const nextBal = +(userRef.current.balance + userWinTotal).toFixed(2);
-      const nextTurnoverComp = (userRef.current.turnoverCompleted || 0) + userWinTotal;
-      const syncedWinner = syncUserEverywhere({
-        ...userRef.current,
-        balance: nextBal,
-        turnoverCompleted: nextTurnoverComp
-      });
-      setUser(syncedWinner);
-      const winTx: Transaction = {
-        id: `tx_${Date.now()}_${mode}`,
-        userId: userRef.current.id,
-        type: 'lottery_win',
-        title: `WinGo ${mode} Prize Won!`,
-        detail: `Period ${resolvingPeriod.slice(-5)} Result: ${safeNum} (${color.toUpperCase()})`,
-        amount: userWinTotal,
-        balanceAfter: nextBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      };
-      setTransactions((txs) => [winTx, ...txs]);
-      saveTransactionToFirebase(winTx).catch(() => {});
-      confetti({ particleCount: 75, spread: 65 });
-      showToast(`WinGo ${mode} Won! +৳${userWinTotal.toFixed(2)}`);
-    }
-
-    if (userRoundBets.length > 0) {
+    if (userRoundBets.length > 0 && userRef.current.id) {
       const tzOffset =
         typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
           ? adminSettingsRef.current.timezoneOffsetMinutes
@@ -2813,12 +2948,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const todayKey = getLocalDateStr(new Date(), tzOffset);
       const prevStreak = userRef.current.lastWinGoStreakDate === todayKey ? Number(userRef.current.winGoStreakCount || 0) : 0;
       const nextStreak = userWinTotal > 0 ? prevStreak + 1 : 0;
-      const updatedStreakUser = syncUserEverywhere({
+
+      const nextBal = userWinTotal > 0 ? +(Number(userRef.current.balance || 0) + userWinTotal).toFixed(2) : Number(userRef.current.balance || 0);
+      const nextTurnoverComp = (userRef.current.turnoverCompleted || 0) + (userWinTotal > 0 ? userWinTotal : 0);
+
+      const atomicUser = syncUserEverywhere({
         ...userRef.current,
+        balance: nextBal,
+        turnoverCompleted: nextTurnoverComp,
         winGoStreakCount: nextStreak,
         lastWinGoStreakDate: todayKey
       });
-      setUser(updatedStreakUser);
+      userRef.current = atomicUser;
+      setUser(atomicUser);
+
+      if (userWinTotal > 0) {
+        const winTx: Transaction = {
+          id: `tx_${Date.now()}_${mode}`,
+          userId: atomicUser.id,
+          type: 'lottery_win',
+          title: `WinGo ${mode} Prize Won!`,
+          detail: `Period ${resolvingPeriod.slice(-5)} Result: ${safeNum} (${color.toUpperCase()})`,
+          amount: userWinTotal,
+          balanceAfter: nextBal,
+          time: new Date().toLocaleString(),
+          status: 'success'
+        };
+        setTransactions((txs) => [winTx, ...txs]);
+        saveTransactionToFirebase(winTx).catch(() => {});
+        confetti({ particleCount: 75, spread: 65 });
+        showToast(`WinGo ${mode} Won! +৳${userWinTotal.toFixed(2)}`);
+      }
 
       setWingoResultPopup({
         periodNumber: resolvingPeriod,
@@ -3382,19 +3542,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 let finalNum: number | undefined = apiLatestResultsRef.current[mode]?.get(resolvingPeriod);
                 let finalTime: string | undefined = fastTimeStr;
                 if (finalNum === undefined) {
-                  try {
-                    const freshList = await Promise.race([
-                      fetchWingoModeFromApi(mode),
-                      new Promise<null>((resolve) => setTimeout(() => resolve(null), 380))
-                    ]);
-                    if (freshList && freshList.length > 0) {
-                      const matched = freshList.find((x) => x.periodNumber === resolvingPeriod);
-                      if (matched) {
-                        finalNum = matched.number;
-                        finalTime = matched.time;
-                      }
+                  for (let attempt = 0; attempt < 2 && finalNum === undefined; attempt++) {
+                    if (attempt > 0) {
+                      await new Promise<void>((r) => setTimeout(r, 450));
                     }
-                  } catch {}
+                    try {
+                      const freshList = await Promise.race([
+                        fetchWingoModeFromApi(mode),
+                        new Promise<null>((resolve) => setTimeout(() => resolve(null), 650))
+                      ]);
+                      if (freshList && freshList.length > 0) {
+                        const lookupMap = new Map<string, number>();
+                        freshList.forEach((item) => lookupMap.set(item.periodNumber, item.number));
+                        apiLatestResultsRef.current[mode] = lookupMap;
+                        const nextP = nextIssueFromLatest(freshList[0].periodNumber);
+                        if (nextP) apiNextPeriodRef.current[mode] = nextP;
+                        const matched = freshList.find((x) => x.periodNumber === resolvingPeriod);
+                        if (matched) {
+                          finalNum = matched.number;
+                          finalTime = matched.time;
+                        }
+                      }
+                    } catch {}
+                  }
                 }
                 const chosenNum = finalNum !== undefined ? finalNum : fastFallbackNum;
                 const meta = finalNum !== undefined ? deriveWingoMeta(chosenNum) : { color: fbColor, size: fbSize };
@@ -3414,6 +3584,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     ...prevM,
                     [mode]: {
                       ...cm,
+                      period: apiNextPeriodRef.current[mode] || cm.period,
                       history: [row, ...cm.history.filter((h) => h.periodNumber !== resolvingPeriod)].slice(0, 10)
                     }
                   };
@@ -3567,8 +3738,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? `Logged in! VIP Bonus +৳${autoVip.totalCredited.toLocaleString()} auto-credited!`
         : 'Logged in successfully'
     );
-    setActiveTab('home');
-    window.location.hash = '#/';
+    let pendingRoom = '';
+    try {
+      pendingRoom = (sessionStorage.getItem('ewi777_pending_ludo_room') || '').trim().toUpperCase();
+    } catch {}
+    if (pendingRoom) {
+      setActiveTab('ludo');
+      window.location.hash = `#/ludo?room=${encodeURIComponent(pendingRoom)}`;
+    } else {
+      setActiveTab('home');
+      window.location.hash = '#/';
+    }
     return { success: true, message: 'Success' };
   };
 
@@ -3734,8 +3914,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearBanNotice();
     setUser(newUser);
     showToast('Registration successful! Welcome to EWI 777.');
-    setActiveTab('home');
-    window.location.hash = '#/';
+    let pendingRoom = '';
+    try {
+      pendingRoom = (sessionStorage.getItem('ewi777_pending_ludo_room') || '').trim().toUpperCase();
+    } catch {}
+    if (pendingRoom) {
+      setActiveTab('ludo');
+      window.location.hash = `#/ludo?room=${encodeURIComponent(pendingRoom)}`;
+    } else {
+      setActiveTab('home');
+      window.location.hash = '#/';
+    }
     return { success: true, message: 'Success' };
   };
 
@@ -8412,6 +8601,206 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const sportsMatches: SportsMatch[] =
+    Array.isArray(adminSettings.sportsMatches) && adminSettings.sportsMatches.length > 0
+      ? adminSettings.sportsMatches
+      : INITIAL_ADMIN_SETTINGS.sportsMatches || [];
+
+  // Automatic Sports Team Bet Settlement whenever Admin marks a match winner
+  useEffect(() => {
+    const uidNow = userRef.current?.id;
+    if (!uidNow || !sportsBets.length || !sportsMatches.length) return;
+    const matchMap = new Map<string, SportsMatch>(sportsMatches.map((m) => [m.id, m]));
+    let totalCredit = 0;
+    const newlySettled: SportsBet[] = [];
+    const wonSummaries: string[] = [];
+
+    const nextList = sportsBets.map((bet) => {
+      if (bet.userId !== uidNow || bet.status !== 'pending') return bet;
+      if (settledSportsBetIdsRef.current.has(bet.id)) return bet;
+      const m = matchMap.get(bet.matchId);
+      if (!m || m.status !== 'finished' || (m.winner !== 'teamA' && m.winner !== 'teamB')) return bet;
+
+      settledSportsBetIdsRef.current.add(bet.id);
+      const isWinner = bet.selectedTeam === m.winner;
+      const winAmount = isWinner ? +((Number(bet.amount) || 0) * (Number(bet.odds) || 1.9)).toFixed(2) : 0;
+      const updatedBet: SportsBet = {
+        ...bet,
+        status: isWinner ? 'won' : 'lost',
+        winAmount
+      };
+      newlySettled.push(updatedBet);
+      if (isWinner && winAmount > 0) {
+        totalCredit = +(totalCredit + winAmount).toFixed(2);
+        wonSummaries.push(`${bet.teamName} (+৳${winAmount.toFixed(2)})`);
+      }
+      return updatedBet;
+    });
+
+    if (newlySettled.length === 0) return;
+
+    setSportsBets(nextList);
+    try {
+      localStorage.setItem('ewi777_sports_bets', JSON.stringify(nextList));
+    } catch {}
+    newlySettled.forEach((sb) => saveSportsBetToFirebase(sb).catch(() => {}));
+
+    if (totalCredit > 0) {
+      const nextBal = +(Number(userRef.current.balance || 0) + totalCredit).toFixed(2);
+      const updatedUser = syncUserEverywhere({
+        ...userRef.current,
+        balance: nextBal,
+        turnoverCompleted: (userRef.current.turnoverCompleted || 0) + totalCredit
+      });
+      setUser(updatedUser);
+
+      const tx: Transaction = {
+        id: `tx_${Date.now()}_spw`,
+        userId: uidNow,
+        type: 'sports_win',
+        title: 'Live Sports Team Win!',
+        detail: `${wonSummaries.join(', ')} • Auto Credited`,
+        amount: totalCredit,
+        balanceAfter: nextBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      };
+      setTransactions((prev) => [tx, ...prev]);
+      saveTransactionToFirebase(tx).catch(() => {});
+      confetti({ particleCount: 85, spread: 70 });
+      showToast(`Sports Win Auto Credited +৳${totalCredit.toFixed(2)}!`);
+    }
+  }, [sportsMatches, sportsBets, user.id]);
+
+  const placeSportsBet = async (
+    matchId: string,
+    selectedTeam: 'teamA' | 'teamB',
+    amount: number
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!user.isLoggedIn || !user.id) {
+      return { success: false, message: 'Please log in first to place a sports bet.' };
+    }
+    const cleanAmt = +Number(amount || 0).toFixed(2);
+    if (cleanAmt < 10 || cleanAmt > 50000) {
+      return { success: false, message: 'Bet amount must be between ৳10 and ৳50,000.' };
+    }
+    const playable = Number(user.balance || 0);
+    if (playable < cleanAmt) {
+      return { success: false, message: 'Insufficient playable balance.' };
+    }
+    const match = sportsMatches.find((m) => m.id === matchId);
+    if (!match) {
+      return { success: false, message: 'Match not found.' };
+    }
+    if (match.status === 'finished') {
+      return { success: false, message: 'Betting is closed — match already finished.' };
+    }
+    const odds = selectedTeam === 'teamA' ? Number(match.teamAOdds) : Number(match.teamBOdds);
+    const teamName = selectedTeam === 'teamA' ? match.teamA : match.teamB;
+    const nowMs = Date.now();
+    const newBal = +(playable - cleanAmt).toFixed(2);
+    const updatedUser = syncUserEverywhere({
+      ...user,
+      balance: newBal,
+      exp: user.exp + cleanAmt,
+      turnoverCompleted: (user.turnoverCompleted || 0) + cleanAmt
+    });
+    setUser(updatedUser);
+
+    const bet: SportsBet = {
+      id: `sb_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+      userId: user.id,
+      matchId: match.id,
+      sport: match.sport,
+      matchTitle: `${match.teamA} vs ${match.teamB}`,
+      selectedTeam,
+      teamName,
+      odds: +odds.toFixed(2),
+      amount: cleanAmt,
+      potentialWin: +(cleanAmt * odds).toFixed(2),
+      status: 'pending',
+      time: new Date(nowMs).toLocaleTimeString('en-US', { hour12: false }),
+      createdAtMs: nowMs
+    };
+
+    setSportsBets((prev) => {
+      const next = [bet, ...prev].slice(0, 150);
+      try {
+        localStorage.setItem('ewi777_sports_bets', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    const tx: Transaction = {
+      id: `tx_${nowMs}_spb`,
+      userId: user.id,
+      type: 'sports_bet',
+      title: `${match.sport === 'cricket' ? 'Cricket' : 'Football'}: ${teamName}`,
+      detail: `${match.teamA} vs ${match.teamB} @ ${odds.toFixed(2)}x`,
+      amount: -cleanAmt,
+      balanceAfter: newBal,
+      time: new Date(nowMs).toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [tx, ...prev]);
+    saveTransactionToFirebase(tx).catch(() => {});
+    saveSportsBetToFirebase(bet).catch(() => {});
+
+    fetch(apiUrl('/api/sports/bet'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bet)
+    }).catch(() => {});
+
+    return { success: true, message: `Bet placed on ${teamName} @ ${odds.toFixed(2)}x!` };
+  };
+
+  const upsertSportsMatch = async (
+    matchInput: Partial<SportsMatch> & { sport: 'cricket' | 'football'; teamA: string; teamB: string }
+  ): Promise<void> => {
+    const nowMs = Date.now();
+    const cleanMatch: SportsMatch = {
+      id: String(matchInput.id || `sp_${nowMs}_${Math.random().toString(36).slice(2, 6)}`),
+      sport: matchInput.sport === 'football' ? 'football' : 'cricket',
+      league: String(matchInput.league || (matchInput.sport === 'football' ? 'Live Football' : 'Live Cricket')).trim(),
+      teamA: String(matchInput.teamA).trim(),
+      teamB: String(matchInput.teamB).trim(),
+      teamAOdds: Math.max(1.05, Number(matchInput.teamAOdds) || 1.85),
+      teamBOdds: Math.max(1.05, Number(matchInput.teamBOdds) || 1.95),
+      scoreA: String(matchInput.scoreA || ''),
+      scoreB: String(matchInput.scoreB || ''),
+      statusText: String(matchInput.statusText || 'Live Match'),
+      status: matchInput.status === 'finished' ? 'finished' : matchInput.status === 'upcoming' ? 'upcoming' : 'live',
+      ...(matchInput.winner === 'teamA' || matchInput.winner === 'teamB' ? { winner: matchInput.winner } : {}),
+      startTime: String(matchInput.startTime || 'Live Now'),
+      updatedAt: nowMs
+    };
+    const existing = sportsMatches;
+    const idx = existing.findIndex((m) => m.id === cleanMatch.id);
+    const nextMatches = idx >= 0 ? existing.map((m, i) => (i === idx ? cleanMatch : m)) : [cleanMatch, ...existing];
+    updateAdminSettings({ sportsMatches: nextMatches });
+    fetch(apiUrl('/api/sports/upsert-match'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ match: cleanMatch })
+    }).catch(() => {});
+  };
+
+  const settleSportsMatch = async (matchId: string, winner: 'teamA' | 'teamB'): Promise<void> => {
+    const nowMs = Date.now();
+    const nextMatches = sportsMatches.map((m) => {
+      if (m.id !== matchId) return m;
+      const winTeam = winner === 'teamA' ? m.teamA : m.teamB;
+      return { ...m, status: 'finished' as const, winner, statusText: `${winTeam} Won`, updatedAt: nowMs };
+    });
+    updateAdminSettings({ sportsMatches: nextMatches });
+    fetch(apiUrl('/api/sports/settle'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId, winner })
+    }).catch(() => {});
+  };
+
   const currentPeriod = wingoMarkets[activeWingoMode].period;
   const timeRemaining = wingoMarkets[activeWingoMode].timeRemaining;
   const historyResults = wingoMarkets[activeWingoMode].history;
@@ -8504,6 +8893,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ludoBets,
         placeLudoBet,
         settleLudoMatch,
+        sportsMatches,
+        sportsBets,
+        placeSportsBet,
+        upsertSportsMatch,
+        settleSportsMatch,
         adminAccessLogs,
         logAdminAccessEntry,
         heartbeatAdminAccess,

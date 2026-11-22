@@ -42,9 +42,18 @@ export const WinGo: React.FC = () => {
     syncWingoFromApi(activeWingoMode);
     const poll = setInterval(() => {
       syncWingoFromApi(activeWingoMode);
-    }, 4000);
+    }, 2500);
     return () => clearInterval(poll);
   }, [activeWingoMode]);
+
+  useEffect(() => {
+    if (timeRemaining <= 1 || timeRemaining >= 28) {
+      const t = setTimeout(() => {
+        syncWingoFromApi(activeWingoMode);
+      }, 350);
+      return () => clearTimeout(t);
+    }
+  }, [timeRemaining, activeWingoMode]);
 
   const [betModalOpen, setBetModalOpen] = useState(false);
   const [selectedBetType, setSelectedBetType] = useState<'color' | 'number' | 'size'>('color');

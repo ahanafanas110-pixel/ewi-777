@@ -49,7 +49,8 @@ import {
   Rocket,
   UserCheck,
   Shield,
-  Unlock
+  Unlock,
+  Trophy
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
@@ -82,6 +83,7 @@ type AdminNavTab =
   | 'support'
   | 'access_logs'
   | 'mentors'
+  | 'sports'
   | 'settings';
 
 function formatElapsedDuration(enteredAtMs: number, nowMs: number): string {
@@ -156,8 +158,24 @@ export const Admin: React.FC = () => {
     kickAdminSession,
     banIpGlobally,
     unbanIpGlobally,
-    visitorIpInfo
+    visitorIpInfo,
+    sportsMatches,
+    sportsBets,
+    upsertSportsMatch,
+    settleSportsMatch
   } = useApp();
+
+  // Live Sports Match Management State
+  const [spSport, setSpSport] = useState<'cricket' | 'football'>('cricket');
+  const [spLeague, setSpLeague] = useState('T20 Live Series');
+  const [spTeamA, setSpTeamA] = useState('');
+  const [spTeamB, setSpTeamB] = useState('');
+  const [spOddsA, setSpOddsA] = useState('1.90');
+  const [spOddsB, setSpOddsB] = useState('1.90');
+  const [spScoreA, setSpScoreA] = useState('0/0');
+  const [spScoreB, setSpScoreB] = useState('0/0');
+  const [spStatusText, setSpStatusText] = useState('Live Now');
+  const [spScoreEdits, setSpScoreEdits] = useState<Record<string, { scoreA?: string; scoreB?: string; oddsA?: string; oddsB?: string; statusText?: string }>>({});
 
   // Admin Login Form (Direct 1-Step Verification + Single-Session Lock)
   const [adminPhone, setAdminPhone] = useState('');
@@ -1391,6 +1409,7 @@ export const Admin: React.FC = () => {
     { id: 'giftcodes', label: 'Gift Codes', icon: <Gift className="w-4 h-4" /> },
     { id: 'support', label: 'Support Chat', icon: <MessageSquare className="w-4 h-4" />, badge: unansweredSupportCount || undefined },
     { id: 'mentors', label: 'Mentor Control', icon: <UserCheck className="w-4 h-4" />, badge: (adminSettings.mentors || []).length || undefined },
+    { id: 'sports', label: 'Live Sports', icon: <Trophy className="w-4 h-4" />, badge: sportsMatches.filter((m) => m.status === 'live').length || undefined },
     { id: 'access_logs', label: 'IP & Entry Logs', icon: <Globe className="w-4 h-4" />, badge: adminAccessLogs.length || undefined },
     { id: 'settings', label: 'App Settings', icon: <Settings className="w-4 h-4" /> },
   ];
@@ -1407,6 +1426,7 @@ export const Admin: React.FC = () => {
     giftcodes: 'GIFT CODES',
     support: 'SUPPORT CHAT INBOX',
     mentors: 'MENTOR GOVERNANCE & AUDIT',
+    sports: 'LIVE CRICKET & FOOTBALL',
     access_logs: 'VISITOR IP & ENTRY TIMELINE',
     settings: 'APP SETTINGS'
   };
@@ -6060,6 +6080,268 @@ export const Admin: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* =================== LIVE CRICKET & FOOTBALL MANAGEMENT =================== */}
+          {navTab === 'sports' && (
+            <div className="space-y-4">
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!spTeamA.trim() || !spTeamB.trim()) {
+                    showToast('Enter both Team A and Team B names');
+                    return;
+                  }
+                  await upsertSportsMatch({
+                    sport: spSport,
+                    league: spLeague.trim() || (spSport === 'football' ? 'Live Football' : 'Live Cricket'),
+                    teamA: spTeamA.trim(),
+                    teamB: spTeamB.trim(),
+                    teamAOdds: Math.max(1.05, Number(spOddsA) || 1.9),
+                    teamBOdds: Math.max(1.05, Number(spOddsB) || 1.9),
+                    scoreA: spScoreA.trim(),
+                    scoreB: spScoreB.trim(),
+                    statusText: spStatusText.trim() || 'Live Now',
+                    status: 'live'
+                  });
+                  setSpTeamA('');
+                  setSpTeamB('');
+                  showToast('Live match published to all users!');
+                }}
+                className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-[#0891B2]" />
+                    <span>Add Live Cricket / Football Match (Team-Only Market)</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    {sportsBets.filter((b) => b.status === 'pending').length} Pending Slips
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <select
+                    value={spSport}
+                    onChange={(e) => setSpSport(e.target.value === 'football' ? 'football' : 'cricket')}
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                  >
+                    <option value="cricket">Cricket</option>
+                    <option value="football">Football</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={spLeague}
+                    onChange={(e) => setSpLeague(e.target.value)}
+                    placeholder="League / Series"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold"
+                  />
+                  <input
+                    type="text"
+                    value={spTeamA}
+                    onChange={(e) => setSpTeamA(e.target.value)}
+                    placeholder="Team A Name"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                  />
+                  <input
+                    type="text"
+                    value={spTeamB}
+                    onChange={(e) => setSpTeamB(e.target.value)}
+                    placeholder="Team B Name"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={spOddsA}
+                    onChange={(e) => setSpOddsA(e.target.value)}
+                    placeholder="Team A Odds"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={spOddsB}
+                    onChange={(e) => setSpOddsB(e.target.value)}
+                    placeholder="Team B Odds"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={spScoreA}
+                    onChange={(e) => setSpScoreA(e.target.value)}
+                    placeholder="Score A (e.g. 142/3)"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={spScoreB}
+                    onChange={(e) => setSpScoreB(e.target.value)}
+                    placeholder="Score B"
+                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={spStatusText}
+                    onChange={(e) => setSpStatusText(e.target.value)}
+                    placeholder="Live status text (e.g. 2nd Half 70')"
+                    className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold"
+                  />
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs"
+                  >
+                    + Publish Live Match
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-3">
+                {sportsMatches.map((m) => {
+                  const draft = spScoreEdits[m.id] || {};
+                  const matchBets = sportsBets.filter((b) => b.matchId === m.id);
+                  const stakeA = matchBets
+                    .filter((b) => b.selectedTeam === 'teamA')
+                    .reduce((s, b) => s + Number(b.amount || 0), 0);
+                  const stakeB = matchBets
+                    .filter((b) => b.selectedTeam === 'teamB')
+                    .reduce((s, b) => s + Number(b.amount || 0), 0);
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-cyan-50 text-[#0891B2] border border-cyan-200 text-[10px] font-black uppercase">
+                            {m.sport}
+                          </span>
+                          <span className="text-xs font-black text-slate-900">
+                            {m.teamA} vs {m.teamB}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-semibold">({m.league})</span>
+                        </div>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            m.status === 'finished'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : m.status === 'live'
+                              ? 'bg-rose-50 text-rose-600'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {m.status}
+                          {m.winner ? ` • ${m.winner === 'teamA' ? m.teamA : m.teamB} Won` : ''}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                        <input
+                          type="text"
+                          value={draft.scoreA ?? m.scoreA}
+                          onChange={(e) =>
+                            setSpScoreEdits((p) => ({ ...p, [m.id]: { ...p[m.id], scoreA: e.target.value } }))
+                          }
+                          placeholder="Score A"
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono"
+                        />
+                        <input
+                          type="text"
+                          value={draft.scoreB ?? m.scoreB}
+                          onChange={(e) =>
+                            setSpScoreEdits((p) => ({ ...p, [m.id]: { ...p[m.id], scoreB: e.target.value } }))
+                          }
+                          placeholder="Score B"
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={draft.oddsA ?? String(m.teamAOdds)}
+                          onChange={(e) =>
+                            setSpScoreEdits((p) => ({ ...p, [m.id]: { ...p[m.id], oddsA: e.target.value } }))
+                          }
+                          placeholder="Odds A"
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={draft.oddsB ?? String(m.teamBOdds)}
+                          onChange={(e) =>
+                            setSpScoreEdits((p) => ({ ...p, [m.id]: { ...p[m.id], oddsB: e.target.value } }))
+                          }
+                          placeholder="Odds B"
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono"
+                        />
+                        <input
+                          type="text"
+                          value={draft.statusText ?? m.statusText}
+                          onChange={(e) =>
+                            setSpScoreEdits((p) => ({ ...p, [m.id]: { ...p[m.id], statusText: e.target.value } }))
+                          }
+                          placeholder="Match Status"
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="text-[11px] font-bold text-slate-600">
+                          Total Stakes: {m.teamA} <span className="font-mono text-[#0891B2]">৳{stakeA}</span> | {m.teamB}{' '}
+                          <span className="font-mono text-[#0891B2]">৳{stakeB}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await upsertSportsMatch({
+                                ...m,
+                                scoreA: draft.scoreA ?? m.scoreA,
+                                scoreB: draft.scoreB ?? m.scoreB,
+                                teamAOdds: Math.max(1.05, Number(draft.oddsA ?? m.teamAOdds) || m.teamAOdds),
+                                teamBOdds: Math.max(1.05, Number(draft.oddsB ?? m.teamBOdds) || m.teamBOdds),
+                                statusText: draft.statusText ?? m.statusText,
+                                status: m.status === 'finished' ? 'finished' : 'live'
+                              });
+                              showToast(`Updated ${m.teamA} vs ${m.teamB}`);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-slate-800 text-white text-[11px] font-black"
+                          >
+                            Save Score / Odds
+                          </button>
+                          {m.status !== 'finished' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await settleSportsMatch(m.id, 'teamA');
+                                  showToast(`Settled: ${m.teamA} Won — Winners Auto Credited!`);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black"
+                              >
+                                Settle {m.teamA} Won
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await settleSportsMatch(m.id, 'teamB');
+                                  showToast(`Settled: ${m.teamB} Won — Winners Auto Credited!`);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black"
+                              >
+                                Settle {m.teamB} Won
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

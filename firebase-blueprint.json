@@ -259,6 +259,23 @@
         "status": { "type": "string", "enum": ["waiting", "playing", "finished", "cancelled"] }
       },
       "required": ["id", "code", "hostUserId", "stake", "status"]
+    },
+    "SportsBet": {
+      "title": "SportsBet",
+      "description": "Live Cricket and Football team-only bet slip synced across user devices and admin settlement.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "matchId": { "type": "string", "maxLength": 128 },
+        "sport": { "type": "string", "enum": ["cricket", "football"] },
+        "selectedTeam": { "type": "string", "enum": ["teamA", "teamB"] },
+        "odds": { "type": "number" },
+        "amount": { "type": "number" },
+        "potentialWin": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "won", "lost"] }
+      },
+      "required": ["id", "userId", "matchId", "sport", "selectedTeam", "status"]
     }
   },
   "firestore": {
@@ -321,6 +338,10 @@
     "/ludoRooms/{roomId}": {
       "schema": { "$ref": "#/entities/LudoRoom" },
       "description": "Real-time password-protected friend Ludo rooms."
+    },
+    "/sportsBets/{betId}": {
+      "schema": { "$ref": "#/entities/SportsBet" },
+      "description": "Live Cricket and Football team-only bet slips."
     }
   }
 }

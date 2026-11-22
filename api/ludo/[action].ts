@@ -150,5 +150,20 @@ export default async function handler(req: IncomingMessage & { method?: string; 
     return sendJson(res, 200, { success: true, room: nextRoom });
   }
 
+  if (action === 'cancel') {
+    const { roomId, userId } = body || {};
+    const room = await getFirestoreDoc('ludoRooms', String(roomId || ''));
+    if (!room) return sendJson(res, 404, { success: false, message: 'Room not found' });
+    if (String(room.hostUserId || '') !== String(userId || '')) {
+      return sendJson(res, 403, { success: false, message: 'Only the host can cancel this room.' });
+    }
+    if (room.status !== 'waiting') {
+      return sendJson(res, 409, { success: false, message: 'Cannot cancel a match that already started.' });
+    }
+    const nextRoom = { ...room, status: 'cancelled', updatedAt: nowMs };
+    await patchFirestoreDoc('ludoRooms', String(roomId), nextRoom);
+    return sendJson(res, 200, { success: true, room: nextRoom });
+  }
+
   return sendJson(res, 404, { success: false, message: 'Unknown Ludo action' });
 }

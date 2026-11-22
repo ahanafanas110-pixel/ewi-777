@@ -72,6 +72,20 @@ export const TileLudoIcon: React.FC<{ size?: number }> = () => (
   />
 );
 
+export const TileSportsIcon: React.FC<{ size?: number }> = () => (
+  <div className="w-full h-full rounded-xl bg-gradient-to-br from-[#ECFEFF] via-white to-[#CCFBF1] border border-cyan-200 flex items-center justify-center relative overflow-hidden">
+    <svg viewBox="0 0 64 64" className="w-9 h-9 drop-shadow-xs">
+      <circle cx="24" cy="36" r="14" fill="#FFFFFF" stroke="#0891B2" strokeWidth="2.5" />
+      <polygon points="24,27 30,31 28,38 20,38 18,31" fill="#0F172A" />
+      <line x1="24" y1="22" x2="24" y2="27" stroke="#0891B2" strokeWidth="1.8" />
+      <line x1="30" y1="31" x2="36" y2="29" stroke="#0891B2" strokeWidth="1.8" />
+      <line x1="18" y1="31" x2="12" y2="29" stroke="#0891B2" strokeWidth="1.8" />
+      <circle cx="44" cy="22" r="9.5" fill="#DC2626" stroke="#991B1B" strokeWidth="2" />
+      <path d="M38 17 C42 21, 46 23, 50 27" stroke="#FEF2F2" strokeWidth="1.8" strokeDasharray="2.5 2" fill="none" />
+    </svg>
+  </div>
+);
+
 export const TileCasinoIcon: React.FC<{ size?: number }> = () => (
   <img
     src={tileCasinoImg}

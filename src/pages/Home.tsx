@@ -18,7 +18,8 @@ import {
   TileGoldIcon,
   TileCasinoIcon,
   TileSlotsIcon,
-  TileLudoIcon
+  TileLudoIcon,
+  TileSportsIcon
 } from '../components/DashboardArtwork';
 import { GameItem } from '../types';
 
@@ -40,6 +41,7 @@ const ALLOWED_TABS = [
   'ewi-roulette',
   'roulette',
   'ludo',
+  'sports',
   'binary',
   'gold-market',
   'mines',
@@ -419,6 +421,38 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
           <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-xs">
             Play Ludo →
+          </span>
+        </div>
+
+        {/* Featured Live Cricket & Football Card */}
+        <div
+          onClick={() => {
+            if (!isGameActive('game_sports')) {
+              showToast('Live Sports betting is currently offline for maintenance');
+              return;
+            }
+            goTab('sports');
+          }}
+          className="bg-white rounded-3xl p-3.5 border border-cyan-200 shadow-xs hover:border-cyan-400 cursor-pointer active:scale-99 transition-all flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative w-12 h-12 rounded-2xl overflow-hidden border border-cyan-200 shadow-xs flex-shrink-0">
+              <TileSportsIcon />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-sm text-slate-900">LIVE CRICKET &amp; FOOTBALL</span>
+                <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-black uppercase">
+                  LIVE
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-semibold truncate">
+                Team Win Market Only • Instant Auto Wallet Credit
+              </p>
+            </div>
+          </div>
+          <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-xs">
+            Bet Live →
           </span>
         </div>
 

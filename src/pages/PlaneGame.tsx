@@ -171,6 +171,13 @@ export const PlaneGame: React.FC = () => {
   });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const liveMultiplierRef = useRef<number>(1.0);
+  const lastBotCheckRef = useRef<number>(0);
+  const waitCountdownElRef = useRef<HTMLDivElement | null>(null);
+  const waitBarElRef = useRef<HTMLDivElement | null>(null);
+  const flyingMultElRef = useRef<HTMLDivElement | null>(null);
+  const crashedMultElRef = useRef<HTMLDivElement | null>(null);
+  const slotPayoutRefs = useRef<Record<SlotId, HTMLSpanElement | null>>({ 1: null, 2: null, 3: null });
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
   const mutedRef = useRef(muted);
@@ -428,7 +435,7 @@ export const PlaneGame: React.FC = () => {
     };
 
     pollState();
-    const poll = setInterval(pollState, 200);
+    const poll = setInterval(pollState, 500);
     return () => {
       mounted = false;
       clearInterval(poll);
@@ -764,15 +771,18 @@ export const PlaneGame: React.FC = () => {
         lg.addColorStop(0, '#f59e0b');
         lg.addColorStop(0.5, '#f43f5e');
         lg.addColorStop(1, '#ffffff');
-        ctx.shadowColor = 'rgba(244,63,94,0.8)';
-        ctx.shadowBlur = 12 * dpr;
+        ctx.strokeStyle = 'rgba(244,63,94,0.28)';
+        ctx.lineWidth = 7.5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo(cx, cy, px, py);
+        ctx.stroke();
         ctx.strokeStyle = lg;
         ctx.lineWidth = 3.5 * dpr;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
         ctx.quadraticCurveTo(cx, cy, px, py);
         ctx.stroke();
-        ctx.shadowBlur = 0;
 
         if (Math.random() < 0.65) {
           smokeParticles.push({
@@ -894,8 +904,13 @@ export const PlaneGame: React.FC = () => {
 
       if (st.phase === 'waiting') {
         const rem = Math.max(0, 5.0 - elapsedSec);
-        setCountdown(rem);
-        setMultiplier(1.0);
+        liveMultiplierRef.current = 1.0;
+        if (waitCountdownElRef.current) {
+          waitCountdownElRef.current.textContent = `${rem.toFixed(1)}s`;
+        }
+        if (waitBarElRef.current) {
+          waitBarElRef.current.style.transform = `scaleX(${Math.max(0, Math.min(1, rem / 5.0))})`;
+        }
         drawStage('waiting', elapsedSec, 1.0, now, dt, st.roundId);
       } else if (st.phase === 'flying') {
         const curMult = +Math.min(MAX_MULTIPLIER, Math.exp(0.085 * elapsedSec)).toFixed(2);
@@ -910,6 +925,7 @@ export const PlaneGame: React.FC = () => {
           st.phase = 'crashed';
           st.crashPoint = forcedMult;
           if (!st.crashedAtMs) st.crashedAtMs = now;
+          liveMultiplierRef.current = forcedMult;
           playSound('crash');
           setPhase('crashed');
           setMultiplier(forcedMult);
@@ -936,24 +952,36 @@ export const PlaneGame: React.FC = () => {
             lostIds.forEach((id) => loseBetRef.current(id));
           }
         } else {
-          setMultiplier(curMult);
+          liveMultiplierRef.current = curMult;
+          if (flyingMultElRef.current) {
+            flyingMultElRef.current.textContent = `${curMult.toFixed(2)}x`;
+            flyingMultElRef.current.style.color =
+              curMult >= 10 ? '#FCD34D' : curMult >= 2 ? '#6EE7B7' : '#FFFFFF';
+          }
           drawStage('flying', elapsedSec, curMult, now, dt, st.roundId);
 
-          setSimBots((prevBots) => {
-            let changed = false;
-            const nextBots = prevBots.map((b) => {
-              if (b.cashedAt === null && b.target !== null && curMult >= b.target) {
-                changed = true;
-                return { ...b, cashedAt: b.target, payout: +(b.stake * b.target).toFixed(2) };
-              }
-              return b;
+          if (now - lastBotCheckRef.current >= 140) {
+            lastBotCheckRef.current = now;
+            setSimBots((prevBots) => {
+              let changed = false;
+              const nextBots = prevBots.map((b) => {
+                if (b.cashedAt === null && b.target !== null && curMult >= b.target) {
+                  changed = true;
+                  return { ...b, cashedAt: b.target, payout: +(b.stake * b.target).toFixed(2) };
+                }
+                return b;
+              });
+              return changed ? nextBots : prevBots;
             });
-            return changed ? nextBots : prevBots;
-          });
+          }
 
           const curSlots = slotsRef.current;
           SLOT_IDS.forEach((sid) => {
             const sl = curSlots[sid];
+            const payoutEl = slotPayoutRefs.current[sid];
+            if (payoutEl && sl.activeBetId) {
+              payoutEl.textContent = `৳${(sl.activeBetAmount * curMult).toFixed(2)}`;
+            }
             const target = Math.min(MAX_MULTIPLIER, Math.max(1.1, Number(sl.target) || 2.0));
             if (
               sl.activeBetId &&
@@ -974,6 +1002,7 @@ export const PlaneGame: React.FC = () => {
                   st.phase = 'crashed';
                   st.crashPoint = res.crashPoint || target;
                   if (!st.crashedAtMs) st.crashedAtMs = performance.now();
+                  liveMultiplierRef.current = st.crashPoint;
                   playSound('crash');
                   setPhase('crashed');
                   setMultiplier(res.crashPoint || target);
@@ -989,7 +1018,10 @@ export const PlaneGame: React.FC = () => {
             : st.crashPoint > 0
             ? st.crashPoint
             : 1.0;
-        setMultiplier(finalCrash);
+        liveMultiplierRef.current = finalCrash;
+        if (crashedMultElRef.current) {
+          crashedMultElRef.current.textContent = `${finalCrash.toFixed(2)}x`;
+        }
         drawStage('crashed', elapsedSec, finalCrash, now, dt, st.roundId);
       }
 
@@ -1071,7 +1103,7 @@ export const PlaneGame: React.FC = () => {
     const sl = slots[slotId];
     if (phase !== 'flying' || !sl.activeBetId) return;
     const idToCash = sl.activeBetId;
-    const cashMult = multiplier;
+    const cashMult = liveMultiplierRef.current;
     autoCashLockRef.current[slotId] = true;
     updateSlot(slotId, { activeBetId: null, activeBetRoundId: null });
     const res = await cashOutCrashBet('plane', idToCash, cashMult);
@@ -1247,13 +1279,14 @@ export const PlaneGame: React.FC = () => {
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
                   Place Your Bets
                 </div>
-                <div className="text-4xl font-black font-mono tabular-nums text-white mt-0.5">
+                <div ref={waitCountdownElRef} className="text-4xl font-black font-mono tabular-nums text-white mt-0.5">
                   {countdown.toFixed(1)}s
                 </div>
                 <div className="w-44 h-2 bg-white/10 rounded-full overflow-hidden mt-2.5 mx-auto">
                   <div
-                    className="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 transition-all duration-75"
-                    style={{ width: `${Math.min(100, (countdown / 5.0) * 100)}%` }}
+                    ref={waitBarElRef}
+                    className="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 origin-left"
+                    style={{ transform: `scaleX(${Math.min(1, countdown / 5.0)})` }}
                   />
                 </div>
               </div>
@@ -1261,13 +1294,8 @@ export const PlaneGame: React.FC = () => {
 
             {phase === 'flying' && (
               <div
-                className={`text-5xl font-black font-mono tabular-nums tracking-tight drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] ${
-                  multiplier >= 10
-                    ? 'text-amber-300'
-                    : multiplier >= 2
-                    ? 'text-emerald-300'
-                    : 'text-white'
-                }`}
+                ref={flyingMultElRef}
+                className="text-5xl font-black font-mono tabular-nums tracking-tight drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] text-white"
               >
                 {multiplier.toFixed(2)}x
               </div>
@@ -1278,7 +1306,7 @@ export const PlaneGame: React.FC = () => {
                 <div className="text-[11px] font-black uppercase tracking-[0.22em] text-rose-300">
                   Flew Away!
                 </div>
-                <div className="text-5xl font-black font-mono tabular-nums text-rose-500 mt-0.5">
+                <div ref={crashedMultElRef} className="text-5xl font-black font-mono tabular-nums text-rose-500 mt-0.5">
                   {multiplier.toFixed(2)}x
                 </div>
               </div>
@@ -1434,8 +1462,13 @@ export const PlaneGame: React.FC = () => {
                         className="w-full h-full min-h-[70px] rounded-xl bg-gradient-to-b from-[#06B6D4] to-[#0891B2] border border-cyan-300 text-white font-black flex flex-col items-center justify-center shadow-lg active:scale-98"
                       >
                         <span className="text-sm uppercase tracking-wider">CASH OUT</span>
-                        <span className="font-mono text-xs tabular-nums">
-                          ৳{(sl.activeBetAmount * multiplier).toFixed(2)}
+                        <span
+                          ref={(el) => {
+                            slotPayoutRefs.current[slotId] = el;
+                          }}
+                          className="font-mono text-xs tabular-nums"
+                        >
+                          ৳{(sl.activeBetAmount * liveMultiplierRef.current).toFixed(2)}
                         </span>
                       </button>
                     ) : sl.activeBetId && phase === 'waiting' ? (

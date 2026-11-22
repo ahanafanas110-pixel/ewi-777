@@ -195,7 +195,9 @@ export interface Transaction {
     | 'roulette_bet'
     | 'roulette_win'
     | 'ludo_bet'
-    | 'ludo_win';
+    | 'ludo_win'
+    | 'sports_bet'
+    | 'sports_win';
   title: string;
   detail?: string;
   amount: number;
@@ -296,6 +298,7 @@ export interface BinaryOptionBet {
   asset: string;
   direction: 'UP' | 'DOWN';
   entryPrice: number;
+  exitPrice?: number;
   strikePrice?: number;
   amount: number;
   payoutRate: number; // e.g. 0.90 for 90%
@@ -515,6 +518,7 @@ export interface AdminSettings {
     blockedAtMs: number;
   }>;
   paymentGateways?: PaymentGatewaySlot[];
+  sportsMatches?: SportsMatch[];
   activeAdminSession?: ActiveAdminSession | null;
   adminPhone?: string;
   adminPassword?: string;
@@ -766,4 +770,38 @@ export interface LudoBetRecord {
   winAmount: number;
   status: 'won' | 'lost';
   time: string;
+}
+
+export interface SportsMatch {
+  id: string;
+  sport: 'cricket' | 'football';
+  league: string;
+  teamA: string;
+  teamB: string;
+  teamAOdds: number;
+  teamBOdds: number;
+  scoreA: string;
+  scoreB: string;
+  statusText: string;
+  status: 'live' | 'upcoming' | 'finished';
+  winner?: 'teamA' | 'teamB';
+  startTime: string;
+  updatedAt: number;
+}
+
+export interface SportsBet {
+  id: string;
+  userId: string;
+  matchId: string;
+  sport: 'cricket' | 'football';
+  matchTitle: string;
+  selectedTeam: 'teamA' | 'teamB';
+  teamName: string;
+  odds: number;
+  amount: number;
+  potentialWin: number;
+  winAmount?: number;
+  status: 'pending' | 'won' | 'lost';
+  time: string;
+  createdAtMs: number;
 }

@@ -103,6 +103,18 @@ service cloud.firestore {
         && data.status in ['pending', 'won', 'lost'];
     }
 
+    function isValidSportsBet(data, betId) {
+      return data is map
+        && data.keys().hasAll(['id', 'userId', 'matchId', 'sport', 'selectedTeam', 'status'])
+        && data.keys().size() <= 18
+        && data.id is string && data.id == betId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.matchId is string && data.matchId.size() >= 1 && data.matchId.size() <= 128
+        && data.sport in ['cricket', 'football']
+        && data.selectedTeam in ['teamA', 'teamB']
+        && data.status in ['pending', 'won', 'lost'];
+    }
+
     function isValidTransaction(data, txId) {
       return data is map
         && data.keys().hasAll(['id', 'userId', 'type', 'amount'])
@@ -265,6 +277,13 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['id', 'code', 'hostUserId', 'stake', 'status'])
         && request.resource.data.keys().size() <= 24
         && request.resource.data.id is string && request.resource.data.id == roomId;
+      allow delete: if false;
+    }
+
+    // Live Cricket & Football Team-Only Bets
+    match /sportsBets/{betId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(betId) && isValidSportsBet(request.resource.data, betId);
       allow delete: if false;
     }
   }

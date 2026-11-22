@@ -72,8 +72,33 @@ export const EwiRoulette: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const settledRoundRef = useRef<string>('');
   const prevRoundIdRef = useRef<string>(gameState.roundId);
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
   const wheelAngleRef = useRef<number>(0);
   const ballAngleRef = useRef<number>(0);
+  const ballRadiusRatioRef = useRef<number>(0.88);
+  const lastPhaseRef = useRef<string>(gameState.phase);
+  const lastTickSectorRef = useRef<number>(-1);
+
+  // Subtle Web Audio ball click / pocket drop sound
+  const playRouletteSfx = (kind: 'tick' | 'drop') => {
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = kind === 'drop' ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(kind === 'drop' ? 620 : 1280, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(kind === 'drop' ? 320 : 780, ctx.currentTime + 0.045);
+      gain.gain.setValueAtTime(kind === 'drop' ? 0.05 : 0.015, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.055);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.06);
+    } catch {}
+  };
 
   // Sync live clock & settle results
   useEffect(() => {
@@ -97,7 +122,7 @@ export const EwiRoulette: React.FC = () => {
     return () => clearInterval(id);
   }, [tzOffset, settleRouletteRound]);
 
-  // Smooth Canvas 37-Pocket European Wheel Animation
+  // Continuous 60fps HiDPI Realistic European Single-Zero Roulette Wheel
   useEffect(() => {
     let rafId = 0;
     const pocketCount = ROULETTE_WHEEL_ORDER.length;
@@ -105,134 +130,265 @@ export const EwiRoulette: React.FC = () => {
 
     const render = () => {
       const canvas = canvasRef.current;
+      const gs = gameStateRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        const cssSize = Math.max(240, Math.round(rect.width || 276));
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const target = Math.floor(cssSize * dpr);
+        if (canvas.width !== target || canvas.height !== target) {
+          canvas.width = target;
+          canvas.height = target;
+        }
+
         if (ctx) {
           const w = canvas.width;
           const h = canvas.height;
           const cx = w / 2;
           const cy = h / 2;
-          const outerR = Math.min(cx, cy) - 6;
+          const outerR = Math.min(cx, cy) - 6 * dpr;
 
-          const winIdx = Math.max(0, ROULETTE_WHEEL_ORDER.indexOf(gameState.winningNumber));
+          const winIdx = Math.max(0, ROULETTE_WHEEL_ORDER.indexOf(gs.winningNumber));
           const targetRelAngle = winIdx * pocketArc + pocketArc / 2;
 
-          if (gameState.phase === 'betting') {
-            wheelAngleRef.current += 0.008;
-            ballAngleRef.current -= 0.014;
-          } else if (gameState.phase === 'spinning') {
-            const speed = Math.max(0.02, (gameState.phaseRemaining / 6) * 0.14);
-            wheelAngleRef.current += speed * 0.45;
-            const desiredBall = wheelAngleRef.current + targetRelAngle;
-            const diff = Math.atan2(Math.sin(desiredBall - ballAngleRef.current), Math.cos(desiredBall - ballAngleRef.current));
-            ballAngleRef.current += gameState.phaseRemaining <= 2 ? diff * 0.14 : -0.18;
+          if (lastPhaseRef.current !== gs.phase) {
+            if (gs.phase === 'result') playRouletteSfx('drop');
+            lastPhaseRef.current = gs.phase;
+          }
+
+          if (gs.phase === 'betting') {
+            wheelAngleRef.current += 0.0055;
+            ballAngleRef.current -= 0.011;
+            ballRadiusRatioRef.current += (0.88 - ballRadiusRatioRef.current) * 0.12;
+          } else if (gs.phase === 'spinning') {
+            const remRatio = Math.max(0, Math.min(1, gs.phaseRemaining / 6));
+            const wheelSpeed = 0.016 + remRatio * 0.036;
+            wheelAngleRef.current += wheelSpeed;
+            if (remRatio > 0.34) {
+              ballAngleRef.current -= 0.08 + remRatio * 0.11;
+              const targetTrackR = 0.87 + Math.sin(ballAngleRef.current * 4) * 0.008;
+              ballRadiusRatioRef.current += (targetTrackR - ballRadiusRatioRef.current) * 0.14;
+              const sector = Math.floor((((ballAngleRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4));
+              if (sector !== lastTickSectorRef.current && remRatio < 0.72) {
+                lastTickSectorRef.current = sector;
+                playRouletteSfx('tick');
+              }
+            } else {
+              const desiredBall = wheelAngleRef.current + targetRelAngle;
+              const diff = Math.atan2(Math.sin(desiredBall - ballAngleRef.current), Math.cos(desiredBall - ballAngleRef.current));
+              ballAngleRef.current += diff * 0.16;
+              const wobble = remRatio > 0.12 ? Math.sin(remRatio * 42) * 0.015 : 0;
+              ballRadiusRatioRef.current += (0.58 + wobble - ballRadiusRatioRef.current) * 0.16;
+            }
           } else {
             wheelAngleRef.current += 0.004;
             ballAngleRef.current = wheelAngleRef.current + targetRelAngle;
+            ballRadiusRatioRef.current += (0.58 - ballRadiusRatioRef.current) * 0.2;
           }
 
           ctx.clearRect(0, 0, w, h);
 
-          // Outer brushed slate-cyan bezel
+          // Drop shadow under bowl
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy + 2 * dpr, outerR, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
+          ctx.fill();
+          ctx.restore();
+
+          // 1. Polished Mahogany Wood Rim
+          const woodGrad = ctx.createRadialGradient(cx - outerR * 0.25, cy - outerR * 0.25, outerR * 0.4, cx, cy, outerR);
+          woodGrad.addColorStop(0, '#7C2D12');
+          woodGrad.addColorStop(0.55, '#521B0A');
+          woodGrad.addColorStop(0.88, '#3A1106');
+          woodGrad.addColorStop(1, '#1F0802');
           ctx.beginPath();
           ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-          ctx.fillStyle = '#0F172A';
+          ctx.fillStyle = woodGrad;
           ctx.fill();
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = '#0891B2';
-          ctx.stroke();
 
-          // Ball track rim
+          // Champagne gold outer trim hairline
           ctx.beginPath();
-          ctx.arc(cx, cy, outerR - 10, 0, Math.PI * 2);
-          ctx.fillStyle = '#F8FAFC';
-          ctx.fill();
-          ctx.lineWidth = 1.5;
-          ctx.strokeStyle = '#CBD5E1';
+          ctx.arc(cx, cy, outerR - 2.5 * dpr, 0, Math.PI * 2);
+          ctx.lineWidth = 1.6 * dpr;
+          ctx.strokeStyle = '#D4AF37';
           ctx.stroke();
 
-          // 37 Pockets
-          const pocketOuterR = outerR - 20;
+          // 2. Concave Slanted Ball Track
+          const trackOuterR = outerR * 0.91;
+          const trackGrad = ctx.createRadialGradient(cx, cy, outerR * 0.68, cx, cy, trackOuterR);
+          trackGrad.addColorStop(0, '#2B0D05');
+          trackGrad.addColorStop(0.7, '#43160A');
+          trackGrad.addColorStop(1, '#1A0702');
+          ctx.beginPath();
+          ctx.arc(cx, cy, trackOuterR, 0, Math.PI * 2);
+          ctx.fillStyle = trackGrad;
+          ctx.fill();
+
+          // 8 Brass Diamond Deflectors around ball track
+          for (let d = 0; d < 8; d++) {
+            const da = (d * Math.PI) / 4;
+            const dr = outerR * 0.84;
+            const dx = cx + Math.cos(da) * dr;
+            const dy = cy + Math.sin(da) * dr;
+            ctx.save();
+            ctx.translate(dx, dy);
+            ctx.rotate(da + Math.PI / 2);
+            ctx.beginPath();
+            ctx.moveTo(0, -3.5 * dpr);
+            ctx.lineTo(5 * dpr, 0);
+            ctx.lineTo(0, 3.5 * dpr);
+            ctx.lineTo(-5 * dpr, 0);
+            ctx.closePath();
+            ctx.fillStyle = d % 2 === 0 ? '#FDE047' : '#CBD5E1';
+            ctx.fill();
+            ctx.lineWidth = 0.8 * dpr;
+            ctx.strokeStyle = '#78350F';
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // 3. Outer Brass Bezel Ring surrounding Pocket Rotor
+          const pocketOuterR = outerR * 0.77;
+          const pocketDivR = outerR * 0.62;
           const pocketInnerR = outerR * 0.44;
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, pocketOuterR + 2.5 * dpr, 0, Math.PI * 2);
+          ctx.strokeStyle = '#F59E0B';
+          ctx.lineWidth = 2.4 * dpr;
+          ctx.stroke();
+
+          // 4. 37 European Pockets + Recessed Drop Ring + Metallic Brass Frets
           for (let i = 0; i < pocketCount; i++) {
             const num = ROULETTE_WHEEL_ORDER[i];
             const startA = wheelAngleRef.current + i * pocketArc - Math.PI / 2;
             const endA = startA + pocketArc;
             const color = getRouletteNumberColor(num);
 
+            // Outer Number Wedge
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(startA) * pocketDivR, cy + Math.sin(startA) * pocketDivR);
+            ctx.arc(cx, cy, pocketOuterR, startA, endA);
+            ctx.arc(cx, cy, pocketDivR, endA, startA, true);
+            ctx.closePath();
+            ctx.fillStyle =
+              color === 'green' ? '#059669' : color === 'red' ? '#B91C1C' : '#0F172A';
+            ctx.fill();
+
+            // Inner Recessed Drop Pocket (slightly darker shade for depth)
             ctx.beginPath();
             ctx.moveTo(cx + Math.cos(startA) * pocketInnerR, cy + Math.sin(startA) * pocketInnerR);
-            ctx.arc(cx, cy, pocketOuterR, startA, endA);
+            ctx.arc(cx, cy, pocketDivR, startA, endA);
             ctx.arc(cx, cy, pocketInnerR, endA, startA, true);
             ctx.closePath();
-
             ctx.fillStyle =
-              color === 'green' ? '#059669' : color === 'red' ? '#DC2626' : '#1E293B';
+              color === 'green' ? '#047857' : color === 'red' ? '#7F1D1D' : '#020617';
             ctx.fill();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = '#FDE68A';
-            ctx.stroke();
 
-            // Highlight winning pocket in result phase
-            if (gameState.phase === 'result' && num === gameState.winningNumber) {
-              ctx.save();
-              ctx.fillStyle = 'rgba(253, 224, 71, 0.32)';
+            // Highlight Winning Pocket Glow
+            if (gs.phase === 'result' && num === gs.winningNumber) {
+              ctx.beginPath();
+              ctx.moveTo(cx + Math.cos(startA) * pocketInnerR, cy + Math.sin(startA) * pocketInnerR);
+              ctx.arc(cx, cy, pocketOuterR, startA, endA);
+              ctx.arc(cx, cy, pocketInnerR, endA, startA, true);
+              ctx.closePath();
+              ctx.fillStyle = 'rgba(253, 224, 71, 0.36)';
               ctx.fill();
-              ctx.restore();
             }
 
-            // Pocket Number Text
+            // Crisp Metallic Brass Pocket Divider Fret
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(startA) * pocketInnerR, cy + Math.sin(startA) * pocketInnerR);
+            ctx.lineTo(cx + Math.cos(startA) * pocketOuterR, cy + Math.sin(startA) * pocketOuterR);
+            ctx.strokeStyle = '#FCD34D';
+            ctx.lineWidth = 1.2 * dpr;
+            ctx.stroke();
+
+            // Pocket Number Typography
             const midA = (startA + endA) / 2;
-            const textR = pocketOuterR - 11;
+            const textR = (pocketOuterR + pocketDivR) * 0.51;
             ctx.save();
             ctx.translate(cx + Math.cos(midA) * textR, cy + Math.sin(midA) * textR);
             ctx.rotate(midA + Math.PI / 2);
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 8.5px system-ui, sans-serif';
+            ctx.font = `800 ${7.8 * dpr}px system-ui, sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(String(num), 0, 0);
             ctx.restore();
           }
 
-          // Center turret
+          // Ring separator between outer numbers & drop pockets
           ctx.beginPath();
-          ctx.arc(cx, cy, pocketInnerR, 0, Math.PI * 2);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fill();
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = '#0891B2';
+          ctx.arc(cx, cy, pocketDivR, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(252, 211, 77, 0.65)';
+          ctx.lineWidth = 1.2 * dpr;
           ctx.stroke();
 
-          // Turret cross spokes
+          // 5. Golden Brass Cone Turret & Finials
+          const coneGrad = ctx.createRadialGradient(
+            cx - pocketInnerR * 0.28,
+            cy - pocketInnerR * 0.28,
+            3 * dpr,
+            cx,
+            cy,
+            pocketInnerR
+          );
+          coneGrad.addColorStop(0, '#FEF08A');
+          coneGrad.addColorStop(0.35, '#D4AF37');
+          coneGrad.addColorStop(0.78, '#854D0E');
+          coneGrad.addColorStop(1, '#422006');
+          ctx.beginPath();
+          ctx.arc(cx, cy, pocketInnerR, 0, Math.PI * 2);
+          ctx.fillStyle = coneGrad;
+          ctx.fill();
+          ctx.lineWidth = 2 * dpr;
+          ctx.strokeStyle = '#FDE68A';
+          ctx.stroke();
+
+          // 4 Turned Brass Turret Arms + Spherical Finials
           for (let k = 0; k < 4; k++) {
             const a = wheelAngleRef.current + (k * Math.PI) / 2;
+            const armR = pocketInnerR * 0.84;
+            const ax = cx + Math.cos(a) * armR;
+            const ay = cy + Math.sin(a) * armR;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            ctx.lineTo(cx + Math.cos(a) * (pocketInnerR - 4), cy + Math.sin(a) * (pocketInnerR - 4));
-            ctx.strokeStyle = '#94A3B8';
-            ctx.lineWidth = 2.5;
+            ctx.lineTo(ax, ay);
+            ctx.strokeStyle = '#FEF08A';
+            ctx.lineWidth = 3.2 * dpr;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(ax, ay, 4.2 * dpr, 0, Math.PI * 2);
+            ctx.fillStyle = '#FACC15';
+            ctx.fill();
+            ctx.lineWidth = 1 * dpr;
+            ctx.strokeStyle = '#713F12';
             ctx.stroke();
           }
 
-          // Ivory Roulette Ball
-          const ballR =
-            gameState.phase === 'betting'
-              ? outerR - 14
-              : gameState.phase === 'spinning' && gameState.phaseRemaining > 2
-              ? outerR - 15
-              : (pocketOuterR + pocketInnerR) * 0.56;
+          // 6. Specular Ivory Roulette Ball
+          const ballR = outerR * ballRadiusRatioRef.current;
           const bAngle = ballAngleRef.current - Math.PI / 2;
           const bx = cx + Math.cos(bAngle) * ballR;
           const by = cy + Math.sin(bAngle) * ballR;
 
           ctx.beginPath();
-          ctx.arc(bx, by, 5, 0, Math.PI * 2);
-          ctx.fillStyle = '#FFFFFF';
+          ctx.arc(bx + 1.4 * dpr, by + 1.8 * dpr, 4.6 * dpr, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,0,0,0.42)';
           ctx.fill();
-          ctx.lineWidth = 1.5;
-          ctx.strokeStyle = '#0F172A';
-          ctx.stroke();
+
+          const ballGrad = ctx.createRadialGradient(bx - 1.5 * dpr, by - 1.5 * dpr, 0.8 * dpr, bx, by, 4.8 * dpr);
+          ballGrad.addColorStop(0, '#FFFFFF');
+          ballGrad.addColorStop(0.65, '#F1F5F9');
+          ballGrad.addColorStop(1, '#94A3B8');
+          ctx.beginPath();
+          ctx.arc(bx, by, 4.8 * dpr, 0, Math.PI * 2);
+          ctx.fillStyle = ballGrad;
+          ctx.fill();
         }
       }
       rafId = requestAnimationFrame(render);
@@ -240,7 +396,7 @@ export const EwiRoulette: React.FC = () => {
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [gameState.phase, gameState.phaseRemaining, gameState.winningNumber]);
+  }, []);
 
   const currentRoundPlacedBets = useMemo(
     () => rouletteBets.filter((b) => b.roundId === gameState.roundId && b.userId === user.id),
@@ -570,13 +726,13 @@ export const EwiRoulette: React.FC = () => {
             )}
           </div>
 
-          {/* Canvas Wheel */}
+          {/* Realistic HiDPI Canvas Wheel */}
           <div className="relative flex items-center justify-center py-1">
-            <canvas ref={canvasRef} width={220} height={220} className="w-[210px] h-[210px] block" />
+            <canvas ref={canvasRef} width={540} height={540} className="w-[264px] h-[264px] block" />
 
-            {/* Center Hub Status */}
+            {/* Center Brass Hub Status */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-16 h-16 rounded-full bg-white/95 border-2 border-cyan-500 shadow-md flex flex-col items-center justify-center">
+              <div className="w-[62px] h-[62px] rounded-full bg-white/95 border-2 border-[#D4AF37] shadow-lg flex flex-col items-center justify-center">
                 {gameState.phase === 'result' ? (
                   <>
                     <span
@@ -595,7 +751,7 @@ export const EwiRoulette: React.FC = () => {
                     </span>
                   </>
                 ) : gameState.phase === 'spinning' ? (
-                  <span className="text-[10px] font-black uppercase text-cyan-700">SPIN</span>
+                  <span className="text-[10px] font-black uppercase text-amber-700">SPIN</span>
                 ) : (
                   <>
                     <span className="text-base font-mono font-black text-cyan-800 tabular-nums leading-none">
@@ -660,9 +816,9 @@ export const EwiRoulette: React.FC = () => {
           ))}
         </div>
 
-        {/* TABLE VIEW */}
+        {/* TABLE VIEW — Authentic European Emerald Casino Felt */}
         {viewTab === 'table' && (
-          <div className="bg-white rounded-3xl p-3 border border-slate-200 shadow-xs space-y-2">
+          <div className="bg-gradient-to-b from-[#0C5340] to-[#083B2E] rounded-3xl p-3 border-2 border-[#D4AF37]/60 shadow-md space-y-2">
             {/* Zero */}
             {(() => {
               const { staged, placed } = getSpotAmount('straight_0');
@@ -671,7 +827,7 @@ export const EwiRoulette: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => stageSpot('straight_0', 'straight', '#0', [0], 36)}
-                  className={`w-full py-2.5 rounded-2xl bg-emerald-600 text-white font-black text-sm relative flex items-center justify-center shadow-xs active:scale-99 ${
+                  className={`w-full py-2.5 rounded-t-2xl rounded-b-lg bg-emerald-600/95 border border-[#D4AF37]/70 text-white font-black text-sm relative flex items-center justify-center shadow-xs active:scale-99 ${
                     isWin ? 'ring-4 ring-amber-400' : ''
                   }`}
                 >
@@ -695,21 +851,21 @@ export const EwiRoulette: React.FC = () => {
                     type: 'low' as RouletteBetType,
                     label: '1-18',
                     nums: Array.from({ length: 18 }, (_, i) => i + 1),
-                    bg: 'bg-slate-100 text-slate-800 border-slate-300'
+                    bg: 'bg-[#0A4736] text-white border-[#D4AF37]/50'
                   },
                   {
                     key: 'even_EVEN',
                     type: 'even' as RouletteBetType,
                     label: 'EVEN',
                     nums: Array.from({ length: 18 }, (_, i) => (i + 1) * 2),
-                    bg: 'bg-slate-100 text-slate-800 border-slate-300'
+                    bg: 'bg-[#0A4736] text-white border-[#D4AF37]/50'
                   },
                   {
                     key: 'red_RED',
                     type: 'red' as RouletteBetType,
                     label: 'RED',
                     nums: Array.from(ROULETTE_RED_NUMBERS),
-                    bg: 'bg-rose-600 text-white border-rose-700'
+                    bg: 'bg-[#B91C1C] text-white border-[#D4AF37]/70'
                   },
                   {
                     key: 'black_BLACK',
@@ -718,21 +874,21 @@ export const EwiRoulette: React.FC = () => {
                     nums: Array.from({ length: 36 }, (_, i) => i + 1).filter(
                       (n) => !ROULETTE_RED_NUMBERS.has(n)
                     ),
-                    bg: 'bg-slate-900 text-white border-slate-950'
+                    bg: 'bg-[#0F172A] text-white border-[#D4AF37]/70'
                   },
                   {
                     key: 'odd_ODD',
                     type: 'odd' as RouletteBetType,
                     label: 'ODD',
                     nums: Array.from({ length: 18 }, (_, i) => i * 2 + 1),
-                    bg: 'bg-slate-100 text-slate-800 border-slate-300'
+                    bg: 'bg-[#0A4736] text-white border-[#D4AF37]/50'
                   },
                   {
                     key: 'high_19-36',
                     type: 'high' as RouletteBetType,
                     label: '19-36',
                     nums: Array.from({ length: 18 }, (_, i) => i + 19),
-                    bg: 'bg-slate-100 text-slate-800 border-slate-300'
+                    bg: 'bg-[#0A4736] text-white border-[#D4AF37]/50'
                   }
                 ].map((ob) => {
                   const { staged, placed } = getSpotAmount(ob.key);
@@ -745,7 +901,7 @@ export const EwiRoulette: React.FC = () => {
                     >
                       <span>{ob.label}</span>
                       {(staged > 0 || placed > 0) && (
-                        <span className="mt-0.5 px-1.5 rounded-full bg-cyan-500 text-white text-[9px] font-black tabular-nums">
+                        <span className="mt-0.5 px-1.5 rounded-full bg-amber-300 text-slate-950 text-[9px] font-black tabular-nums">
                           ৳{staged + placed}
                         </span>
                       )}
@@ -766,13 +922,13 @@ export const EwiRoulette: React.FC = () => {
                         key={num}
                         type="button"
                         onClick={() => stageSpot(`straight_${num}`, 'straight', `#${num}`, [num], 36)}
-                        className={`h-9 rounded-xl font-black text-xs text-white relative flex items-center justify-center shadow-2xs active:scale-95 ${
-                          isRed ? 'bg-rose-600' : 'bg-slate-800'
-                        } ${isWin ? 'ring-2 ring-amber-400 scale-105 z-10' : ''}`}
+                        className={`h-9 rounded-lg border border-[#D4AF37]/40 font-black text-xs text-white relative flex items-center justify-center shadow-2xs active:scale-95 ${
+                          isRed ? 'bg-[#B91C1C]' : 'bg-[#0F172A]'
+                        } ${isWin ? 'ring-2 ring-amber-300 scale-105 z-10' : ''}`}
                       >
                         <span>{num}</span>
                         {(staged > 0 || placed > 0) && (
-                          <span className="absolute -top-1 -right-1 px-1 min-w-[18px] h-4 rounded-full bg-cyan-400 text-slate-950 text-[8.5px] font-black flex items-center justify-center ring-1 ring-white tabular-nums">
+                          <span className="absolute -top-1 -right-1 px-1 min-w-[18px] h-4 rounded-full bg-amber-300 text-slate-950 text-[8.5px] font-black flex items-center justify-center ring-1 ring-white tabular-nums">
                             {staged + placed}
                           </span>
                         )}
@@ -794,11 +950,11 @@ export const EwiRoulette: React.FC = () => {
                         key={c.key}
                         type="button"
                         onClick={() => stageSpot(c.key, 'column', c.label.split(' ')[1] || c.label, c.nums, 3)}
-                        className="py-2 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-900 font-black text-[11px] flex flex-col items-center justify-center active:scale-95"
+                        className="py-2 rounded-lg bg-[#0A4736] border border-[#D4AF37]/50 text-amber-200 font-black text-[11px] flex flex-col items-center justify-center active:scale-95"
                       >
                         <span>2:1</span>
                         {(staged > 0 || placed > 0) && (
-                          <span className="text-[9px] font-black text-cyan-700 tabular-nums">
+                          <span className="text-[9px] font-black text-amber-300 tabular-nums">
                             ৳{staged + placed}
                           </span>
                         )}
@@ -822,11 +978,11 @@ export const EwiRoulette: React.FC = () => {
                     key={d.key}
                     type="button"
                     onClick={() => stageSpot(d.key, 'dozen', d.label, d.nums, 3)}
-                    className="py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-800 font-black text-xs flex flex-col items-center justify-center active:scale-95"
+                    className="py-2.5 rounded-xl bg-[#0A4736] border border-[#D4AF37]/50 text-white font-black text-xs flex flex-col items-center justify-center active:scale-95"
                   >
                     <span>{d.label}</span>
                     {(staged > 0 || placed > 0) && (
-                      <span className="text-[9px] font-black text-cyan-700 tabular-nums">
+                      <span className="text-[9px] font-black text-amber-300 tabular-nums">
                         ৳{staged + placed}
                       </span>
                     )}

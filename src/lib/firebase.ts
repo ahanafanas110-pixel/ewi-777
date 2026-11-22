@@ -30,7 +30,8 @@ import type {
   WinGoBet,
   WithdrawRequest,
   AppNotification,
-  LudoRoom
+  LudoRoom,
+  SportsBet
 } from '../types';
 
 const app = initializeApp(firebaseConfig);
@@ -843,6 +844,38 @@ export async function saveLudoRoomToFirebase(room: LudoRoom): Promise<void> {
   const path = `ludoRooms/${id}`;
   try {
     await setDoc(doc(db, 'ludoRooms', id), stripUndefinedDeep({ ...room, id }), { merge: true });
+  } catch (error) {
+    logFirestoreNonFatal(error, OperationType.WRITE, path);
+  }
+}
+
+export function subscribeSportsBetsInFirebase(
+  onUpdate: (bets: SportsBet[]) => void
+): Unsubscribe {
+  const path = 'sportsBets';
+  const q = query(collection(db, 'sportsBets'), orderBy('createdAtMs', 'desc'), limit(250));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: SportsBet[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as SportsBet;
+        if (data && data.id) list.push(data);
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export async function saveSportsBetToFirebase(bet: SportsBet): Promise<void> {
+  if (!bet?.id) return;
+  const id = sanitizeFirestoreId(bet.id);
+  const path = `sportsBets/${id}`;
+  try {
+    await setDoc(doc(db, 'sportsBets', id), stripUndefinedDeep({ ...bet, id }), { merge: true });
   } catch (error) {
     logFirestoreNonFatal(error, OperationType.WRITE, path);
   }

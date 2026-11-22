@@ -210,6 +210,7 @@ interface ServerStore {
   marketPools: Record<string, any>;
   crashPools: Record<string, any>;
   ludoRooms: Record<string, any>;
+  sportsBets: any[];
   notifications: any[];
   crashRolling?: { wagered: number; paidOut: number };
   settings: any;
@@ -255,6 +256,7 @@ const DEFAULT_STORE: ServerStore = {
   marketPools: {},
   crashPools: {},
   ludoRooms: {},
+  sportsBets: [],
   notifications: [],
   crashRolling: { wagered: 0, paidOut: 0 },
   settings: {
@@ -403,6 +405,7 @@ function loadStore(): ServerStore {
         marketPools: parsed.marketPools && typeof parsed.marketPools === 'object' ? parsed.marketPools : {},
         crashPools: parsed.crashPools && typeof parsed.crashPools === 'object' ? parsed.crashPools : {},
         ludoRooms: parsed.ludoRooms && typeof parsed.ludoRooms === 'object' ? parsed.ludoRooms : {},
+        sportsBets: Array.isArray(parsed.sportsBets) ? parsed.sportsBets : [],
         notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
         crashRolling:
           parsed.crashRolling && typeof parsed.crashRolling === 'object'
@@ -2265,15 +2268,26 @@ async function startServer() {
     res.status(400).json({ success: false, message: 'Unknown mentor action' });
   });
 
-  // 5E. EWI Ludo Private Friend Rooms API
-  app.get('/api/ludo/rooms', (_req, res) => {
+  // 5E. EWI Ludo Private Friend Rooms API (Store + Firestore dual-synced)
+  app.get('/api/ludo/rooms', async (_req, res) => {
+    try {
+      const fbDocs = await listFirestoreCollection('ludoRooms', 60).catch(() => []);
+      for (const { id, data } of fbDocs) {
+        if (data && id) {
+          const existing = store.ludoRooms?.[id];
+          if (!existing || Number(data.updatedAt || 0) >= Number(existing.updatedAt || 0)) {
+            store.ludoRooms[id] = { ...data, id };
+          }
+        }
+      }
+    } catch {}
     const rooms = Object.values(store.ludoRooms || {})
       .map((r: any) => ({ ...r, password: r.password ? '***' : '' }))
       .sort((a: any, b: any) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
     res.json({ success: true, rooms });
   });
 
-  app.post('/api/ludo/create', (req, res) => {
+  app.post('/api/ludo/create', async (req, res) => {
     const { userId, uid, name, mode, stake, password } = req.body || {};
     const numStake = Number(stake) || 0;
     if (!userId || numStake < 20 || numStake > 50000 || !String(password || '').trim()) {
@@ -2303,21 +2317,30 @@ async function startServer() {
     };
     store.ludoRooms[roomId] = room;
     saveStore(store);
+    await patchFirestoreDoc('ludoRooms', roomId, room).catch(() => false);
     res.json({ success: true, room });
   });
 
-  app.post('/api/ludo/join', (req, res) => {
+  app.post('/api/ludo/join', async (req, res) => {
     const { code, password, userId, uid, name } = req.body || {};
     const cleanCode = String(code || '').trim().toUpperCase();
-    const roomEntry = Object.values(store.ludoRooms || {}).find((r: any) => String(r.code || '').toUpperCase() === cleanCode);
+    let roomEntry: any = Object.values(store.ludoRooms || {}).find((r: any) => String(r.code || '').toUpperCase() === cleanCode);
+    if (!roomEntry) {
+      const fbDocs = await listFirestoreCollection('ludoRooms', 80).catch(() => []);
+      const foundFb = fbDocs.find(({ data }) => String(data?.code || '').toUpperCase() === cleanCode);
+      if (foundFb?.data) {
+        roomEntry = { ...foundFb.data, id: foundFb.id };
+        store.ludoRooms[roomEntry.id] = roomEntry;
+      }
+    }
     if (!roomEntry) return res.status(404).json({ success: false, message: 'Ludo room not found.' });
     if (String(roomEntry.password || '') !== String(password || '').trim()) {
       return res.status(401).json({ success: false, message: 'Incorrect room password!' });
     }
-    const players: any[] = Array.isArray(roomEntry.players) ? roomEntry.players : [];
+    const players: any[] = Array.isArray(roomEntry.players) ? [...roomEntry.players] : [];
     if (!players.some((p) => p.userId === userId)) {
       if (roomEntry.status !== 'waiting' || players.length >= Number(roomEntry.maxPlayers || 2)) {
-        return res.status(409).json({ success: false, message: 'Room is already full or started.' });
+        return res.status(409).json({ success: false, message: 'Room is already full, started, or cancelled.' });
       }
       const colors = Number(roomEntry.maxPlayers) === 2 ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'];
       const slotIdx = players.length;
@@ -2333,35 +2356,196 @@ async function startServer() {
       roomEntry.players = players;
       if (players.length >= Number(roomEntry.maxPlayers || 2)) roomEntry.status = 'playing';
       roomEntry.updatedAt = Date.now();
+      store.ludoRooms[roomEntry.id] = roomEntry;
       saveStore(store);
+      await patchFirestoreDoc('ludoRooms', roomEntry.id, roomEntry).catch(() => false);
     }
     res.json({ success: true, room: roomEntry });
   });
 
-  app.post('/api/ludo/move', (req, res) => {
+  app.post('/api/ludo/move', async (req, res) => {
     const { roomId, players, currentTurnIdx, lastRoll, status } = req.body || {};
-    const room = store.ludoRooms?.[String(roomId || '')];
+    let room = store.ludoRooms?.[String(roomId || '')];
+    if (!room) {
+      room = await getFirestoreDoc('ludoRooms', String(roomId || '')).catch(() => null);
+    }
     if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
     if (Array.isArray(players)) room.players = players;
     if (typeof currentTurnIdx === 'number') room.currentTurnIdx = currentTurnIdx;
     if (typeof lastRoll === 'number') room.lastRoll = lastRoll;
     if (status) room.status = status;
     room.updatedAt = Date.now();
+    store.ludoRooms[room.id || String(roomId)] = room;
     saveStore(store);
+    await patchFirestoreDoc('ludoRooms', String(room.id || roomId), room).catch(() => false);
     res.json({ success: true, room });
   });
 
-  app.post('/api/ludo/settle', (req, res) => {
+  app.post('/api/ludo/settle', async (req, res) => {
     const { roomId, payouts, winnerUserId, winnerSummary } = req.body || {};
-    const room = store.ludoRooms?.[String(roomId || '')];
+    let room = store.ludoRooms?.[String(roomId || '')];
+    if (!room) {
+      room = await getFirestoreDoc('ludoRooms', String(roomId || '')).catch(() => null);
+    }
     if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    if (room.status === 'finished') {
+      return res.json({ success: true, room, alreadySettled: true });
+    }
     room.status = 'finished';
     if (winnerUserId) room.winnerUserId = winnerUserId;
     if (winnerSummary) room.winnerSummary = winnerSummary;
     if (Array.isArray(payouts)) room.payouts = payouts;
     room.updatedAt = Date.now();
+    store.ludoRooms[room.id || String(roomId)] = room;
     saveStore(store);
+    await patchFirestoreDoc('ludoRooms', String(room.id || roomId), room).catch(() => false);
     res.json({ success: true, room });
+  });
+
+  app.post('/api/ludo/cancel', async (req, res) => {
+    const { roomId, userId } = req.body || {};
+    let room = store.ludoRooms?.[String(roomId || '')];
+    if (!room) {
+      room = await getFirestoreDoc('ludoRooms', String(roomId || '')).catch(() => null);
+    }
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    if (String(room.hostUserId || '') !== String(userId || '')) {
+      return res.status(403).json({ success: false, message: 'Only the room host can cancel this room.' });
+    }
+    if (room.status !== 'waiting') {
+      return res.status(409).json({ success: false, message: 'Cannot cancel a match that has already started.' });
+    }
+    room.status = 'cancelled';
+    room.updatedAt = Date.now();
+    store.ludoRooms[room.id || String(roomId)] = room;
+    saveStore(store);
+    await patchFirestoreDoc('ludoRooms', String(room.id || roomId), room).catch(() => false);
+    res.json({ success: true, room });
+  });
+
+  // =================== LIVE CRICKET & FOOTBALL SPORTS ROUTES ===================
+  app.get('/api/sports/matches', async (req, res) => {
+    try {
+      const fbSettings = await getFirestoreDoc('appConfig', 'settings').catch(() => null);
+      if (fbSettings && Array.isArray(fbSettings.sportsMatches)) {
+        store.settings.sportsMatches = fbSettings.sportsMatches;
+      }
+    } catch {}
+    const matches = Array.isArray(store.settings?.sportsMatches) ? store.settings.sportsMatches : [];
+    const userId = String(req.query?.userId || '').trim();
+    let bets: any[] = [];
+    if (userId) {
+      bets = (store.sportsBets || [])
+        .filter((b: any) => String(b?.userId || '') === userId)
+        .sort((a: any, b: any) => Number(b?.createdAtMs || 0) - Number(a?.createdAtMs || 0));
+    }
+    res.json({ success: true, matches, bets });
+  });
+
+  app.post('/api/sports/bet', async (req, res) => {
+    const { userId, matchId, sport, matchTitle, selectedTeam, teamName, odds, amount } = req.body || {};
+    const cleanAmount = Number(amount) || 0;
+    const cleanOdds = Number(odds) || 0;
+    if (!userId || !matchId || (sport !== 'cricket' && sport !== 'football')) {
+      return res.status(400).json({ success: false, message: 'Invalid match or user parameters.' });
+    }
+    if (selectedTeam !== 'teamA' && selectedTeam !== 'teamB') {
+      return res.status(400).json({ success: false, message: 'Only Team A or Team B win bets are allowed.' });
+    }
+    if (cleanAmount < 10 || cleanAmount > 50000 || cleanOdds < 1.05) {
+      return res.status(400).json({ success: false, message: 'Stake must be between ৳10 and ৳50,000.' });
+    }
+    const matches: any[] = Array.isArray(store.settings?.sportsMatches) ? store.settings.sportsMatches : [];
+    const foundMatch = matches.find((m: any) => String(m?.id) === String(matchId));
+    if (foundMatch && foundMatch.status === 'finished') {
+      return res.status(409).json({ success: false, message: 'This match has already finished.' });
+    }
+    const nowMs = Date.now();
+    const betId = `sb_${nowMs}_${Math.random().toString(36).slice(2, 7)}`;
+    const bet = {
+      id: betId,
+      userId: String(userId),
+      matchId: String(matchId),
+      sport: sport === 'football' ? 'football' : 'cricket',
+      matchTitle: String(matchTitle || (foundMatch ? `${foundMatch.teamA} vs ${foundMatch.teamB}` : 'Live Match')),
+      selectedTeam,
+      teamName: String(teamName || (selectedTeam === 'teamA' ? foundMatch?.teamA || 'Team A' : foundMatch?.teamB || 'Team B')),
+      odds: +cleanOdds.toFixed(2),
+      amount: +cleanAmount.toFixed(2),
+      potentialWin: +(cleanAmount * cleanOdds).toFixed(2),
+      status: 'pending',
+      time: new Date(nowMs).toLocaleTimeString('en-US', { hour12: false }),
+      createdAtMs: nowMs
+    };
+    store.sportsBets = [bet, ...(store.sportsBets || [])].slice(0, 500);
+    saveStore(store);
+    await patchFirestoreDoc('sportsBets', betId, bet).catch(() => false);
+    res.json({ success: true, bet });
+  });
+
+  app.post('/api/sports/upsert-match', async (req, res) => {
+    const { match } = req.body || {};
+    if (!match || !match.teamA || !match.teamB || (match.sport !== 'cricket' && match.sport !== 'football')) {
+      return res.status(400).json({ success: false, message: 'Sport, Team A, and Team B are required.' });
+    }
+    const nowMs = Date.now();
+    const existing: any[] = Array.isArray(store.settings?.sportsMatches) ? [...store.settings.sportsMatches] : [];
+    const cleanMatch = {
+      id: String(match.id || `sp_${nowMs}_${Math.random().toString(36).slice(2, 6)}`),
+      sport: match.sport === 'football' ? 'football' : 'cricket',
+      league: String(match.league || (match.sport === 'football' ? 'Live Football' : 'Live Cricket')).trim(),
+      teamA: String(match.teamA).trim(),
+      teamB: String(match.teamB).trim(),
+      teamAOdds: Math.max(1.05, Number(match.teamAOdds) || 1.85),
+      teamBOdds: Math.max(1.05, Number(match.teamBOdds) || 1.95),
+      scoreA: String(match.scoreA || ''),
+      scoreB: String(match.scoreB || ''),
+      statusText: String(match.statusText || 'Match Live'),
+      status: match.status === 'finished' ? 'finished' : match.status === 'upcoming' ? 'upcoming' : 'live',
+      ...(match.winner === 'teamA' || match.winner === 'teamB' ? { winner: match.winner } : {}),
+      startTime: String(match.startTime || new Date(nowMs).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })),
+      updatedAt: nowMs
+    };
+    const idx = existing.findIndex((m: any) => String(m?.id) === cleanMatch.id);
+    const nextMatches = idx >= 0 ? existing.map((m: any, i: number) => (i === idx ? cleanMatch : m)) : [cleanMatch, ...existing];
+    store.settings.sportsMatches = nextMatches;
+    saveStore(store);
+    await patchFirestoreDoc('appConfig', 'settings', store.settings).catch(() => false);
+    res.json({ success: true, match: cleanMatch, matches: nextMatches });
+  });
+
+  app.post('/api/sports/settle', async (req, res) => {
+    const { matchId, winner } = req.body || {};
+    if (!matchId || (winner !== 'teamA' && winner !== 'teamB')) {
+      return res.status(400).json({ success: false, message: 'matchId and winner (teamA or teamB) required.' });
+    }
+    const nowMs = Date.now();
+    const existing: any[] = Array.isArray(store.settings?.sportsMatches) ? [...store.settings.sportsMatches] : [];
+    let updatedMatch: any = null;
+    const nextMatches = existing.map((m: any) => {
+      if (String(m?.id) !== String(matchId)) return m;
+      const winTeam = winner === 'teamA' ? m.teamA : m.teamB;
+      updatedMatch = { ...m, status: 'finished', winner, statusText: `${winTeam} Won`, updatedAt: nowMs };
+      return updatedMatch;
+    });
+    if (updatedMatch) {
+      store.settings.sportsMatches = nextMatches;
+      await patchFirestoreDoc('appConfig', 'settings', store.settings).catch(() => false);
+    }
+    let settledCount = 0;
+    store.sportsBets = (store.sportsBets || []).map((b: any) => {
+      if (String(b?.matchId || '') === String(matchId) && b?.status === 'pending') {
+        const won = b.selectedTeam === winner;
+        const winAmount = won ? +((Number(b.amount) || 0) * (Number(b.odds) || 1.9)).toFixed(2) : 0;
+        const settled = { ...b, status: won ? 'won' : 'lost', winAmount };
+        settledCount++;
+        patchFirestoreDoc('sportsBets', String(b.id), settled).catch(() => false);
+        return settled;
+      }
+      return b;
+    });
+    saveStore(store);
+    res.json({ success: true, match: updatedMatch, settledCount });
   });
 
   app.post('/api/admin/verify-2fa', (req, res) => {

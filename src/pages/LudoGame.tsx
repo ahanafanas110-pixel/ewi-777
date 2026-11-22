@@ -2,7 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { LudoPlayer, LudoRoom, LudoRoomMode } from '../types';
 import { apiUrl } from '../utils/phoneAndApi';
-import { subscribeLudoRoomByIdInFirebase } from '../lib/firebase';
+import {
+  saveLudoRoomToFirebase,
+  subscribeLudoRoomByIdInFirebase,
+  subscribeLudoRoomsInFirebase
+} from '../lib/firebase';
 import { Ewi777Logo } from '../components/BrandLogos';
 import {
   ArrowLeft,
@@ -531,6 +535,7 @@ export const LudoGame: React.FC = () => {
     stake: number;
     players: LudoPlayer[];
     turnIdx: number;
+    turnSeq: number;
     diceValue: number | null;
     rolling: boolean;
     awaitingMove: boolean;
@@ -560,18 +565,30 @@ export const LudoGame: React.FC = () => {
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
 
   const onlineTimerRef = useRef<number | null>(null);
+  const onlineTimer2Ref = useRef<number | null>(null);
+  const onlineMatchRef = useRef(onlineMatch);
+  onlineMatchRef.current = onlineMatch;
+  const onlineSettledRef = useRef(false);
   const settledRoomIdsRef = useRef<Set<string>>(new Set());
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const soundEnabledRef = useRef(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
 
   const parsedStake = Math.max(20, Math.min(50000, Math.floor(Number(stakeInput) || 20)));
   const parsedRoomStake = Math.max(20, Math.min(50000, Math.floor(Number(roomStakeDraft) || 20)));
 
-  // Detect ?room=CODE in URL on mount
+  // Detect ?room=CODE in URL or pending sessionStorage invite on mount
   useEffect(() => {
     const codeFromUrl = parseRoomCodeFromLocation();
-    if (codeFromUrl) {
+    let pendingCode = '';
+    try {
+      pendingCode = (sessionStorage.getItem('ewi777_pending_ludo_room') || '').trim().toUpperCase();
+      if (pendingCode) sessionStorage.removeItem('ewi777_pending_ludo_room');
+    } catch {}
+    const resolvedCode = codeFromUrl || pendingCode;
+    if (resolvedCode) {
       setSection('friends');
-      setJoinCodeDraft(codeFromUrl);
+      setJoinCodeDraft(resolvedCode);
       setJoinModalOpen(true);
     }
   }, []);
@@ -581,7 +598,7 @@ export const LudoGame: React.FC = () => {
       const res = await fetch(apiUrl('/api/ludo/rooms'), { cache: 'no-store' });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.success && Array.isArray(data.rooms)) {
-        setRoomsList(data.rooms);
+        setRoomsList(data.rooms.filter((r: LudoRoom) => r.status !== 'cancelled'));
       }
     } catch {}
   };
@@ -589,8 +606,28 @@ export const LudoGame: React.FC = () => {
   useEffect(() => {
     if (section !== 'friends') return;
     fetchRoomsList();
+    const unsubFb = subscribeLudoRoomsInFirebase((fbRooms) => {
+      if (fbRooms.length > 0) {
+        setRoomsList((prev) => {
+          const map = new Map<string, LudoRoom>();
+          prev.forEach((r) => map.set(r.id, r));
+          fbRooms.forEach((r) => {
+            const cur = map.get(r.id);
+            if (!cur || (r.updatedAt || 0) >= (cur.updatedAt || 0)) {
+              map.set(r.id, { ...r, password: r.password ? '***' : '' });
+            }
+          });
+          return Array.from(map.values())
+            .filter((r) => r.status !== 'cancelled')
+            .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+        });
+      }
+    });
     const iv = window.setInterval(fetchRoomsList, 6000);
-    return () => clearInterval(iv);
+    return () => {
+      unsubFb();
+      clearInterval(iv);
+    };
   }, [section]);
 
   // Subscribe live Firestore updates + polling fallback for active friends room
@@ -617,9 +654,26 @@ export const LudoGame: React.FC = () => {
     };
   }, [activeRoom?.id]);
 
-  // Settle friends room prize cleanly on finish
+  // Settle friends room prize cleanly on finish or refund if cancelled while waiting
   useEffect(() => {
-    if (!activeRoom || activeRoom.status !== 'finished') return;
+    if (!activeRoom) return;
+    if (activeRoom.status === 'cancelled') {
+      if (settledRoomIdsRef.current.has(activeRoom.id)) return;
+      const joined = (activeRoom.players || []).some((p) => p.userId === user.id);
+      if (joined) {
+        settledRoomIdsRef.current.add(activeRoom.id);
+        settleLudoMatch(
+          activeRoom.stake,
+          activeRoom.mode,
+          `Room ${activeRoom.code} cancelled — stake refunded`,
+          activeRoom.stake
+        );
+        showToast(`Room ${activeRoom.code} cancelled — ৳${activeRoom.stake} refunded.`);
+      }
+      setActiveRoom(null);
+      return;
+    }
+    if (activeRoom.status !== 'finished') return;
     if (settledRoomIdsRef.current.has(activeRoom.id)) return;
     settledRoomIdsRef.current.add(activeRoom.id);
 
@@ -634,15 +688,42 @@ export const LudoGame: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoom?.status, activeRoom?.id]);
 
-  // Cleanup online timers
+  // Settle Online match cleanly once when finished (outside state updaters)
+  useEffect(() => {
+    if (!onlineMatch || !onlineMatch.finished) {
+      onlineSettledRef.current = false;
+      return;
+    }
+    if (onlineSettledRef.current) return;
+    onlineSettledRef.current = true;
+    const humanWon = onlineMatch.winnerIdx === 0;
+    const prize =
+      onlineMatch.mode === 'online_2p'
+        ? +(onlineMatch.stake * 1.9).toFixed(2)
+        : +(onlineMatch.stake * 4 * 0.9).toFixed(2);
+    const winnerName = onlineMatch.players[onlineMatch.winnerIdx ?? 0]?.name || 'Player';
+    playLudoSound('win', soundEnabled);
+    settleLudoMatch(
+      humanWon ? prize : 0,
+      onlineMatch.mode,
+      humanWon ? `${winnerName} won EWI Ludo!` : `${winnerName} finished first`,
+      onlineMatch.stake
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlineMatch?.finished, onlineMatch?.winnerIdx]);
+
+  // Cleanup online timers on unmount
   useEffect(() => {
     return () => {
       if (onlineTimerRef.current) window.clearTimeout(onlineTimerRef.current);
+      if (onlineTimer2Ref.current) window.clearTimeout(onlineTimer2Ref.current);
     };
   }, []);
 
   // =================== ONLINE MATCH ENGINE ===================
   const startOnlineMatch = () => {
+    if (onlineTimerRef.current) window.clearTimeout(onlineTimerRef.current);
+    if (onlineTimer2Ref.current) window.clearTimeout(onlineTimer2Ref.current);
     const val = Math.floor(Number(stakeInput) || 0);
     if (val < 20 || val > 50000) {
       showToast('Enter a stake between ৳20 and ৳50,000');
@@ -665,11 +746,13 @@ export const LudoGame: React.FC = () => {
       tokens: [-1, -1, -1, -1]
     }));
 
+    onlineSettledRef.current = false;
     setOnlineMatch({
       mode,
       stake: val,
       players,
       turnIdx: 0,
+      turnSeq: 1,
       diceValue: null,
       rolling: false,
       awaitingMove: false,
@@ -718,243 +801,298 @@ export const LudoGame: React.FC = () => {
   };
 
   const executeOnlineMove = (tokenIdx: number) => {
-    setOnlineMatch((prev) => {
-      if (!prev || prev.finished || !prev.awaitingMove || prev.diceValue === null) return prev;
-      const mover = prev.players[prev.turnIdx];
-      if (!canMoveToken(mover.tokens[tokenIdx], prev.diceValue)) return prev;
+    const cur = onlineMatchRef.current;
+    if (!cur || cur.finished || !cur.awaitingMove || cur.diceValue === null) return;
+    const mover = cur.players[cur.turnIdx];
+    if (!canMoveToken(mover.tokens[tokenIdx], cur.diceValue)) return;
 
-      const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
-        prev.players,
-        prev.turnIdx,
-        tokenIdx,
-        prev.diceValue
-      );
+    const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
+      cur.players,
+      cur.turnIdx,
+      tokenIdx,
+      cur.diceValue
+    );
 
-      if (wonGame) {
-        playLudoSound('win', soundEnabled);
-        const prize =
-          prev.mode === 'online_2p'
-            ? +(prev.stake * 1.9).toFixed(2)
-            : +(prev.stake * 4 * 0.9).toFixed(2);
-        const humanWon = prev.turnIdx === 0;
-        settleLudoMatch(
-          humanWon ? prize : 0,
-          prev.mode,
-          humanWon
-            ? `${mover.name} won EWI Ludo!`
-            : `${mover.name} finished first`,
-          prev.stake
-        );
-        return {
-          ...prev,
-          players: nextPlayers,
-          awaitingMove: false,
-          finished: true,
-          winnerIdx: prev.turnIdx,
-          statusText: humanWon
-            ? `Congratulations! You won ৳${prize.toFixed(2)}!`
-            : `${mover.name} won the match!`
-        };
-      }
-
-      if (captured) playLudoSound('capture', soundEnabled);
-      else if (reachedHome) playLudoSound('home', soundEnabled);
-      else playLudoSound('move', soundEnabled);
-
-      const bonusTurn = prev.diceValue === 6 || captured || reachedHome;
-      const nextTurnIdx = bonusTurn ? prev.turnIdx : (prev.turnIdx + 1) % nextPlayers.length;
-      const nextMover = nextPlayers[nextTurnIdx];
-
-      return {
-        ...prev,
-        players: nextPlayers,
-        turnIdx: nextTurnIdx,
-        awaitingMove: false,
-        consecutiveSixes: bonusTurn && prev.diceValue === 6 ? prev.consecutiveSixes : 0,
-        statusText: bonusTurn
-          ? `${mover.name} got a bonus roll${captured ? ' (Capture!)' : reachedHome ? ' (Home!)' : ''}!`
-          : `${nextMover.name}'s turn...`
-      };
-    });
-  };
-
-  // Auto-drive online opponents' turns cleanly
-  useEffect(() => {
-    if (!onlineMatch || onlineMatch.finished) return;
-    const activePlayer = onlineMatch.players[onlineMatch.turnIdx];
-    if (!activePlayer?.isBot || onlineMatch.rolling || onlineMatch.awaitingMove) return;
-
-    onlineTimerRef.current = window.setTimeout(() => {
-      setOnlineMatch((prev) => (prev ? { ...prev, rolling: true } : prev));
-      onlineTimerRef.current = window.setTimeout(() => {
-        setOnlineMatch((prev) => {
-          if (!prev || prev.finished) return prev;
-          const mover = prev.players[prev.turnIdx];
-          if (!mover?.isBot) return prev;
-
-          const roll = rollStrategicOpponentDice(prev.players, prev.turnIdx);
-          const nextSixes = roll === 6 ? prev.consecutiveSixes + 1 : 0;
-          if (nextSixes >= 3) {
-            const nxtIdx = (prev.turnIdx + 1) % prev.players.length;
-            return {
-              ...prev,
-              rolling: false,
-              diceValue: roll,
-              consecutiveSixes: 0,
-              turnIdx: nxtIdx,
-              statusText: `${mover.name} rolled three 6s — turn passed!`
-            };
-          }
-
-          const valid = getValidTokenIndices(mover, roll);
-          if (valid.length === 0) {
-            const nxtIdx = (prev.turnIdx + 1) % prev.players.length;
-            return {
-              ...prev,
-              rolling: false,
-              diceValue: roll,
-              consecutiveSixes: 0,
-              turnIdx: nxtIdx,
-              statusText: `${mover.name} rolled ${roll} (No move)`
-            };
-          }
-
-          const chosenToken = pickBestOnlineOpponentMove(prev.players, prev.turnIdx, roll);
-          const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
-            prev.players,
-            prev.turnIdx,
-            chosenToken,
-            roll
-          );
-
-          if (wonGame) {
-            playLudoSound('win', soundEnabled);
-            settleLudoMatch(0, prev.mode, `${mover.name} finished first`, prev.stake);
-            return {
+    if (wonGame) {
+      const prize =
+        cur.mode === 'online_2p'
+          ? +(cur.stake * 1.9).toFixed(2)
+          : +(cur.stake * 4 * 0.9).toFixed(2);
+      const humanWon = cur.turnIdx === 0;
+      setOnlineMatch((prev) =>
+        prev
+          ? {
               ...prev,
               players: nextPlayers,
-              rolling: false,
-              diceValue: roll,
+              awaitingMove: false,
               finished: true,
               winnerIdx: prev.turnIdx,
-              statusText: `${mover.name} won the match!`
-            };
-          }
+              turnSeq: prev.turnSeq + 1,
+              statusText: humanWon
+                ? `Congratulations! You won ৳${prize.toFixed(2)}!`
+                : `${mover.name} won the match!`
+            }
+          : prev
+      );
+      return;
+    }
 
-          if (captured) playLudoSound('capture', soundEnabled);
-          else if (reachedHome) playLudoSound('home', soundEnabled);
-          else playLudoSound('move', soundEnabled);
+    if (captured) playLudoSound('capture', soundEnabled);
+    else if (reachedHome) playLudoSound('home', soundEnabled);
+    else playLudoSound('move', soundEnabled);
 
-          const bonusTurn = roll === 6 || captured || reachedHome;
-          const nextTurnIdx = bonusTurn ? prev.turnIdx : (prev.turnIdx + 1) % nextPlayers.length;
-          return {
+    const bonusTurn = cur.diceValue === 6 || captured || reachedHome;
+    const nextTurnIdx = bonusTurn ? cur.turnIdx : (cur.turnIdx + 1) % nextPlayers.length;
+    const nextMover = nextPlayers[nextTurnIdx];
+
+    setOnlineMatch((prev) =>
+      prev
+        ? {
             ...prev,
             players: nextPlayers,
-            rolling: false,
-            diceValue: roll,
-            consecutiveSixes: bonusTurn && roll === 6 ? nextSixes : 0,
             turnIdx: nextTurnIdx,
+            turnSeq: prev.turnSeq + 1,
+            awaitingMove: false,
+            consecutiveSixes: bonusTurn && prev.diceValue === 6 ? prev.consecutiveSixes : 0,
             statusText: bonusTurn
-              ? `${mover.name} rolled ${roll} — Bonus turn!`
-              : `${mover.name} rolled ${roll}. ${nextPlayers[nextTurnIdx].name}'s turn`
-          };
-        });
-      }, 650);
-    }, 650);
+              ? `${mover.name} got a bonus roll${captured ? ' (Capture!)' : reachedHome ? ' (Home!)' : ''}!`
+              : `${nextMover.name}'s turn...`
+          }
+        : prev
+    );
+  };
+
+  // Auto-drive online opponents' turns cleanly (driven strictly by turnSeq so setting rolling:true NEVER cancels timer)
+  useEffect(() => {
+    const cur = onlineMatchRef.current;
+    if (!cur || cur.finished) return;
+    const activePlayer = cur.players[cur.turnIdx];
+    if (!activePlayer?.isBot || cur.awaitingMove) return;
+
+    if (onlineTimerRef.current) window.clearTimeout(onlineTimerRef.current);
+    if (onlineTimer2Ref.current) window.clearTimeout(onlineTimer2Ref.current);
+
+    onlineTimerRef.current = window.setTimeout(() => {
+      const stillCur = onlineMatchRef.current;
+      if (!stillCur || stillCur.finished || !stillCur.players[stillCur.turnIdx]?.isBot) return;
+      playLudoSound('roll', soundEnabledRef.current);
+      setOnlineMatch((prev) =>
+        prev ? { ...prev, rolling: true, statusText: `${activePlayer.name} rolling dice...` } : prev
+      );
+
+      onlineTimer2Ref.current = window.setTimeout(() => {
+        const snap = onlineMatchRef.current;
+        if (!snap || snap.finished) return;
+        const mover = snap.players[snap.turnIdx];
+        if (!mover?.isBot) return;
+
+        const roll = rollStrategicOpponentDice(snap.players, snap.turnIdx);
+        const nextSixes = roll === 6 ? snap.consecutiveSixes + 1 : 0;
+        if (nextSixes >= 3) {
+          const nxtIdx = (snap.turnIdx + 1) % snap.players.length;
+          setOnlineMatch((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  rolling: false,
+                  diceValue: roll,
+                  consecutiveSixes: 0,
+                  turnIdx: nxtIdx,
+                  turnSeq: prev.turnSeq + 1,
+                  statusText: `${mover.name} rolled three 6s — turn passed!`
+                }
+              : prev
+          );
+          return;
+        }
+
+        const valid = getValidTokenIndices(mover, roll);
+        if (valid.length === 0) {
+          const nxtIdx = (snap.turnIdx + 1) % snap.players.length;
+          setOnlineMatch((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  rolling: false,
+                  diceValue: roll,
+                  consecutiveSixes: 0,
+                  turnIdx: nxtIdx,
+                  turnSeq: prev.turnSeq + 1,
+                  statusText: `${mover.name} rolled ${roll} (No move)`
+                }
+              : prev
+          );
+          return;
+        }
+
+        const chosenToken = pickBestOnlineOpponentMove(snap.players, snap.turnIdx, roll);
+        const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
+          snap.players,
+          snap.turnIdx,
+          chosenToken,
+          roll
+        );
+
+        if (wonGame) {
+          setOnlineMatch((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  players: nextPlayers,
+                  rolling: false,
+                  diceValue: roll,
+                  finished: true,
+                  winnerIdx: snap.turnIdx,
+                  turnSeq: prev.turnSeq + 1,
+                  statusText: `${mover.name} won the match!`
+                }
+              : prev
+          );
+          return;
+        }
+
+        if (captured) playLudoSound('capture', soundEnabledRef.current);
+        else if (reachedHome) playLudoSound('home', soundEnabledRef.current);
+        else playLudoSound('move', soundEnabledRef.current);
+
+        const bonusTurn = roll === 6 || captured || reachedHome;
+        const nextTurnIdx = bonusTurn ? snap.turnIdx : (snap.turnIdx + 1) % nextPlayers.length;
+        setOnlineMatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                players: nextPlayers,
+                rolling: false,
+                diceValue: roll,
+                consecutiveSixes: bonusTurn && roll === 6 ? nextSixes : 0,
+                turnIdx: nextTurnIdx,
+                turnSeq: prev.turnSeq + 1,
+                statusText: bonusTurn
+                  ? `${mover.name} rolled ${roll} — Bonus turn!`
+                  : `${mover.name} rolled ${roll}. ${nextPlayers[nextTurnIdx].name}'s turn`
+              }
+            : prev
+        );
+      }, 600);
+    }, 550);
 
     return () => {
       if (onlineTimerRef.current) window.clearTimeout(onlineTimerRef.current);
+      if (onlineTimer2Ref.current) window.clearTimeout(onlineTimer2Ref.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    onlineMatch?.turnIdx,
-    onlineMatch?.rolling,
-    onlineMatch?.awaitingMove,
-    onlineMatch?.finished,
-    onlineMatch?.players
-  ]);
+  }, [onlineMatch?.turnSeq, onlineMatch?.finished]);
 
   const handleOnlineHumanRoll = () => {
-    if (!onlineMatch || onlineMatch.finished || onlineMatch.rolling || onlineMatch.awaitingMove) return;
-    if (onlineMatch.turnIdx !== 0) return;
+    const cur = onlineMatchRef.current;
+    if (!cur || cur.finished || cur.rolling || cur.awaitingMove) return;
+    if (cur.turnIdx !== 0) return;
 
     playLudoSound('roll', soundEnabled);
     setOnlineMatch((prev) => (prev ? { ...prev, rolling: true, statusText: 'Rolling dice...' } : prev));
     window.setTimeout(() => {
-      setOnlineMatch((prev) => {
-        if (!prev || prev.finished || prev.turnIdx !== 0) return prev;
-        const roll = rollOnlineHumanDice(prev.players);
-        const nextSixes = roll === 6 ? prev.consecutiveSixes + 1 : 0;
-        if (nextSixes >= 3) {
-          const nxt = 1 % prev.players.length;
-          return {
-            ...prev,
-            rolling: false,
-            diceValue: roll,
-            consecutiveSixes: 0,
-            turnIdx: nxt,
-            statusText: `Rolled three 6s! Turn passed to ${prev.players[nxt].name}`
-          };
-        }
-        const valid = getValidTokenIndices(prev.players[0], roll);
-        if (valid.length === 0) {
-          const nxt = 1 % prev.players.length;
-          return {
-            ...prev,
-            rolling: false,
-            diceValue: roll,
-            consecutiveSixes: 0,
-            turnIdx: nxt,
-            statusText: `Rolled ${roll} — No valid move. ${prev.players[nxt].name}'s turn`
-          };
-        }
-        // If only 1 possible token outcome, auto-select smoothly or let user tap
-        if (valid.length === 1) {
-          const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
-            prev.players,
-            0,
-            valid[0],
-            roll
+      const snap = onlineMatchRef.current;
+      if (!snap || snap.finished || snap.turnIdx !== 0) return;
+      const roll = rollOnlineHumanDice(snap.players);
+      const nextSixes = roll === 6 ? snap.consecutiveSixes + 1 : 0;
+      if (nextSixes >= 3) {
+        const nxt = 1 % snap.players.length;
+        setOnlineMatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                rolling: false,
+                diceValue: roll,
+                consecutiveSixes: 0,
+                turnIdx: nxt,
+                turnSeq: prev.turnSeq + 1,
+                statusText: `Rolled three 6s! Turn passed to ${prev.players[nxt].name}`
+              }
+            : prev
+        );
+        return;
+      }
+      const valid = getValidTokenIndices(snap.players[0], roll);
+      if (valid.length === 0) {
+        const nxt = 1 % snap.players.length;
+        setOnlineMatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                rolling: false,
+                diceValue: roll,
+                consecutiveSixes: 0,
+                turnIdx: nxt,
+                turnSeq: prev.turnSeq + 1,
+                statusText: `Rolled ${roll} — No valid move. ${prev.players[nxt].name}'s turn`
+              }
+            : prev
+        );
+        return;
+      }
+      if (valid.length === 1) {
+        const { nextPlayers, captured, reachedHome, wonGame } = applyTokenMoveOnBoard(
+          snap.players,
+          0,
+          valid[0],
+          roll
+        );
+        if (wonGame) {
+          const prize =
+            snap.mode === 'online_2p'
+              ? +(snap.stake * 1.9).toFixed(2)
+              : +(snap.stake * 4 * 0.9).toFixed(2);
+          setOnlineMatch((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  players: nextPlayers,
+                  rolling: false,
+                  diceValue: roll,
+                  finished: true,
+                  winnerIdx: 0,
+                  turnSeq: prev.turnSeq + 1,
+                  statusText: `You won ৳${prize.toFixed(2)}!`
+                }
+              : prev
           );
-          if (wonGame) {
-            const prize =
-              prev.mode === 'online_2p'
-                ? +(prev.stake * 1.9).toFixed(2)
-                : +(prev.stake * 4 * 0.9).toFixed(2);
-            settleLudoMatch(prize, prev.mode, `${prev.players[0].name} won EWI Ludo!`, prev.stake);
-            return {
+          return;
+        }
+        if (captured) playLudoSound('capture', soundEnabled);
+        else if (reachedHome) playLudoSound('home', soundEnabled);
+        else playLudoSound('move', soundEnabled);
+
+        const bonus = roll === 6 || captured || reachedHome;
+        const nextTurn = bonus ? 0 : 1 % nextPlayers.length;
+        setOnlineMatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                players: nextPlayers,
+                rolling: false,
+                diceValue: roll,
+                consecutiveSixes: bonus && roll === 6 ? nextSixes : 0,
+                turnIdx: nextTurn,
+                turnSeq: prev.turnSeq + 1,
+                statusText: bonus
+                  ? `Rolled ${roll}! Bonus roll yours!`
+                  : `Moved token. ${nextPlayers[nextTurn].name}'s turn`
+              }
+            : prev
+        );
+        return;
+      }
+      setOnlineMatch((prev) =>
+        prev
+          ? {
               ...prev,
-              players: nextPlayers,
               rolling: false,
               diceValue: roll,
-              finished: true,
-              winnerIdx: 0,
-              statusText: `You won ৳${prize.toFixed(2)}!`
-            };
-          }
-          const bonus = roll === 6 || captured || reachedHome;
-          const nextTurn = bonus ? 0 : 1 % nextPlayers.length;
-          return {
-            ...prev,
-            players: nextPlayers,
-            rolling: false,
-            diceValue: roll,
-            consecutiveSixes: bonus && roll === 6 ? nextSixes : 0,
-            turnIdx: nextTurn,
-            statusText: bonus
-              ? `Rolled ${roll}! Bonus roll yours!`
-              : `Moved token. ${nextPlayers[nextTurn].name}'s turn`
-          };
-        }
-        return {
-          ...prev,
-          rolling: false,
-          diceValue: roll,
-          consecutiveSixes: nextSixes,
-          awaitingMove: true,
-          statusText: `You rolled ${roll}! Tap a glowing token to move`
-        };
-      });
+              consecutiveSixes: nextSixes,
+              awaitingMove: true,
+              statusText: `You rolled ${roll}! Tap a glowing token to move`
+            }
+          : prev
+      );
     }, 520);
   };
 
@@ -974,36 +1112,99 @@ export const LudoGame: React.FC = () => {
       showToast('Set a room password (min 3 characters)');
       return;
     }
-    const betRes = placeLudoBet(stake, roomModeDraft);
-    if (!betRes.success) return;
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+    if (playableBal < stake) {
+      showToast('Insufficient wallet balance to create this room!');
+      return;
+    }
 
     setIsCreatingRoom(true);
     try {
-      const res = await fetch(apiUrl('/api/ludo/create'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          uid: user.uid,
-          name: user.nickname || 'Host',
+      let createdRoom: LudoRoom | null = null;
+      try {
+        const res = await fetch(apiUrl('/api/ludo/create'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            uid: user.uid,
+            name: user.nickname || 'Host',
+            mode: roomModeDraft,
+            stake,
+            password: roomPassDraft.trim()
+          })
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data.room) {
+          createdRoom = data.room;
+        }
+      } catch {}
+
+      // Direct Firestore fallback if API endpoint unavailable
+      if (!createdRoom) {
+        const nowMs = Date.now();
+        const code = `LUDO${Math.floor(100000 + Math.random() * 900000)}`;
+        const roomId = `ludo_${code}_${nowMs}`;
+        createdRoom = {
+          id: roomId,
+          code,
+          password: roomPassDraft.trim(),
+          hostUserId: String(user.id),
+          hostName: String(user.nickname || 'Host'),
           mode: roomModeDraft,
+          maxPlayers: roomModeDraft === '2p_winner' ? 2 : 4,
           stake,
-          password: roomPassDraft.trim()
-        })
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.success || !data.room) {
-        showToast(data?.message || 'Unable to create room');
-        return;
+          status: 'waiting',
+          players: [
+            {
+              slotIndex: 0,
+              color: 'red',
+              userId: String(user.id),
+              uid: String(user.uid || ''),
+              name: String(user.nickname || 'Host'),
+              isBot: false,
+              tokens: [-1, -1, -1, -1]
+            }
+          ],
+          currentTurnIdx: 0,
+          createdAt: new Date(nowMs).toLocaleString('en-GB'),
+          createdAtMs: nowMs,
+          updatedAt: nowMs
+        };
       }
-      setActiveRoom(data.room);
-      setRoomStatusText(`Room ${data.room.code} ready! Share invite link with friends.`);
+
+      const betRes = placeLudoBet(stake, roomModeDraft);
+      if (!betRes.success) return;
+
+      await saveLudoRoomToFirebase(createdRoom).catch(() => {});
+      setActiveRoom(createdRoom);
+      setRoomStatusText(`Room ${createdRoom.code} ready! Share invite link with friends.`);
       fetchRoomsList();
-      showToast(`Room ${data.room.code} created!`);
+      showToast(`Room ${createdRoom.code} created!`);
     } catch {
       showToast('Connection error creating room');
     } finally {
       setIsCreatingRoom(false);
+    }
+  };
+
+  const handleCancelWaitingRoom = async () => {
+    if (!activeRoom || activeRoom.status !== 'waiting' || activeRoom.hostUserId !== user.id) return;
+    try {
+      const res = await fetch(apiUrl('/api/ludo/cancel'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: activeRoom.id, userId: user.id })
+      });
+      const data = await res.json().catch(() => null);
+      const cancelledRoom: LudoRoom = data?.room || { ...activeRoom, status: 'cancelled', updatedAt: Date.now() };
+      await saveLudoRoomToFirebase(cancelledRoom).catch(() => {});
+      setActiveRoom(cancelledRoom);
+      fetchRoomsList();
+    } catch {
+      const cancelledRoom: LudoRoom = { ...activeRoom, status: 'cancelled', updatedAt: Date.now() };
+      await saveLudoRoomToFirebase(cancelledRoom).catch(() => {});
+      setActiveRoom(cancelledRoom);
     }
   };
 
@@ -1021,8 +1222,23 @@ export const LudoGame: React.FC = () => {
     }
     setIsJoiningRoom(true);
     try {
-      // Find room stake first if available in list so stake deducts cleanly
-      const preKnown = roomsList.find((r) => String(r.code || '').toUpperCase() === cleanCode);
+      let preKnown = roomsList.find((r) => String(r.code || '').toUpperCase() === cleanCode);
+      if (!preKnown) {
+        try {
+          const listRes = await fetch(apiUrl('/api/ludo/rooms'), { cache: 'no-store' });
+          const listData = await listRes.json().catch(() => null);
+          if (listRes.ok && Array.isArray(listData?.rooms)) {
+            preKnown = listData.rooms.find((r: LudoRoom) => String(r.code || '').toUpperCase() === cleanCode);
+          }
+        } catch {}
+      }
+      const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+      const alreadySeatedPre = Boolean(preKnown?.players?.some((p) => p.userId === user.id));
+      if (preKnown && !alreadySeatedPre && playableBal < Number(preKnown.stake || 0)) {
+        showToast(`Need ৳${preKnown.stake} balance to join Room ${preKnown.code}!`);
+        return;
+      }
+
       const res = await fetch(apiUrl('/api/ludo/join'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1040,12 +1256,12 @@ export const LudoGame: React.FC = () => {
         return;
       }
       const joinedRoom: LudoRoom = data.room;
-      // Deduct stake once when newly joining (skip if host or already in room)
       const isHost = joinedRoom.hostUserId === user.id;
-      if (!isHost && (!preKnown || !preKnown.players?.some((p) => p.userId === user.id))) {
+      if (!isHost && !alreadySeatedPre) {
         const betRes = placeLudoBet(joinedRoom.stake, joinedRoom.mode);
         if (!betRes.success) return;
       }
+      await saveLudoRoomToFirebase(joinedRoom).catch(() => {});
       setActiveRoom(joinedRoom);
       setJoinModalOpen(false);
       setRoomStatusText(
@@ -1068,6 +1284,16 @@ export const LudoGame: React.FC = () => {
     roll: number,
     nextStatus?: LudoRoom['status']
   ) => {
+    const optimisticRoom: LudoRoom = {
+      ...room,
+      players: nextPlayers,
+      currentTurnIdx: nextTurnIdx,
+      lastRoll: roll,
+      status: nextStatus || room.status,
+      updatedAt: Date.now()
+    };
+    setActiveRoom(optimisticRoom);
+    saveLudoRoomToFirebase(optimisticRoom).catch(() => {});
     try {
       const res = await fetch(apiUrl('/api/ludo/move'), {
         method: 'POST',
@@ -1890,14 +2116,26 @@ export const LudoGame: React.FC = () => {
                         link. Match starts automatically once all {activeRoom.maxPlayers} friends join!
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => copyInviteLink(activeRoom.code, activeRoom.password)}
-                      className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white text-xs font-black inline-flex items-center gap-1.5"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Invite Link &amp; Password</span>
-                    </button>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => copyInviteLink(activeRoom.code, activeRoom.password)}
+                        className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white text-xs font-black inline-flex items-center gap-1.5"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Invite Link &amp; Password</span>
+                      </button>
+                      {activeRoom.hostUserId === user.id && (
+                        <button
+                          type="button"
+                          onClick={handleCancelWaitingRoom}
+                          className="px-4 py-2.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black inline-flex items-center gap-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Cancel &amp; Refund</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <>
