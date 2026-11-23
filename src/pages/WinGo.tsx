@@ -13,6 +13,7 @@ import {
 import { getTranslation } from '../utils/i18n';
 import { WinGoMode } from '../types';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
+import { AnimatedHoneyBee, HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 import {
   WinGoBall,
   WinGoCountdownOverlay
@@ -209,20 +210,40 @@ export const WinGo: React.FC = () => {
         </div>
 
         <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
-          <div className="flex items-center justify-between pb-3 border-b border-white/20">
+          {/* Decorative Honeycomb Watermark */}
+          <svg
+            className="pointer-events-none absolute -right-4 -bottom-4 opacity-15"
+            width="120"
+            height="90"
+            viewBox="0 0 120 90"
+            fill="none"
+          >
+            <polygon points="20,12 34,4 48,12 48,28 34,36 20,28" stroke="#FDE047" strokeWidth="2" fill="#F59E0B" fillOpacity="0.3" />
+            <polygon points="52,12 66,4 80,12 80,28 66,36 52,28" stroke="#FDE047" strokeWidth="2" />
+            <polygon points="36,38 50,30 64,38 64,54 50,62 36,54" stroke="#FDE047" strokeWidth="2" fill="#F59E0B" fillOpacity="0.25" />
+            <polygon points="68,38 82,30 96,38 96,54 82,62 68,54" stroke="#FDE047" strokeWidth="2" />
+          </svg>
+
+          <div className="relative z-10 flex items-center justify-between pb-3 border-b border-white/20">
             <div>
-              <button
-                onClick={() => setShowRulesModal(true)}
-                className="px-3 py-1 rounded-full border border-white/40 text-[11px] font-bold flex items-center gap-1 active:scale-95"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-                <span>How to play</span>
-              </button>
-              <div className="text-xs font-black text-white/95 mt-2 flex items-center gap-1.5">
-                <span>WinGo {activeWingoMode}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20">
-                  {activeWingoMode === '30s' ? 'Resolves every 30 sec' : activeWingoMode === '1m' ? 'Resolves every 1 min' : activeWingoMode === '3m' ? 'Resolves every 3 min' : 'Resolves every 5 min'}
-                </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowRulesModal(true)}
+                  className="px-3 py-1 rounded-full border border-white/40 text-[11px] font-bold flex items-center gap-1 active:scale-95"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span>How to play</span>
+                </button>
+                <AnimatedHoneyBee size={20} flight="hover" delayMs={200} />
+              </div>
+              <div className="text-xs font-black text-white/95 mt-2 flex items-center gap-2">
+                <HoneycombHiveHome variant="mini" />
+                <div className="flex flex-col">
+                  <span>WinGo {activeWingoMode}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 w-fit mt-0.5">
+                    {activeWingoMode === '30s' ? 'Resolves every 30 sec' : activeWingoMode === '1m' ? 'Resolves every 1 min' : activeWingoMode === '3m' ? 'Resolves every 3 min' : 'Resolves every 5 min'}
+                  </span>
+                </div>
               </div>
             </div>
 

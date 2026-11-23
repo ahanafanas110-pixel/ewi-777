@@ -9,6 +9,7 @@ import {
   Headphones
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
+import { HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 import {
   TileWingoIcon,
   TileEwiWingoIcon,
@@ -358,6 +359,13 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             Detail
           </button>
         </div>
+
+        {/* Hney Win Beehive Sanctuary Strip */}
+        <HoneycombHiveHome
+          variant="pill"
+          title="Hney Win • Golden Honey Hive"
+          subtitle="WinGo • Hney WinGo • Hney K3 • Hney 5D"
+        />
 
         {/* 4×2 Locked Square Tile Grid with Water-Drop Gloss */}
         <div className="grid grid-cols-4 gap-2.5">

@@ -31,6 +31,7 @@ import {
   DepositHistoryGridIcon,
   WithdrawHistoryGridIcon
 } from '../components/AccountIcons';
+import { AnimatedHoneyBee, HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 
 interface AccountProps {
   onOpenLanguage?: () => void;
@@ -265,8 +266,16 @@ export const Account: React.FC<AccountProps> = () => {
           </div>
         </div>
 
+        {/* Honey Hive Home Showcase ("Bee er Home") */}
+        <HoneycombHiveHome
+          variant="banner"
+          title={`Welcome to the Hive, ${(user.nickname || user.phone || 'Member').toUpperCase()}`}
+          subtitle={`VIP${user.vipLevel} Honey Guardian • Sweet Golden Rewards`}
+        />
+
         {/* Holding Assets Card (No Profit & Loss Displayed) */}
-        <div className="bg-white rounded-3xl p-4 border border-cyan-100 shadow-sm space-y-4">
+        <div className="bg-white rounded-3xl p-4 border border-cyan-100 shadow-sm space-y-4 relative overflow-hidden">
+          <AnimatedHoneyBee size={22} flight="hover" delayMs={300} className="absolute top-3 right-3 opacity-90" />
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">

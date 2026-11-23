@@ -14,6 +14,7 @@ import {
   Lock
 } from 'lucide-react';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
+import { AnimatedHoneyBee, HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 import { computeDailyIssueInfo, nextIssueFromLatest } from '../utils/lotteryApi';
 import {
   formatTimeWithOffset,
@@ -519,7 +520,13 @@ export const K3Game: React.FC = () => {
           ))}
         </div>
 
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200 space-y-3.5">
+        <HoneycombHiveHome
+          variant="pill"
+          title={`Hney K3 Hive • ${mode.toUpperCase()} Arena`}
+          subtitle="Golden Dice Honey Pot • Instant Auto Payout"
+        />
+
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200 space-y-3.5 relative overflow-hidden">
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
@@ -531,6 +538,7 @@ export const K3Game: React.FC = () => {
                   <HelpCircle className="w-3 h-3" />
                   <span>How to play</span>
                 </button>
+                <AnimatedHoneyBee size={18} flight="hover" delayMs={250} />
               </div>
               <div className="text-lg font-black text-slate-900 tabular-nums tracking-tight mt-1">
                 {currentDisplayPeriod}

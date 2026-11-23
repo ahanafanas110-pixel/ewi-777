@@ -198,7 +198,7 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
 };
 
 /**
- * Full Hney Win Branded Crown Logo (exports kept as Ewi777Logo for compatibility)
+ * Full Hney Win Branded Honey Bee Emblem + Animated Wordmark (exports kept as Ewi777Logo for compatibility)
  */
 export const Ewi777Logo: React.FC<{
   showText?: boolean;
@@ -208,6 +208,7 @@ export const Ewi777Logo: React.FC<{
   height?: number;
   logoUrl?: string;
 }> = ({
+  showText = true,
   className = '',
   height = 44,
   logoUrl
@@ -216,6 +217,7 @@ export const Ewi777Logo: React.FC<{
   const hasCustomOverride =
     Boolean(trimmed) &&
     !trimmed.includes('ewi777-logo-transparent') &&
+    !trimmed.includes('hney-win-logo') &&
     !trimmed.toLowerCase().includes('ewi777');
 
   if (hasCustomOverride) {
@@ -232,189 +234,214 @@ export const Ewi777Logo: React.FC<{
     );
   }
 
+  const badgeSize = Math.max(30, Math.round(height * 0.96));
+  const wordHeight = Math.max(24, Math.round(height * 0.72));
+  const miniBeeSize = Math.max(15, Math.round(height * 0.42));
+
   return (
-    <div className={`inline-flex items-center justify-center flex-shrink-0 select-none ${className}`}>
-      <svg
-        height={height}
-        viewBox="0 0 228 56"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-auto max-w-full drop-shadow-[0_3px_8px_rgba(14,116,144,0.28)]"
-        role="img"
-        aria-label="Hney Win"
+    <div
+      className={`relative inline-flex items-center gap-1.5 flex-shrink-0 select-none ${className}`}
+      role="img"
+      aria-label="Hney Win"
+    >
+      {/* Official Transparent Honey Bee Circular Emblem */}
+      <div
+        className="relative flex-shrink-0 honey-crest-float"
+        style={{ width: badgeSize, height: badgeSize }}
       >
-        <defs>
-          <linearGradient id="hwBadgeBg" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#0E7490" />
-            <stop offset="55%" stopColor="#0891B2" />
-            <stop offset="100%" stopColor="#0F172A" />
-          </linearGradient>
-          <linearGradient id="hwCrownGold" x1="15%" y1="0%" x2="85%" y2="100%">
-            <stop offset="0%" stopColor="#FEF9C3" />
-            <stop offset="45%" stopColor="#FACC15" />
-            <stop offset="100%" stopColor="#D97706" />
-          </linearGradient>
-          <linearGradient id="hwHneyText" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FFFFFF" />
-            <stop offset="55%" stopColor="#CFFAFE" />
-            <stop offset="100%" stopColor="#22D3EE" />
-          </linearGradient>
-          <linearGradient id="hwWinText" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FEF9C3" />
-            <stop offset="50%" stopColor="#FDE047" />
-            <stop offset="100%" stopColor="#F59E0B" />
-          </linearGradient>
-        </defs>
+        <img
+          src="/hney-win-logo.png"
+          alt="Hney Win Honey Bee Crest"
+          width={badgeSize}
+          height={badgeSize}
+          className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(245,158,11,0.35)]"
+        />
+      </div>
 
-        {/* Left Royal Shield Emblem */}
-        <rect
-          x="3"
-          y="6"
-          width="44"
-          height="44"
-          rx="13"
-          fill="url(#hwBadgeBg)"
-          stroke="#67E8F9"
-          strokeWidth="2"
-        />
-        <rect
-          x="6.5"
-          y="9.5"
-          width="37"
-          height="37"
-          rx="10"
-          fill="none"
-          stroke="rgba(255,255,255,0.3)"
-          strokeWidth="1"
-        />
-        {/* Crown inside emblem */}
-        <path
-          d="M12 33 L14.5 19 L21.5 25 L25 16.5 L28.5 25 L35.5 19 L38 33 Z"
-          fill="url(#hwCrownGold)"
-          stroke="#78350F"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-        <rect x="12" y="34.5" width="26" height="4.2" rx="2.1" fill="url(#hwCrownGold)" stroke="#78350F" strokeWidth="1" />
-        <circle cx="25" cy="14.5" r="2.2" fill="#FEF08A" />
-        <circle cx="14.2" cy="17.5" r="1.8" fill="#A5F3FC" />
-        <circle cx="35.8" cy="17.5" r="1.8" fill="#A5F3FC" />
+      {/* Contrasting Wordmark + Fluttering Mini Bee */}
+      {showText && (
+        <div className="relative flex items-center flex-shrink-0">
+          <svg
+            height={wordHeight}
+            viewBox="0 0 132 34"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-auto drop-shadow-[0_2px_5px_rgba(11,34,53,0.32)]"
+          >
+            <defs>
+              <linearGradient id="hwBeeHney" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#FFFFFF" />
+                <stop offset="60%" stopColor="#CFFAFE" />
+                <stop offset="100%" stopColor="#22D3EE" />
+              </linearGradient>
+              <linearGradient id="hwBeeWin" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#FEF9C3" />
+                <stop offset="50%" stopColor="#FACC15" />
+                <stop offset="100%" stopColor="#D97706" />
+              </linearGradient>
+            </defs>
+            <text
+              x="2"
+              y="22.5"
+              fill="url(#hwBeeHney)"
+              stroke="#0B2235"
+              strokeWidth="4.2"
+              paintOrder="stroke fill"
+              strokeLinejoin="round"
+              fontSize="21.5"
+              fontWeight="900"
+              fontStyle="italic"
+              fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
+              letterSpacing="-0.5"
+            >
+              Hney
+            </text>
+            <text
+              x="61"
+              y="22.5"
+              fill="url(#hwBeeWin)"
+              stroke="#451A03"
+              strokeWidth="4.2"
+              paintOrder="stroke fill"
+              strokeLinejoin="round"
+              fontSize="21.5"
+              fontWeight="900"
+              fontStyle="italic"
+              fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
+              letterSpacing="-0.5"
+            >
+              Win
+            </text>
+            <text
+              x="3"
+              y="31.5"
+              fill="#FDE047"
+              stroke="#0B2235"
+              strokeWidth="2.4"
+              paintOrder="stroke fill"
+              fontSize="6.8"
+              fontWeight="900"
+              fontFamily="system-ui, sans-serif"
+              letterSpacing="1.8"
+            >
+              HONEY • CLUB
+            </text>
+          </svg>
 
-        {/* Bold Hney Win Wordmark */}
-        <text
-          x="56"
-          y="37"
-          fill="url(#hwHneyText)"
-          stroke="#0B2235"
-          strokeWidth="4.4"
-          paintOrder="stroke fill"
-          strokeLinejoin="round"
-          fontSize="31"
-          fontWeight="900"
-          fontStyle="italic"
-          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-0.8"
-        >
-          Hney
-        </text>
-        <text
-          x="140"
-          y="37"
-          fill="url(#hwWinText)"
-          stroke="#451A03"
-          strokeWidth="4.4"
-          paintOrder="stroke fill"
-          strokeLinejoin="round"
-          fontSize="31"
-          fontWeight="900"
-          fontStyle="italic"
-          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-0.8"
-        >
-          Win
-        </text>
-        <text
-          x="58"
-          y="49"
-          fill="#06B6D4"
-          stroke="#0B2235"
-          strokeWidth="2"
-          paintOrder="stroke fill"
-          fontSize="7.6"
-          fontWeight="900"
-          fontFamily="system-ui, sans-serif"
-          letterSpacing="2.4"
-        >
-          ROYAL CLUB • 777
-        </text>
-      </svg>
+          {/* Animated Fluttering Bee perched beside Win */}
+          <span
+            className="bee-hover-flight pointer-events-none -ml-2 -mt-4 flex-shrink-0"
+            style={{ width: miniBeeSize, height: miniBeeSize }}
+            aria-hidden="true"
+          >
+            <svg width={miniBeeSize} height={miniBeeSize} viewBox="0 0 64 64" fill="none">
+              <g className="bee-wing-l">
+                <ellipse
+                  cx="26"
+                  cy="22"
+                  rx="11"
+                  ry="6.5"
+                  transform="rotate(-30 26 22)"
+                  fill="#FFFFFF"
+                  fillOpacity="0.92"
+                  stroke="#94A3B8"
+                  strokeWidth="1.4"
+                />
+              </g>
+              <g className="bee-wing-r">
+                <ellipse
+                  cx="39"
+                  cy="21"
+                  rx="10"
+                  ry="6"
+                  transform="rotate(24 39 21)"
+                  fill="#E0F2FE"
+                  fillOpacity="0.88"
+                  stroke="#94A3B8"
+                  strokeWidth="1.4"
+                />
+              </g>
+              <ellipse cx="36" cy="36" rx="14" ry="10.5" fill="#FACC15" stroke="#451A03" strokeWidth="2.2" />
+              <path d="M30 27.5 C28.5 32 28.5 40 30 44.5" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" />
+              <path d="M38 26.5 C36.5 31 36.5 41 38 45" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" />
+              <circle cx="20.5" cy="34" r="7.5" fill="#0F172A" />
+              <circle cx="18" cy="32.5" r="2" fill="#FFFFFF" />
+            </svg>
+          </span>
+        </div>
+      )}
     </div>
   );
 };
 
 /**
- * Transparent Cyan Metallic Wordmark for Light/Gradient Headers
+ * Compact Honey Bee Emblem + Wordmark for Light/Gradient Sub-Headers
  */
 export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: string }> = ({
   height = 24,
   className = ''
 }) => {
   return (
-    <svg
-      height={height}
-      viewBox="0 0 185 44"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={`inline-block w-auto select-none ${className}`}
-    >
-      <defs>
-        <linearGradient id="ewiGoldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#ECFEFF" />
-          <stop offset="50%" stopColor="#67E8F9" />
-          <stop offset="100%" stopColor="#06B6D4" />
-        </linearGradient>
-        <linearGradient id="ewiSilverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#FEF9C3" />
-          <stop offset="65%" stopColor="#FACC15" />
-          <stop offset="100%" stopColor="#D97706" />
-        </linearGradient>
-        <filter id="ewiWordShadow" x="-8%" y="-12%" width="116%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#0E7490" floodOpacity="0.4" />
-        </filter>
-      </defs>
-      <g filter="url(#ewiWordShadow)">
+    <span className={`inline-flex items-center gap-1.5 select-none ${className}`}>
+      <img
+        src="/hney-win-logo.png"
+        alt="Hney Win"
+        width={height + 4}
+        height={height + 4}
+        className="object-contain honey-crest-float drop-shadow-xs"
+        style={{ width: height + 4, height: height + 4 }}
+      />
+      <svg
+        height={height}
+        viewBox="0 0 116 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="inline-block w-auto select-none"
+      >
+        <defs>
+          <linearGradient id="ewiGoldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ECFEFF" />
+            <stop offset="50%" stopColor="#67E8F9" />
+            <stop offset="100%" stopColor="#06B6D4" />
+          </linearGradient>
+          <linearGradient id="ewiSilverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FEF9C3" />
+            <stop offset="65%" stopColor="#FACC15" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+        </defs>
         <text
-          x="4"
-          y="33"
+          x="2"
+          y="24"
           fill="url(#ewiGoldGrad)"
           stroke="#0F172A"
-          strokeWidth="3.5"
+          strokeWidth="3.4"
           paintOrder="stroke fill"
-          fontSize="31"
+          fontSize="22"
           fontWeight="900"
           fontStyle="italic"
           fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-1"
+          letterSpacing="-0.6"
         >
           Hney
         </text>
         <text
-          x="90"
-          y="33"
+          x="60"
+          y="24"
           fill="url(#ewiSilverGrad)"
           stroke="#451A03"
-          strokeWidth="3.5"
+          strokeWidth="3.4"
           paintOrder="stroke fill"
-          fontSize="31"
+          fontSize="22"
           fontWeight="900"
           fontStyle="italic"
           fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-1"
+          letterSpacing="-0.6"
         >
           Win
         </text>
-      </g>
-    </svg>
+      </svg>
+    </span>
   );
 };
 

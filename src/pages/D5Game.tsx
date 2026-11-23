@@ -14,6 +14,7 @@ import {
   Lock
 } from 'lucide-react';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
+import { AnimatedHoneyBee, HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 import { computeDailyIssueInfo, nextIssueFromLatest } from '../utils/lotteryApi';
 import {
   formatTimeWithOffset,
@@ -360,9 +361,18 @@ export const D5Game: React.FC = () => {
           ))}
         </div>
 
-        <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200 space-y-3">
+        <HoneycombHiveHome
+          variant="pill"
+          title={`Hney 5D Hive • ${mode.toUpperCase()} Draw`}
+          subtitle="5-Digit Golden Honeycombs • Live Synced Results"
+        />
+
+        <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200 space-y-3 relative overflow-hidden">
           <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
-            <span className="text-[11px] font-bold text-slate-500">Lottery results</span>
+            <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+              <span>Lottery results</span>
+              <AnimatedHoneyBee size={16} flight="hover" delayMs={180} />
+            </span>
             <div className="flex items-center gap-1.5">
               {(['A', 'B', 'C', 'D', 'E'] as const).map((letter, idx) => (
                 <div key={letter} className="flex flex-col items-center">

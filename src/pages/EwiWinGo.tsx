@@ -9,6 +9,7 @@ import {
 } from '../utils/syncedMarkets';
 import { ArrowLeft, RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
+import { AnimatedHoneyBee, HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 
 const MODES: { id: EwiWingoMode; label: string; sec: string }[] = [
   { id: '15s', label: 'Hney 15s', sec: '15s' },
@@ -216,15 +217,21 @@ export const EwiWinGo: React.FC = () => {
           })}
         </div>
 
-        <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-3">
-          <div>
-            <div className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest bg-white/15 px-2.5 py-0.5 rounded-full text-cyan-100">
-              <Clock className="w-3 h-3" />
-              <span>Hney WinGo {mode}</span>
-            </div>
-            <div className="text-[11px] font-semibold text-cyan-100 mt-2">Period Number</div>
-            <div className="text-sm font-mono font-black tracking-wider tabular-nums">
-              {periodInfo.period}
+        <div className="relative overflow-hidden bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <HoneycombHiveHome variant="mini" className="flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest bg-white/15 px-2.5 py-0.5 rounded-full text-amber-200">
+                <Clock className="w-3 h-3" />
+                <span>Hney WinGo {mode}</span>
+              </div>
+              <div className="text-[11px] font-semibold text-cyan-100 mt-1.5 flex items-center gap-1">
+                <span>Period Number</span>
+                <AnimatedHoneyBee size={16} flight="hover" delayMs={150} />
+              </div>
+              <div className="text-sm font-mono font-black tracking-wider tabular-nums">
+                {periodInfo.period}
+              </div>
             </div>
           </div>
 
