@@ -89,7 +89,7 @@ export const Gifts: React.FC = () => {
           <div>
             <h2 className="text-lg font-black tracking-tight">Gift Code Exchange</h2>
             <p className="text-xs text-cyan-100 mt-0.5 leading-relaxed">
-              Redeem official EWI 777 fixed rewards or Deposit Bonus codes (up to 200%+).
+              Redeem official Hney Win fixed rewards or Deposit Bonus codes (up to 200%+).
             </p>
           </div>
         </div>
@@ -144,7 +144,7 @@ export const Gifts: React.FC = () => {
               type="text"
               value={giftInput}
               onChange={(e) => setGiftInput(e.target.value)}
-              placeholder="Enter gift code (e.g. EWI777VIP)"
+              placeholder="Enter gift code (e.g. HNEYWINVIP)"
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm font-extrabold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 uppercase tracking-wider"
             />
             <button

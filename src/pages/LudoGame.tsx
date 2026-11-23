@@ -622,6 +622,10 @@ export const LudoGame: React.FC = () => {
   })());
   const onlineSettledRef = useRef(false);
   const settledRoomIdsRef = useRef<Set<string>>(new Set());
+  const userRef = useRef(user);
+  userRef.current = user;
+  const settleLudoMatchRef = useRef(settleLudoMatch);
+  settleLudoMatchRef.current = settleLudoMatch;
   const [soundEnabled, setSoundEnabled] = useState(true);
   const soundEnabledRef = useRef(soundEnabled);
   soundEnabledRef.current = soundEnabled;
@@ -977,18 +981,164 @@ export const LudoGame: React.FC = () => {
     settleLudoMatch(
       humanWon ? prize : 0,
       onlineMatch.mode,
-      humanWon ? `${winnerName} won EWI Ludo!` : `${winnerName} finished first`,
+      humanWon ? `${winnerName} won Hney Ludo!` : `${winnerName} finished first`,
       onlineMatch.stake
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineMatch?.finished, onlineMatch?.winnerIdx]);
 
-  // Cleanup online timers on unmount
+  // Build forfeit room payload helper (also used on unmount / tab close)
+  const buildForfeitRoomState = (room: LudoRoom, targetUserId: string, leaverName: string): LudoRoom => {
+    const nextPlayers = (room.players || []).map((p) =>
+      p.userId === targetUserId ? { ...p, forfeited: true, finishedRank: 99 } : p
+    );
+    const activePlayers = nextPlayers.filter((p) => !p.forfeited && p.finishedRank !== 99);
+    const nowMs = Date.now();
+    if (activePlayers.length <= 1 || room.mode === '2p_winner') {
+      const ranked = [...nextPlayers].sort((a, b) => {
+        if (Boolean(a.forfeited) !== Boolean(b.forfeited)) return a.forfeited ? 1 : -1;
+        const rA = Number(a.finishedRank || 99);
+        const rB = Number(b.finishedRank || 99);
+        if (rA !== rB) return rA - rB;
+        const doneA = a.tokens.filter((t) => t === FINISHED_STEP).length;
+        const doneB = b.tokens.filter((t) => t === FINISHED_STEP).length;
+        if (doneA !== doneB) return doneB - doneA;
+        const progA = a.tokens.reduce((s, t) => s + Math.max(0, t), 0);
+        const progB = b.tokens.reduce((s, t) => s + Math.max(0, t), 0);
+        return progB - progA;
+      });
+      const totalPool = room.mode === '2p_winner' ? room.stake * 2 : room.stake * 4;
+      const payouts = ranked.map((p, idx) => {
+        if (p.forfeited) return { userId: p.userId, name: p.name, rank: idx + 1, amount: 0 };
+        if (room.mode === '2p_winner') {
+          return { userId: p.userId, name: p.name, rank: idx + 1, amount: idx === 0 ? +(room.stake * 1.9).toFixed(2) : 0 };
+        }
+        if (room.mode === '4p_winner' || activePlayers.length <= 1) {
+          return { userId: p.userId, name: p.name, rank: idx + 1, amount: idx === 0 ? +(totalPool * 0.9).toFixed(2) : 0 };
+        }
+        const shares = [0.5, 0.25, 0.15, 0];
+        return { userId: p.userId, name: p.name, rank: idx + 1, amount: +(totalPool * (shares[idx] || 0)).toFixed(2) };
+      });
+      const first = payouts[0];
+      const summary = `${first?.name || 'Winner'} won ৳${first?.amount || 0} (${leaverName} exited & forfeited)`;
+      return {
+        ...room,
+        players: nextPlayers,
+        status: 'finished',
+        payouts,
+        winnerUserId: first?.userId,
+        winnerSummary: summary,
+        statusText: summary,
+        updatedAt: nowMs
+      };
+    }
+
+    let nextTurn = (room.currentTurnIdx || 0) % nextPlayers.length;
+    let guard = 0;
+    while (
+      (nextPlayers[nextTurn]?.forfeited || nextPlayers[nextTurn]?.tokens.every((t) => t === FINISHED_STEP)) &&
+      guard < nextPlayers.length
+    ) {
+      nextTurn = (nextTurn + 1) % nextPlayers.length;
+      guard++;
+    }
+    return {
+      ...room,
+      players: nextPlayers,
+      currentTurnIdx: nextTurn,
+      statusText: `${leaverName} exited & forfeited! ${nextPlayers[nextTurn]?.name}'s turn`,
+      updatedAt: nowMs
+    };
+  };
+
+  const handleForfeitOnlineMatch = () => {
+    const cur = onlineMatchRef.current;
+    if (!cur || cur.finished) {
+      setOnlineMatch(null);
+      return;
+    }
+    if (onlineTimerRef.current) window.clearTimeout(onlineTimerRef.current);
+    if (onlineTimer2Ref.current) window.clearTimeout(onlineTimer2Ref.current);
+    onlineSettledRef.current = true;
+    settleLudoMatchRef.current(0, cur.mode, 'Exited match (Auto-Forfeit)', cur.stake);
+    setOnlineMatch(null);
+    showToast('Match exited — automatic loss recorded.');
+  };
+
+  const handleForfeitPlayingRoom = async () => {
+    const room = activeRoomRef.current;
+    if (!room) return;
+    if (room.status !== 'playing') {
+      try {
+        sessionStorage.removeItem('ewi777_active_ludo_room_id');
+      } catch {}
+      setActiveRoom(null);
+      return;
+    }
+    const uid = userRef.current.id;
+    const uname = userRef.current.nickname || 'Player';
+    if (!settledRoomIdsRef.current.has(room.id)) {
+      settledRoomIdsRef.current.add(room.id);
+      settleLudoMatchRef.current(0, room.mode, `Exited Room ${room.code} (Auto-Forfeit)`, room.stake);
+    }
+    const forfeitedRoom = buildForfeitRoomState(room, uid, uname);
+    await saveLudoRoomToFirebase(forfeitedRoom).catch(() => {});
+    try {
+      await fetch(apiUrl('/api/ludo/forfeit'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: room.id, userId: uid, name: uname })
+      });
+    } catch {}
+    try {
+      sessionStorage.removeItem('ewi777_active_ludo_room_id');
+    } catch {}
+    setActiveRoom(null);
+    fetchRoomsList();
+    showToast('Exited live match — automatic loss recorded, opponent awarded win.');
+  };
+
+  // Auto-forfeit on page unload / tab switch out of Ludo while a match is running
   useEffect(() => {
+    const triggerUnloadForfeit = () => {
+      const om = onlineMatchRef.current;
+      if (om && !om.finished && !onlineSettledRef.current) {
+        onlineSettledRef.current = true;
+        settleLudoMatchRef.current(0, om.mode, 'Exited match (Auto-Forfeit)', om.stake);
+      }
+      const rm = activeRoomRef.current;
+      const uid = userRef.current?.id;
+      const uname = userRef.current?.nickname || 'Player';
+      if (rm && rm.status === 'playing' && uid && !settledRoomIdsRef.current.has(rm.id)) {
+        settledRoomIdsRef.current.add(rm.id);
+        settleLudoMatchRef.current(0, rm.mode, `Exited Room ${rm.code} (Auto-Forfeit)`, rm.stake);
+        const forfeitedRoom = buildForfeitRoomState(rm, uid, uname);
+        saveLudoRoomToFirebase(forfeitedRoom).catch(() => {});
+        try {
+          sessionStorage.removeItem('ewi777_active_ludo_room_id');
+        } catch {}
+        try {
+          if (navigator.sendBeacon) {
+            const payload = new Blob(
+              [JSON.stringify({ roomId: rm.id, userId: uid, name: uname })],
+              { type: 'application/json' }
+            );
+            navigator.sendBeacon(apiUrl('/api/ludo/forfeit'), payload);
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('pagehide', triggerUnloadForfeit);
+    window.addEventListener('beforeunload', triggerUnloadForfeit);
     return () => {
+      window.removeEventListener('pagehide', triggerUnloadForfeit);
+      window.removeEventListener('beforeunload', triggerUnloadForfeit);
       if (onlineTimerRef.current) window.clearTimeout(onlineTimerRef.current);
       if (onlineTimer2Ref.current) window.clearTimeout(onlineTimer2Ref.current);
+      triggerUnloadForfeit();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // =================== ONLINE MATCH ENGINE ===================
@@ -1823,9 +1973,12 @@ export const LudoGame: React.FC = () => {
     let nextTurn = bonus
       ? curRoom.currentTurnIdx
       : (curRoom.currentTurnIdx + 1) % nextPlayers.length;
-    // Skip players who already finished in 4p_split
+    // Skip players who already finished or forfeited
     let guard = 0;
-    while (nextPlayers[nextTurn]?.tokens.every((t) => t === FINISHED_STEP) && guard < nextPlayers.length) {
+    while (
+      (nextPlayers[nextTurn]?.forfeited || nextPlayers[nextTurn]?.tokens.every((t) => t === FINISHED_STEP)) &&
+      guard < nextPlayers.length
+    ) {
       nextTurn = (nextTurn + 1) % nextPlayers.length;
       guard++;
     }
@@ -1860,10 +2013,23 @@ export const LudoGame: React.FC = () => {
       setRoomDice(roll);
       setRoomDiceRolling(false);
 
+      const nextAdvanceTurn = () => {
+        let nxt = (snapRoom.currentTurnIdx + 1) % snapRoom.players.length;
+        let guard = 0;
+        while (
+          (snapRoom.players[nxt]?.forfeited || snapRoom.players[nxt]?.tokens.every((t) => t === FINISHED_STEP)) &&
+          guard < snapRoom.players.length
+        ) {
+          nxt = (nxt + 1) % snapRoom.players.length;
+          guard++;
+        }
+        return nxt;
+      };
+
       const nextSixes = roll === 6 ? roomSixes + 1 : 0;
       if (nextSixes >= 3) {
         setRoomSixes(0);
-        const nxt = (snapRoom.currentTurnIdx + 1) % snapRoom.players.length;
+        const nxt = nextAdvanceTurn();
         const msg = `${mover.name} rolled three 6s! Turn passed to ${snapRoom.players[nxt]?.name}`;
         setRoomStatusText(msg);
         await syncRoomMoveToServer(snapRoom, snapRoom.players, nxt, roll, 'playing', msg);
@@ -1873,13 +2039,14 @@ export const LudoGame: React.FC = () => {
       const valid = getValidTokenIndices(mover, roll);
       if (valid.length === 0) {
         setRoomSixes(0);
-        const nxt = (snapRoom.currentTurnIdx + 1) % snapRoom.players.length;
+        const nxt = nextAdvanceTurn();
         const msg = `${mover.name} rolled ${roll} (No move). ${snapRoom.players[nxt]?.name}'s turn`;
         setRoomStatusText(msg);
         await syncRoomMoveToServer(snapRoom, snapRoom.players, nxt, roll, 'playing', msg);
         return;
       }
 
+      if (roll === 6) playLudoSound('six', soundEnabled);
       setRoomSixes(nextSixes);
       setRoomAwaitingMove(true);
       setRoomStatusText(`Rolled ${roll}! Tap glowing pawn or quick button to move.`);
@@ -1900,10 +2067,10 @@ export const LudoGame: React.FC = () => {
     const url = buildInviteUrl(room.code);
     const cleanPass =
       room.password && room.password !== '***' ? room.password : hostSecretsRef.current[room.code.toUpperCase()] || '';
-    const text = `Join my EWI Ludo Room #${room.code} (Stake ৳${room.stake})${cleanPass ? ` | Password: ${cleanPass}` : ''}`;
+    const text = `Join my Hney Ludo Room #${room.code} (Stake ৳${room.stake})${cleanPass ? ` | Password: ${cleanPass}` : ''}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `EWI Ludo Room #${room.code}`, text, url });
+        await navigator.share({ title: `Hney Ludo Room #${room.code}`, text, url });
         return;
       } catch {}
     }
@@ -1957,7 +2124,12 @@ export const LudoGame: React.FC = () => {
     });
 
     return (
-      <div className="w-full max-w-[400px] mx-auto p-2.5 sm:p-3 rounded-[28px] bg-gradient-to-br from-[#5C3A21] via-[#7A4B2A] to-[#432714] border border-[#3B210F] shadow-[0_18px_38px_rgba(15,23,42,0.22),inset_0_1px_1px_rgba(255,255,255,0.28)] select-none">
+      <div className="relative w-full max-w-[400px] mx-auto p-2.5 sm:p-3 rounded-[28px] bg-gradient-to-br from-[#5C3A21] via-[#7A4B2A] to-[#432714] border border-[#3B210F] shadow-[0_18px_38px_rgba(15,23,42,0.22),inset_0_1px_1px_rgba(255,255,255,0.28)] select-none">
+        {/* Corner Brass Frame Studs */}
+        <span className="absolute top-2 left-2 w-1.5 h-1.5 rounded-full bg-amber-300/75 shadow-inner pointer-events-none" />
+        <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-amber-300/75 shadow-inner pointer-events-none" />
+        <span className="absolute bottom-2 left-2 w-1.5 h-1.5 rounded-full bg-amber-300/75 shadow-inner pointer-events-none" />
+        <span className="absolute bottom-2 right-2 w-1.5 h-1.5 rounded-full bg-amber-300/75 shadow-inner pointer-events-none" />
         <div className="relative w-full aspect-square bg-[#FAF7F0] rounded-2xl border-2 border-[#C8B8A2] shadow-[inset_0_2px_6px_rgba(15,23,42,0.14)] overflow-hidden">
           {/* 15x15 Grid Backdrop */}
           <div className="grid grid-cols-[repeat(15,minmax(0,1fr))] grid-rows-[repeat(15,minmax(0,1fr))] w-full h-full">
@@ -2114,23 +2286,26 @@ export const LudoGame: React.FC = () => {
             <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-cyan-100" />
           </div>
 
-          {/* Live 3D Sculpted Pawns with Smart Multi-Token Stacking */}
+          {/* Live 3D Sculpted Pawns Strictly Center-Locked Inside Each Socket / Grid Square */}
           {tokenPositions.map(({ p, pIdx, tIdx, step, r, c, key }) => {
             const isValid = pIdx === turnIdx && validTokenIndices.has(tIdx);
             const group = cellGroups.get(key) || [];
             const stackIdx = group.findIndex((g) => g.pIdx === pIdx && g.tIdx === tIdx);
             const stackTotal = group.length;
 
-            let offsetX = 0;
-            let offsetY = 0;
+            let offsetXPct = 0;
+            let offsetYPct = 0;
             let stackScale = 1;
             if (stackTotal > 1 && step >= 0) {
               const angle = (stackIdx / stackTotal) * Math.PI * 2;
-              const radius = stackTotal === 2 ? 4.2 : 5.2;
-              offsetX = Math.cos(angle) * radius;
-              offsetY = Math.sin(angle) * radius;
-              stackScale = stackTotal >= 3 ? 0.76 : 0.85;
+              const radiusPct = stackTotal === 2 ? 1.15 : 1.45;
+              offsetXPct = Math.cos(angle) * radiusPct;
+              offsetYPct = Math.sin(angle) * radiusPct;
+              stackScale = stackTotal >= 3 ? 0.78 : 0.86;
             }
+
+            const topPct = ((r + 0.5) / 15) * 100 + offsetYPct;
+            const leftPct = ((c + 0.5) / 15) * 100 + offsetXPct;
 
             return (
               <button
@@ -2139,23 +2314,58 @@ export const LudoGame: React.FC = () => {
                 disabled={!isValid}
                 onClick={() => onTokenTap(pIdx, tIdx)}
                 style={{
-                  top: `calc(${((r + 0.5) / 15) * 100}% + ${offsetY}px)`,
-                  left: `calc(${((c + 0.5) / 15) * 100}% + ${offsetX}px)`,
-                  transform: `translate(-50%, -56%) scale(${isValid ? 1.24 : stackScale})`
+                  top: `${topPct}%`,
+                  left: `${leftPct}%`,
+                  transform: 'translate(-50%, -50%)'
                 }}
-                className={`absolute w-[6.8%] h-[7.8%] min-w-[26px] min-h-[28px] transition-all duration-200 flex items-center justify-center ${
-                  isValid
-                    ? 'z-40 cursor-pointer drop-shadow-[0_0_10px_rgba(6,182,212,0.95)] animate-bounce'
-                    : 'z-20 cursor-default'
+                className={`absolute w-[6.5%] h-[6.5%] flex items-center justify-center transition-[top,left] duration-200 ease-out focus:outline-none ${
+                  isValid ? 'z-40 cursor-pointer' : 'z-20 cursor-default'
                 }`}
               >
                 {isValid && (
-                  <span className="absolute -bottom-0.5 w-[90%] h-[36%] rounded-full border-2 border-cyan-300 bg-cyan-400/25 animate-ping pointer-events-none" />
+                  <span className="absolute inset-[-18%] rounded-full border-2 border-cyan-400 bg-cyan-400/20 animate-ping pointer-events-none" />
                 )}
-                <LudoPawnSvg color={p.color} isValid={isValid} uid={`${pIdx}_${tIdx}`} />
+                <span
+                  style={{
+                    transform: `scale(${isValid ? 1.18 : stackScale})`
+                  }}
+                  className={`w-full h-full flex items-center justify-center transition-transform duration-150 ${
+                    isValid ? 'drop-shadow-[0_0_8px_rgba(6,182,212,0.95)]' : ''
+                  }`}
+                >
+                  <LudoPawnSvg color={p.color} isValid={isValid} uid={`${pIdx}_${tIdx}`} />
+                </span>
+                {stackTotal > 1 && step >= 0 && stackIdx === 0 && (
+                  <span className="absolute -top-1 -right-1 px-1 min-w-[14px] h-[14px] rounded-full bg-slate-900 text-white text-[8px] font-black flex items-center justify-center border border-white pointer-events-none">
+                    ×{stackTotal}
+                  </span>
+                )}
               </button>
             );
           })}
+
+          {/* Capture & Home Visual Burst Banner */}
+          {boardBurst && (
+            <div
+              key={boardBurst.id}
+              style={{
+                top: `${((boardBurst.r + 0.5) / 15) * 100}%`,
+                left: `${((boardBurst.c + 0.5) / 15) * 100}%`,
+                transform: 'translate(-50%, -50%)'
+              }}
+              className="absolute z-50 pointer-events-none"
+            >
+              <span
+                className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-black shadow-lg border whitespace-nowrap animate-bounce ${
+                  boardBurst.kind === 'capture'
+                    ? 'bg-rose-600 text-white border-rose-200'
+                    : 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white border-cyan-100'
+                }`}
+              >
+                {boardBurst.label}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2167,7 +2377,12 @@ export const LudoGame: React.FC = () => {
       <div className="sticky top-0 z-30 bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white px-4 py-3 flex items-center justify-between shadow-md">
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
+            if (onlineMatch && !onlineMatch.finished) {
+              handleForfeitOnlineMatch();
+            } else if (activeRoom && activeRoom.status === 'playing') {
+              await handleForfeitPlayingRoom();
+            }
             setActiveTab('home');
             window.location.hash = '#/';
           }}
@@ -2180,7 +2395,7 @@ export const LudoGame: React.FC = () => {
         <div className="flex flex-col items-center">
           <Ewi777Logo height={36} logoUrl={adminSettings.appLogoUrl} />
           <div className="text-[10px] font-bold text-cyan-100 mt-0.5">
-            EWI LUDO • ৳20 – ৳50,000
+            Hney Ludo • ৳20 – ৳50,000
           </div>
         </div>
 
@@ -2205,50 +2420,52 @@ export const LudoGame: React.FC = () => {
           <div className="bg-white border border-cyan-100 rounded-3xl p-3.5 shadow-xs flex items-center gap-3.5">
             <img
               src={ludoHeroImg}
-              alt="EWI Ludo Royal Board"
+              alt="Hney Ludo Royal Board"
               className="w-16 h-16 rounded-2xl object-cover border border-cyan-100 shadow-xs flex-shrink-0"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black text-slate-900">EWI Royal Ludo Club</span>
+                <span className="text-sm font-black text-slate-900">Hney Royal Ludo Club</span>
                 <span className="px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-[#0891B2] text-[9px] font-black uppercase">
                   Live Table
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                3D Wooden Board • Play fast online battles or invite friends with a private password room.
+                3D Wooden Board • Live Voice &amp; Chat • Play online or invite friends with a private password room.
               </p>
             </div>
           </div>
         )}
 
-        {/* Mode Switcher: Online Match vs Friends Room */}
-        <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <button
-            type="button"
-            onClick={() => setSection('online')}
-            className={`py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
-              section === 'online'
-                ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <Dices className="w-4 h-4" />
-            <span>Online Match</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setSection('friends')}
-            className={`py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
-              section === 'friends'
-                ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Play With Friends</span>
-          </button>
-        </div>
+        {/* Mode Switcher: Hidden once a match or room starts so gameplay stays distraction-free */}
+        {!onlineMatch && !activeRoom && (
+          <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setSection('online')}
+              className={`py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                section === 'online'
+                  ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Dices className="w-4 h-4" />
+              <span>Online Match</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSection('friends')}
+              className={`py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                section === 'friends'
+                  ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Play With Friends</span>
+            </button>
+          </div>
+        )}
 
         {/* =================== 1. ONLINE MATCH =================== */}
         {section === 'online' && (
@@ -2347,16 +2564,16 @@ export const LudoGame: React.FC = () => {
               <div className="space-y-3">
                 {/* Match Info Banner */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-2 shadow-xs">
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-[10px] font-black text-[#0891B2] uppercase">
                       {onlineMatch.mode === 'online_2p' ? '2P Quick Match' : '4P Classic Match'} • Stake ৳
                       {onlineMatch.stake}
                     </div>
-                    <div className="text-xs font-bold text-slate-800 mt-0.5">
+                    <div className="text-xs font-bold text-slate-800 mt-0.5 truncate">
                       {onlineMatch.statusText}
                     </div>
                   </div>
-                  {onlineMatch.finished && (
+                  {onlineMatch.finished ? (
                     <button
                       type="button"
                       onClick={() => setOnlineMatch(null)}
@@ -2364,10 +2581,18 @@ export const LudoGame: React.FC = () => {
                     >
                       Play Again
                     </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleForfeitOnlineMatch}
+                      className="px-2.5 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-black whitespace-nowrap"
+                    >
+                      Exit (Forfeit)
+                    </button>
                   )}
                 </div>
 
-                {/* Players Bar */}
+                {/* Players Bar with 4-Pip Home Progress & Live Speech Bubbles */}
                 <div
                   className={`grid gap-2 ${
                     onlineMatch.players.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'
@@ -2376,22 +2601,35 @@ export const LudoGame: React.FC = () => {
                   {onlineMatch.players.map((p, idx) => {
                     const isActive = !onlineMatch.finished && onlineMatch.turnIdx === idx;
                     const homeCount = p.tokens.filter((t) => t === FINISHED_STEP).length;
+                    const bubble = liveBubbles[p.userId];
                     return (
                       <div
                         key={p.userId}
-                        className={`p-2 rounded-xl border bg-white flex items-center justify-between gap-1.5 ${
+                        className={`relative p-2 rounded-xl border bg-white flex items-center justify-between gap-1.5 ${
                           isActive ? 'border-[#0891B2] ring-2 ring-cyan-500/20' : 'border-slate-200'
                         }`}
                       >
+                        {bubble && (
+                          <div className="absolute -top-6 left-2 right-2 z-20 px-2 py-0.5 rounded-lg bg-slate-900 text-white text-[10px] font-bold truncate shadow-md">
+                            {bubble}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className={`w-3 h-3 rounded-full flex-shrink-0 ${COLOR_STYLES[p.color].bg}`} />
                           <span className="text-[11px] font-black text-slate-900 truncate">
                             {p.name}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold text-slate-500 flex-shrink-0">
-                          {homeCount}/4
-                        </span>
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                          {[0, 1, 2, 3].map((pip) => (
+                            <span
+                              key={pip}
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                pip < homeCount ? COLOR_STYLES[p.color].bg : 'bg-slate-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
@@ -2497,6 +2735,21 @@ export const LudoGame: React.FC = () => {
                     </button>
                   </div>
                 )}
+
+                {/* Quick Table Messaging during Online Match */}
+                <LudoCommsPanel
+                  mode="online"
+                  userId={user.id || 'you'}
+                  userName={user.nickname || 'You'}
+                  userColor={onlineMatch.players[0]?.color || 'red'}
+                  players={onlineMatch.players}
+                  soundEnabled={soundEnabled}
+                  onlineMessages={onlineMessages}
+                  onSendOnlineMessage={handleSendOnlineMessage}
+                  onIncomingBubble={triggerChatBubble}
+                  onPlayChatPop={() => playLudoSound('chat', soundEnabled)}
+                  onShowToast={showToast}
+                />
               </div>
             )}
           </div>
@@ -2526,18 +2779,44 @@ export const LudoGame: React.FC = () => {
                         <Share2 className="w-3.5 h-3.5" />
                         <span>Invite Link</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                            sessionStorage.removeItem('ewi777_active_ludo_room_id');
-                          } catch {}
-                          setActiveRoom(null);
-                        }}
-                        className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-[11px] font-bold"
-                      >
-                        Leave
-                      </button>
+                      {activeRoom.status === 'playing' ? (
+                        <button
+                          type="button"
+                          onClick={handleForfeitPlayingRoom}
+                          className="px-2.5 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-black"
+                        >
+                          Exit (Forfeit)
+                        </button>
+                      ) : activeRoom.status === 'waiting' && activeRoom.hostUserId === user.id ? (
+                        <button
+                          type="button"
+                          onClick={handleCancelWaitingRoom}
+                          className="px-2.5 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-black"
+                        >
+                          Cancel (৳{(activeRoom.stake * 0.9).toFixed(0)})
+                        </button>
+                      ) : activeRoom.status === 'waiting' ? (
+                        <button
+                          type="button"
+                          onClick={handleLeaveWaitingRoomRefund}
+                          className="px-2.5 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-black"
+                        >
+                          Refund ৳{(activeRoom.stake * 0.9).toFixed(0)}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              sessionStorage.removeItem('ewi777_active_ludo_room_id');
+                            } catch {}
+                            setActiveRoom(null);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-[11px] font-bold"
+                        >
+                          Leave
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -2554,27 +2833,52 @@ export const LudoGame: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Players Slot List */}
+                {/* Players Slot List with 4-Pip Progress, Mic Badge & Speech Bubbles */}
                 <div className="grid grid-cols-2 gap-2">
                   {Array.from({ length: activeRoom.maxPlayers }).map((_, idx) => {
                     const p = activeRoom.players[idx];
                     const isTurn = activeRoom.status === 'playing' && activeRoom.currentTurnIdx === idx;
+                    const isTalking = p ? liveSpeakers.has(p.userId) : false;
+                    const bubble = p ? liveBubbles[p.userId] : '';
+                    const homeCount = p ? p.tokens.filter((t) => t === FINISHED_STEP).length : 0;
                     return (
                       <div
                         key={idx}
-                        className={`p-2.5 rounded-xl border bg-white flex items-center justify-between ${
-                          isTurn ? 'border-[#0891B2] ring-2 ring-cyan-500/20' : 'border-slate-200'
+                        className={`relative p-2.5 rounded-xl border bg-white flex items-center justify-between gap-1.5 ${
+                          p?.forfeited
+                            ? 'border-rose-200 bg-rose-50/40 opacity-60'
+                            : isTurn
+                            ? 'border-[#0891B2] ring-2 ring-cyan-500/20'
+                            : 'border-slate-200'
                         }`}
                       >
+                        {bubble && (
+                          <div className="absolute -top-6 left-2 right-2 z-20 px-2 py-0.5 rounded-lg bg-slate-900 text-white text-[10px] font-bold truncate shadow-md">
+                            {bubble}
+                          </div>
+                        )}
                         {p ? (
                           <>
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className={`w-3 h-3 rounded-full flex-shrink-0 ${COLOR_STYLES[p.color].bg}`} />
-                              <span className="text-xs font-black text-slate-900 truncate">{p.name}</span>
+                              <span className="text-xs font-black text-slate-900 truncate">
+                                {p.name}
+                                {p.forfeited ? ' (Out)' : ''}
+                              </span>
+                              {isTalking && (
+                                <Mic className="w-3 h-3 text-emerald-600 animate-pulse flex-shrink-0" />
+                              )}
                             </div>
-                            <span className="text-[10px] font-mono font-bold text-slate-500">
-                              {p.tokens.filter((t) => t === FINISHED_STEP).length}/4
-                            </span>
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                              {[0, 1, 2, 3].map((pip) => (
+                                <span
+                                  key={pip}
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    pip < homeCount ? COLOR_STYLES[p.color].bg : 'bg-slate-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
                           </>
                         ) : (
                           <span className="text-[11px] text-slate-400 font-semibold">
@@ -2666,17 +2970,29 @@ export const LudoGame: React.FC = () => {
                         <Share2 className="w-3.5 h-3.5" />
                         <span>Share</span>
                       </button>
-                      {activeRoom.hostUserId === user.id && (
+                      {activeRoom.hostUserId === user.id ? (
                         <button
                           type="button"
                           onClick={handleCancelWaitingRoom}
                           className="px-4 py-2.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black inline-flex items-center gap-1.5"
                         >
                           <X className="w-3.5 h-3.5" />
-                          <span>Cancel &amp; Refund</span>
+                          <span>Cancel &amp; Refund ৳{(activeRoom.stake * 0.9).toFixed(0)} (90%)</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleLeaveWaitingRoomRefund}
+                          className="px-4 py-2.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black inline-flex items-center gap-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Leave &amp; Refund ৳{(activeRoom.stake * 0.9).toFixed(0)} (90%)</span>
                         </button>
                       )}
                     </div>
+                    <p className="text-[10px] text-slate-400 font-semibold">
+                      Waiting room refund returns 90% of stake (৳{(activeRoom.stake * 0.9).toFixed(0)} on ৳{activeRoom.stake}).
+                    </p>
                   </div>
                 ) : (
                   <>
@@ -2773,6 +3089,25 @@ export const LudoGame: React.FC = () => {
                     )}
                   </>
                 )}
+
+                {/* Live Voice Call + Messaging Panel inside Friends Room */}
+                <LudoCommsPanel
+                  mode="friends"
+                  roomId={activeRoom.id}
+                  userId={user.id}
+                  userName={
+                    activeRoom.players.find((pl) => pl.userId === user.id)?.name ||
+                    user.nickname ||
+                    'Player'
+                  }
+                  userColor={activeRoom.players.find((pl) => pl.userId === user.id)?.color || 'red'}
+                  players={activeRoom.players}
+                  soundEnabled={soundEnabled}
+                  onRemoteVoicePeersChange={setLiveSpeakers}
+                  onIncomingBubble={triggerChatBubble}
+                  onPlayChatPop={() => playLudoSound('chat', soundEnabled)}
+                  onShowToast={showToast}
+                />
               </div>
             ) : (
               <>
@@ -2942,8 +3277,8 @@ export const LudoGame: React.FC = () => {
           </div>
         )}
 
-        {/* Recent EWI Ludo Matches */}
-        {ludoBets.length > 0 && (
+        {/* Recent Hney Ludo Matches (hidden while in active board/room) */}
+        {!onlineMatch && !activeRoom && ludoBets.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-3xl p-4 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-black text-slate-700 uppercase">
               <Crown className="w-4 h-4 text-[#0891B2]" />

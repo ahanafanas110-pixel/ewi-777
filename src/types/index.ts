@@ -737,6 +737,7 @@ export interface LudoPlayer {
   isBot?: boolean;
   tokens: number[]; // -1 = yard, 0..51 = shared track steps from home entry, 52..57 = home column, 57 = finished
   finishedRank?: number;
+  forfeited?: boolean;
 }
 
 export type LudoRoomMode = '2p_winner' | '4p_winner' | '4p_split';

@@ -31,7 +31,7 @@ export const EwiCoinFace: React.FC<EwiCoinFaceProps> = ({
       viewBox="0 0 240 240"
       className={`select-none ${className}`}
       role="img"
-      aria-label={`${isGold ? 'Gold' : 'Silver'} EWI777 Coin`}
+      aria-label={`${isGold ? 'Gold' : 'Silver'} Hney Win Coin`}
     >
       <defs>
         {/* Outer specular bevel ring */}
@@ -207,38 +207,36 @@ export const EwiCoinFace: React.FC<EwiCoinFaceProps> = ({
         />
       </g>
 
-      {/* Engraved Italic Bold EWI777 Center Emblem */}
+      {/* Engraved Italic Bold HNEY WIN Center Emblem */}
       <g transform="translate(120 122) skewX(-9)">
-        {/* Subtle engraved highlight underneath */}
         <text
           x="0"
           y="2.5"
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize="31"
+          fontSize="24"
           fontWeight="900"
-          letterSpacing="-1"
+          letterSpacing="-0.5"
           fontFamily="'Arial Black', Impact, system-ui, sans-serif"
           fill={isGold ? '#FEF08A' : '#F8FAFC'}
           fillOpacity="0.65"
         >
-          EWI777
+          HNEY WIN
         </text>
-        {/* Main debossed metallic lettering */}
         <text
           x="0"
           y="0"
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize="31"
+          fontSize="24"
           fontWeight="900"
-          letterSpacing="-1"
+          letterSpacing="-0.5"
           fontFamily="'Arial Black', Impact, system-ui, sans-serif"
           fill={isGold ? '#A15B07' : '#5B6D82'}
           stroke={isGold ? '#854D0E' : '#475569'}
           strokeWidth="0.6"
         >
-          EWI777
+          HNEY WIN
         </text>
       </g>
     </svg>

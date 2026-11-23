@@ -198,7 +198,7 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
 };
 
 /**
- * Full EWI 777 Branded Logo
+ * Full Hney Win Branded Crown Logo (exports kept as Ewi777Logo for compatibility)
  */
 export const Ewi777Logo: React.FC<{
   showText?: boolean;
@@ -209,19 +209,145 @@ export const Ewi777Logo: React.FC<{
   logoUrl?: string;
 }> = ({
   className = '',
-  height = 52,
+  height = 44,
   logoUrl
 }) => {
-  const src = logoUrl?.trim() ? logoUrl.trim() : '/ewi777-logo-transparent.png';
+  const trimmed = logoUrl?.trim() || '';
+  const hasCustomOverride =
+    Boolean(trimmed) &&
+    !trimmed.includes('ewi777-logo-transparent') &&
+    !trimmed.toLowerCase().includes('ewi777');
+
+  if (hasCustomOverride) {
+    return (
+      <div className={`inline-flex items-center justify-center flex-shrink-0 select-none ${className}`}>
+        <img
+          src={trimmed}
+          alt="Hney Win"
+          style={{ height }}
+          referrerPolicy="no-referrer"
+          className="w-auto max-w-full object-contain drop-shadow-[0_3px_10px_rgba(8,145,178,0.22)]"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`inline-flex items-center justify-center flex-shrink-0 select-none ${className}`}>
-      <img
-        src={src}
-        alt="EWI 777"
-        style={{ height }}
-        referrerPolicy="no-referrer"
-        className="w-auto max-w-full object-contain drop-shadow-[0_3px_10px_rgba(8,145,178,0.22)]"
-      />
+      <svg
+        height={height}
+        viewBox="0 0 228 56"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-auto max-w-full drop-shadow-[0_3px_8px_rgba(14,116,144,0.28)]"
+        role="img"
+        aria-label="Hney Win"
+      >
+        <defs>
+          <linearGradient id="hwBadgeBg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#0E7490" />
+            <stop offset="55%" stopColor="#0891B2" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <linearGradient id="hwCrownGold" x1="15%" y1="0%" x2="85%" y2="100%">
+            <stop offset="0%" stopColor="#FEF9C3" />
+            <stop offset="45%" stopColor="#FACC15" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <linearGradient id="hwHneyText" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="55%" stopColor="#CFFAFE" />
+            <stop offset="100%" stopColor="#22D3EE" />
+          </linearGradient>
+          <linearGradient id="hwWinText" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FEF9C3" />
+            <stop offset="50%" stopColor="#FDE047" />
+            <stop offset="100%" stopColor="#F59E0B" />
+          </linearGradient>
+        </defs>
+
+        {/* Left Royal Shield Emblem */}
+        <rect
+          x="3"
+          y="6"
+          width="44"
+          height="44"
+          rx="13"
+          fill="url(#hwBadgeBg)"
+          stroke="#67E8F9"
+          strokeWidth="2"
+        />
+        <rect
+          x="6.5"
+          y="9.5"
+          width="37"
+          height="37"
+          rx="10"
+          fill="none"
+          stroke="rgba(255,255,255,0.3)"
+          strokeWidth="1"
+        />
+        {/* Crown inside emblem */}
+        <path
+          d="M12 33 L14.5 19 L21.5 25 L25 16.5 L28.5 25 L35.5 19 L38 33 Z"
+          fill="url(#hwCrownGold)"
+          stroke="#78350F"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+        <rect x="12" y="34.5" width="26" height="4.2" rx="2.1" fill="url(#hwCrownGold)" stroke="#78350F" strokeWidth="1" />
+        <circle cx="25" cy="14.5" r="2.2" fill="#FEF08A" />
+        <circle cx="14.2" cy="17.5" r="1.8" fill="#A5F3FC" />
+        <circle cx="35.8" cy="17.5" r="1.8" fill="#A5F3FC" />
+
+        {/* Bold Hney Win Wordmark */}
+        <text
+          x="56"
+          y="37"
+          fill="url(#hwHneyText)"
+          stroke="#0B2235"
+          strokeWidth="4.4"
+          paintOrder="stroke fill"
+          strokeLinejoin="round"
+          fontSize="31"
+          fontWeight="900"
+          fontStyle="italic"
+          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
+          letterSpacing="-0.8"
+        >
+          Hney
+        </text>
+        <text
+          x="140"
+          y="37"
+          fill="url(#hwWinText)"
+          stroke="#451A03"
+          strokeWidth="4.4"
+          paintOrder="stroke fill"
+          strokeLinejoin="round"
+          fontSize="31"
+          fontWeight="900"
+          fontStyle="italic"
+          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
+          letterSpacing="-0.8"
+        >
+          Win
+        </text>
+        <text
+          x="58"
+          y="49"
+          fill="#06B6D4"
+          stroke="#0B2235"
+          strokeWidth="2"
+          paintOrder="stroke fill"
+          fontSize="7.6"
+          fontWeight="900"
+          fontFamily="system-ui, sans-serif"
+          letterSpacing="2.4"
+        >
+          ROYAL CLUB • 777
+        </text>
+      </svg>
     </div>
   );
 };
@@ -248,9 +374,9 @@ export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: 
           <stop offset="100%" stopColor="#06B6D4" />
         </linearGradient>
         <linearGradient id="ewiSilverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="65%" stopColor="#F1F5F9" />
-          <stop offset="100%" stopColor="#CBD5E1" />
+          <stop offset="0%" stopColor="#FEF9C3" />
+          <stop offset="65%" stopColor="#FACC15" />
+          <stop offset="100%" stopColor="#D97706" />
         </linearGradient>
         <filter id="ewiWordShadow" x="-8%" y="-12%" width="116%" height="130%">
           <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#0E7490" floodOpacity="0.4" />
@@ -262,27 +388,30 @@ export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: 
           y="33"
           fill="url(#ewiGoldGrad)"
           stroke="#0F172A"
-          strokeWidth="1.2"
-          fontSize="33"
-          fontWeight="900"
-          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-1"
-        >
-          EWI
-        </text>
-        <text
-          x="84"
-          y="33"
-          fill="url(#ewiSilverGrad)"
-          stroke="#0E7490"
-          strokeWidth="1"
-          fontSize="34"
+          strokeWidth="3.5"
+          paintOrder="stroke fill"
+          fontSize="31"
           fontWeight="900"
           fontStyle="italic"
           fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-1.5"
+          letterSpacing="-1"
         >
-          777
+          Hney
+        </text>
+        <text
+          x="90"
+          y="33"
+          fill="url(#ewiSilverGrad)"
+          stroke="#451A03"
+          strokeWidth="3.5"
+          paintOrder="stroke fill"
+          fontSize="31"
+          fontWeight="900"
+          fontStyle="italic"
+          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
+          letterSpacing="-1"
+        >
+          Win
         </text>
       </g>
     </svg>

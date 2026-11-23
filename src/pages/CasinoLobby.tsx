@@ -74,11 +74,11 @@ export const CasinoLobby: React.FC = () => {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase tracking-wider">
               <ShieldCheck className="w-3 h-3" />
-              <span>Official EWI Casino</span>
+              <span>Official Hney Casino</span>
             </div>
             <h2 className="text-lg font-black leading-tight">Live Casino Collection</h2>
             <p className="text-[11px] text-cyan-50 font-medium">
-              Play EWI Ludo multiplayer boards &amp; PLANE Crash in crisp Taka (৳) rooms.
+              Play Hney Ludo multiplayer boards &amp; PLANE Crash in crisp Taka (৳) rooms.
             </p>
           </div>
           <img
@@ -88,11 +88,11 @@ export const CasinoLobby: React.FC = () => {
           />
         </div>
 
-        {/* Game 1: EWI LUDO */}
+        {/* Game 1: HNEY LUDO */}
         <div
           onClick={() => {
             if (!isGameActive('game_ludo')) {
-              showToast('EWI Ludo is currently offline for maintenance');
+              showToast('Hney Ludo is currently offline for maintenance');
               return;
             }
             goTab('ludo', '#/ludo');
@@ -106,7 +106,7 @@ export const CasinoLobby: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-black text-base text-slate-900">EWI LUDO</span>
+                  <span className="font-black text-base text-slate-900">HNEY LUDO</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
                     NEW
                   </span>

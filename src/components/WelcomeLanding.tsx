@@ -30,7 +30,7 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
         </button>
 
         <div className="px-3.5 py-1.5 rounded-2xl bg-white border border-cyan-200 shadow-sm flex items-center justify-center">
-          <Ewi777Logo height={56} logoUrl={adminSettings.appLogoUrl} />
+          <Ewi777Logo height={48} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
         <button
@@ -48,7 +48,7 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
         <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[768/1030] mx-auto overflow-hidden select-none pointer-events-none">
           <img
             src={welcomeLightImg}
-            alt="EWI 777 Official"
+            alt="Hney Win Official"
             className="w-full h-full object-cover object-top mix-blend-multiply [mask-image:radial-gradient(ellipse_92%_90%_at_50%_46%,black_64%,transparent_100%)] [-webkit-mask-image:radial-gradient(ellipse_92%_90%_at_50%_46%,black_64%,transparent_100%)] block"
           />
         </div>
@@ -56,15 +56,15 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
         <div className="text-center space-y-1.5 px-2 -mt-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-[11px] font-black text-cyan-800 uppercase tracking-wider">
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" />
-            <span>EWI 777 Official Portal</span>
+            <span>Hney Win Official Portal</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">
-            {language === 'bn' ? 'EWI 777-এ স্বাগতম' : 'Welcome to EWI 777'}
+            {language === 'bn' ? 'Hney Win-এ স্বাগতম' : 'Welcome to Hney Win'}
           </h1>
           <p className="text-xs font-medium text-slate-600 leading-relaxed max-w-xs mx-auto">
             {language === 'bn'
-              ? 'লগইন বা রেজিস্ট্রেশন করে WinGo, EWI Roulette, Casino, Slots ও লাইভ মার্কেট উপভোগ করুন।'
-              : 'Sign in or create an account to access WinGo, EWI Roulette, Casino, Slots, and live synchronized markets.'}
+              ? 'লগইন বা রেজিস্ট্রেশন করে WinGo, Hney Roulette, Casino, Slots ও লাইভ মার্কেট উপভোগ করুন।'
+              : 'Sign in or create an account to access WinGo, Hney Roulette, Casino, Slots, and live synchronized markets.'}
           </p>
         </div>
 

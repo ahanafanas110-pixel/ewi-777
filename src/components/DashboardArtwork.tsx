@@ -21,7 +21,7 @@ export const TileWingoIcon: React.FC<{ size?: number }> = () => (
 export const TileEwiWingoIcon: React.FC<{ size?: number }> = () => (
   <img
     src={tileEwiWingoImg}
-    alt="EWI Wingo"
+    alt="Hney Wingo"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block"
   />
@@ -30,7 +30,7 @@ export const TileEwiWingoIcon: React.FC<{ size?: number }> = () => (
 export const TileEwiK3Icon: React.FC<{ size?: number }> = () => (
   <img
     src={tileEwiK3Img}
-    alt="EWI K3"
+    alt="Hney K3"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block"
   />
@@ -39,7 +39,7 @@ export const TileEwiK3Icon: React.FC<{ size?: number }> = () => (
 export const TileEwi5DIcon: React.FC<{ size?: number }> = () => (
   <img
     src={tileEwi5DImg}
-    alt="EWI 5D"
+    alt="Hney 5D"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block"
   />
@@ -66,7 +66,7 @@ export const TileGoldIcon: React.FC<{ size?: number }> = () => (
 export const TileLudoIcon: React.FC<{ size?: number }> = () => (
   <img
     src={tileLudoImg}
-    alt="EWI Ludo"
+    alt="Hney Ludo"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block bg-white"
   />

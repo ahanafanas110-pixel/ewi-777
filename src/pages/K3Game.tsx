@@ -357,7 +357,7 @@ export const K3Game: React.FC = () => {
       showToast(res.message);
       return;
     }
-    showToast(`EWI K3 Bet placed: ${betSlip.label} (৳${(betBaseAmount * betMultiplier).toFixed(2)})`);
+    showToast(`Hney K3 Bet placed: ${betSlip.label} (৳${(betBaseAmount * betMultiplier).toFixed(2)})`);
     setBetSlip(null);
     setSelected2Match([]);
     setSelected2PairTop([]);
@@ -428,7 +428,7 @@ export const K3Game: React.FC = () => {
           </button>
 
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-            <Ewi777Logo height={60} logoUrl={adminSettings.appLogoUrl} />
+            <Ewi777Logo height={40} logoUrl={adminSettings.appLogoUrl} />
           </div>
 
           <div className="relative z-10 flex items-center gap-2">
@@ -514,7 +514,7 @@ export const K3Game: React.FC = () => {
                   : 'text-slate-600 hover:bg-cyan-50'
               }`}
             >
-              EWI K3 {m === '1m' ? '1Min' : m === '3m' ? '3Min' : m === '5m' ? '5Min' : '10Min'}
+              Hney K3 {m === '1m' ? '1Min' : m === '3m' ? '3Min' : m === '5m' ? '5Min' : '10Min'}
             </button>
           ))}
         </div>
@@ -1006,7 +1006,7 @@ export const K3Game: React.FC = () => {
           {activeRecordTab === 'my' && (
             <div className="space-y-2.5">
               {myModeBets.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500">No EWI K3 bets placed yet.</div>
+                <div className="py-10 text-center text-xs text-slate-500">No Hney K3 bets placed yet.</div>
               ) : (
                 myModeBets.slice(0, 30).map((b) => (
                   <div
@@ -1044,7 +1044,7 @@ export const K3Game: React.FC = () => {
           <div className="w-full max-w-md bg-white border-t border-slate-200 rounded-t-3xl p-5 space-y-4 shadow-2xl animate-fade-in">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] -mx-5 -mt-5 px-5 py-3.5 rounded-t-3xl text-white flex items-center justify-between">
               <div>
-                <div className="text-xs font-bold text-cyan-100">EWI K3 {mode.toUpperCase()}</div>
+                <div className="text-xs font-bold text-cyan-100">Hney K3 {mode.toUpperCase()}</div>
                 <div className="text-base font-black">Select: {betSlip.label} ({betSlip.payoutRate}X)</div>
               </div>
               <button onClick={() => setBetSlip(null)} className="p-1 rounded-full hover:bg-white/20">
@@ -1136,7 +1136,7 @@ export const K3Game: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-xs bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] p-4 text-white text-center font-black text-sm">
-              EWI K3 Rules
+              Hney K3 Rules
             </div>
             <div className="p-4 text-xs text-slate-600 space-y-2 leading-relaxed">
               <p>3 dice roll each round (each 1-6).</p>

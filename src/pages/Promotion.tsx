@@ -84,7 +84,7 @@ export const Promotion: React.FC = () => {
 
   const inviteLink = getInviteLink();
   const shareText = encodeURIComponent(
-    `Join EWI 777 Premium Lottery & Trading! Register with my invite code: ${user.inviteCode} and start playing: ${inviteLink}`
+    `Join Hney Win Premium Lottery & Trading! Register with my invite code: ${user.inviteCode} and start playing: ${inviteLink}`
   );
   const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}`;
   const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${shareText}`;
@@ -185,7 +185,7 @@ export const Promotion: React.FC = () => {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-sm text-white">EWI777 Agent Daily Salary</span>
+                <span className="font-black text-sm text-white">Hney Win Agent Daily Salary</span>
                 <span className="px-1.5 py-0.5 rounded bg-cyan-300 text-slate-950 text-[9px] font-black">
                   DAILY
                 </span>
@@ -448,8 +448,8 @@ export const Promotion: React.FC = () => {
                   ))}
                 </div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#0891B2] to-[#06B6D4] text-white flex items-center justify-center font-black text-xs border-2 border-white shadow-md">
-                    EWI
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#0891B2] to-[#06B6D4] text-white flex items-center justify-center font-black text-[10px] border-2 border-white shadow-md">
+                    HNEY
                   </div>
                 </div>
               </div>

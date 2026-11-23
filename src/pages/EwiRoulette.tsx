@@ -644,7 +644,7 @@ export const EwiRoulette: React.FC = () => {
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
           <div className="min-w-0">
-            <div className="font-black text-sm text-slate-900 truncate">EWI ROULETTE</div>
+            <div className="font-black text-sm text-slate-900 truncate">HNEY ROULETTE</div>
             <div className="text-[10px] font-mono font-bold text-cyan-700 truncate">
               {gameState.roundId} · Bucharest Auto
             </div>
@@ -1247,7 +1247,7 @@ export const EwiRoulette: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-[#0E7490] to-[#06B6D4] px-4 py-3 text-white flex items-center justify-between">
-              <span className="font-black text-sm">EWI Roulette Statistics (Last 50)</span>
+              <span className="font-black text-sm">Hney Roulette Statistics (Last 50)</span>
               <button type="button" onClick={() => setStatsOpen(false)} className="p-1 rounded-full bg-white/20">
                 <X className="w-4 h-4" />
               </button>

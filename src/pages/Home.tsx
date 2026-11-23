@@ -97,13 +97,13 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
   const fallbackOfficialBanners: BannerItem[] = [
     {
       id: 'hero_official_crown',
-      title: 'EWI 777 Super Jackpot',
+      title: 'Hney Win Super Jackpot',
       url: '/assets/aistudio/image_046bb074.png',
       targetTab: 'wingo'
     },
     {
       id: 'hero_welcome_200_bonus',
-      title: 'EWI 777 Welcome Bonus up to 200%',
+      title: 'Hney Win Welcome Bonus up to 200%',
       url: '/assets/brand/welcome-200-banner.png',
       targetTab: 'deposit'
     },
@@ -211,9 +211,9 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
   const HOME_TILES = [
     { id: 'wingo', label: 'Wingo', icon: <TileWingoIcon size={54} />, onClick: () => goTab('wingo') },
-    { id: 'ewi-wingo', label: 'EWI Wingo', icon: <TileEwiWingoIcon size={54} />, onClick: () => goTab('ewi-wingo') },
-    { id: 'k3', label: 'EWI K3', icon: <TileEwiK3Icon size={54} />, onClick: () => goTab('k3') },
-    { id: '5d', label: 'EWI 5D', icon: <TileEwi5DIcon size={54} />, onClick: () => goTab('5d') },
+    { id: 'ewi-wingo', label: 'Hney Wingo', icon: <TileEwiWingoIcon size={54} />, onClick: () => goTab('ewi-wingo') },
+    { id: 'k3', label: 'Hney K3', icon: <TileEwiK3Icon size={54} />, onClick: () => goTab('k3') },
+    { id: '5d', label: 'Hney 5D', icon: <TileEwi5DIcon size={54} />, onClick: () => goTab('5d') },
     { id: 'binary', label: 'Binary Trading', icon: <TileBinaryIcon size={54} />, onClick: handleBinaryClick },
     { id: 'gold', label: 'Gold Trading', icon: <TileGoldIcon size={54} />, onClick: handleGoldMarketClick },
     { id: 'casino', label: 'Casino', icon: <TileCasinoIcon size={54} />, onClick: () => goTab('casino') },
@@ -233,12 +233,12 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           <Headphones className="w-4 h-4" />
         </button>
 
-        {/* Centered Official EWI 777 Crown Logo */}
+        {/* Centered Official Hney Win Crown Logo */}
         <div
           onClick={() => goTab('home')}
           className="flex items-center justify-center cursor-pointer active:scale-98 transition-transform relative"
         >
-          <Ewi777Logo height={48} logoUrl={adminSettings.appLogoUrl} />
+          <Ewi777Logo height={44} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
         {/* Right Balance + Deposit + Language */}
@@ -347,7 +347,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           <div className="flex-1 overflow-hidden whitespace-nowrap text-xs text-slate-600 font-medium">
             <div className="animate-marquee inline-block">
               {adminSettings.marqueeText ||
-                'Notice: Welcome to EWI 777 Official! Play EWI Ludo & PLANE in Casino, EWI Roulette, Lucky Jet & Aviator in Slots, instant EWI PAY bKash/Nagad deposits & withdrawals.'}
+                'Notice: Welcome to Hney Win Official! Play Hney Ludo & PLANE in Casino, Hney Roulette, Lucky Jet & Aviator in Slots, instant bKash/Nagad deposits & withdrawals.'}
             </div>
           </div>
           <button
@@ -391,11 +391,11 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           ))}
         </div>
 
-        {/* Featured EWI Ludo Card */}
+        {/* Featured Hney Ludo Card */}
         <div
           onClick={() => {
             if (!isGameActive('game_ludo')) {
-              showToast('EWI Ludo is currently offline for maintenance');
+              showToast('Hney Ludo is currently offline for maintenance');
               return;
             }
             goTab('ludo');
@@ -409,7 +409,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-sm text-slate-900">EWI LUDO</span>
+                <span className="font-black text-sm text-slate-900">HNEY LUDO</span>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase">
                   NEW
                 </span>

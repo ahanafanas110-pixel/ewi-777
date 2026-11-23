@@ -32,7 +32,7 @@ export const LanguagePage: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-black text-slate-900">Select Display Language</h2>
-              <p className="text-[11px] text-slate-500">Choose your preferred EWI 777 interface language</p>
+              <p className="text-[11px] text-slate-500">Choose your preferred Hney Win interface language</p>
             </div>
           </div>
 

@@ -391,7 +391,7 @@ export const Admin: React.FC = () => {
   );
   const [isSyncingWithdraws, setIsSyncingWithdraws] = useState(false);
 
-  const [appNameDraft, setAppNameDraft] = useState(adminSettings.appName || 'EWI 777');
+  const [appNameDraft, setAppNameDraft] = useState(adminSettings.appName || 'Hney Win');
   const [appLogoDraft, setAppLogoDraft] = useState(adminSettings.appLogoUrl || '');
   const [supportLinkDraft, setSupportLinkDraft] = useState(adminSettings.supportLink || '');
   const [supportPhoneDraft, setSupportPhoneDraft] = useState(adminSettings.supportPhone || '');
@@ -543,7 +543,7 @@ export const Admin: React.FC = () => {
     setEwiNagadWithdrawStatusUrl(ep?.nagadWithdrawStatusUrl || `${base}/api/v1/nagad/withdrawals/:id/status`);
     setEwiUnifiedCheckoutUrl(ep?.unifiedCheckoutUrl || `${base}/api/v1/checkout/create`);
     setEwiMemberStatusUrl(ep?.memberStatusUrl || `${base}/api/v1/member/:siteUserId/status`);
-    setAppNameDraft(adminSettings.appName || 'EWI 777');
+    setAppNameDraft(adminSettings.appName || 'Hney Win');
     setAppLogoDraft(adminSettings.appLogoUrl || '');
     setSupportLinkDraft(adminSettings.supportLink || '');
     setSupportPhoneDraft(adminSettings.supportPhone || '');
@@ -1245,11 +1245,11 @@ export const Admin: React.FC = () => {
 
           <div className="text-center space-y-2.5">
             <div className="inline-flex mx-auto">
-              <Ewi777Logo height={68} logoUrl={adminSettings.appLogoUrl} />
+              <Ewi777Logo height={48} logoUrl={adminSettings.appLogoUrl} />
             </div>
             <h1 className="font-black text-xl tracking-tight text-slate-900">SUPER CONTROLLER</h1>
             <p className="text-xs text-slate-500">
-              Enter Administrator Phone &amp; Password to open EWI 777 Control Center
+              Enter Administrator Phone &amp; Password to open Hney Win Control Center
             </p>
           </div>
 
@@ -2623,7 +2623,7 @@ export const Admin: React.FC = () => {
                           4-MODE MARKET &amp; GAME ENGINE CONTROLLER
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Control EWI K3, EWI 5D, Mines 777, Binary &amp; Gold Market, and Coin Flip live payout pools.
+                          Control Hney K3, Hney 5D, Mines 777, Binary &amp; Gold Market, and Coin Flip live payout pools.
                         </p>
                       </div>
                       <span className="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-emerald-600">
@@ -2633,7 +2633,7 @@ export const Admin: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-500 block mb-1">EWI K3 MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">HNEY K3 MODE</label>
                         <select
                           value={ctrlK3}
                           onChange={(e) => setCtrlK3(e.target.value as MarketControlMode)}
@@ -2645,7 +2645,7 @@ export const Admin: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-500 block mb-1">EWI 5D MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">HNEY 5D MODE</label>
                         <select
                           value={ctrlD5}
                           onChange={(e) => setCtrlD5(e.target.value as MarketControlMode)}
@@ -4166,7 +4166,7 @@ export const Admin: React.FC = () => {
                           type="text"
                           value={appLogoDraft}
                           onChange={(e) => setAppLogoDraft(e.target.value)}
-                          placeholder="Leave blank for Official EWI 777 Crown Logo"
+                          placeholder="Leave blank for Official Hney Win Crown Logo"
                           className="flex-1 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                         />
                         <button
@@ -4208,7 +4208,7 @@ export const Admin: React.FC = () => {
                     <button
                       onClick={() =>
                         updateAdminSettings({
-                          appName: appNameDraft.trim() || 'EWI 777',
+                          appName: appNameDraft.trim() || 'Hney Win',
                           appLogoUrl: appLogoDraft.trim(),
                           supportLink: supportLinkDraft.trim(),
                           supportPhone: supportPhoneDraft.trim()

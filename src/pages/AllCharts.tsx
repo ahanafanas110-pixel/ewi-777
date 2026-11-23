@@ -250,7 +250,7 @@ export const AllCharts: React.FC = () => {
 
   const handleSixStepRefund = () => {
     if (!isRefundEligible) {
-      showToast('Not eligible yet — requires 6 consecutive lost EWI WinGo rounds.');
+      showToast('Not eligible yet — requires 6 consecutive lost Hney WinGo rounds.');
       return;
     }
     const res = claimWinGoSixStepRefund();
@@ -258,7 +258,7 @@ export const AllCharts: React.FC = () => {
       showToast(res.message);
       return;
     }
-    sendBonusChatNotice('EWI WinGo 6-Step 100% Refund', '6 Consecutive Losses Refunded');
+    sendBonusChatNotice('Hney WinGo 6-Step 100% Refund', '6 Consecutive Losses Refunded');
   };
 
   return (
@@ -318,7 +318,7 @@ export const AllCharts: React.FC = () => {
           <div className="space-y-3.5">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
               <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
-                EWI777 WEEKLY REWARD
+                HNEY WIN WEEKLY REWARD
               </div>
               <h2 className="text-lg font-black mt-0.5">Weekly Deposit Bonus Chart</h2>
               <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
@@ -500,7 +500,7 @@ export const AllCharts: React.FC = () => {
               </div>
               <h2 className="text-lg font-black mt-0.5">Agent Weekly Salary Chart</h2>
               <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
-                Grow your active team over 7 days and apply with EWI777 Customer Care every Monday for weekly agent salary payout.
+                Grow your active team over 7 days and apply with Hney Win Customer Care every Monday for weekly agent salary payout.
               </p>
             </div>
 
@@ -629,14 +629,14 @@ export const AllCharts: React.FC = () => {
           </div>
         )}
 
-        {/* 6. EWI WINGO 6-STEP 3X LOSS 100% REFUND MATRIX */}
+        {/* 6. HNEY WINGO 6-STEP 3X LOSS 100% REFUND MATRIX */}
         {activeChart === 'wingo_refund' && (
           <div className="space-y-3.5">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
               <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                 WIN GO 100% CAPITAL PROTECTION
               </div>
-              <h2 className="text-lg font-black mt-0.5">EWI WinGo 6-Step 3X Loss Refund</h2>
+              <h2 className="text-lg font-black mt-0.5">Hney WinGo 6-Step 3X Loss Refund</h2>
               <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
                 Follow the official 6-Step 3× martingale table strictly on WinGo. If all 6 consecutive steps lose, claim 100% of your capital back immediately!
               </p>
@@ -685,7 +685,7 @@ export const AllCharts: React.FC = () => {
               <div className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
                 <RotateCcw className="w-4 h-4 text-cyan-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Verifies your latest 6 consecutive lost WinGo / EWI WinGo trades against the exact 3× step progression above and refunds 100% instantly.
+                  Verifies your latest 6 consecutive lost WinGo / Hney WinGo trades against the exact 3× step progression above and refunds 100% instantly.
                 </span>
               </div>
               <button

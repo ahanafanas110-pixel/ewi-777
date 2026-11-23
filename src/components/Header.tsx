@@ -75,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
           }}
           className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer active:scale-98 transition-transform max-w-[46%]"
         >
-          <Ewi777Logo height={52} logoUrl={adminSettings.appLogoUrl} />
+          <Ewi777Logo height={44} logoUrl={adminSettings.appLogoUrl} />
         </div>
       )}
 

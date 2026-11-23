@@ -6,6 +6,7 @@ import { LanguageModal } from './components/LanguageModal';
 import { PageSkeleton } from './components/PageSkeleton';
 import { NotificationModal } from './components/NotificationModal';
 import { AddToDesktopModal } from './components/AddToDesktop';
+import { Ewi777Logo } from './components/BrandLogos';
 import { Home } from './pages/Home';
 import { Activity } from './pages/Activity';
 import { Promotion } from './pages/Promotion';
@@ -378,7 +379,7 @@ const MainApp: React.FC = () => {
           IP: {visitorIpInfo.ip || 'Detected'}
         </p>
         <p className="text-xs text-slate-600 max-w-xs leading-relaxed">
-          Your network IP has been restricted from accessing EWI 777 by the platform security administrator.
+          Your network IP has been restricted from accessing Hney Win by the platform security administrator.
         </p>
       </div>
     );
@@ -390,12 +391,9 @@ const MainApp: React.FC = () => {
       <div className="w-full max-w-md min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative shadow-2xl overflow-x-hidden">
         {isSiteOff ? (
           <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#F8FAFC] to-cyan-50">
-            <img
-              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
-              alt={adminSettings.appName || 'EWI 777'}
-              referrerPolicy="no-referrer"
-              className="h-24 w-auto object-contain mb-5 drop-shadow-md"
-            />
+            <div className="mb-5 drop-shadow-md">
+              <Ewi777Logo height={56} logoUrl={adminSettings.appLogoUrl} />
+            </div>
             <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white flex items-center justify-center shadow-lg mb-4">
               <PowerOff className="w-8 h-8" />
             </div>
@@ -403,7 +401,7 @@ const MainApp: React.FC = () => {
               SITE IS NOT COMING
             </h1>
             <p className="text-xs text-slate-600 leading-relaxed max-w-xs mb-6">
-              {adminSettings.appName || 'EWI 777'} platform access is currently paused by the administrator. Please check back later.
+              {adminSettings.appName || 'Hney Win'} platform access is currently paused by the administrator. Please check back later.
             </p>
             <button
               onClick={() => window.location.reload()}
@@ -414,17 +412,14 @@ const MainApp: React.FC = () => {
           </div>
         ) : adminSettings.maintenanceMode ? (
           <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#F8FAFC] to-cyan-50">
-            <img
-              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
-              alt={adminSettings.appName || 'EWI 777'}
-              referrerPolicy="no-referrer"
-              className="h-24 w-auto object-contain mb-5 drop-shadow-md"
-            />
+            <div className="mb-5 drop-shadow-md">
+              <Ewi777Logo height={56} logoUrl={adminSettings.appLogoUrl} />
+            </div>
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white flex items-center justify-center shadow-lg mb-5">
               <Wrench className="w-10 h-10" />
             </div>
             <h1 className="text-xl font-black text-slate-900 mb-2">
-              {adminSettings.appName || 'EWI 777'} Maintenance
+              {adminSettings.appName || 'Hney Win'} Maintenance
             </h1>
             <p className="text-xs text-slate-600 leading-relaxed max-w-xs mb-6">
               Our platform is currently undergoing scheduled system maintenance and upgrades to serve you faster. Please check back shortly.
@@ -441,12 +436,9 @@ const MainApp: React.FC = () => {
           </div>
         ) : isUserBanned && activeTab !== 'customer-service' ? (
           <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#F8FAFC] to-rose-50">
-            <img
-              src={adminSettings.appLogoUrl?.trim() || '/ewi777-logo-transparent.png'}
-              alt={adminSettings.appName || 'EWI 777'}
-              referrerPolicy="no-referrer"
-              className="h-20 w-auto object-contain mb-5 drop-shadow-md"
-            />
+            <div className="mb-5 drop-shadow-md">
+              <Ewi777Logo height={52} logoUrl={adminSettings.appLogoUrl} />
+            </div>
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-600 to-red-700 text-white flex items-center justify-center shadow-lg mb-5">
               <Ban className="w-10 h-10" />
             </div>

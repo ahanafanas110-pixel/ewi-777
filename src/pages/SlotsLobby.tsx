@@ -14,7 +14,7 @@ const RouletteWheelLogo: React.FC = () => (
   <div className="w-14 h-14 rounded-2xl bg-white border border-cyan-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs">
     <img
       src={rouletteWheelImg}
-      alt="EWI Roulette"
+      alt="Hney Roulette"
       referrerPolicy="no-referrer"
       className="w-full h-full object-cover select-none block"
     />
@@ -108,7 +108,7 @@ export const SlotsLobby: React.FC = () => {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase tracking-wider">
               <ShieldCheck className="w-3 h-3" />
-              <span>EWI Slots Hub</span>
+              <span>Hney Slots Hub</span>
             </div>
             <h2 className="text-lg font-black leading-tight">Roulette, Lucky Jet, Aviator &amp; More</h2>
             <p className="text-[11px] text-cyan-50 font-medium">
@@ -230,9 +230,9 @@ export const SlotsLobby: React.FC = () => {
             </span>
           </div>
 
-          {/* EWI ROULETTE */}
+          {/* HNEY ROULETTE */}
           <div
-            onClick={() => handleLaunch('game_ewi_roulette', 'ewi-roulette', 'EWI ROULETTE')}
+            onClick={() => handleLaunch('game_ewi_roulette', 'ewi-roulette', 'HNEY ROULETTE')}
             className="bg-white rounded-3xl p-4 border border-cyan-200 shadow-xs hover:border-cyan-400 cursor-pointer active:scale-99 transition-all space-y-2.5"
           >
             <div className="flex items-center justify-between gap-3">
@@ -240,7 +240,7 @@ export const SlotsLobby: React.FC = () => {
                 <RouletteWheelLogo />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-black text-base text-slate-900">EWI ROULETTE</span>
+                    <span className="font-black text-base text-slate-900">HNEY ROULETTE</span>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
                       LIVE 36X
                     </span>

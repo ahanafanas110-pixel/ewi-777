@@ -219,7 +219,7 @@ interface ServerStore {
 const DEFAULT_BANNERS = [
   {
     id: 'ban_ewi777_official',
-    title: 'EWI 777 Official Crown Event',
+    title: 'Hney Win Official Crown Event',
     url: '/assets/aistudio/image_046bb074.png',
     link: '#/wingo',
     sortOrder: 1,
@@ -227,7 +227,7 @@ const DEFAULT_BANNERS = [
   },
   {
     id: 'ban_welcome_200_bonus',
-    title: 'EWI 777 Welcome Bonus up to 200%',
+    title: 'Hney Win Welcome Bonus up to 200%',
     url: '/assets/brand/welcome-200-banner.png',
     link: '#/deposit',
     sortOrder: 2,
@@ -280,7 +280,7 @@ const DEFAULT_STORE: ServerStore = {
     wingoSyncPath: 'wingo',
     wingoPattern: '1,2,3,4,5',
     showTopEarners: false,
-    appName: 'EWI 777',
+    appName: 'Hney Win',
     appLogoUrl: '',
     supportLink: '',
     supportPhone: '',
@@ -301,7 +301,7 @@ const DEFAULT_STORE: ServerStore = {
     minesPattern: 'RANDOM',
     binaryNextCandleBias: 'AUTO',
     updatedAt: 0,
-    marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
+    marqueeText: 'Notice: Welcome to Hney Win online entertainment. Fast 24/7 deposits & payouts via bKash, Nagad and Binance Pay.',
     popupTitle: '',
     popupMessage: '',
     popupImageUrl: '',
@@ -2442,6 +2442,90 @@ async function startServer() {
     room.players = nextPlayers;
     room.statusText = `${String(name || 'Player')} left room (90% refund).`;
     room.updatedAt = Date.now();
+    store.ludoRooms[room.id || String(roomId)] = room;
+    saveStore(store);
+    await patchFirestoreDoc('ludoRooms', String(room.id || roomId), room).catch(() => false);
+    res.json({ success: true, room });
+  });
+
+  app.post('/api/ludo/forfeit', async (req, res) => {
+    const { roomId, userId, name } = req.body || {};
+    let room = store.ludoRooms?.[String(roomId || '')];
+    if (!room) {
+      room = await getFirestoreDoc('ludoRooms', String(roomId || '')).catch(() => null);
+    }
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    if (room.status === 'finished' || room.status === 'cancelled') {
+      return res.json({ success: true, room, alreadySettled: true });
+    }
+    if (room.status !== 'playing') {
+      return res.json({ success: true, room });
+    }
+
+    const prevPlayers: any[] = Array.isArray(room.players) ? room.players : [];
+    const nextPlayers = prevPlayers.map((p) =>
+      String(p.userId) === String(userId || '')
+        ? { ...p, forfeited: true, finishedRank: 99 }
+        : p
+    );
+    const activePlayers = nextPlayers.filter((p) => !p.forfeited && p.finishedRank !== 99);
+    const leaverName = String(
+      name || prevPlayers.find((p) => String(p.userId) === String(userId || ''))?.name || 'Player'
+    );
+    const stake = Number(room.stake || 0);
+    const nowMs = Date.now();
+
+    if (activePlayers.length <= 1 || room.mode === '2p_winner') {
+      const ranked = [...nextPlayers].sort((a, b) => {
+        if (Boolean(a.forfeited) !== Boolean(b.forfeited)) return a.forfeited ? 1 : -1;
+        const rA = Number(a.finishedRank || 99);
+        const rB = Number(b.finishedRank || 99);
+        if (rA !== rB) return rA - rB;
+        const doneA = Array.isArray(a.tokens) ? a.tokens.filter((t: number) => t === 56).length : 0;
+        const doneB = Array.isArray(b.tokens) ? b.tokens.filter((t: number) => t === 56).length : 0;
+        if (doneA !== doneB) return doneB - doneA;
+        const progA = Array.isArray(a.tokens) ? a.tokens.reduce((s: number, t: number) => s + Math.max(0, t), 0) : 0;
+        const progB = Array.isArray(b.tokens) ? b.tokens.reduce((s: number, t: number) => s + Math.max(0, t), 0) : 0;
+        return progB - progA;
+      });
+      const totalPool = room.mode === '2p_winner' ? stake * 2 : stake * 4;
+      const payouts = ranked.map((p, idx) => {
+        if (p.forfeited) return { userId: p.userId, name: p.name, rank: idx + 1, amount: 0 };
+        if (room.mode === '2p_winner') {
+          return { userId: p.userId, name: p.name, rank: idx + 1, amount: idx === 0 ? +(stake * 1.9).toFixed(2) : 0 };
+        }
+        if (room.mode === '4p_winner' || activePlayers.length <= 1) {
+          return { userId: p.userId, name: p.name, rank: idx + 1, amount: idx === 0 ? +(totalPool * 0.9).toFixed(2) : 0 };
+        }
+        const shares = [0.5, 0.25, 0.15, 0];
+        return { userId: p.userId, name: p.name, rank: idx + 1, amount: +(totalPool * (shares[idx] || 0)).toFixed(2) };
+      });
+      const first = payouts[0];
+      const summary = `${first?.name || 'Winner'} won ৳${first?.amount || 0} (${leaverName} exited & forfeited)`;
+      room.players = nextPlayers;
+      room.status = 'finished';
+      room.payouts = payouts;
+      room.winnerUserId = first?.userId;
+      room.winnerSummary = summary;
+      room.statusText = summary;
+      room.updatedAt = nowMs;
+    } else {
+      let nextTurn = Number(room.currentTurnIdx || 0) % nextPlayers.length;
+      let guard = 0;
+      while (
+        (nextPlayers[nextTurn]?.forfeited ||
+          (Array.isArray(nextPlayers[nextTurn]?.tokens) && nextPlayers[nextTurn].tokens.every((t: number) => t === 56))) &&
+        guard < nextPlayers.length
+      ) {
+        nextTurn = (nextTurn + 1) % nextPlayers.length;
+        guard++;
+      }
+      room.players = nextPlayers;
+      room.currentTurnIdx = nextTurn;
+      room.statusText = `${leaverName} exited & forfeited! ${nextPlayers[nextTurn]?.name}'s turn`;
+      room.updatedAt = nowMs;
+    }
+
     store.ludoRooms[room.id || String(roomId)] = room;
     saveStore(store);
     await patchFirestoreDoc('ludoRooms', String(room.id || roomId), room).catch(() => false);

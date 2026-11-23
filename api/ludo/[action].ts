@@ -192,5 +192,91 @@ export default async function handler(req: IncomingMessage & { method?: string; 
     return sendJson(res, 200, { success: true, room: nextRoom });
   }
 
+  if (action === 'forfeit') {
+    const { roomId, userId, name } = body || {};
+    const room = await getFirestoreDoc('ludoRooms', String(roomId || ''));
+    if (!room) return sendJson(res, 404, { success: false, message: 'Room not found' });
+    if (room.status === 'finished' || room.status === 'cancelled') {
+      return sendJson(res, 200, { success: true, room, alreadySettled: true });
+    }
+    if (room.status !== 'playing') {
+      return sendJson(res, 200, { success: true, room });
+    }
+
+    const prevPlayers: any[] = Array.isArray(room.players) ? room.players : [];
+    const nextPlayers = prevPlayers.map((p) =>
+      String(p.userId) === String(userId || '')
+        ? { ...p, forfeited: true, finishedRank: 99 }
+        : p
+    );
+
+    const activePlayers = nextPlayers.filter((p) => !p.forfeited && p.finishedRank !== 99);
+    const leaverName = String(
+      name || prevPlayers.find((p) => String(p.userId) === String(userId || ''))?.name || 'Player'
+    );
+    const stake = Number(room.stake || 0);
+
+    if (activePlayers.length <= 1 || room.mode === '2p_winner') {
+      const ranked = [...nextPlayers].sort((a, b) => {
+        if (Boolean(a.forfeited) !== Boolean(b.forfeited)) return a.forfeited ? 1 : -1;
+        const rA = Number(a.finishedRank || 99);
+        const rB = Number(b.finishedRank || 99);
+        if (rA !== rB) return rA - rB;
+        const doneA = Array.isArray(a.tokens) ? a.tokens.filter((t: number) => t === 56).length : 0;
+        const doneB = Array.isArray(b.tokens) ? b.tokens.filter((t: number) => t === 56).length : 0;
+        if (doneA !== doneB) return doneB - doneA;
+        const progA = Array.isArray(a.tokens) ? a.tokens.reduce((s: number, t: number) => s + Math.max(0, t), 0) : 0;
+        const progB = Array.isArray(b.tokens) ? b.tokens.reduce((s: number, t: number) => s + Math.max(0, t), 0) : 0;
+        return progB - progA;
+      });
+      const totalPool = room.mode === '2p_winner' ? stake * 2 : stake * 4;
+      const payouts = ranked.map((p, idx) => {
+        if (p.forfeited) return { userId: p.userId, name: p.name, rank: idx + 1, amount: 0 };
+        if (room.mode === '2p_winner') {
+          return { userId: p.userId, name: p.name, rank: idx + 1, amount: idx === 0 ? +(stake * 1.9).toFixed(2) : 0 };
+        }
+        if (room.mode === '4p_winner' || activePlayers.length <= 1) {
+          return { userId: p.userId, name: p.name, rank: idx + 1, amount: idx === 0 ? +(totalPool * 0.9).toFixed(2) : 0 };
+        }
+        const shares = [0.5, 0.25, 0.15, 0];
+        return { userId: p.userId, name: p.name, rank: idx + 1, amount: +(totalPool * (shares[idx] || 0)).toFixed(2) };
+      });
+      const first = payouts[0];
+      const summary = `${first?.name || 'Winner'} won ৳${first?.amount || 0} (${leaverName} exited & forfeited)`;
+      const nextRoom = {
+        ...room,
+        players: nextPlayers,
+        status: 'finished',
+        payouts,
+        winnerUserId: first?.userId,
+        winnerSummary: summary,
+        statusText: summary,
+        updatedAt: nowMs
+      };
+      await patchFirestoreDoc('ludoRooms', String(roomId), nextRoom);
+      return sendJson(res, 200, { success: true, room: nextRoom });
+    }
+
+    let nextTurn = Number(room.currentTurnIdx || 0) % nextPlayers.length;
+    let guard = 0;
+    while (
+      (nextPlayers[nextTurn]?.forfeited ||
+        (Array.isArray(nextPlayers[nextTurn]?.tokens) && nextPlayers[nextTurn].tokens.every((t: number) => t === 56))) &&
+      guard < nextPlayers.length
+    ) {
+      nextTurn = (nextTurn + 1) % nextPlayers.length;
+      guard++;
+    }
+    const nextRoom = {
+      ...room,
+      players: nextPlayers,
+      currentTurnIdx: nextTurn,
+      statusText: `${leaverName} exited & forfeited! ${nextPlayers[nextTurn]?.name}'s turn`,
+      updatedAt: nowMs
+    };
+    await patchFirestoreDoc('ludoRooms', String(roomId), nextRoom);
+    return sendJson(res, 200, { success: true, room: nextRoom });
+  }
+
   return sendJson(res, 404, { success: false, message: 'Unknown Ludo action' });
 }

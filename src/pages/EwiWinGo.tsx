@@ -11,10 +11,10 @@ import { ArrowLeft, RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 
 const MODES: { id: EwiWingoMode; label: string; sec: string }[] = [
-  { id: '15s', label: 'EWI 15s', sec: '15s' },
-  { id: '30s', label: 'EWI 30s', sec: '30s' },
-  { id: '1m', label: 'EWI 1m', sec: '1m' },
-  { id: '3m', label: 'EWI 3m', sec: '3m' }
+  { id: '15s', label: 'Hney 15s', sec: '15s' },
+  { id: '30s', label: 'Hney 30s', sec: '30s' },
+  { id: '1m', label: 'Hney 1m', sec: '1m' },
+  { id: '3m', label: 'Hney 3m', sec: '3m' }
 ];
 
 const QUICK_AMOUNTS = [10, 50, 100, 500];
@@ -155,7 +155,7 @@ export const EwiWinGo: React.FC = () => {
         <div className="flex flex-col items-center justify-center">
           <Ewi777Logo height={38} logoUrl={adminSettings.appLogoUrl} />
           <div className="text-[10px] font-bold text-cyan-100 mt-0.5">
-            EWI WinGo • Min ৳10
+            Hney WinGo • Min ৳10
           </div>
         </div>
         <button
@@ -220,7 +220,7 @@ export const EwiWinGo: React.FC = () => {
           <div>
             <div className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest bg-white/15 px-2.5 py-0.5 rounded-full text-cyan-100">
               <Clock className="w-3 h-3" />
-              <span>EWI WinGo {mode}</span>
+              <span>Hney WinGo {mode}</span>
             </div>
             <div className="text-[11px] font-semibold text-cyan-100 mt-2">Period Number</div>
             <div className="text-sm font-mono font-black tracking-wider tabular-nums">
@@ -387,7 +387,7 @@ export const EwiWinGo: React.FC = () => {
             <div className="p-3 space-y-2">
               {myBets.length === 0 ? (
                 <div className="text-center py-6 text-xs text-slate-500 font-semibold">
-                  No EWI WinGo bets placed yet.
+                  No Hney WinGo bets placed yet.
                 </div>
               ) : (
                 myBets.map((b) => (
@@ -434,7 +434,7 @@ export const EwiWinGo: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-wider text-[#0891B2]">
-                  EWI WinGo {mode}
+                  Hney WinGo {mode}
                 </div>
                 <div className="text-base font-black text-slate-900">
                   Select: {betSpec.label} ({betSpec.oddsText})

@@ -157,7 +157,7 @@ export const CoinFlipGame: React.FC = () => {
         </button>
 
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-          <Ewi777Logo height={50} logoUrl={adminSettings.appLogoUrl} />
+          <Ewi777Logo height={40} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
         <button
@@ -175,7 +175,7 @@ export const CoinFlipGame: React.FC = () => {
           <div className="flex items-center gap-2.5">
             <EwiCoinBadgePair size={38} />
             <div>
-              <div className="font-black text-xs tracking-wider text-[#0891B2]">COIN FLIP · EWI777</div>
+              <div className="font-black text-xs tracking-wider text-[#0891B2]">COIN FLIP · HNEY WIN</div>
               <div className="text-[10px] text-slate-500 font-bold">GOLD vs SILVER · 1.89X PAYOUT</div>
             </div>
           </div>
@@ -203,10 +203,10 @@ export const CoinFlipGame: React.FC = () => {
         >
           <div className="text-[11px] font-bold uppercase tracking-widest text-amber-200/90 mb-4 relative z-10">
             {isFlipping
-              ? 'Flipping Official EWI777 Coin...'
+              ? 'Flipping Official Hney Win Coin...'
               : epoch.isLocked
               ? 'Locking Pool & Drawing Result...'
-              : `Last Winner: ${lastOutcome} EWI777`}
+              : `Last Winner: ${lastOutcome} HNEY WIN`}
           </div>
 
           <div className="w-44 h-44 relative z-10" style={{ perspective: '1000px' }}>
@@ -266,7 +266,7 @@ export const CoinFlipGame: React.FC = () => {
             <EwiCoinFace side="GOLD" size={44} />
             <div className="text-xs font-black tracking-wider uppercase">GOLD COIN</div>
             <div className={`text-[11px] font-extrabold ${selectedSide === 'GOLD' ? 'text-amber-950' : 'text-slate-500'}`}>
-              EWI777 · 1.89X
+              HNEY WIN · 1.89X
             </div>
           </button>
 
@@ -282,7 +282,7 @@ export const CoinFlipGame: React.FC = () => {
             <EwiCoinFace side="SILVER" size={44} />
             <div className="text-xs font-black tracking-wider uppercase">SILVER COIN</div>
             <div className={`text-[11px] font-extrabold ${selectedSide === 'SILVER' ? 'text-slate-800' : 'text-slate-500'}`}>
-              EWI777 · 1.89X
+              HNEY WIN · 1.89X
             </div>
           </button>
         </div>
@@ -347,7 +347,7 @@ export const CoinFlipGame: React.FC = () => {
           >
             {epoch.isLocked
               ? `LOCKED — REVEALING IN ${epoch.rem}s`
-              : `BET ${selectedSide} EWI777 (৳${(Number(betAmount) || 0).toFixed(0)})`}
+              : `BET ${selectedSide} HNEY WIN (৳${(Number(betAmount) || 0).toFixed(0)})`}
           </button>
 
           {currentRoundBets.length > 0 && (
@@ -369,7 +369,7 @@ export const CoinFlipGame: React.FC = () => {
 
           {coinFlipBets.length === 0 ? (
             <div className="py-5 text-center text-xs text-slate-500">
-              Choose GOLD (EWI777) or SILVER (EWI777) and place your first bet!
+              Choose GOLD (HNEY WIN) or SILVER (HNEY WIN) and place your first bet!
             </div>
           ) : (
             <div className="space-y-2 max-h-56 overflow-y-auto">
@@ -380,7 +380,7 @@ export const CoinFlipGame: React.FC = () => {
                 >
                   <div>
                     <div className="font-black text-slate-900">
-                      {b.side} EWI777 · <span className="font-mono text-[#0891B2]">#{b.periodNumber}</span>
+                      {b.side} HNEY WIN · <span className="font-mono text-[#0891B2]">#{b.periodNumber}</span>
                     </div>
                     <div className="text-[10px] text-slate-500">{b.time} · Bet ৳{b.amount.toFixed(0)}</div>
                   </div>

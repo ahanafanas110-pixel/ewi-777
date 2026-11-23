@@ -97,7 +97,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
           )}
 
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-            <Ewi777Logo height={62} logoUrl={adminSettings.appLogoUrl} />
+            <Ewi777Logo height={48} logoUrl={adminSettings.appLogoUrl} />
           </div>
 
           <button

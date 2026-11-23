@@ -393,7 +393,7 @@ export const MentorPanel: React.FC = () => {
 
           <div className="text-center space-y-2">
             <div className="inline-flex mx-auto">
-              <Ewi777Logo height={56} logoUrl={adminSettings.appLogoUrl} />
+              <Ewi777Logo height={44} logoUrl={adminSettings.appLogoUrl} />
             </div>
             <h1 className="font-black text-xl tracking-tight text-slate-900">MENTOR PORTAL</h1>
             <p className="text-xs text-slate-500">

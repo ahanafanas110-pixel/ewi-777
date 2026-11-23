@@ -204,7 +204,7 @@ export async function saveAppSettingsToFirebase(settings: AdminSettings): Promis
     const { adminPhone: _omitPhone, adminPassword: _omitPass, ...publicSafeSettings } = settings;
     const payload = stripUndefinedDeep({
       ...publicSafeSettings,
-      appName: String(settings.appName || 'EWI 777').slice(0, 120),
+      appName: String(settings.appName || 'Hney Win').slice(0, 120),
       appLogoUrl: String(settings.appLogoUrl || '').slice(0, 320000),
       marqueeText: String(settings.marqueeText || '').slice(0, 2000),
       popupTitle: String(settings.popupTitle || '').slice(0, 200),

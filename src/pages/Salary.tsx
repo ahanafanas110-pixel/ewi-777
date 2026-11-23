@@ -26,7 +26,7 @@ const SALARY_TERMS = [
   'For higher tiers (৳600+), your own deposit must be at least 25% of the team recharge.',
   'For higher tiers (৳600+), team total betting must be over 3× the team recharge.',
   'For great performance, find a TEACHER for better offers.',
-  'All decisions are final by EWI777.'
+  'All decisions are final by Hney Win.'
 ];
 
 export const Salary: React.FC = () => {
@@ -128,7 +128,7 @@ export const Salary: React.FC = () => {
           <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
         </button>
         <h1 className="text-base font-black tracking-tight text-slate-900">
-          EWI777 Agent Salary
+          Hney Win Agent Salary
         </h1>
         <button
           onClick={() => {

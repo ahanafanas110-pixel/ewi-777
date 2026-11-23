@@ -449,7 +449,7 @@ export const DEFAULT_GAMES: GameItem[] = [
   {
     id: 'game_ewi_roulette',
     slug: 'ewi-roulette',
-    title: 'EWI ROULETTE',
+    title: 'HNEY ROULETTE',
     imageUrl: '',
     category: 'Slots',
     badge: '36X',
@@ -458,12 +458,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'ewi-roulette',
-    htmlCode: '<!-- EWI 777 European Single-Zero Roulette -->\n<div class="ewi-game" data-game="ewi-roulette">EWI ROULETTE Live</div>'
+    htmlCode: '<!-- Hney Win European Single-Zero Roulette -->\n<div class="ewi-game" data-game="ewi-roulette">HNEY ROULETTE Live</div>'
   },
   {
     id: 'game_ludo',
     slug: 'ewi-ludo',
-    title: 'EWI Ludo',
+    title: 'Hney Ludo',
     imageUrl: '',
     category: 'Casino',
     badge: '1.9X',
@@ -472,7 +472,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'ludo',
-    htmlCode: '<!-- EWI 777 Multiplayer & Match Ludo -->\n<div class="ewi-game" data-game="ludo">EWI Ludo Live</div>'
+    htmlCode: '<!-- Hney Win Multiplayer & Match Ludo -->\n<div class="ewi-game" data-game="ludo">Hney Ludo Live</div>'
   },
   {
     id: 'game_sports',
@@ -519,7 +519,7 @@ export const DEFAULT_GAMES: GameItem[] = [
   {
     id: 'game_k3',
     slug: 'k3-lottery',
-    title: 'EWI K3',
+    title: 'Hney K3',
     imageUrl: '',
     category: 'Lottery',
     badge: '207X',
@@ -528,12 +528,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'k3',
-    htmlCode: '<!-- EWI 777 EWI K3 Dice Lottery Engine -->\n<div class="ewi-game" data-game="k3">EWI K3 Dice Live</div>'
+    htmlCode: '<!-- Hney Win K3 Dice Lottery Engine -->\n<div class="ewi-game" data-game="k3">Hney K3 Dice Live</div>'
   },
   {
     id: 'game_5d',
     slug: '5d-lottery',
-    title: 'EWI 5D',
+    title: 'Hney 5D',
     imageUrl: '',
     category: 'Lottery',
     badge: '9X',
@@ -542,7 +542,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: '5d',
-    htmlCode: '<!-- EWI 777 EWI 5D Number Lottery Engine -->\n<div class="ewi-game" data-game="5d">EWI 5D Lottery Live</div>'
+    htmlCode: '<!-- Hney Win 5D Number Lottery Engine -->\n<div class="ewi-game" data-game="5d">Hney 5D Lottery Live</div>'
   },
   {
     id: 'game_luckyjet',
@@ -589,7 +589,7 @@ export const DEFAULT_GAMES: GameItem[] = [
   {
     id: 'game_ewi_wingo',
     slug: 'ewi-wingo',
-    title: 'EWI WinGo',
+    title: 'Hney WinGo',
     imageUrl: '',
     category: 'Lottery',
     badge: '15S+',
@@ -598,7 +598,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'ewi-wingo',
-    htmlCode: '<!-- EWI 777 EWI WinGo 15s-3m Engine -->\n<div class="ewi-game" data-game="ewi-wingo">EWI WinGo Live</div>'
+    htmlCode: '<!-- Hney WinGo 15s-3m Engine -->\n<div class="ewi-game" data-game="ewi-wingo">Hney WinGo Live</div>'
   }
 ];
 
@@ -708,7 +708,7 @@ function maskPhoneForAudit(phone: string): string {
 export const DEFAULT_BANNERS = [
   {
     id: 'ban_ewi777_official',
-    title: 'EWI 777 Official Crown Event',
+    title: 'Hney Win Official Crown Event',
     url: '/assets/aistudio/image_046bb074.png',
     link: '#/wingo',
     sortOrder: 1,
@@ -716,7 +716,7 @@ export const DEFAULT_BANNERS = [
   },
   {
     id: 'ban_welcome_200_bonus',
-    title: 'EWI 777 Welcome Bonus up to 200%',
+    title: 'Hney Win Welcome Bonus up to 200%',
     url: '/assets/brand/welcome-200-banner.png',
     link: '#/deposit',
     sortOrder: 2,
@@ -753,7 +753,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   wingoSyncPath: 'wingo',
   wingoPattern: '1,2,3,4,5',
   showTopEarners: false,
-  appName: 'EWI 777',
+  appName: 'Hney Win',
   appLogoUrl: '',
   supportLink: '',
   supportPhone: '',
@@ -773,7 +773,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   },
   minesPattern: 'RANDOM',
   binaryNextCandleBias: 'AUTO',
-  marqueeText: 'Notice: Welcome to EWI 777 online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
+  marqueeText: 'Notice: Welcome to Hney Win online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
   popupTitle: '',
   popupMessage: '',
   popupImageUrl: '',
@@ -1338,11 +1338,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (g.id === 'game_luckyjet') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
           if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
-          if (g.id === 'game_ewi_roulette') return { ...g, category: 'Slots' as const };
+          if (g.id === 'game_ewi_roulette') return { ...g, title: 'HNEY ROULETTE', category: 'Slots' as const };
           if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
-          if (g.id === 'game_ludo') return { ...g, category: 'Casino' as const, targetTab: 'ludo' };
-          if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
-          if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
+          if (g.id === 'game_ludo') return { ...g, title: 'Hney Ludo', category: 'Casino' as const, targetTab: 'ludo' };
+          if (g.id === 'game_k3') return { ...g, title: 'Hney K3' };
+          if (g.id === 'game_5d') return { ...g, title: 'Hney 5D' };
+          if (g.id === 'game_ewi_wingo') return { ...g, title: 'Hney WinGo' };
           if (g.id === 'game_gold_market') {
             return {
               ...g,
@@ -1368,9 +1369,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           (_legacyPw ? sha256HexSync(String(_legacyPw)) : DEFAULT_ADMIN_PASS_HASH);
         const adminPhoneHash = rawPhoneH === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : rawPhoneH;
         const adminPasswordHash = rawPassH === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : rawPassH;
+        const normalizedAppName =
+          !cleanParsed.appName || /^(ewi\s*777|ewi777)$/i.test(String(cleanParsed.appName).trim())
+            ? 'Hney Win'
+            : String(cleanParsed.appName);
         return {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanParsed,
+          appName: normalizedAppName,
           appLogoUrl: sanitizeAppLogoUrl(cleanParsed.appLogoUrl),
           gameControlModes: {
             ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
@@ -2042,10 +2048,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
               const normalizedGames = mergedGamesList.map((g: GameItem) => {
                 if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
-                if (g.id === 'game_ewi_roulette') return { ...g, category: 'Slots' as const };
-                if (g.id === 'game_ludo') return { ...g, category: 'Casino' as const, targetTab: 'ludo' };
-                if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
-                if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
+                if (g.id === 'game_ewi_roulette') return { ...g, title: 'HNEY ROULETTE', category: 'Slots' as const };
+                if (g.id === 'game_ludo') return { ...g, title: 'Hney Ludo', category: 'Casino' as const, targetTab: 'ludo' };
+                if (g.id === 'game_k3') return { ...g, title: 'Hney K3' };
+                if (g.id === 'game_5d') return { ...g, title: 'Hney 5D' };
+                if (g.id === 'game_ewi_wingo') return { ...g, title: 'Hney WinGo' };
                 if (g.id === 'game_gold_market') {
                   return {
                     ...g,
@@ -2070,9 +2077,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const rPassH =
                 cleanRemote.adminPasswordHash ||
                 (_spw ? sha256HexSync(String(_spw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH);
+              const resolvedAppName =
+                !cleanRemote.appName || /^(ewi\s*777|ewi777)$/i.test(String(cleanRemote.appName).trim())
+                  ? 'Hney Win'
+                  : String(cleanRemote.appName);
               const merged: AdminSettings = {
                 ...INITIAL_ADMIN_SETTINGS,
                 ...cleanRemote,
+                appName: resolvedAppName,
                 gameControlModes: {
                   ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
                   ...(cleanRemote.gameControlModes || {})
@@ -2483,8 +2495,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
           if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
-          if (g.id === 'game_k3') return { ...g, title: 'EWI K3' };
-          if (g.id === 'game_5d') return { ...g, title: 'EWI 5D' };
+          if (g.id === 'game_ewi_roulette') return { ...g, title: 'HNEY ROULETTE', category: 'Slots' as const };
+          if (g.id === 'game_ludo') return { ...g, title: 'Hney Ludo', category: 'Casino' as const, targetTab: 'ludo' };
+          if (g.id === 'game_k3') return { ...g, title: 'Hney K3' };
+          if (g.id === 'game_5d') return { ...g, title: 'Hney 5D' };
+          if (g.id === 'game_ewi_wingo') return { ...g, title: 'Hney WinGo' };
           if (g.id === 'game_gold_market') {
             return {
               ...g,
@@ -2509,9 +2524,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const remPassH =
           cleanRemote.adminPasswordHash ||
           (_rpw ? sha256HexSync(String(_rpw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH);
+        const resolvedAppName =
+          !cleanRemote.appName || /^(ewi\s*777|ewi777)$/i.test(String(cleanRemote.appName).trim())
+            ? 'Hney Win'
+            : String(cleanRemote.appName);
         const merged: AdminSettings = {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanRemote,
+          appName: resolvedAppName,
           appLogoUrl: sanitizeAppLogoUrl(cleanRemote.appLogoUrl),
           gameControlModes: {
             ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
@@ -3166,7 +3186,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetTab =
       !userRef.current.isLoggedIn && !PUBLIC_UNAUTH_TABS.has(tab) ? 'login' : tab;
     if (targetTab !== tab) {
-      showToast('Please login or register first to access EWI 777 markets!');
+      showToast('Please login or register first to access Hney Win markets!');
     }
     const targetHash =
       targetTab === 'home'
@@ -3919,7 +3939,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) => [...prev, newUser]);
     clearBanNotice();
     setUser(newUser);
-    showToast('Registration successful! Welcome to EWI 777.');
+    showToast('Registration successful! Welcome to Hney Win.');
     let pendingRoom = '';
     try {
       pendingRoom = (sessionStorage.getItem('ewi777_pending_ludo_room') || '').trim().toUpperCase();
@@ -4106,7 +4126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
           setIsAdminLoggedIn(true);
-          showToast('Welcome to EWI 777 Super Admin.');
+          showToast('Welcome to Hney Win Super Admin.');
           setActiveTab('admin');
           window.location.hash = '#/admin-ewi777-panel-009';
           return {
@@ -4132,7 +4152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (sha256HexSync(cleanPhone) === expectedPhoneHash && sha256HexSync(cleanPass) === expectedPassHash) {
         logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
         setIsAdminLoggedIn(true);
-        showToast('Welcome to EWI 777 Super Admin.');
+        showToast('Welcome to Hney Win Super Admin.');
         setActiveTab('admin');
         window.location.hash = '#/admin-ewi777-panel-009';
         return { success: true, requires2FA: false, message: 'Admin logged in successfully!' };
@@ -4145,7 +4165,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (sha256HexSync(cleanPhone) === expectedPhoneHash && sha256HexSync(cleanPass) === expectedPassHash) {
         logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
         setIsAdminLoggedIn(true);
-        showToast('Welcome to EWI 777 Super Admin.');
+        showToast('Welcome to Hney Win Super Admin.');
         setActiveTab('admin');
         window.location.hash = '#/admin-ewi777-panel-009';
         return { success: true, requires2FA: false, message: 'Admin logged in successfully!' };
@@ -4180,7 +4200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
         setIsAdminLoggedIn(true);
-        showToast('2FA Verified! Welcome to EWI 777 Super Admin.');
+        showToast('2FA Verified! Welcome to Hney Win Super Admin.');
         setActiveTab('admin');
         window.location.hash = '#/admin-ewi777-panel-009';
         return { success: true, message: 'Success' };
@@ -6801,7 +6821,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [tx, ...prev]);
     saveTransactionToFirebase(tx).catch(() => {});
-    showToast(`Coin Flip ${side} (EWI777) placed: ৳${amount}`);
+    showToast(`Coin Flip ${side} (Hney Win) placed: ৳${amount}`);
     return { success: true, message: 'Bet placed', betId };
   };
 
@@ -6853,10 +6873,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resultNumber: resultSide === 'GOLD' ? 7 : 2,
         resultColor: resultSide === 'GOLD' ? 'green' : 'red',
         resultSize: resultSide === 'GOLD' ? 'big' : 'small',
-        gameLabel: 'Coin Flip EWI777',
+        gameLabel: 'Coin Flip Hney Win',
         badges: [
           {
-            label: `${resultSide} EWI777`,
+            label: `${resultSide} Hney Win`,
             tone: resultSide === 'GOLD' ? 'amber' : 'slate'
           },
           { label: '1.89X', tone: totalWin > 0 ? 'green' : 'red' }
@@ -6912,7 +6932,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_autosal`,
         userId: cur.id,
         type: 'salary_bonus',
-        title: 'EWI777 Agent Daily Salary (12:00 AM Auto)',
+        title: 'Hney Win Agent Daily Salary (12:00 AM Auto)',
         detail: `${totalRefDeposit >= 2000 && matchedTier.salary === 300 ? '৳2,000+ Team Recharge' : `${matchedTier.members} Recharge Members`} Tier • Auto-collected at 12:00 AM`,
         amount: matchedTier.salary,
         balanceAfter: newBal,
@@ -6970,7 +6990,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_sal`,
       userId: user.id,
       type: 'salary_bonus',
-      title: `EWI777 Agent Daily Salary`,
+      title: `Hney Win Agent Daily Salary`,
       detail: `${is2kStarterTier ? '৳2,000+ Team Recharge' : `${tierMembers} Recharge Members`} Tier • ৳${salaryAmount.toLocaleString()} credited`,
       amount: salaryAmount,
       balanceAfter: newBal,
@@ -7133,7 +7153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Bonus collected' };
   };
 
-  // EWI K3 Dice Lottery Engine
+  // Hney K3 Dice Lottery Engine
   const placeK3Bet = (
     mode: K3Mode,
     periodNumber: string,
@@ -7144,7 +7164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutRate: number
   ) => {
     if (!user.isLoggedIn) {
-      return { success: false, message: 'Please log in first to place EWI K3 bets!' };
+      return { success: false, message: 'Please log in first to place Hney K3 bets!' };
     }
     if (user.isBanned) {
       return { success: false, message: 'Account is banned by Administrator' };
@@ -7188,7 +7208,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_k3b`,
       userId: user.id,
       type: 'k3_bet',
-      title: `EWI K3 ${mode} Bet (${selection})`,
+      title: `Hney K3 ${mode} Bet (${selection})`,
       detail: `Period ${periodNumber} • ${betType}`,
       amount: -totalAmount,
       balanceAfter: newBal,
@@ -7284,7 +7304,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_k3w`,
         userId: userRef.current.id,
         type: 'k3_win',
-        title: `EWI K3 ${mode} Win`,
+        title: `Hney K3 ${mode} Win`,
         detail: `Period ${periodNumber} • Dice ${dice.join('-')} (Sum ${sum})`,
         amount: totalWinCredit,
         balanceAfter: nextBal,
@@ -7294,7 +7314,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [k3WinTx, ...prev]);
       saveTransactionToFirebase(k3WinTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`EWI K3 Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`Hney K3 Won +৳${totalWinCredit.toFixed(2)}!`);
     }
 
     setWingoResultPopup({
@@ -7305,7 +7325,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultNumber: sum,
       resultColor: isBig ? 'red' : 'green',
       resultSize: isBig ? 'big' : 'small',
-      gameLabel: `EWI K3 ${mode}`,
+      gameLabel: `Hney K3 ${mode}`,
       badges: [
         { label: `Dice ${dice.join('-')}`, tone: 'amber' },
         { label: isBig ? 'Big' : 'Small', tone: isBig ? 'orange' : 'green' },
@@ -7315,7 +7335,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // EWI 5D Lottery Engine
+  // Hney 5D Lottery Engine
   const placeD5Bet = (
     mode: D5Mode,
     periodNumber: string,
@@ -7327,7 +7347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutRate: number
   ) => {
     if (!user.isLoggedIn) {
-      return { success: false, message: 'Please log in first to place EWI 5D bets!' };
+      return { success: false, message: 'Please log in first to place Hney 5D bets!' };
     }
     if (user.isBanned) {
       return { success: false, message: 'Account is banned by Administrator' };
@@ -7372,7 +7392,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_d5b`,
       userId: user.id,
       type: 'd5_bet',
-      title: `EWI 5D ${mode} Bet (${position}: ${selection})`,
+      title: `Hney 5D ${mode} Bet (${position}: ${selection})`,
       detail: `Period ${periodNumber}`,
       amount: -totalAmount,
       balanceAfter: newBal,
@@ -7440,7 +7460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_d5w`,
         userId: userRef.current.id,
         type: 'd5_win',
-        title: `EWI 5D ${mode} Win`,
+        title: `Hney 5D ${mode} Win`,
         detail: `Period ${periodNumber} • ${digits.join('-')} (Sum ${sum})`,
         amount: totalWinCredit,
         balanceAfter: nextBal,
@@ -7450,7 +7470,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [d5WinTx, ...prev]);
       saveTransactionToFirebase(d5WinTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`EWI 5D Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`Hney 5D Won +৳${totalWinCredit.toFixed(2)}!`);
     }
 
     const isSumBig = sum >= 23;
@@ -7462,7 +7482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultNumber: sum,
       resultColor: isSumBig ? 'red' : 'green',
       resultSize: isSumBig ? 'big' : 'small',
-      gameLabel: `EWI 5D ${mode}`,
+      gameLabel: `Hney 5D ${mode}`,
       badges: [
         { label: digits.join('-'), tone: 'amber' },
         { label: isSumBig ? 'Big' : 'Small', tone: isSumBig ? 'orange' : 'green' },
@@ -7471,7 +7491,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // EWI WinGo (Synced fast 15s / 30s / 1m / 3m Market)
+  // Hney WinGo (Synced fast 15s / 30s / 1m / 3m Market)
   const placeEwiWingoBet = (
     mode: EwiWingoMode,
     periodNumber: string,
@@ -7481,7 +7501,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     multiplier: number
   ) => {
     if (!user.isLoggedIn || !user.id) {
-      showToast('Please login first to place EWI WinGo bets!');
+      showToast('Please login first to place Hney WinGo bets!');
       return { success: false, message: 'Login required' };
     }
     if (user.isBanned) {
@@ -7536,7 +7556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_ewgb`,
       userId: user.id,
       type: 'ewi_wingo_bet',
-      title: `EWI WinGo ${mode} Bet (${type}: ${value})`,
+      title: `Hney WinGo ${mode} Bet (${type}: ${value})`,
       detail: `Period ${periodNumber}`,
       amount: -totalAmount,
       balanceAfter: newBal,
@@ -7545,7 +7565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [tx, ...prev]);
     saveTransactionToFirebase(tx).catch(() => {});
-    showToast(`EWI WinGo ${mode} bet placed!`);
+    showToast(`Hney WinGo ${mode} bet placed!`);
     return { success: true, message: 'Bet placed' };
   };
 
@@ -7616,7 +7636,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_ewgw`,
         userId: userRef.current.id,
         type: 'ewi_wingo_win',
-        title: `EWI WinGo ${mode} Prize Won!`,
+        title: `Hney WinGo ${mode} Prize Won!`,
         detail: `Period ${periodNumber.slice(-5)} • Result ${safeNum} (${color.toUpperCase()})`,
         amount: totalWin,
         balanceAfter: nextBal,
@@ -7626,7 +7646,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [winTx, ...prev]);
       saveTransactionToFirebase(winTx).catch(() => {});
       confetti({ particleCount: 75, spread: 65 });
-      showToast(`EWI WinGo ${mode} Won! +৳${totalWin.toFixed(2)}`);
+      showToast(`Hney WinGo ${mode} Won! +৳${totalWin.toFixed(2)}`);
     }
 
     setWingoResultPopup({
@@ -7637,11 +7657,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultNumber: safeNum,
       resultColor: color,
       resultSize: size,
-      gameLabel: `EWI WinGo ${mode}`
+      gameLabel: `Hney WinGo ${mode}`
     });
   };
 
-  // EWI ROULETTE European Single-Zero Engine
+  // HNEY ROULETTE European Single-Zero Engine
   const placeRouletteBet = (
     periodNumber: string,
     betType: RouletteBetType,
@@ -7651,7 +7671,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutMultiplier: number
   ) => {
     if (!user.isLoggedIn || !user.id) {
-      showToast('Please login first to place EWI ROULETTE bets!');
+      showToast('Please login first to place HNEY ROULETTE bets!');
       return { success: false, message: 'Login required' };
     }
     if (user.isBanned) {
@@ -7701,7 +7721,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_rlb`,
       userId: user.id,
       type: 'roulette_bet',
-      title: `EWI ROULETTE (${label})`,
+      title: `HNEY ROULETTE (${label})`,
       detail: `Round #${periodNumber.slice(-5)} • ${payoutMultiplier}:1`,
       amount: -cleanAmt,
       balanceAfter: newBal,
@@ -7754,7 +7774,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_rlw`,
         userId: userRef.current.id,
         type: 'roulette_win',
-        title: `EWI ROULETTE Win (#${winningNumber})`,
+        title: `HNEY ROULETTE Win (#${winningNumber})`,
         detail: `Round #${periodNumber.slice(-5)} • Winning Number ${winningNumber}`,
         amount: totalWinCredit,
         balanceAfter: nextBal,
@@ -7764,7 +7784,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [winTx, ...prev]);
       saveTransactionToFirebase(winTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`EWI ROULETTE Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`HNEY ROULETTE Won +৳${totalWinCredit.toFixed(2)}!`);
     }
   };
 
@@ -7834,17 +7854,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Credited ৳${bonus}!` };
   };
 
-  // EWI WinGo 6-Step 3X Loss 100% Refund Claim
+  // Hney WinGo 6-Step 3X Loss 100% Refund Claim
   const claimWinGoSixStepRefund = () => {
     if (!user.isLoggedIn || !user.id) return { success: false, message: 'Login required' };
     const claimedSet = new Set(user.claimedWingoRefunds || []);
     const myEwi = ewiWingoBets.filter((b) => b.userId === user.id && b.status !== 'pending');
     if (myEwi.length < 6) {
-      return { success: false, message: 'Play at least 6 sequential EWI WinGo rounds following a 3X plan first.' };
+      return { success: false, message: 'Play at least 6 sequential Hney WinGo rounds following a 3X plan first.' };
     }
     const latestSix = myEwi.slice(0, 6);
     if (!latestSix.every((b) => b.status === 'lost')) {
-      return { success: false, message: 'Your latest 6 consecutive EWI WinGo bets must all be losses for the 100% refund.' };
+      return { success: false, message: 'Your latest 6 consecutive Hney WinGo bets must all be losses for the 100% refund.' };
     }
     const key = latestSix.map((b) => b.id).join(',');
     if (claimedSet.has(key)) {
@@ -7862,7 +7882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_wgr`,
       userId: user.id,
       type: 'wingo_refund',
-      title: 'EWI WinGo 6-Step 100% Loss Refund',
+      title: 'Hney WinGo 6-Step 100% Loss Refund',
       detail: `6 consecutive losses refunded 100% (+৳${totalLoss})`,
       amount: totalLoss,
       balanceAfter: nextBal,
@@ -8514,7 +8534,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const placeLudoBet = (stake: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode) => {
     if (!user.isLoggedIn || !user.id) {
-      showToast('Please log in first to play EWI Ludo');
+      showToast('Please log in first to play Hney Ludo');
       return { success: false, message: 'Login required' };
     }
     if (user.isBanned) {
@@ -8544,7 +8564,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_ldb`,
       userId: user.id,
       type: 'ludo_bet',
-      title: `EWI Ludo Entry (${mode.replace('_', ' ').toUpperCase()})`,
+      title: `Hney Ludo Entry (${mode.replace('_', ' ').toUpperCase()})`,
       detail: `Match stake ৳${cleanStake.toFixed(0)}`,
       amount: -cleanStake,
       balanceAfter: newBal,
@@ -8598,7 +8618,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_ldw`,
         userId: userRef.current.id,
         type: 'ludo_win',
-        title: isRefund ? `EWI Ludo Room Refund (90%)` : `EWI Ludo Prize Won!`,
+        title: isRefund ? `Hney Ludo Room Refund (90%)` : `Hney Ludo Prize Won!`,
         detail: `${detail} • +৳${cleanWin.toFixed(2)}`,
         amount: cleanWin,
         balanceAfter: nextBal,
@@ -8611,7 +8631,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(`Ludo Refund Credited +৳${cleanWin.toFixed(2)} (90% of ৳${stake})`);
       } else {
         confetti({ particleCount: 75, spread: 65 });
-        showToast(`EWI Ludo Won +৳${cleanWin.toFixed(2)}!`);
+        showToast(`Hney Ludo Won +৳${cleanWin.toFixed(2)}!`);
       }
     }
   };

@@ -731,7 +731,7 @@ export const LuckyJetGame: React.FC = () => {
         </button>
 
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-          <Ewi777Logo height={50} logoUrl={adminSettings.appLogoUrl} />
+          <Ewi777Logo height={40} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
         <div className="relative z-10 flex items-center gap-1.5">
