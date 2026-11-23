@@ -78,7 +78,7 @@ export const Wallet: React.FC = () => {
 
     const digits = bindNumberInput.replace(/\D/g, '');
     const normalized = digits.startsWith('0') ? digits.slice(0, 11) : `0${digits}`.slice(0, 11);
-    if (!isValidBdFullPhone(normalized)) {
+    if (!/^01[3-9]\d{8}$/.test(normalized)) {
       const msg = 'Please enter a valid 11-digit mobile number';
       setBindError(msg);
       showToast(msg);

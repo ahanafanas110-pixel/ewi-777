@@ -330,12 +330,16 @@ function normalizePhoneServer(phone: string): string {
   else if (cleaned.startsWith('+880')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('8800')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('880')) cleaned = '0' + cleaned.slice(3);
-  else if (/^1[35789]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
+  else if (/^1[3-9]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
   return cleaned;
 }
 
 function isValidBdPhoneServer(normPhone: string): boolean {
-  return /^01[35789]\d{8}$/.test(String(normPhone || '').trim());
+  const clean = String(normPhone || '').trim();
+  if (clean.startsWith('+')) {
+    return /^\+\d{7,15}$/.test(clean);
+  }
+  return /^01[3-9]\d{8}$/.test(clean);
 }
 
 function sanitizeBannerList(banners: any[]) {
@@ -722,7 +726,7 @@ async function startServer() {
     if (!normEmail && !isValidBdPhoneServer(normPhone)) {
       return res.status(400).json({
         success: false,
-        message: 'Mobile number must be max 10 digits (after +880) starting with 18, 17, 13, 15, or 19.'
+        message: 'Please enter a valid mobile number starting with 1.'
       });
     }
 

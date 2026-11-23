@@ -1133,7 +1133,7 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
   return resolved;
 };
 
-// Utility to normalize Bangladeshi phone numbers (01XXXXXXXXX for valid 18/17/13/15/19 prefixes)
+// Utility to normalize Bangladeshi phone numbers (01XXXXXXXXX for valid BD mobile prefixes)
 export const normalizePhone = (phone: string): string => {
   if (!phone) return '';
   let cleaned = phone.replace(/[\s\-().]/g, '');
@@ -1141,7 +1141,7 @@ export const normalizePhone = (phone: string): string => {
   else if (cleaned.startsWith('+880')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('8800')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('880')) cleaned = '0' + cleaned.slice(3);
-  else if (/^1[35789]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
+  else if (/^1[3-9]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
   return cleaned;
 };
 

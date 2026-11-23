@@ -5,7 +5,7 @@ import { getTranslation } from '../utils/i18n';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { EventRewardsModal } from '../components/AccountIcons';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
-import { normalizeBdDigitsInput } from '../utils/phoneAndApi';
+import { isValidBdLocalTenDigits, normalizeBdDigitsInput } from '../utils/phoneAndApi';
 
 interface LoginProps {
   onOpenLanguage?: () => void;
@@ -41,6 +41,17 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
     if (isSubmitting) return;
     setBanAlert(null);
     clearBanNotice();
+    if (authMode === 'phone') {
+      if (countryCode === '+880' && !isValidBdLocalTenDigits(phoneNumber)) {
+        showToast('Please enter a valid mobile number starting with 1');
+        return;
+      }
+      const cleanDigits = phoneNumber.replace(/\D/g, '');
+      if (countryCode !== '+880' && (cleanDigits.length < 7 || cleanDigits.length > 14)) {
+        showToast('Please enter a valid mobile number');
+        return;
+      }
+    }
     const target =
       authMode === 'phone'
         ? phoneNumber.trim().startsWith('+') || phoneNumber.trim().startsWith('0')
@@ -231,7 +242,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                           : e.target.value.replace(/\D/g, '').slice(0, 14);
                       setPhoneNumber(val);
                     }}
-                    placeholder={countryCode === '+880' ? '17XXXXXXXX (10 digits)' : getTranslation(language, 'pleaseEnterPhone')}
+                    placeholder={countryCode === '+880' ? '1XXXXXXXXX' : getTranslation(language, 'pleaseEnterPhone')}
                     className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                     required
                   />

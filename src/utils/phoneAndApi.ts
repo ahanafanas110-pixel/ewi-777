@@ -2,7 +2,7 @@
  * Bangladeshi mobile validation utility + Backend API helper
  * Enforces valid BD operator prefixes: 018, 017, 013, 015, 019 (exact 10 digits without leading 0).
  */
-export const VALID_BD_PREFIXES = ['18', '17', '13', '15', '19'] as const;
+export const VALID_BD_PREFIXES = ['13', '14', '15', '16', '17', '18', '19'] as const;
 
 export function normalizeBdDigitsInput(raw: string): string {
   let digits = String(raw || '').replace(/\D/g, '');
@@ -16,15 +16,19 @@ export function normalizeBdDigitsInput(raw: string): string {
 }
 
 export function isValidBdLocalTenDigits(tenDigits: string): boolean {
-  return /^1[35789]\d{8}$/.test(String(tenDigits || '').trim());
+  return /^1[3-9]\d{8}$/.test(String(tenDigits || '').trim());
 }
 
-export function isValidBdFullPhone(normalizedZeroEleven: string): boolean {
-  return /^01[35789]\d{8}$/.test(String(normalizedZeroEleven || '').trim());
+export function isValidBdFullPhone(normalizedZeroElevenOrIntl: string): boolean {
+  const clean = String(normalizedZeroElevenOrIntl || '').trim();
+  if (clean.startsWith('+')) {
+    return /^\+\d{7,15}$/.test(clean);
+  }
+  return /^01[3-9]\d{8}$/.test(clean);
 }
 
 export const BD_PHONE_RULE_MSG =
-  'Mobile number must be max 10 digits (after +880) starting with 18, 17, 13, 15, or 19.';
+  'Please enter a valid mobile number starting with 1 (e.g. 17XXXXXXXX).';
 
 export function getApiBaseUrl(): string {
   try {

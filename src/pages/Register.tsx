@@ -51,7 +51,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
       return;
     }
     if (countryCode === '+880' && !isValidBdLocalTenDigits(phoneNumber)) {
-      showToast('Please enter a valid 10-digit mobile number');
+      showToast('Please enter a valid mobile number starting with 1');
+      return;
+    }
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
+    if (countryCode !== '+880' && (digitsOnly.length < 7 || digitsOnly.length > 14)) {
+      showToast('Please enter a valid mobile number');
       return;
     }
     if (!PASSWORD_REGEX.test(password)) {
