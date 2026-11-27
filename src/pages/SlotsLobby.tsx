@@ -1,38 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowLeft, ArrowRight, Clock, Plus, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, ShieldCheck } from 'lucide-react';
 import { CustomerServiceLogo } from '../components/BrandLogos';
 import { EwiCoinBadgePair } from '../components/CoinFlipArtwork';
-import { getEwiRouletteState } from '../utils/syncedMarkets';
 import luckyJetPilotCleanImg from '../assets/images/lucky_jet_pilot_clean_1795168517207.jpg';
 import aviatorRedPlaneCleanImg from '../assets/images/aviator_red_plane_clean_1795168517074.jpg';
 import minesGameIconImg from '../assets/images/game_icon_mines_3d_1794734301052.jpg';
 import slotsTileImg from '../assets/images/tile_slots_dragon_edited_1795168517735.jpg';
-import rouletteWheelImg from '../assets/images/roulette_wheel_icon_1795251767913.jpg';
-
-const RouletteWheelLogo: React.FC = () => (
-  <div className="w-14 h-14 rounded-2xl bg-white border border-cyan-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs">
-    <img
-      src={rouletteWheelImg}
-      alt="Deshi Roulette"
-      referrerPolicy="no-referrer"
-      className="w-full h-full object-cover select-none block"
-    />
-  </div>
-);
 
 export const SlotsLobby: React.FC = () => {
   const { user, adminSettings, setActiveTab, showToast } = useApp();
-  const [rouletteState, setRouletteState] = useState(() =>
-    getEwiRouletteState(Date.now(), adminSettings.timezoneOffsetMinutes ?? 360)
-  );
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setRouletteState(getEwiRouletteState(Date.now(), adminSettings.timezoneOffsetMinutes ?? 360));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [adminSettings.timezoneOffsetMinutes]);
 
   const isGameActive = (id: string) => {
     const games = adminSettings.games;
@@ -69,7 +46,7 @@ export const SlotsLobby: React.FC = () => {
           </button>
           <div>
             <h1 className="text-base font-black text-slate-900 leading-tight">Slots &amp; Arcade</h1>
-            <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">5 Instant Games</p>
+            <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">4 Instant Games</p>
           </div>
         </div>
 
@@ -110,9 +87,9 @@ export const SlotsLobby: React.FC = () => {
               <ShieldCheck className="w-3 h-3" />
               <span>Deshi Win Slots Hub</span>
             </div>
-            <h2 className="text-lg font-black leading-tight">Roulette, Lucky Jet, Aviator &amp; More</h2>
+            <h2 className="text-lg font-black leading-tight">Lucky Jet, Aviator, Mines &amp; Coin Flip</h2>
             <p className="text-[11px] text-cyan-50 font-medium">
-              Instant round settlements, European Auto-Roulette and multi-slot play in Taka (৳).
+              Instant round settlements, crash flights, mines &amp; coin flip play in Taka (৳).
             </p>
           </div>
           <img
@@ -228,58 +205,6 @@ export const SlotsLobby: React.FC = () => {
               <span>Flip</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </span>
-          </div>
-
-          {/* DESHI ROULETTE */}
-          <div
-            onClick={() => handleLaunch('game_ewi_roulette', 'ewi-roulette', 'DESHI ROULETTE')}
-            className="bg-white rounded-3xl p-4 border border-cyan-200 shadow-xs hover:border-cyan-400 cursor-pointer active:scale-99 transition-all space-y-2.5"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <RouletteWheelLogo />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-black text-base text-slate-900">DESHI ROULETTE</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
-                      LIVE 36X
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-semibold truncate">
-                    European Auto-Roulette • Straight, Racetrack &amp; Stats
-                  </p>
-                </div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-800 font-mono font-black text-[11px] tabular-nums">
-                  <Clock className="w-3 h-3" />
-                  <span>{rouletteState.phaseRemaining}s</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-                {rouletteState.history.slice(0, 6).map((item) => (
-                  <span
-                    key={item.roundId}
-                    className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center text-white flex-shrink-0 tabular-nums ${
-                      item.color === 'green'
-                        ? 'bg-emerald-600'
-                        : item.color === 'red'
-                        ? 'bg-rose-600'
-                        : 'bg-slate-800'
-                    }`}
-                  >
-                    {item.number}
-                  </span>
-                ))}
-              </div>
-              <span className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black text-xs flex items-center gap-1 flex-shrink-0">
-                <span>Play</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </span>
-            </div>
           </div>
         </div>
       </main>

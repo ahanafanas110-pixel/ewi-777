@@ -18,8 +18,15 @@ import { computeDailyIssueInfo, nextIssueFromLatest } from '../utils/lotteryApi'
 import {
   formatTimeWithOffset,
   getSyncedD5History,
+  parseD5ForcedOutcome,
   resolveControlledD5Digits
 } from '../utils/syncedMarkets';
+import { apiUrl } from '../utils/phoneAndApi';
+import {
+  LotteryTradeDetailCard,
+  buildLotteryOrderNumber,
+  fallbackOrderTimestamp
+} from '../components/LotteryTradeDetailCard';
 
 export const D5Game: React.FC = () => {
   const {
@@ -29,6 +36,7 @@ export const D5Game: React.FC = () => {
     marketPools,
     placeD5Bet,
     settleD5Round,
+    popLotteryQueue,
     setActiveTab,
     showToast,
     syncServerDataNow,
@@ -48,6 +56,7 @@ export const D5Game: React.FC = () => {
   const [selectedPos, setSelectedPos] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'SUM'>('A');
   const [chartPos, setChartPos] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
   const [activeRecordTab, setActiveRecordTab] = useState<'history' | 'chart' | 'my'>('history');
+  const [expandedBetId, setExpandedBetId] = useState<string | null>(null);
   const [page, setPage] = useState<number>(1);
   const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
 
@@ -66,6 +75,8 @@ export const D5Game: React.FC = () => {
   const d5BetsRef = useRef(d5Bets);
   const marketPoolsRef = useRef(marketPools);
   const settleD5Ref = useRef(settleD5Round);
+  const popQueueRef = useRef(popLotteryQueue);
+  const adminSettingsRef = useRef(adminSettings);
   const controlModeRef = useRef(adminSettings.gameControlModes?.d5 || 'AUTO');
   const tzOffsetRef = useRef(adminSettings.timezoneOffsetMinutes ?? 360);
 
@@ -73,9 +84,11 @@ export const D5Game: React.FC = () => {
     d5BetsRef.current = d5Bets;
     marketPoolsRef.current = marketPools;
     settleD5Ref.current = settleD5Round;
+    popQueueRef.current = popLotteryQueue;
+    adminSettingsRef.current = adminSettings;
     controlModeRef.current = adminSettings.gameControlModes?.d5 || 'AUTO';
     tzOffsetRef.current = adminSettings.timezoneOffsetMinutes ?? 360;
-  }, [d5Bets, marketPools, settleD5Round, adminSettings.gameControlModes, adminSettings.timezoneOffsetMinutes]);
+  }, [d5Bets, marketPools, settleD5Round, popLotteryQueue, adminSettings]);
 
   useEffect(() => {
     if (!isRolling) return;
@@ -107,6 +120,28 @@ export const D5Game: React.FC = () => {
     if (initialList[0]?.periodNumber) {
       lastLatestIssueRef.current = initialList[0].periodNumber;
     }
+
+    let cancelled = false;
+    const syncD5ServerResults = async () => {
+      try {
+        const res = await fetch(apiUrl(`/api/lottery/results?key=${encodeURIComponent(`d5_${mode}`)}`), { cache: 'no-store' });
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (!cancelled && data && Array.isArray(data.results) && data.results.length > 0) {
+            setHistory((prev) => {
+              const map = new Map<string, D5Result>();
+              data.results.forEach((r: D5Result) => {
+                if (r?.periodNumber) map.set(r.periodNumber, r);
+              });
+              const merged = [...data.results, ...prev.filter((r) => !map.has(r.periodNumber))];
+              return merged.slice(0, 50);
+            });
+          }
+        }
+      } catch {}
+    };
+    syncD5ServerResults();
 
     const timer = setInterval(() => {
       const next = computeDailyIssueInfo('d5', mode);
@@ -145,12 +180,22 @@ export const D5Game: React.FC = () => {
           : [];
 
         const mergedBets = poolBets.length > 0 ? poolBets : activeLocalBets;
-        const drawnDigits = resolveControlledD5Digits(
-          mode,
-          resolvingPeriod,
-          controlModeRef.current,
-          mergedBets
-        );
+        const queuedSpec = adminSettingsRef.current.queuedD5Outcomes?.[mode]?.[0];
+        const forcedSpec = adminSettingsRef.current.nextD5Outcomes?.[mode];
+        const forcedDigits =
+          parseD5ForcedOutcome(queuedSpec, mode, resolvingPeriod) ||
+          parseD5ForcedOutcome(forcedSpec, mode, resolvingPeriod);
+        if (queuedSpec && parseD5ForcedOutcome(queuedSpec, mode, resolvingPeriod)) {
+          popQueueRef.current('d5', mode);
+        }
+        const drawnDigits =
+          forcedDigits ||
+          resolveControlledD5Digits(
+            mode,
+            resolvingPeriod,
+            controlModeRef.current,
+            mergedBets
+          );
 
         setTimeout(() => {
           const sum = drawnDigits.reduce((a, b) => a + b, 0);
@@ -164,6 +209,11 @@ export const D5Game: React.FC = () => {
           };
           setHistory((prev) => [newRow, ...prev.filter((r) => r.periodNumber !== resolvingPeriod)].slice(0, 50));
           lastLatestIssueRef.current = resolvingPeriod;
+          fetch(apiUrl('/api/lottery/results'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: `d5_${mode}`, result: newRow })
+          }).catch(() => {});
           settleD5Ref.current(mode, resolvingPeriod, drawnDigits);
           setIsRolling(false);
         }, 1250);
@@ -171,6 +221,7 @@ export const D5Game: React.FC = () => {
     }, 1000);
 
     return () => {
+      cancelled = true;
       clearInterval(timer);
     };
   }, [mode]);
@@ -751,33 +802,62 @@ export const D5Game: React.FC = () => {
               {myModeBets.length === 0 ? (
                 <div className="py-10 text-center text-xs text-slate-500">No Deshi 5D bets placed yet.</div>
               ) : (
-                myModeBets.slice(0, 30).map((b) => (
-                  <div
-                    key={b.id}
-                    className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-black text-slate-800">
-                        Pos {b.position} • {b.selection}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-mono">{b.periodNumber} • {b.time}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-black text-slate-900">৳{b.totalAmount.toFixed(2)}</div>
-                      <div
-                        className={`text-[10px] font-black uppercase ${
-                          b.status === 'won'
-                            ? 'text-emerald-600'
-                            : b.status === 'lost'
-                            ? 'text-slate-400'
-                            : 'text-[#0891B2]'
-                        }`}
-                      >
-                        {b.status === 'won' ? `+৳${(b.winAmount || 0).toFixed(2)}` : b.status}
-                      </div>
-                    </div>
-                  </div>
-                ))
+                myModeBets.slice(0, 30).map((b) => {
+                  const matchedRow = history.find((r) => r.periodNumber === b.periodNumber);
+                  const digitsVal = b.resultDigits || matchedRow?.digits;
+                  const sumVal =
+                    typeof b.resultSum === 'number'
+                      ? b.resultSum
+                      : digitsVal
+                      ? digitsVal.reduce((acc, d) => acc + d, 0)
+                      : matchedRow?.sum;
+                  const selStr = String(b.selection || '');
+                  const tone =
+                    selStr === 'Big'
+                      ? 'orange'
+                      : selStr === 'Small'
+                      ? 'blue'
+                      : selStr === 'Odd'
+                      ? 'violet'
+                      : selStr === 'Even'
+                      ? 'green'
+                      : 'cyan';
+                  return (
+                    <LotteryTradeDetailCard
+                      key={b.id}
+                      isExpanded={expandedBetId === b.id}
+                      onToggle={() => setExpandedBetId((prev) => (prev === b.id ? null : b.id))}
+                      onCopyOrderNumber={() => showToast('Order number copied!')}
+                      item={{
+                        id: b.id,
+                        orderNumber: b.orderNumber || buildLotteryOrderNumber('D5', b.id),
+                        periodNumber: b.periodNumber,
+                        orderTime: b.orderTime || fallbackOrderTimestamp(b.periodNumber, b.time, tzOffsetRef.current),
+                        purchaseAmount: b.totalAmount,
+                        quantity: b.multiplier || 1,
+                        selectionShort: selStr,
+                        selectionFull: `Pos ${b.position} • ${selStr}`,
+                        selectionTone: tone,
+                        status: b.status,
+                        winAmount: b.winAmount,
+                        countdownSec:
+                          b.mode === mode && b.periodNumber === currentDisplayPeriod && b.status === 'pending'
+                            ? periodInfo.rem
+                            : undefined,
+                        gameKind: 'd5',
+                        d5Result:
+                          digitsVal && typeof sumVal === 'number'
+                            ? {
+                                digits: digitsVal,
+                                sum: sumVal,
+                                size: sumVal >= 23 ? 'Big' : 'Small',
+                                parity: sumVal % 2 === 0 ? 'Even' : 'Odd'
+                              }
+                            : undefined
+                      }}
+                    />
+                  );
+                })
               )}
             </div>
           )}

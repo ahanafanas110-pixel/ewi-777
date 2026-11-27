@@ -38,8 +38,6 @@ const ALLOWED_TABS = [
   'aviator',
   'luckyjet',
   'plane',
-  'ewi-roulette',
-  'roulette',
   'ludo',
   'sports',
   'binary',
@@ -162,7 +160,6 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           'game_gold_market',
           'game_mines',
           'game_coinflip',
-          'game_ewi_roulette',
           'game_ludo'
         ].includes(g.id)
     )

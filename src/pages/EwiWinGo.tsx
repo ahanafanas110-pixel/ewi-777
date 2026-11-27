@@ -1,14 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { EwiWingoMode } from '../types';
+import { EwiWingoMode, WinGoResult } from '../types';
 import {
+  formatTimeWithOffset,
   getEwiWingoNumberMeta,
   getEwiWingoPeriodInfo,
   getSyncedEwiWingoHistory,
-  resolveControlledEwiWingoNumber
+  resolveControlledEwiWingoNumber,
+  resolveForcedEwiWingoNumber
 } from '../utils/syncedMarkets';
 import { ArrowLeft, RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
+import { apiUrl } from '../utils/phoneAndApi';
+import {
+  LotteryTradeDetailCard,
+  buildLotteryOrderNumber,
+  fallbackOrderTimestamp
+} from '../components/LotteryTradeDetailCard';
 
 const MODES: { id: EwiWingoMode; label: string; sec: string }[] = [
   { id: '15s', label: 'Deshi 15s', sec: '15s' },
@@ -25,8 +33,10 @@ export const EwiWinGo: React.FC = () => {
     user,
     adminSettings,
     ewiWingoBets,
+    marketPools,
     placeEwiWingoBet,
     settleEwiWingoRound,
+    popLotteryQueue,
     setActiveTab,
     showToast
   } = useApp();
@@ -34,6 +44,8 @@ export const EwiWinGo: React.FC = () => {
   const [mode, setMode] = useState<EwiWingoMode>('15s');
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [historyTab, setHistoryTab] = useState<'history' | 'mybets'>('history');
+  const [expandedBetId, setExpandedBetId] = useState<string | null>(null);
+  const [serverResults, setServerResults] = useState<WinGoResult[]>([]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [betSpec, setBetSpec] = useState<{
@@ -46,9 +58,46 @@ export const EwiWinGo: React.FC = () => {
   const [multiplier, setMultiplier] = useState<number>(1);
 
   const settledRef = useRef<Set<string>>(new Set());
+  const prevActivePeriodRef = useRef<string>('');
+  const adminSettingsRef = useRef(adminSettings);
+  adminSettingsRef.current = adminSettings;
+  const marketPoolsRef = useRef(marketPools);
+  marketPoolsRef.current = marketPools;
 
-  const periodInfo = useMemo(() => getEwiWingoPeriodInfo(mode, nowMs), [mode, nowMs]);
-  const historyRows = useMemo(() => getSyncedEwiWingoHistory(mode, 10, nowMs), [mode, nowMs]);
+  const tzOffset = adminSettings.timezoneOffsetMinutes ?? 360;
+  const periodInfo = useMemo(() => getEwiWingoPeriodInfo(mode, nowMs, tzOffset), [mode, nowMs, tzOffset]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadResults = async () => {
+      try {
+        const r = await fetch(apiUrl(`/api/lottery/results?key=${encodeURIComponent(`ewi_wingo_${mode}`)}`), { cache: 'no-store' });
+        const ct = r.headers.get('content-type') || '';
+        if (r.ok && ct.includes('application/json')) {
+          const data = await r.json().catch(() => null);
+          if (!cancelled && data && Array.isArray(data.results)) {
+            setServerResults(data.results);
+          }
+        }
+      } catch {}
+    };
+    loadResults();
+    const poll = setInterval(loadResults, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+    };
+  }, [mode]);
+
+  const historyRows = useMemo(() => {
+    const base = getSyncedEwiWingoHistory(mode, 10, nowMs, tzOffset);
+    if (serverResults.length === 0) return base;
+    const map = new Map<string, WinGoResult>();
+    serverResults.forEach((r) => {
+      if (r?.periodNumber) map.set(r.periodNumber, r);
+    });
+    return base.map((row) => map.get(row.periodNumber) || row);
+  }, [mode, nowMs, tzOffset, serverResults]);
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -57,11 +106,72 @@ export const EwiWinGo: React.FC = () => {
     return () => clearInterval(iv);
   }, []);
 
+  const resolveModeRoundOutcome = (m: EwiWingoMode, p: string): number => {
+    const curSettings = adminSettingsRef.current;
+    const queuedList = curSettings.queuedEwiWingoOutcomes?.[m] || [];
+    const queuedNum = typeof queuedList[0] === 'number' ? queuedList[0] : undefined;
+    const forcedOutcome = curSettings.nextEwiWingoOutcomes?.[m] ?? 'AUTO';
+    const forcedResolved = resolveForcedEwiWingoNumber(m, p, forcedOutcome, queuedNum);
+    if (forcedResolved !== null) {
+      if (typeof queuedNum === 'number') {
+        popLotteryQueue('ewi_wingo', m);
+      }
+      return forcedResolved;
+    }
+
+    const poolEntry = marketPoolsRef.current?.[`ewi_wingo_${m}_${p}`];
+    const poolBets: Array<{ type: 'color' | 'number' | 'size'; value: string | number; totalAmount: number }> = poolEntry
+      ? Object.entries(poolEntry.selections || {}).map(([k, total]) => {
+          const sep = k.indexOf(':');
+          const bType = (sep >= 0 ? k.slice(0, sep) : 'color') as 'color' | 'number' | 'size';
+          const rawVal = sep >= 0 ? k.slice(sep + 1) : k;
+          return {
+            type: bType,
+            value: bType === 'number' ? Number(rawVal) : rawVal,
+            totalAmount: Number(total) || 0
+          };
+        })
+      : [];
+    const localRoundBets = ewiWingoBets
+      .filter((x) => x.mode === m && x.periodNumber === p && x.status === 'pending')
+      .map((rb) => ({ type: rb.type, value: rb.value, totalAmount: rb.totalAmount }));
+    const merged = poolBets.length > 0 ? poolBets : localRoundBets;
+    const controlMode = curSettings.gameControlModes?.ewiWingo || 'HIGH_BET_LOSS';
+    return resolveControlledEwiWingoNumber(m, p, controlMode, merged);
+  };
+
   useEffect(() => {
+    // Also persist settled row whenever the active mode period transitions
+    if (prevActivePeriodRef.current && prevActivePeriodRef.current !== periodInfo.period) {
+      const prevP = prevActivePeriodRef.current;
+      const key = `${mode}:${prevP}`;
+      if (!settledRef.current.has(key)) {
+        settledRef.current.add(key);
+        const resolvedNum = resolveModeRoundOutcome(mode, prevP);
+        const meta = getEwiWingoNumberMeta(resolvedNum);
+        const settledRow: WinGoResult = {
+          periodNumber: prevP,
+          number: resolvedNum,
+          color: meta.color,
+          size: meta.size,
+          time: formatTimeWithOffset(nowMs, tzOffset),
+          source: 'local'
+        };
+        setServerResults((prev) => [settledRow, ...prev.filter((r) => r.periodNumber !== prevP)].slice(0, 20));
+        fetch(apiUrl('/api/lottery/results'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: `ewi_wingo_${mode}`, result: settledRow })
+        }).catch(() => {});
+        settleEwiWingoRound(mode, prevP, resolvedNum);
+      }
+    }
+    prevActivePeriodRef.current = periodInfo.period;
+
     const pendingByPeriod = new Map<string, { mode: EwiWingoMode; periodNumber: string }>();
     for (const b of ewiWingoBets) {
       if (b.status !== 'pending' || b.userId !== user.id) continue;
-      const activeForMode = getEwiWingoPeriodInfo(b.mode, nowMs).period;
+      const activeForMode = getEwiWingoPeriodInfo(b.mode, nowMs, tzOffset).period;
       if (b.periodNumber !== activeForMode) {
         const key = `${b.mode}:${b.periodNumber}`;
         if (!settledRef.current.has(key)) {
@@ -71,26 +181,30 @@ export const EwiWinGo: React.FC = () => {
     }
 
     if (pendingByPeriod.size > 0) {
-      const controlMode = adminSettings.gameControlModes?.k3 || 'HIGH_BET_LOSS';
       pendingByPeriod.forEach(({ mode: m, periodNumber: p }, key) => {
         settledRef.current.add(key);
-        const roundBets = ewiWingoBets.filter(
-          (x) => x.mode === m && x.periodNumber === p && x.status === 'pending'
-        );
-        const resolvedNum = resolveControlledEwiWingoNumber(
-          m,
-          p,
-          controlMode,
-          roundBets.map((rb) => ({
-            type: rb.type,
-            value: rb.value,
-            totalAmount: rb.totalAmount
-          }))
-        );
+        const resolvedNum = resolveModeRoundOutcome(m, p);
+        const meta = getEwiWingoNumberMeta(resolvedNum);
+        const settledRow: WinGoResult = {
+          periodNumber: p,
+          number: resolvedNum,
+          color: meta.color,
+          size: meta.size,
+          time: formatTimeWithOffset(nowMs, tzOffset),
+          source: 'local'
+        };
+        if (m === mode) {
+          setServerResults((prev) => [settledRow, ...prev.filter((r) => r.periodNumber !== p)].slice(0, 20));
+        }
+        fetch(apiUrl('/api/lottery/results'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: `ewi_wingo_${m}`, result: settledRow })
+        }).catch(() => {});
         settleEwiWingoRound(m, p, resolvedNum);
       });
     }
-  }, [nowMs, ewiWingoBets, user.id, adminSettings.gameControlModes]);
+  }, [nowMs, periodInfo.period, mode, ewiWingoBets, user.id, tzOffset]);
 
   const isLocked = periodInfo.timeRemaining <= 5;
 
@@ -395,44 +509,72 @@ export const EwiWinGo: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="p-3 space-y-2">
+            <div className="p-3 space-y-2.5">
               {myBets.length === 0 ? (
                 <div className="text-center py-6 text-xs text-slate-500 font-semibold">
                   No Deshi WinGo bets placed yet.
                 </div>
               ) : (
-                myBets.map((b) => (
-                  <div
-                    key={b.id}
-                    className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-black text-slate-800 capitalize">
-                        {b.mode} · {b.type}: {String(b.value)}
-                      </div>
-                      <div className="text-[10px] font-mono text-slate-500">
-                        Period {b.periodNumber.slice(-7)} · Bet ৳{b.totalAmount.toFixed(0)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                          b.status === 'won'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : b.status === 'lost'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-cyan-100 text-[#0891B2]'
-                        }`}
-                      >
-                        {b.status === 'won'
-                          ? `+৳${(b.winAmount || 0).toFixed(2)}`
-                          : b.status === 'lost'
-                          ? 'Lost'
-                          : 'Pending'}
-                      </span>
-                    </div>
-                  </div>
-                ))
+                myBets.map((b) => {
+                  const matchedRow =
+                    b.resultNumber !== undefined
+                      ? {
+                          number: b.resultNumber,
+                          color: b.resultColor || ('green' as const),
+                          size: b.resultSize || ('small' as const)
+                        }
+                      : historyRows.find((r) => r.periodNumber === b.periodNumber);
+                  const valStr = String(b.value);
+                  const tone =
+                    valStr === 'big'
+                      ? 'orange'
+                      : valStr === 'small'
+                      ? 'blue'
+                      : valStr === 'green'
+                      ? 'green'
+                      : valStr === 'red'
+                      ? 'red'
+                      : valStr === 'violet'
+                      ? 'violet'
+                      : 'cyan';
+                  const shortLabel =
+                    b.type === 'size'
+                      ? valStr === 'big'
+                        ? 'Big'
+                        : 'Small'
+                      : b.type === 'color'
+                      ? valStr.charAt(0).toUpperCase() + valStr.slice(1)
+                      : valStr;
+                  return (
+                    <LotteryTradeDetailCard
+                      key={b.id}
+                      isExpanded={expandedBetId === b.id}
+                      onToggle={() => setExpandedBetId((prev) => (prev === b.id ? null : b.id))}
+                      onCopyOrderNumber={() => showToast('Order number copied!')}
+                      item={{
+                        id: b.id,
+                        orderNumber: b.orderNumber || buildLotteryOrderNumber('DW', b.id),
+                        periodNumber: b.periodNumber,
+                        orderTime: b.orderTime || fallbackOrderTimestamp(b.periodNumber, b.time, tzOffset),
+                        purchaseAmount: b.totalAmount,
+                        quantity: b.multiplier || 1,
+                        selectionShort: shortLabel,
+                        selectionFull: `${b.mode.toUpperCase()} • ${b.type === 'number' ? `Number ${valStr}` : shortLabel}`,
+                        selectionTone: tone,
+                        status: b.status,
+                        winAmount: b.winAmount,
+                        countdownSec:
+                          b.mode === mode && b.periodNumber === periodInfo.period && b.status === 'pending'
+                            ? periodInfo.timeRemaining
+                            : undefined,
+                        gameKind: 'ewi_wingo',
+                        wingoResult: matchedRow
+                          ? { number: matchedRow.number, color: matchedRow.color, size: matchedRow.size }
+                          : undefined
+                      }}
+                    />
+                  );
+                })
               )}
             </div>
           )}

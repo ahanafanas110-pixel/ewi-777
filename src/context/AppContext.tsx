@@ -33,14 +33,17 @@ import {
   CoinFlipBet,
   EwiWingoMode,
   EwiWingoBet,
-  RouletteBet,
-  RouletteBetType,
+  GlobalLotteryBet,
   ActiveAdminSession,
   LudoRoomMode,
   LudoBetRecord,
   SportsMatch,
   SportsBet
 } from '../types';
+import {
+  buildLotteryOrderNumber,
+  formatFullOrderTimestamp
+} from '../components/LotteryTradeDetailCard';
 import { getClientDeviceName } from '../utils/deviceInfo';
 import confetti from 'canvas-confetti';
 import {
@@ -97,11 +100,9 @@ import {
   nextIssueFromLatest
 } from '../utils/lotteryApi';
 import {
-  computeRouletteBetPayout,
   evaluateCrash30Cap,
   evaluatePoolControl,
   getDateKeyWithOffset,
-  getEwiRouletteState,
   getEwiWingoNumberMeta,
   getEwiWingoPeriodInfo,
   getSyncedBinarySnapshot,
@@ -144,6 +145,7 @@ interface AppContextType {
   withdrawRequests: WithdrawRequest[];
   bets: WinGoBet[];
   globalWingoBets: WinGoBet[];
+  globalLotteryBets: GlobalLotteryBet[];
   aviatorBets: AviatorBet[];
   syncServerDataNow: () => Promise<void>;
   historyResults: WinGoResult[];
@@ -231,16 +233,7 @@ interface AppContextType {
     multiplier: number
   ) => { success: boolean; message: string };
   settleEwiWingoRound: (mode: EwiWingoMode, periodNumber: string, resolvedNumber: number) => void;
-  rouletteBets: RouletteBet[];
-  placeRouletteBet: (
-    periodNumber: string,
-    betType: RouletteBetType,
-    label: string,
-    numbers: number[],
-    amount: number,
-    payoutMultiplier: number
-  ) => { success: boolean; message: string; betId?: string };
-  settleRouletteRound: (periodNumber: string, winningNumber: number) => void;
+  popLotteryQueue: (game: 'ewi_wingo' | 'k3' | 'd5', mode: string) => void;
   setActiveTab: (tab: string) => void;
   setLanguage: (lang: Language) => void;
   showToast: (msg: string) => void;
@@ -315,7 +308,7 @@ interface AppContextType {
   placeCoinFlipBet: (periodNumber: string, side: 'GOLD' | 'SILVER', amount: number) => { success: boolean; message: string; betId?: string };
   settleCoinFlipRound: (periodNumber: string, resultSide: 'GOLD' | 'SILVER') => void;
   marketPools: Record<string, MarketPoolEntry>;
-  recordMarketPoolBet: (game: 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip', mode: string, period: string, selection: string, amount: number) => void;
+  recordMarketPoolBet: (game: 'ewi_wingo' | 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip', mode: string, period: string, selection: string, amount: number) => void;
   claimAgentSalary: (tierMembers: number, salaryAmount: number) => { success: boolean; message: string };
   claimActivityAward: (missionKey: string, targetBet: number, rewardAmount: number, isDaily: boolean) => { success: boolean; message: string };
   getInviteLink: () => string;
@@ -455,20 +448,6 @@ export const DEFAULT_GAMES: GameItem[] = [
     featured: true,
     targetTab: 'plane',
     htmlCode: '<!-- Deshi Win PLANE Biplane Crash Engine -->\n<div class="ewi-game" data-game="plane">PLANE Aviation Crash</div>'
-  },
-  {
-    id: 'game_ewi_roulette',
-    slug: 'ewi-roulette',
-    title: 'DESHI ROULETTE',
-    imageUrl: '',
-    category: 'Slots',
-    badge: '36X',
-    price: '36X',
-    sortOrder: 6.2,
-    active: true,
-    featured: true,
-    targetTab: 'ewi-roulette',
-    htmlCode: '<!-- Deshi Win European Single-Zero Roulette -->\n<div class="ewi-game" data-game="ewi-roulette">DESHI ROULETTE Live</div>'
   },
   {
     id: 'game_ludo',
@@ -766,6 +745,12 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
     '5m': 'AUTO'
   },
   queuedWingoOutcomes: {},
+  nextEwiWingoOutcomes: { '15s': 'AUTO', '30s': 'AUTO', '1m': 'AUTO', '3m': 'AUTO' },
+  queuedEwiWingoOutcomes: {},
+  nextK3Outcomes: { '1m': 'AUTO', '3m': 'AUTO', '5m': 'AUTO', '10m': 'AUTO' },
+  queuedK3Outcomes: {},
+  nextD5Outcomes: { '1m': 'AUTO', '3m': 'AUTO', '5m': 'AUTO', '10m': 'AUTO' },
+  queuedD5Outcomes: {},
   wingoSyncPath: 'wingo',
   wingoPattern: '1,2,3,4,5',
   showTopEarners: false,
@@ -781,6 +766,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   maintenanceMode: false,
   timezoneOffsetMinutes: 360,
   gameControlModes: {
+    ewiWingo: 'HIGH_BET_LOSS',
     k3: 'HIGH_BET_LOSS',
     d5: 'HIGH_BET_LOSS',
     mines: 'AUTO',
@@ -1127,7 +1113,6 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'first-gift' || cleanHash === 'first-gift' || full.includes('/first-gift') || full.includes('#/first-gift')) resolved = 'first-gift';
     else if (target === 'casino' || cleanHash === 'casino' || full.includes('/casino') || full.includes('#/casino')) resolved = 'casino';
     else if (target === 'slots' || cleanHash === 'slots' || full.includes('/slots') || full.includes('#/slots')) resolved = 'slots';
-    else if (target === 'ewi-roulette' || target === 'roulette' || cleanHash === 'ewi-roulette' || full.includes('/ewi-roulette') || full.includes('#/ewi-roulette')) resolved = 'ewi-roulette';
     else if (target === 'ludo' || target === 'ewi-ludo' || cleanHash === 'ludo' || full.includes('/ludo') || full.includes('#/ludo')) resolved = 'ludo';
     else if (target === 'sports' || target === 'live-sports' || cleanHash === 'sports' || full.includes('/sports') || full.includes('#/sports')) resolved = 'sports';
 
@@ -1374,12 +1359,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             withNewGames.push(dg);
           }
         }
-        const loadedGames = withNewGames.map((g: GameItem) => {
+        const loadedGames = withNewGames
+          .filter((g: GameItem) => g.id !== 'game_ewi_roulette' && g.slug !== 'ewi-roulette')
+          .map((g: GameItem) => {
           if (g.id === 'game_aviator') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
           if (g.id === 'game_luckyjet') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
           if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
-          if (g.id === 'game_ewi_roulette') return { ...g, title: 'DESHI ROULETTE', category: 'Slots' as const };
           if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
           if (g.id === 'game_ludo') return { ...g, title: 'Deshi Ludo', category: 'Casino' as const, targetTab: 'ludo' };
           if (g.id === 'game_k3') return { ...g, title: 'Deshi K3' };
@@ -1546,15 +1532,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const ewiWingoBetsRef = useRef<EwiWingoBet[]>(ewiWingoBets);
   ewiWingoBetsRef.current = ewiWingoBets;
-  const [rouletteBets, setRouletteBets] = useState<RouletteBet[]>(() => {
-    try {
-      const saved = localStorage.getItem('ewi777_roulette_bets');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
-  const rouletteBetsRef = useRef<RouletteBet[]>(rouletteBets);
-  rouletteBetsRef.current = rouletteBets;
   const [ludoBets, setLudoBets] = useState<LudoBetRecord[]>(() => {
     try {
       const saved = localStorage.getItem('ewi777_ludo_bets');
@@ -1578,7 +1555,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const settledK3PeriodsRef = useRef<Set<string>>(new Set());
   const settledD5PeriodsRef = useRef<Set<string>>(new Set());
   const settledEwiWingoPeriodsRef = useRef<Set<string>>(new Set());
-  const settledRoulettePeriodsRef = useRef<Set<string>>(new Set());
   const [marketPools, setMarketPools] = useState<Record<string, MarketPoolEntry>>({});
   const marketPoolsRef = useRef<Record<string, MarketPoolEntry>>({});
   marketPoolsRef.current = marketPools;
@@ -1642,6 +1618,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [globalWingoBets, setGlobalWingoBets] = useState<WinGoBet[]>([]);
   const globalWingoBetsRef = useRef<WinGoBet[]>([]);
   globalWingoBetsRef.current = globalWingoBets;
+  const [globalLotteryBets, setGlobalLotteryBets] = useState<GlobalLotteryBet[]>([]);
 
   // Shared Multi-Asset Binary Markets state (all 17 markets synced globally across phones)
   const [binaryMarkets, setBinaryMarkets] = useState<Record<string, BinaryMarketQuote>>(() =>
@@ -1846,10 +1823,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     safeLocalStorageSet('ewi777_ewi_wingo_bets', JSON.stringify(ewiWingoBets.slice(0, 150)));
   }, [ewiWingoBets]);
-
-  useEffect(() => {
-    safeLocalStorageSet('ewi777_roulette_bets', JSON.stringify(rouletteBets.slice(0, 150)));
-  }, [rouletteBets]);
 
   useEffect(() => {
     if (!isPrivilegedSessionHost(isAdminLoggedIn)) return;
@@ -2064,7 +2037,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const shouldFetchSupport =
           isMentorRouteActive() || (isLoggedInUser && activeTabRef.current === 'customer-service');
 
-        const [setRes, depRes, wdRes, usrRes, poolRes, refRes, wBetRes, csRes, logRes] = await Promise.all([
+        const [setRes, depRes, wdRes, usrRes, poolRes, refRes, wBetRes, lBetRes, csRes, logRes] = await Promise.all([
           fetch(apiUrl('/api/settings'), { cache: 'no-store' }).catch(() => null),
           isPrivileged || isLoggedInUser
             ? fetch(apiUrl(isPrivileged ? '/api/deposits' : `/api/deposits?${userQs}`), { cache: 'no-store' }).catch(() => null)
@@ -2086,6 +2059,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : Promise.resolve(null),
           isPrivileged
             ? fetch(apiUrl('/api/wingo/bets'), { cache: 'no-store' }).catch(() => null)
+            : Promise.resolve(null),
+          isPrivileged
+            ? fetch(apiUrl('/api/lottery/bets'), { cache: 'no-store' }).catch(() => null)
             : Promise.resolve(null),
           shouldFetchSupport
             ? fetch(
@@ -2209,6 +2185,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
 
+        const lbCt = lBetRes?.headers.get('content-type') || '';
+        if (lBetRes && lBetRes.ok && lbCt.includes('application/json')) {
+          const lbData = await lBetRes.json().catch(() => null);
+          if (lbData && Array.isArray(lbData.bets)) {
+            setGlobalLotteryBets(lbData.bets);
+          }
+        }
+
         const setCt = setRes?.headers.get('content-type') || '';
         if (setRes && setRes.ok && setCt.includes('application/json') && lastSettingsPushAtRef.current < pollStartedAt && Date.now() - lastSettingsPushAtRef.current > 2500) {
           const sData = await setRes.json().catch(() => null);
@@ -2224,9 +2208,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   mergedGamesList.push(dg);
                 }
               }
-              const normalizedGames = mergedGamesList.map((g: GameItem) => {
+              const normalizedGames = mergedGamesList
+                .filter((g: GameItem) => g.id !== 'game_ewi_roulette' && g.slug !== 'ewi-roulette')
+                .map((g: GameItem) => {
                 if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
-                if (g.id === 'game_ewi_roulette') return { ...g, title: 'DESHI ROULETTE', category: 'Slots' as const };
                 if (g.id === 'game_ludo') return { ...g, title: 'Deshi Ludo', category: 'Casino' as const, targetTab: 'ludo' };
                 if (g.id === 'game_k3') return { ...g, title: 'Deshi K3' };
                 if (g.id === 'game_5d') return { ...g, title: 'Deshi 5D' };
@@ -2639,13 +2624,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             mergedGamesList.push(dg);
           }
         }
-        const normalizedGames = mergedGamesList.map((g: GameItem) => {
+        const normalizedGames = mergedGamesList
+          .filter((g: GameItem) => g.id !== 'game_ewi_roulette' && g.slug !== 'ewi-roulette')
+          .map((g: GameItem) => {
           if (g.id === 'game_aviator') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
           if (g.id === 'game_luckyjet') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
           if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
           if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
-          if (g.id === 'game_ewi_roulette') return { ...g, title: 'DESHI ROULETTE', category: 'Slots' as const };
           if (g.id === 'game_ludo') return { ...g, title: 'Deshi Ludo', category: 'Casino' as const, targetTab: 'ludo' };
           if (g.id === 'game_k3') return { ...g, title: 'Deshi K3' };
           if (g.id === 'game_5d') return { ...g, title: 'Deshi 5D' };
@@ -3081,7 +3067,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextBetsList = betsRef.current.map((b) => {
       if (b.periodNumber === resolvingPeriod && b.mode === mode && b.status === 'pending') {
         const { won, winAmount } = evalBetOutcome(b);
-        const nextBet: WinGoBet = { ...b, status: won ? ('won' as const) : ('lost' as const), winAmount };
+        const nextBet: WinGoBet = {
+          ...b,
+          status: won ? ('won' as const) : ('lost' as const),
+          winAmount,
+          resultNumber: safeNum,
+          resultColor: color,
+          resultSize: size
+        };
         settledBetWrites.push(nextBet);
         return nextBet;
       }
@@ -6276,8 +6269,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     setUser(updatedUser);
 
+    const nowMs = Date.now();
+    const tzOffset = typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number' ? adminSettingsRef.current.timezoneOffsetMinutes : 360;
+    const betId = `bet_${nowMs}_${Math.random().toString(36).slice(2, 6)}`;
     const newBet: WinGoBet = {
-      id: `bet_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: betId,
+      orderNumber: buildLotteryOrderNumber('WG', betId, nowMs),
       userId: user.id,
       nickname: user.nickname || 'Player',
       userPhone: user.phone || user.email || '',
@@ -6289,7 +6286,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       multiplier,
       totalAmount: totalCost,
       status: 'pending',
-      time: new Date().toLocaleTimeString('en-US', { hour12: false })
+      time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+      orderTime: formatFullOrderTimestamp(nowMs, tzOffset)
     };
 
     betsRef.current = [newBet, ...betsRef.current];
@@ -6346,7 +6344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const recordMarketPoolBet = (
-    game: 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip',
+    game: 'ewi_wingo' | 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip',
     mode: string,
     period: string,
     selection: string,
@@ -6361,6 +6359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mode,
       period,
       selections: {},
+      selectionCounts: {},
       totalAmount: 0,
       updatedAt: Date.now()
     };
@@ -6370,6 +6369,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       selections: {
         ...(prevPool.selections || {}),
         [selKey]: +(Number(prevPool.selections?.[selKey] || 0) + numAmt).toFixed(2)
+      },
+      selectionCounts: {
+        ...(prevPool.selectionCounts || {}),
+        [selKey]: (Number(prevPool.selectionCounts?.[selKey] || 0) + 1)
       },
       totalAmount: +(Number(prevPool.totalAmount || 0) + numAmt).toFixed(2),
       updatedAt: Date.now()
@@ -7260,6 +7263,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Bonus collected' };
   };
 
+  const popLotteryQueue = (game: 'ewi_wingo' | 'k3' | 'd5', mode: string) => {
+    const cur = adminSettingsRef.current;
+    let nextSettings: AdminSettings | null = null;
+    if (game === 'ewi_wingo') {
+      const q = cur.queuedEwiWingoOutcomes?.[mode as EwiWingoMode] || [];
+      if (q.length === 0) return;
+      nextSettings = {
+        ...cur,
+        queuedEwiWingoOutcomes: {
+          ...(cur.queuedEwiWingoOutcomes || {}),
+          [mode]: q.slice(1)
+        }
+      };
+    } else if (game === 'k3') {
+      const q = cur.queuedK3Outcomes?.[mode as K3Mode] || [];
+      if (q.length === 0) return;
+      nextSettings = {
+        ...cur,
+        queuedK3Outcomes: {
+          ...(cur.queuedK3Outcomes || {}),
+          [mode]: q.slice(1)
+        }
+      };
+    } else if (game === 'd5') {
+      const q = cur.queuedD5Outcomes?.[mode as D5Mode] || [];
+      if (q.length === 0) return;
+      nextSettings = {
+        ...cur,
+        queuedD5Outcomes: {
+          ...(cur.queuedD5Outcomes || {}),
+          [mode]: q.slice(1)
+        }
+      };
+    }
+    if (!nextSettings) return;
+    lastSettingsPushAtRef.current = Date.now();
+    adminSettingsRef.current = nextSettings;
+    setAdminSettings(nextSettings);
+    saveAppSettingsToFirebase(nextSettings).catch(() => {});
+    fetch(apiUrl('/api/settings'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: nextSettings })
+    }).catch(() => {});
+  };
+
   // Deshi K3 Dice Lottery Engine
   const placeK3Bet = (
     mode: K3Mode,
@@ -7295,9 +7344,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     recordMarketPoolBet('k3', mode, periodNumber, `${betType}:${selection}`, totalAmount);
 
+    const nowMs = Date.now();
+    const tzOffset = typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number' ? adminSettingsRef.current.timezoneOffsetMinutes : 360;
+    const betId = `k3_${nowMs}_${Math.random().toString(36).slice(2, 6)}`;
     const betEntry: K3Bet = {
-      id: `k3_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: betId,
+      orderNumber: buildLotteryOrderNumber('K3', betId, nowMs),
       userId: user.id,
+      nickname: user.nickname || 'Player',
+      userPhone: user.phone || user.email || '',
       periodNumber,
       mode,
       betType,
@@ -7307,10 +7362,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalAmount,
       payoutRate,
       status: 'pending',
-      time: new Date().toTimeString().slice(0, 8)
+      time: new Date().toTimeString().slice(0, 8),
+      orderTime: formatFullOrderTimestamp(nowMs, tzOffset)
     };
     k3BetsRef.current = [betEntry, ...k3BetsRef.current];
     setK3Bets((prev) => [betEntry, ...prev]);
+
+    fetch(apiUrl('/api/lottery/bet'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...betEntry, game: 'k3' })
+    }).catch(() => {});
+
     const k3BetTx: Transaction = {
       id: `tx_${Date.now()}_k3b`,
       userId: user.id,
@@ -7399,7 +7462,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     k3BetsRef.current = k3BetsRef.current.map((b) => {
       if (b.periodNumber !== periodNumber || b.mode !== mode || b.status !== 'pending') return b;
       const { won, winAmt } = evalK3Bet(b);
-      return { ...b, status: won ? ('won' as const) : ('lost' as const), winAmount: winAmt };
+      return {
+        ...b,
+        status: won ? ('won' as const) : ('lost' as const),
+        winAmount: winAmt,
+        resultDice: dice,
+        resultSum: sum
+      };
     });
     setK3Bets(k3BetsRef.current);
 
@@ -7478,9 +7547,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     recordMarketPoolBet('d5', mode, periodNumber, `${position}:${betType}:${selection}`, totalAmount);
 
+    const nowMs = Date.now();
+    const tzOffset = typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number' ? adminSettingsRef.current.timezoneOffsetMinutes : 360;
+    const betId = `d5_${nowMs}_${Math.random().toString(36).slice(2, 6)}`;
     const betEntry: D5Bet = {
-      id: `d5_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: betId,
+      orderNumber: buildLotteryOrderNumber('D5', betId, nowMs),
       userId: user.id,
+      nickname: user.nickname || 'Player',
+      userPhone: user.phone || user.email || '',
       periodNumber,
       mode,
       position,
@@ -7491,10 +7566,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalAmount,
       payoutRate,
       status: 'pending',
-      time: new Date().toTimeString().slice(0, 8)
+      time: new Date().toTimeString().slice(0, 8),
+      orderTime: formatFullOrderTimestamp(nowMs, tzOffset)
     };
     d5BetsRef.current = [betEntry, ...d5BetsRef.current];
     setD5Bets((prev) => [betEntry, ...prev]);
+
+    fetch(apiUrl('/api/lottery/bet'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...betEntry, game: 'd5' })
+    }).catch(() => {});
+
     const d5BetTx: Transaction = {
       id: `tx_${Date.now()}_d5b`,
       userId: user.id,
@@ -7555,7 +7638,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     d5BetsRef.current = d5BetsRef.current.map((b) => {
       if (b.periodNumber !== periodNumber || b.mode !== mode || b.status !== 'pending') return b;
       const { won, winAmt } = evalD5Bet(b);
-      return { ...b, status: won ? ('won' as const) : ('lost' as const), winAmount: winAmt };
+      return {
+        ...b,
+        status: won ? ('won' as const) : ('lost' as const),
+        winAmount: winAmt,
+        resultDigits: digits,
+        resultSum: sum
+      };
     });
     setD5Bets(d5BetsRef.current);
 
@@ -7680,9 +7769,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     setUser(updatedUser);
 
+    recordMarketPoolBet('ewi_wingo', mode, periodNumber, `${type}:${String(value)}`, totalAmount);
+
+    const nowMs = Date.now();
+    const betId = `ewg_${nowMs}_${Math.random().toString(36).slice(2, 6)}`;
     const newBet: EwiWingoBet = {
-      id: `ewg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: betId,
+      orderNumber: buildLotteryOrderNumber('DW', betId, nowMs),
       userId: user.id,
+      nickname: user.nickname || 'Player',
+      userPhone: user.phone || user.email || '',
       periodNumber,
       mode,
       type,
@@ -7691,10 +7787,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       multiplier,
       totalAmount,
       status: 'pending',
-      time: new Date().toTimeString().slice(0, 8)
+      time: new Date().toTimeString().slice(0, 8),
+      orderTime: formatFullOrderTimestamp(nowMs, tzOffset)
     };
     ewiWingoBetsRef.current = [newBet, ...ewiWingoBetsRef.current];
     setEwiWingoBets((prev) => [newBet, ...prev]);
+
+    fetch(apiUrl('/api/lottery/bet'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...newBet,
+        game: 'ewi_wingo',
+        betType: type,
+        selection: String(value)
+      })
+    }).catch(() => {});
 
     const txs: Transaction[] = [
       {
@@ -7785,7 +7893,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ewiWingoBetsRef.current = ewiWingoBetsRef.current.map((b) => {
       if (b.periodNumber !== periodNumber || b.mode !== mode || b.status !== 'pending') return b;
       const { won, winAmount } = evalBet(b);
-      return { ...b, status: won ? ('won' as const) : ('lost' as const), winAmount };
+      return {
+        ...b,
+        status: won ? ('won' as const) : ('lost' as const),
+        winAmount,
+        resultNumber: safeNum,
+        resultColor: color,
+        resultSize: size
+      };
     });
     setEwiWingoBets(ewiWingoBetsRef.current);
 
@@ -7824,133 +7939,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultSize: size,
       gameLabel: `Deshi WinGo ${mode}`
     });
-  };
-
-  // DESHI ROULETTE European Single-Zero Engine
-  const placeRouletteBet = (
-    periodNumber: string,
-    betType: RouletteBetType,
-    label: string,
-    numbers: number[],
-    amount: number,
-    payoutMultiplier: number
-  ) => {
-    if (!user.isLoggedIn || !user.id) {
-      showToast('Please login first to place DESHI ROULETTE bets!');
-      return { success: false, message: 'Login required' };
-    }
-    if (user.isBanned) {
-      showToast('This account has been banned. Please contact Customer Care.');
-      return { success: false, message: 'Account banned' };
-    }
-    const liveState = getEwiRouletteState(Date.now());
-    if (liveState.phase !== 'betting' || liveState.timeRemaining <= 1) {
-      showToast('Bets closed for this spin!');
-      return { success: false, message: 'Bets closed for this spin' };
-    }
-    const cleanAmt = +Number(amount || 0).toFixed(2);
-    if (cleanAmt < 10 || isNaN(cleanAmt)) {
-      return { success: false, message: 'Minimum chip bet is ৳10' };
-    }
-    const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
-    if (playableBal < cleanAmt) {
-      showToast(Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered until released!' : 'Insufficient balance! Please deposit first.');
-      return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
-    }
-
-    const newBal = +(user.balance - cleanAmt).toFixed(2);
-    const updatedUser = syncUserEverywhere({
-      ...user,
-      balance: newBal,
-      exp: user.exp + Math.round(cleanAmt),
-      turnoverCompleted: +((user.turnoverCompleted || 0) + cleanAmt).toFixed(2)
-    });
-    setUser(updatedUser);
-
-    const betEntry: RouletteBet = {
-      id: `rl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      userId: user.id,
-      roundId: periodNumber,
-      betType,
-      label,
-      numbers: [...numbers],
-      amount: cleanAmt,
-      payoutMultiplier,
-      status: 'pending',
-      time: new Date().toTimeString().slice(0, 8)
-    };
-    rouletteBetsRef.current = [betEntry, ...rouletteBetsRef.current];
-    setRouletteBets((prev) => [betEntry, ...prev]);
-
-    const tx: Transaction = {
-      id: `tx_${Date.now()}_rlb`,
-      userId: user.id,
-      type: 'roulette_bet',
-      title: `DESHI ROULETTE (${label})`,
-      detail: `Round #${periodNumber.slice(-5)} • ${payoutMultiplier}:1`,
-      amount: -cleanAmt,
-      balanceAfter: newBal,
-      time: new Date().toLocaleString(),
-      status: 'success'
-    };
-    setTransactions((prev) => [tx, ...prev]);
-    saveTransactionToFirebase(tx).catch(() => {});
-    return { success: true, message: 'Bet placed', betId: betEntry.id };
-  };
-
-  const settleRouletteRound = (periodNumber: string, winningNumber: number) => {
-    if (settledRoulettePeriodsRef.current.has(periodNumber)) return;
-    const pendingForRound = rouletteBetsRef.current.filter(
-      (b) => b.roundId === periodNumber && b.status === 'pending' && (!userRef.current.id || b.userId === userRef.current.id)
-    );
-    if (pendingForRound.length === 0) return;
-
-    settledRoulettePeriodsRef.current.add(periodNumber);
-    if (settledRoulettePeriodsRef.current.size > 200) {
-      const first = settledRoulettePeriodsRef.current.values().next().value;
-      if (first) settledRoulettePeriodsRef.current.delete(first);
-    }
-
-    let totalWinCredit = 0;
-    const evalMap = new Map<string, { won: boolean; winAmount: number }>();
-    for (const pb of pendingForRound) {
-      const winAmount = computeRouletteBetPayout(pb.numbers, winningNumber, pb.amount, pb.payoutMultiplier);
-      evalMap.set(pb.id, { won: winAmount > 0, winAmount });
-      totalWinCredit = +(totalWinCredit + winAmount).toFixed(2);
-    }
-
-    rouletteBetsRef.current = rouletteBetsRef.current.map((b) => {
-      const res = evalMap.get(b.id);
-      if (!res) return b;
-      return {
-        ...b,
-        status: res.won ? ('won' as const) : ('lost' as const),
-        winAmount: res.winAmount,
-        winningNumber
-      };
-    });
-    setRouletteBets(rouletteBetsRef.current);
-
-    if (totalWinCredit > 0) {
-      const nextBal = +(userRef.current.balance + totalWinCredit).toFixed(2);
-      const updatedUser = syncUserEverywhere({ ...userRef.current, balance: nextBal });
-      setUser(updatedUser);
-      const winTx: Transaction = {
-        id: `tx_${Date.now()}_rlw`,
-        userId: userRef.current.id,
-        type: 'roulette_win',
-        title: `DESHI ROULETTE Win (#${winningNumber})`,
-        detail: `Round #${periodNumber.slice(-5)} • Winning Number ${winningNumber}`,
-        amount: totalWinCredit,
-        balanceAfter: nextBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      };
-      setTransactions((prev) => [winTx, ...prev]);
-      saveTransactionToFirebase(winTx).catch(() => {});
-      confetti({ particleCount: 70, spread: 60 });
-      showToast(`DESHI ROULETTE Won +৳${totalWinCredit.toFixed(2)}!`);
-    }
   };
 
   // WinGo Win Streak Claim (Same day, 12:00 AM reset, 1x/day, 3x turnover)
@@ -9108,6 +9096,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         withdrawRequests,
         bets,
         globalWingoBets,
+        globalLotteryBets,
         aviatorBets,
         syncServerDataNow,
         historyResults,
@@ -9161,9 +9150,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ewiWingoBets,
         placeEwiWingoBet,
         settleEwiWingoRound,
-        rouletteBets,
-        placeRouletteBet,
-        settleRouletteRound,
+        popLotteryQueue,
         setActiveTab,
         setLanguage,
         showToast,

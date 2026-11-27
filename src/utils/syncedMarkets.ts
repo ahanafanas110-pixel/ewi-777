@@ -171,6 +171,25 @@ export function resolveControlledEwiWingoNumber(
   return maxCandidates[Math.floor(rng() * maxCandidates.length)] ?? scores[scores.length - 1].candidate;
 }
 
+export function resolveForcedEwiWingoNumber(
+  mode: EwiWingoMode,
+  periodNumber: string,
+  forcedOutcome?: 'AUTO' | 'RED' | 'GREEN' | 'VIOLET' | number,
+  queuedNum?: number
+): number | null {
+  if (typeof queuedNum === 'number' && !Number.isNaN(queuedNum)) {
+    return Math.min(9, Math.max(0, Math.round(queuedNum)));
+  }
+  if (typeof forcedOutcome === 'number' && !Number.isNaN(forcedOutcome)) {
+    return Math.min(9, Math.max(0, Math.round(forcedOutcome)));
+  }
+  const hash = periodNumber.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) + mode.length;
+  if (forcedOutcome === 'GREEN') return [1, 3, 7, 9][hash % 4];
+  if (forcedOutcome === 'RED') return [2, 4, 6, 8][hash % 4];
+  if (forcedOutcome === 'VIOLET') return hash % 2 === 0 ? 0 : 5;
+  return null;
+}
+
 export function getSyncedEwiWingoHistory(
   mode: EwiWingoMode,
   count = 10,
@@ -245,6 +264,57 @@ export function getSyncedK3History(
   return rows;
 }
 
+export function parseK3ForcedOutcome(
+  rawSpec: string | undefined,
+  mode: K3Mode,
+  periodNumber: string
+): [number, number, number] | null {
+  const spec = String(rawSpec || '').trim().toUpperCase();
+  if (!spec || spec === 'AUTO') return null;
+
+  const exactMatch = spec.match(/^([1-6])[,\-\s]([1-6])[,\-\s]([1-6])$/);
+  if (exactMatch) {
+    return [Number(exactMatch[1]), Number(exactMatch[2]), Number(exactMatch[3])];
+  }
+
+  if (spec.startsWith('TRIPLE:')) {
+    const d = Math.min(6, Math.max(1, Number(spec.split(':')[1]) || 6));
+    return [d, d, d];
+  }
+  if (spec === 'TRIPLE') {
+    const rng = createSeededRng(`k3force:${mode}:${periodNumber}:triple`);
+    const d = Math.floor(rng() * 6) + 1;
+    return [d, d, d];
+  }
+
+  const allTriples: Array<[number, number, number]> = [];
+  for (let a = 1; a <= 6; a++) {
+    for (let b = 1; b <= 6; b++) {
+      for (let c = 1; c <= 6; c++) {
+        allTriples.push([a, b, c]);
+      }
+    }
+  }
+
+  let candidates: Array<[number, number, number]> = [];
+  if (spec.startsWith('SUM:')) {
+    const targetSum = Math.min(18, Math.max(3, Number(spec.split(':')[1]) || 11));
+    candidates = allTriples.filter((d) => d[0] + d[1] + d[2] === targetSum);
+  } else if (spec === 'BIG') {
+    candidates = allTriples.filter((d) => d[0] + d[1] + d[2] >= 11);
+  } else if (spec === 'SMALL') {
+    candidates = allTriples.filter((d) => d[0] + d[1] + d[2] <= 10);
+  } else if (spec === 'ODD') {
+    candidates = allTriples.filter((d) => (d[0] + d[1] + d[2]) % 2 !== 0);
+  } else if (spec === 'EVEN') {
+    candidates = allTriples.filter((d) => (d[0] + d[1] + d[2]) % 2 === 0);
+  }
+
+  if (candidates.length === 0) return null;
+  const rng = createSeededRng(`k3force:${mode}:${periodNumber}:${spec}`);
+  return candidates[Math.floor(rng() * candidates.length)] || candidates[0];
+}
+
 // ================= 5D SYNCHRONIZED ENGINE =================
 const D5_MODE_DURATIONS: Record<D5Mode, number> = {
   '1m': 60,
@@ -293,6 +363,57 @@ export function getSyncedD5History(
     rows.push(buildSyncedD5Row(mode, issue, nowMs - i * durMs));
   }
   return rows;
+}
+
+export function parseD5ForcedOutcome(
+  rawSpec: string | undefined,
+  mode: D5Mode,
+  periodNumber: string
+): [number, number, number, number, number] | null {
+  const spec = String(rawSpec || '').trim().toUpperCase();
+  if (!spec || spec === 'AUTO') return null;
+
+  const exactSep = spec.match(/^([0-9])[,\-\s]([0-9])[,\-\s]([0-9])[,\-\s]([0-9])[,\-\s]([0-9])$/);
+  if (exactSep) {
+    return [
+      Number(exactSep[1]),
+      Number(exactSep[2]),
+      Number(exactSep[3]),
+      Number(exactSep[4]),
+      Number(exactSep[5])
+    ];
+  }
+  const compactMatch = spec.match(/^([0-9])([0-9])([0-9])([0-9])([0-9])$/);
+  if (compactMatch) {
+    return [
+      Number(compactMatch[1]),
+      Number(compactMatch[2]),
+      Number(compactMatch[3]),
+      Number(compactMatch[4]),
+      Number(compactMatch[5])
+    ];
+  }
+
+  const rng = createSeededRng(`d5force:${mode}:${periodNumber}:${spec}`);
+  for (let attempt = 0; attempt < 250; attempt++) {
+    const digits: [number, number, number, number, number] = [
+      Math.floor(rng() * 10),
+      Math.floor(rng() * 10),
+      Math.floor(rng() * 10),
+      Math.floor(rng() * 10),
+      Math.floor(rng() * 10)
+    ];
+    const sum = digits.reduce((a, b) => a + b, 0);
+    if (spec === 'SUM_BIG' && sum >= 23) return digits;
+    if (spec === 'SUM_SMALL' && sum <= 22) return digits;
+    if (spec === 'SUM_ODD' && sum % 2 !== 0) return digits;
+    if (spec === 'SUM_EVEN' && sum % 2 === 0) return digits;
+  }
+  if (spec === 'SUM_BIG') return [6, 7, 5, 4, 8];
+  if (spec === 'SUM_SMALL') return [1, 2, 3, 4, 2];
+  if (spec === 'SUM_ODD') return [1, 2, 3, 4, 5];
+  if (spec === 'SUM_EVEN') return [2, 2, 4, 4, 6];
+  return null;
 }
 
 // ================= AVIATOR DETERMINISTIC GLOBAL ENGINE =================
@@ -1324,109 +1445,6 @@ export function resolveCoinFlipOutcome(
     return highSide;
   }
   return randomSide;
-}
-
-// ================= EWI ROULETTE SYNCHRONIZED EUROPEAN ENGINE =================
-export const ROULETTE_WHEEL_ORDER: number[] = [
-  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
-  5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
-];
-
-export const ROULETTE_RED_NUMBERS = new Set<number>([
-  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
-]);
-
-export function getRouletteNumberColor(num: number): 'green' | 'red' | 'black' {
-  if (num === 0) return 'green';
-  return ROULETTE_RED_NUMBERS.has(num) ? 'red' : 'black';
-}
-
-export interface EwiRouletteState {
-  roundId: string;
-  phase: 'betting' | 'spinning' | 'result';
-  timeRemaining: number;
-  phaseRemaining: number;
-  winningNumber: number;
-  winningColor: 'green' | 'red' | 'black';
-  history: Array<{ roundId: string; number: number; color: 'green' | 'red' | 'black' }>;
-  serverNow: number;
-}
-
-const ROULETTE_BETTING_MS = 20000;
-const ROULETTE_SPINNING_MS = 6000;
-const ROULETTE_RESULT_MS = 4000;
-const ROULETTE_ROUND_MS = ROULETTE_BETTING_MS + ROULETTE_SPINNING_MS + ROULETTE_RESULT_MS;
-
-function getRouletteNumberForRound(roundIndex: number): number {
-  const rng = createSeededRng(`ewi_roulette:${roundIndex}`);
-  return Math.floor(rng() * 37);
-}
-
-export function getEwiRouletteState(nowMs = Date.now(), offsetMinutes = 360): EwiRouletteState {
-  const roundIndex = Math.floor(nowMs / ROULETTE_ROUND_MS);
-  const roundStart = roundIndex * ROULETTE_ROUND_MS;
-  const elapsed = Math.max(0, nowMs - roundStart);
-
-  let phase: 'betting' | 'spinning' | 'result' = 'betting';
-  let phaseRemaining = 0;
-
-  if (elapsed < ROULETTE_BETTING_MS) {
-    phase = 'betting';
-    phaseRemaining = Math.ceil((ROULETTE_BETTING_MS - elapsed) / 1000);
-  } else if (elapsed < ROULETTE_BETTING_MS + ROULETTE_SPINNING_MS) {
-    phase = 'spinning';
-    phaseRemaining = Math.ceil((ROULETTE_BETTING_MS + ROULETTE_SPINNING_MS - elapsed) / 1000);
-  } else {
-    phase = 'result';
-    phaseRemaining = Math.ceil((ROULETTE_ROUND_MS - elapsed) / 1000);
-  }
-
-  const timeRemaining = Math.max(0, Math.ceil((ROULETTE_ROUND_MS - elapsed) / 1000));
-  const winningNumber = getRouletteNumberForRound(roundIndex);
-  const winningColor = getRouletteNumberColor(winningNumber);
-
-  const d = new Date(nowMs + offsetMinutes * 60000);
-  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(
-    d.getUTCDate()
-  ).padStart(2, '0')}`;
-  const roundSuffix = String(roundIndex % 10000).padStart(4, '0');
-  const roundId = `RL${ymd}${roundSuffix}`;
-
-  const history: Array<{ roundId: string; number: number; color: 'green' | 'red' | 'black' }> = [];
-  for (let i = 1; i <= 50; i++) {
-    const prevIdx = roundIndex - i;
-    const num = getRouletteNumberForRound(prevIdx);
-    const prevD = new Date(prevIdx * ROULETTE_ROUND_MS + offsetMinutes * 60000);
-    const prevYmd = `${prevD.getUTCFullYear()}${String(prevD.getUTCMonth() + 1).padStart(2, '0')}${String(
-      prevD.getUTCDate()
-    ).padStart(2, '0')}`;
-    history.push({
-      roundId: `RL${prevYmd}${String(prevIdx % 10000).padStart(4, '0')}`,
-      number: num,
-      color: getRouletteNumberColor(num)
-    });
-  }
-
-  return {
-    roundId,
-    phase,
-    timeRemaining,
-    phaseRemaining,
-    winningNumber,
-    winningColor,
-    history,
-    serverNow: nowMs
-  };
-}
-
-export function computeRouletteBetPayout(
-  numbers: number[],
-  winningNumber: number,
-  amount: number,
-  payoutMultiplier: number
-): number {
-  if (!numbers.includes(winningNumber)) return 0;
-  return +(amount * payoutMultiplier).toFixed(2);
 }
 
 

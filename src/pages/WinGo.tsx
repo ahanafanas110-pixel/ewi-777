@@ -16,6 +16,11 @@ import {
   WinGoBall,
   WinGoCountdownOverlay
 } from '../components/WinGoAssets';
+import {
+  LotteryTradeDetailCard,
+  buildLotteryOrderNumber,
+  fallbackOrderTimestamp
+} from '../components/LotteryTradeDetailCard';
 
 export const WinGo: React.FC = () => {
   const {
@@ -60,8 +65,10 @@ export const WinGo: React.FC = () => {
   const [baseUnit, setBaseUnit] = useState<number>(10);
   const [multiplier, setMultiplier] = useState<number>(1);
   const [activeHistoryTab, setActiveHistoryTab] = useState<'game' | 'my'>('game');
+  const [expandedBetId, setExpandedBetId] = useState<string | null>(null);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showBetSuccessOverlay, setShowBetSuccessOverlay] = useState(false);
+  const tzOffset = adminSettings.timezoneOffsetMinutes ?? 360;
 
   const seconds = timeRemaining % 60;
   const minutes = Math.floor(timeRemaining / 60);
@@ -448,47 +455,65 @@ export const WinGo: React.FC = () => {
                   <span>No bets placed in WinGo {activeWingoMode} yet. Place a bet above!</span>
                 </div>
               ) : (
-                currentModeBets.slice(0, 15).map((b) => {
-                  const isCurrent = b.periodNumber === currentPeriod && b.status === 'pending';
+                currentModeBets.slice(0, 20).map((b) => {
+                  const matchedRes =
+                    b.resultNumber !== undefined
+                      ? {
+                          number: b.resultNumber,
+                          color: b.resultColor || ('green' as const),
+                          size: b.resultSize || ('small' as const)
+                        }
+                      : historyResults.find((h) => h.periodNumber === b.periodNumber);
+                  const valStr = String(b.value);
+                  const tone =
+                    valStr === 'big'
+                      ? 'orange'
+                      : valStr === 'small'
+                      ? 'blue'
+                      : valStr === 'green'
+                      ? 'green'
+                      : valStr === 'red'
+                      ? 'red'
+                      : valStr === 'violet'
+                      ? 'violet'
+                      : 'cyan';
+                  const shortLabel =
+                    b.type === 'size'
+                      ? valStr === 'big'
+                        ? 'Big'
+                        : 'Small'
+                      : b.type === 'color'
+                      ? valStr.charAt(0).toUpperCase() + valStr.slice(1)
+                      : valStr;
+                  const fullLabel =
+                    b.type === 'number'
+                      ? `Number ${valStr}`
+                      : shortLabel;
                   return (
-                    <div
+                    <LotteryTradeDetailCard
                       key={b.id}
-                      className={`p-3 rounded-2xl border flex items-center justify-between text-xs transition-all ${
-                        isCurrent
-                          ? 'bg-cyan-50/70 border-cyan-300 shadow-2xs'
-                          : 'bg-white border-slate-200 shadow-2xs'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5 font-black text-slate-800">
-                          <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-[#0891B2] text-[10px] uppercase">
-                            {b.type}
-                          </span>
-                          <span className="uppercase text-slate-900">{b.value}</span>
-                          <span className="text-slate-500 font-bold tabular-nums">৳{b.totalAmount}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-1 font-mono tabular-nums">
-                          Period: <span className="font-bold text-slate-700">{b.periodNumber}</span> • {b.time}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span
-                          className={`px-2.5 py-1 rounded-full font-black text-[10px] uppercase ${
-                            b.status === 'won'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : b.status === 'lost'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-cyan-100 text-[#0891B2] animate-pulse'
-                          }`}
-                        >
-                          {b.status === 'won'
-                            ? `Won +৳${b.winAmount}`
-                            : b.status === 'lost'
-                            ? 'Lost'
-                            : `Pending (${timeRemaining}s)`}
-                        </span>
-                      </div>
-                    </div>
+                      isExpanded={expandedBetId === b.id}
+                      onToggle={() => setExpandedBetId((prev) => (prev === b.id ? null : b.id))}
+                      onCopyOrderNumber={() => showToast('Order number copied!')}
+                      item={{
+                        id: b.id,
+                        orderNumber: b.orderNumber || buildLotteryOrderNumber('WG', b.id),
+                        periodNumber: b.periodNumber,
+                        orderTime: b.orderTime || fallbackOrderTimestamp(b.periodNumber, b.time, tzOffset),
+                        purchaseAmount: b.totalAmount,
+                        quantity: b.multiplier || 1,
+                        selectionShort: shortLabel,
+                        selectionFull: fullLabel,
+                        selectionTone: tone,
+                        status: b.status,
+                        winAmount: b.winAmount,
+                        countdownSec: b.periodNumber === currentPeriod && b.status === 'pending' ? timeRemaining : undefined,
+                        gameKind: 'wingo',
+                        wingoResult: matchedRes
+                          ? { number: matchedRes.number, color: matchedRes.color, size: matchedRes.size }
+                          : undefined
+                      }}
+                    />
                   );
                 })
               )}

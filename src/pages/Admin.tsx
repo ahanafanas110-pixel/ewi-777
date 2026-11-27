@@ -52,13 +52,25 @@ import {
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
-import { getNextBinaryCandlePreview, formatOffsetLabel } from '../utils/syncedMarkets';
+import {
+  getNextBinaryCandlePreview,
+  formatOffsetLabel,
+  getEwiWingoPeriodInfo,
+  getSyncedEwiWingoHistory,
+  getEwiWingoNumberMeta,
+  getSyncedK3Dice,
+  getSyncedD5Digits
+} from '../utils/syncedMarkets';
+import { computeDailyIssueInfo } from '../utils/lotteryApi';
 import { apiUrl } from '../utils/phoneAndApi';
 import { BINARY_MARKET_MAP } from '../constants/markets';
 import {
   ActiveAdminSession,
+  D5Mode,
+  EwiWingoMode,
   GameItem,
   GiftCodeItem,
+  K3Mode,
   MarketControlMode,
   MentorAccount,
   MinesPatternMode,
@@ -145,6 +157,7 @@ export const Admin: React.FC = () => {
     wingoMarkets,
     bets,
     globalWingoBets,
+    globalLotteryBets,
     syncServerDataNow,
     syncEwiPayTransactions,
     marketPools,
@@ -251,11 +264,47 @@ export const Admin: React.FC = () => {
   const [htmlModalGame, setHtmlModalGame] = useState<GameItem | null>(null);
   const [editGameModal, setEditGameModal] = useState<Partial<GameItem> | null>(null);
 
-  // =================== WINGO ENGINE STATE ===================
+  // =================== WINGO / DESHI WINGO / K3 / 5D ENGINE STATE ===================
+  const [engineTab, setEngineTab] = useState<'wingo' | 'ewi_wingo' | 'k3' | 'd5'>('wingo');
   const [selectedWingoMode, setSelectedWingoMode] = useState<WinGoMode>('1m');
+  const [selectedEwiMode, setSelectedEwiMode] = useState<EwiWingoMode>('15s');
+  const [selectedK3Mode, setSelectedK3Mode] = useState<K3Mode>('1m');
+  const [selectedD5Mode, setSelectedD5Mode] = useState<D5Mode>('1m');
+  const [k3DicePick, setK3DicePick] = useState<[number, number, number]>([1, 5, 6]);
+  const [d5DigitPick, setD5DigitPick] = useState<[number, number, number, number, number]>([1, 3, 5, 7, 9]);
+  const [adminLotteryResults, setAdminLotteryResults] = useState<Record<string, any>>({});
   const [wingoSyncPath, setWingoSyncPath] = useState(adminSettings.wingoSyncPath || 'wingo');
   const [wingoPattern, setWingoPattern] = useState(adminSettings.wingoPattern || '1,2,3,4,5');
   const [showSyncDataModal, setShowSyncDataModal] = useState(false);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn || navTab !== 'wingo' || engineTab === 'wingo') return;
+    const key =
+      engineTab === 'ewi_wingo'
+        ? `ewi_wingo_${selectedEwiMode}`
+        : engineTab === 'k3'
+        ? `k3_${selectedK3Mode}`
+        : `d5_${selectedD5Mode}`;
+    let cancelled = false;
+    const loadAdminResults = async () => {
+      try {
+        const res = await fetch(apiUrl(`/api/lottery/results?key=${encodeURIComponent(key)}`), { cache: 'no-store' });
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (!cancelled && data && Array.isArray(data.results) && data.results.length > 0) {
+            setAdminLotteryResults((prev) => ({ ...prev, [key]: data.results[0] }));
+          }
+        }
+      } catch {}
+    };
+    loadAdminResults();
+    const timer = setInterval(loadAdminResults, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isAdminLoggedIn, navTab, engineTab, selectedEwiMode, selectedK3Mode, selectedD5Mode]);
 
   // =================== BANNERS STATE ===================
   const [bannerModal, setBannerModal] = useState<{
@@ -414,6 +463,7 @@ export const Admin: React.FC = () => {
   const [maintMode, setMaintMode] = useState(Boolean(adminSettings.maintenanceMode));
   const [siteEnabledDraft, setSiteEnabledDraft] = useState(adminSettings.siteEnabled !== false);
   const [tzOffsetDraft, setTzOffsetDraft] = useState<number>(adminSettings.timezoneOffsetMinutes ?? 360);
+  const [ctrlEwiWingo, setCtrlEwiWingo] = useState<MarketControlMode>(adminSettings.gameControlModes?.ewiWingo || 'HIGH_BET_LOSS');
   const [ctrlK3, setCtrlK3] = useState<MarketControlMode>(adminSettings.gameControlModes?.k3 || 'AUTO');
   const [ctrlD5, setCtrlD5] = useState<MarketControlMode>(adminSettings.gameControlModes?.d5 || 'AUTO');
   const [ctrlMines, setCtrlMines] = useState<MarketControlMode>(adminSettings.gameControlModes?.mines || 'AUTO');
@@ -545,6 +595,7 @@ export const Admin: React.FC = () => {
     setMaintMode(Boolean(adminSettings.maintenanceMode));
     setSiteEnabledDraft(adminSettings.siteEnabled !== false);
     setTzOffsetDraft(adminSettings.timezoneOffsetMinutes ?? 360);
+    setCtrlEwiWingo(adminSettings.gameControlModes?.ewiWingo || 'HIGH_BET_LOSS');
     setCtrlK3(adminSettings.gameControlModes?.k3 || 'AUTO');
     setCtrlD5(adminSettings.gameControlModes?.d5 || 'AUTO');
     setCtrlMines(adminSettings.gameControlModes?.mines || 'AUTO');
@@ -958,6 +1009,102 @@ export const Admin: React.FC = () => {
     showToast(`Queue cleared for WinGo ${selectedWingoMode}`);
   };
 
+  const handleForceEwiWingo = (outcome: 'AUTO' | 'RED' | 'GREEN' | 'VIOLET' | number) => {
+    updateAdminSettings({
+      nextEwiWingoOutcomes: {
+        ...(adminSettings.nextEwiWingoOutcomes || { '15s': 'AUTO', '30s': 'AUTO', '1m': 'AUTO', '3m': 'AUTO' }),
+        [selectedEwiMode]: outcome
+      }
+    });
+    showToast(`FORCE RESULT -> Deshi WinGo ${selectedEwiMode}: ${outcome}`);
+  };
+
+  const handleQueueEwiWingo = (num: number) => {
+    const curQueue = adminSettings.queuedEwiWingoOutcomes?.[selectedEwiMode] || [];
+    const nextQueue = [...curQueue, num];
+    updateAdminSettings({
+      queuedEwiWingoOutcomes: {
+        ...(adminSettings.queuedEwiWingoOutcomes || {}),
+        [selectedEwiMode]: nextQueue
+      }
+    });
+    showToast(`Queued #${num} for Deshi WinGo ${selectedEwiMode} (${nextQueue.length} in queue)`);
+  };
+
+  const handleClearEwiWingoQueue = () => {
+    updateAdminSettings({
+      queuedEwiWingoOutcomes: {
+        ...(adminSettings.queuedEwiWingoOutcomes || {}),
+        [selectedEwiMode]: []
+      }
+    });
+    showToast(`Queue cleared for Deshi WinGo ${selectedEwiMode}`);
+  };
+
+  const handleForceK3 = (spec: string) => {
+    updateAdminSettings({
+      nextK3Outcomes: {
+        ...(adminSettings.nextK3Outcomes || { '1m': 'AUTO', '3m': 'AUTO', '5m': 'AUTO', '10m': 'AUTO' }),
+        [selectedK3Mode]: spec
+      }
+    });
+    showToast(`FORCE RESULT -> Deshi K3 ${selectedK3Mode}: ${spec}`);
+  };
+
+  const handleQueueK3 = (spec: string) => {
+    const curQueue = adminSettings.queuedK3Outcomes?.[selectedK3Mode] || [];
+    const nextQueue = [...curQueue, spec];
+    updateAdminSettings({
+      queuedK3Outcomes: {
+        ...(adminSettings.queuedK3Outcomes || {}),
+        [selectedK3Mode]: nextQueue
+      }
+    });
+    showToast(`Queued ${spec} for Deshi K3 ${selectedK3Mode} (${nextQueue.length} in queue)`);
+  };
+
+  const handleClearK3Queue = () => {
+    updateAdminSettings({
+      queuedK3Outcomes: {
+        ...(adminSettings.queuedK3Outcomes || {}),
+        [selectedK3Mode]: []
+      }
+    });
+    showToast(`Queue cleared for Deshi K3 ${selectedK3Mode}`);
+  };
+
+  const handleForceD5 = (spec: string) => {
+    updateAdminSettings({
+      nextD5Outcomes: {
+        ...(adminSettings.nextD5Outcomes || { '1m': 'AUTO', '3m': 'AUTO', '5m': 'AUTO', '10m': 'AUTO' }),
+        [selectedD5Mode]: spec
+      }
+    });
+    showToast(`FORCE RESULT -> Deshi 5D ${selectedD5Mode}: ${spec}`);
+  };
+
+  const handleQueueD5 = (spec: string) => {
+    const curQueue = adminSettings.queuedD5Outcomes?.[selectedD5Mode] || [];
+    const nextQueue = [...curQueue, spec];
+    updateAdminSettings({
+      queuedD5Outcomes: {
+        ...(adminSettings.queuedD5Outcomes || {}),
+        [selectedD5Mode]: nextQueue
+      }
+    });
+    showToast(`Queued ${spec} for Deshi 5D ${selectedD5Mode} (${nextQueue.length} in queue)`);
+  };
+
+  const handleClearD5Queue = () => {
+    updateAdminSettings({
+      queuedD5Outcomes: {
+        ...(adminSettings.queuedD5Outcomes || {}),
+        [selectedD5Mode]: []
+      }
+    });
+    showToast(`Queue cleared for Deshi 5D ${selectedD5Mode}`);
+  };
+
   const handleSaveGame = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editGameModal?.title?.trim()) {
@@ -1345,7 +1492,7 @@ export const Admin: React.FC = () => {
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'users', label: 'All Users', icon: <Users className="w-4 h-4" /> },
     { id: 'games', label: 'Games', icon: <Gamepad2 className="w-4 h-4" /> },
-    { id: 'wingo', label: 'Wingo Engine', icon: <Flame className="w-4 h-4" /> },
+    { id: 'wingo', label: 'WinGo / K3 / 5D', icon: <Flame className="w-4 h-4" /> },
     { id: 'banners', label: 'Banners', icon: <ImageIcon className="w-4 h-4" /> },
     { id: 'broadcast', label: 'Broadcast', icon: <Megaphone className="w-4 h-4" /> },
     { id: 'deposits', label: 'Deposits', icon: <ArrowDownCircle className="w-4 h-4" />, badge: pendingDepCount || undefined },
@@ -1361,7 +1508,7 @@ export const Admin: React.FC = () => {
     dashboard: 'DASHBOARD',
     users: 'ALL USERS',
     games: 'GAMES MANAGEMENT',
-    wingo: 'WINGO ENGINE',
+    wingo: 'WINGO / DESHI WINGO / K3 / 5D ENGINE',
     banners: 'BANNERS',
     broadcast: 'SYSTEM BROADCAST',
     deposits: 'DEPOSITS',
@@ -2141,9 +2288,59 @@ export const Admin: React.FC = () => {
             </div>
           )}
 
-          {/* ---------------- 4. WINGO ENGINE ---------------- */}
-          {navTab === 'wingo' && (
+          {/* ---------------- 4. UNIFIED WINGO / DESHI WINGO / K3 / 5D ENGINE ---------------- */}
+          {navTab === 'wingo' && (() => {
+            const tzOffset = adminSettings.timezoneOffsetMinutes ?? 360;
+            const ewiInfo = getEwiWingoPeriodInfo(selectedEwiMode, nowMs, tzOffset);
+            const k3Info = computeDailyIssueInfo('k3', selectedK3Mode, nowMs);
+            const d5Info = computeDailyIssueInfo('d5', selectedD5Mode, nowMs);
+
+            const engineTabs: Array<{ id: 'wingo' | 'ewi_wingo' | 'k3' | 'd5'; label: string; rem: number }> = [
+              { id: 'wingo', label: 'WinGo', rem: activeRem },
+              { id: 'ewi_wingo', label: 'Deshi WinGo', rem: ewiInfo.timeRemaining },
+              { id: 'k3', label: 'Deshi K3', rem: k3Info.rem },
+              { id: 'd5', label: 'Deshi 5D', rem: d5Info.rem }
+            ];
+
+            return (
             <div className="space-y-4">
+              {/* Top Game Engine Switcher */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {engineTabs.map((et) => (
+                    <button
+                      key={et.id}
+                      type="button"
+                      onClick={() => setEngineTab(et.id)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all border ${
+                        engineTab === et.id
+                          ? 'bg-gradient-to-r from-[#0891B2] to-[#06B6D4] text-white border-cyan-500 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-cyan-400'
+                      }`}
+                    >
+                      <span>{et.label}</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums ${
+                          engineTab === et.id ? 'bg-white/20 text-white' : 'bg-white text-cyan-700 border border-slate-200'
+                        }`}
+                      >
+                        {et.rem}s
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => syncServerDataNow()}
+                  className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-cyan-700 text-xs font-black flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Sync Live Pools</span>
+                </button>
+              </div>
+
+              {engineTab === 'wingo' && (
+              <>
               {/* Top Sync Path Card */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div className="text-xs font-black text-cyan-700 tracking-wider">⚡ USER APP SYNC PATH</div>
@@ -2566,6 +2763,864 @@ export const Admin: React.FC = () => {
                   </div>
                 );
               })()}
+              </>
+              )}
+
+              {/* ---------------- DESHI WINGO ENGINE TAB ---------------- */}
+              {engineTab === 'ewi_wingo' && (() => {
+                const forcedEwi = adminSettings.nextEwiWingoOutcomes?.[selectedEwiMode] ?? 'AUTO';
+                const ewiQueue = adminSettings.queuedEwiWingoOutcomes?.[selectedEwiMode] || [];
+                const syncedHist = getSyncedEwiWingoHistory(selectedEwiMode, 1, nowMs, tzOffset);
+                const latestServerEwi = adminLotteryResults[`ewi_wingo_${selectedEwiMode}`];
+                const latestNum = typeof latestServerEwi?.number === 'number'
+                  ? latestServerEwi.number
+                  : (syncedHist[0]?.number ?? 0);
+
+                const poolKey = `ewi_wingo_${selectedEwiMode}_${ewiInfo.period}`;
+                const poolEntry = marketPools?.[poolKey];
+                const roundBets = globalLotteryBets.filter(
+                  (b) => b.game === 'ewi_wingo' && b.mode === selectedEwiMode && b.periodNumber === ewiInfo.period && b.status === 'pending'
+                );
+
+                const getPoolStat = (key: string, filterFn: (b: typeof roundBets[number]) => boolean) => {
+                  const pAmt = Number(poolEntry?.selections?.[key] || 0);
+                  const pCnt = Number(poolEntry?.selectionCounts?.[key] || 0);
+                  const matching = roundBets.filter(filterFn);
+                  const bAmt = matching.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0);
+                  return {
+                    amount: Math.max(pAmt, bAmt),
+                    count: Math.max(pCnt, matching.length)
+                  };
+                };
+
+                const greenStat = getPoolStat('color:green', (b) => b.betType === 'color' && b.selection === 'green');
+                const violetStat = getPoolStat('color:violet', (b) => b.betType === 'color' && b.selection === 'violet');
+                const redStat = getPoolStat('color:red', (b) => b.betType === 'color' && b.selection === 'red');
+                const bigStat = getPoolStat('size:big', (b) => b.betType === 'size' && b.selection === 'big');
+                const smallStat = getPoolStat('size:small', (b) => b.betType === 'size' && b.selection === 'small');
+
+                const numStats: Record<number, { amount: number; count: number }> = {};
+                let leastNum = 0;
+                let leastAmt = Infinity;
+                for (let n = 0; n <= 9; n++) {
+                  numStats[n] = getPoolStat(`number:${n}`, (b) => b.betType === 'number' && Number(b.selection) === n);
+                  if (numStats[n].amount < leastAmt) {
+                    leastAmt = numStats[n].amount;
+                    leastNum = n;
+                  }
+                }
+                const totalPoolAmt = Math.max(
+                  Number(poolEntry?.totalAmount || 0),
+                  roundBets.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0)
+                );
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs font-black text-slate-500">DESHI WINGO TYPE:</span>
+                        <select
+                          value={selectedEwiMode}
+                          onChange={(e) => setSelectedEwiMode(e.target.value as EwiWingoMode)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 outline-none"
+                        >
+                          <option value="15s">Deshi WinGo 15s</option>
+                          <option value="30s">Deshi WinGo 30s</option>
+                          <option value="1m">Deshi WinGo 1 Minute</option>
+                          <option value="3m">Deshi WinGo 3 Minutes</option>
+                        </select>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                            forcedEwi === 'AUTO'
+                              ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                              : 'bg-cyan-50 text-cyan-700'
+                          }`}
+                        >
+                          {forcedEwi === 'AUTO' ? 'AUTO' : `FORCED: ${forcedEwi}`}
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono text-slate-500">Tick: {tickStr}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-black text-slate-900">⚡ FORCE RESULT NOW (DESHI WINGO)</div>
+                          <span className="text-[10px] text-slate-500">Instant Sync to App</span>
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">LAST RESULT</div>
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-black text-white shadow-lg ${getBallBg(latestNum)}`}>
+                                {latestNum}
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-bold text-slate-500 uppercase">PERIOD ID</div>
+                              <div className="text-sm font-mono font-black text-cyan-700">{ewiInfo.period}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">
+                                NEXT IN:{' '}
+                                <span className="text-rose-600 font-black tabular-nums">
+                                  {String(Math.floor(ewiInfo.timeRemaining / 60)).padStart(2, '0')}:
+                                  {String(ewiInfo.timeRemaining % 60).padStart(2, '0')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 text-center min-w-[72px]">
+                            <div className="text-[9px] font-black text-purple-700 uppercase">QUEUED</div>
+                            <div className="text-sm font-mono font-black text-slate-900 mt-0.5">
+                              {ewiQueue.length > 0 ? ewiQueue[0] : '—'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => handleForceEwiWingo('RED')}
+                            className={`py-2.5 rounded-xl font-black text-xs text-white transition-all ${forcedEwi === 'RED' ? 'bg-rose-600 ring-2 ring-rose-300' : 'bg-rose-600/80 hover:bg-rose-600'}`}
+                          >
+                            🔴 RED NOW
+                          </button>
+                          <button
+                            onClick={() => handleForceEwiWingo('GREEN')}
+                            className={`py-2.5 rounded-xl font-black text-xs text-white transition-all ${forcedEwi === 'GREEN' ? 'bg-emerald-600 ring-2 ring-emerald-300' : 'bg-emerald-600/80 hover:bg-emerald-600'}`}
+                          >
+                            🟢 GREEN NOW
+                          </button>
+                          <button
+                            onClick={() => handleForceEwiWingo('VIOLET')}
+                            className={`py-2.5 rounded-xl font-black text-xs text-white transition-all ${forcedEwi === 'VIOLET' ? 'bg-purple-600 ring-2 ring-purple-300' : 'bg-purple-600/80 hover:bg-purple-600'}`}
+                          >
+                            🟣 VIOLET NOW
+                          </button>
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase mb-2">FORCE EXACT NUMBER (0-9)</div>
+                          <div className="grid grid-cols-5 gap-2">
+                            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                              <button
+                                key={n}
+                                onClick={() => handleForceEwiWingo(n)}
+                                className={`py-2.5 rounded-xl font-mono font-black text-sm border transition-all ${
+                                  forcedEwi === n
+                                    ? 'bg-cyan-600 border-cyan-300 text-white shadow-md'
+                                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-cyan-500'
+                                }`}
+                              >
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => handleForceEwiWingo('AUTO')}
+                            className={`mt-2 w-full py-2 rounded-xl font-black text-xs border transition-all ${
+                              forcedEwi === 'AUTO'
+                                ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500'
+                            }`}
+                          >
+                            ↺ RESET TO AUTO ({ctrlEwiWingo})
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-black text-slate-900">⏱ QUEUE NEXT RESULT (DESHI WINGO)</div>
+                          <span className="text-[10px] text-slate-500">Auto Consumes Next Round</span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2">
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                            <button
+                              key={n}
+                              onClick={() => handleQueueEwiWingo(n)}
+                              className="py-2.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-purple-400 font-mono font-black text-sm text-slate-900 active:scale-95"
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                        {ewiQueue.length > 0 && (
+                          <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-purple-700 mr-1">QUEUE:</span>
+                            {ewiQueue.map((qNum, i) => (
+                              <span
+                                key={i}
+                                className={`w-6 h-6 rounded-full text-xs font-black text-white flex items-center justify-center ${getBallBg(qNum)}`}
+                              >
+                                {qNum}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <button
+                          onClick={handleClearEwiWingoQueue}
+                          className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-black"
+                        >
+                          ✕ CLEAR QUEUE
+                        </button>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                          <div className="font-black text-slate-800">Active Control Strategy: {ctrlEwiWingo}</div>
+                          <div>Round Duration: {ewiInfo.durationSeconds}s • Color meta: {getEwiWingoNumberMeta(latestNum).color.toUpperCase()} ({getEwiWingoNumberMeta(latestNum).size.toUpperCase()})</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-black text-cyan-700">
+                            LIVE BET POOL — DESHI WINGO {selectedEwiMode.toUpperCase()} (৳{totalPoolAmt.toFixed(2)})
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {Math.max(Number(poolEntry?.betCount || 0), roundBets.length)} live bets • Period {ewiInfo.period}
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-black">
+                          {totalPoolAmt === 0 ? 'Random (৳0 Pool)' : `Lowest Number: #${leastNum}`}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col">
+                          <span className="text-[10px] font-bold text-emerald-700">GREEN ({greenStat.count})</span>
+                          <span className="font-black text-slate-900 text-sm mt-0.5">৳{greenStat.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex flex-col">
+                          <span className="text-[10px] font-bold text-purple-700">VIOLET ({violetStat.count})</span>
+                          <span className="font-black text-slate-900 text-sm mt-0.5">৳{violetStat.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex flex-col">
+                          <span className="text-[10px] font-bold text-rose-700">RED ({redStat.count})</span>
+                          <span className="font-black text-slate-900 text-sm mt-0.5">৳{redStat.amount.toFixed(0)}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                          <span className="text-cyan-700 font-bold">BIG 5-9 ({bigStat.count})</span>
+                          <span className="font-black text-slate-900">৳{bigStat.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                          <span className="text-cyan-700 font-bold">SMALL 0-4 ({smallStat.count})</span>
+                          <span className="font-black text-slate-900">৳{smallStat.amount.toFixed(0)}</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">NUMBERS 0-9 WAGERED (CLICK TO FORCE)</div>
+                        <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 text-center font-mono">
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                            <button
+                              key={n}
+                              onClick={() => handleForceEwiWingo(n)}
+                              className={`p-2 rounded-xl border transition-all active:scale-95 ${
+                                forcedEwi === n ? 'bg-cyan-50 border-cyan-400' : 'bg-slate-50 border-slate-200 hover:border-cyan-500'
+                              }`}
+                            >
+                              <div className="font-black text-slate-900">{n}</div>
+                              <div className="text-[10px] text-cyan-700 font-bold">৳{numStats[n].amount.toFixed(0)}</div>
+                              <div className="text-[9px] text-slate-500">{numStats[n].count}x</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {roundBets.length > 0 && (
+                        <div className="pt-2 border-t border-slate-200 space-y-1.5 max-h-48 overflow-y-auto">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase">ACTIVE MOBILE BETS ({roundBets.length})</div>
+                          {roundBets.map((rb) => (
+                            <div key={rb.id} className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                              <div className="min-w-0">
+                                <span className="font-bold text-slate-900">{rb.userPhone || rb.nickname || 'Player'}</span>
+                                <span className="mx-1.5 text-slate-600">•</span>
+                                <span className="font-black uppercase text-cyan-700">{rb.betType}: {rb.selection.toUpperCase()}</span>
+                              </div>
+                              <div className="font-mono font-black text-cyan-700 flex-shrink-0">৳{Number(rb.totalAmount).toFixed(0)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ---------------- DESHI K3 ENGINE TAB ---------------- */}
+              {engineTab === 'k3' && (() => {
+                const forcedK3 = adminSettings.nextK3Outcomes?.[selectedK3Mode] || 'AUTO';
+                const k3Queue = adminSettings.queuedK3Outcomes?.[selectedK3Mode] || [];
+                const latestServerK3 = adminLotteryResults[`k3_${selectedK3Mode}`];
+                const lastDice: [number, number, number] = Array.isArray(latestServerK3?.dice) && latestServerK3.dice.length === 3
+                  ? latestServerK3.dice
+                  : getSyncedK3Dice(selectedK3Mode, String(BigInt(k3Info.period) - 1n));
+                const lastSum = lastDice[0] + lastDice[1] + lastDice[2];
+
+                const poolKey = `k3_${selectedK3Mode}_${k3Info.period}`;
+                const poolEntry = marketPools?.[poolKey];
+                const roundBets = globalLotteryBets.filter(
+                  (b) => b.game === 'k3' && b.mode === selectedK3Mode && b.periodNumber === k3Info.period && b.status === 'pending'
+                );
+
+                const sumStats: Record<number, { amount: number; count: number }> = {};
+                for (let s = 3; s <= 18; s++) {
+                  const key1 = `total_num:${s}`;
+                  const key2 = `sum:${s}`;
+                  const pAmt = Number(poolEntry?.selections?.[key1] || 0) + Number(poolEntry?.selections?.[key2] || 0);
+                  const pCnt = Number(poolEntry?.selectionCounts?.[key1] || 0) + Number(poolEntry?.selectionCounts?.[key2] || 0);
+                  const matching = roundBets.filter((b) => (b.betType === 'total_num' || b.betType === 'sum') && Number(b.selection) === s);
+                  const bAmt = matching.reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+                  sumStats[s] = { amount: Math.max(pAmt, bAmt), count: Math.max(pCnt, matching.length) };
+                }
+
+                const aggType = (labelFn: (sel: string, bt: string) => boolean, poolKeys: string[]) => {
+                  const pAmt = poolKeys.reduce((acc, k) => acc + Number(poolEntry?.selections?.[k] || 0), 0);
+                  const pCnt = poolKeys.reduce((acc, k) => acc + Number(poolEntry?.selectionCounts?.[k] || 0), 0);
+                  const matching = roundBets.filter((b) => labelFn(b.selection, b.betType));
+                  const bAmt = matching.reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+                  return { amount: Math.max(pAmt, bAmt), count: Math.max(pCnt, matching.length) };
+                };
+
+                const bigSt = aggType((s) => s === 'Big', ['total_type:Big', 'size:Big']);
+                const smallSt = aggType((s) => s === 'Small', ['total_type:Small', 'size:Small']);
+                const oddSt = aggType((s) => s === 'Odd', ['total_type:Odd', 'parity:Odd']);
+                const evenSt = aggType((s) => s === 'Even', ['total_type:Even', 'parity:Even']);
+                const twoSameSt = aggType((_s, bt) => bt.includes('2same'), Object.keys(poolEntry?.selections || {}).filter((k) => k.startsWith('2same')));
+                const threeSameSt = aggType((_s, bt) => bt.includes('3same'), Object.keys(poolEntry?.selections || {}).filter((k) => k.startsWith('3same')));
+                const diffSt = aggType((_s, bt) => bt.includes('diff') || bt.includes('consec'), Object.keys(poolEntry?.selections || {}).filter((k) => k.includes('diff') || k.includes('consec')));
+
+                const totalPoolAmt = Math.max(
+                  Number(poolEntry?.totalAmount || 0),
+                  roundBets.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0)
+                );
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs font-black text-slate-500">DESHI K3 TYPE:</span>
+                        <select
+                          value={selectedK3Mode}
+                          onChange={(e) => setSelectedK3Mode(e.target.value as K3Mode)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 outline-none"
+                        >
+                          <option value="1m">Deshi K3 1 Minute</option>
+                          <option value="3m">Deshi K3 3 Minutes</option>
+                          <option value="5m">Deshi K3 5 Minutes</option>
+                          <option value="10m">Deshi K3 10 Minutes</option>
+                        </select>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                            forcedK3 === 'AUTO'
+                              ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                              : 'bg-cyan-50 text-cyan-700'
+                          }`}
+                        >
+                          {forcedK3 === 'AUTO' ? 'AUTO' : `FORCED: ${forcedK3}`}
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono text-slate-500">Tick: {tickStr}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-black text-slate-900">⚡ FORCE RESULT NOW (DESHI K3)</div>
+                          <span className="text-[10px] text-slate-500">Instant Sync to App</span>
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase">LAST DICE RESULT</div>
+                            <div className="flex items-center gap-1.5">
+                              {lastDice.map((d, idx) => (
+                                <span key={idx} className="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black text-base flex items-center justify-center shadow-sm">
+                                  {d}
+                                </span>
+                              ))}
+                              <span className="ml-1.5 text-xs font-black text-slate-800">
+                                Sum {lastSum} • {lastSum >= 11 ? 'Big' : 'Small'} • {lastSum % 2 === 0 ? 'Even' : 'Odd'}
+                              </span>
+                            </div>
+                            <div className="text-xs font-mono font-black text-cyan-700 pt-1">Period: {k3Info.period}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">
+                              NEXT IN:{' '}
+                              <span className="text-rose-600 font-black tabular-nums">
+                                {String(Math.floor(k3Info.rem / 60)).padStart(2, '0')}:{String(k3Info.rem % 60).padStart(2, '0')}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 text-center min-w-[78px]">
+                            <div className="text-[9px] font-black text-purple-700 uppercase">QUEUED</div>
+                            <div className="text-xs font-mono font-black text-slate-900 mt-0.5">
+                              {k3Queue.length > 0 ? k3Queue[0] : '—'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {(['BIG', 'SMALL', 'ODD', 'EVEN', 'TRIPLE'] as const).map((preset) => (
+                            <button
+                              key={preset}
+                              onClick={() => handleForceK3(preset)}
+                              className={`py-2 rounded-xl font-black text-[11px] border transition-all ${
+                                forcedK3 === preset
+                                  ? 'bg-cyan-600 border-cyan-400 text-white shadow-sm'
+                                  : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-cyan-500'
+                              }`}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">EXACT 3-DICE PICKER</div>
+                          <div className="flex items-center gap-2">
+                            {k3DicePick.map((val, idx) => (
+                              <select
+                                key={idx}
+                                value={val}
+                                onChange={(e) => {
+                                  const next = [...k3DicePick] as [number, number, number];
+                                  next[idx] = Number(e.target.value);
+                                  setK3DicePick(next);
+                                }}
+                                className="flex-1 px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-black text-sm text-slate-900 text-center"
+                              >
+                                {[1, 2, 3, 4, 5, 6].map((d) => (
+                                  <option key={d} value={d}>D{idx + 1}: {d}</option>
+                                ))}
+                              </select>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => handleForceK3(k3DicePick.join(','))}
+                              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black whitespace-nowrap"
+                            >
+                              FORCE DICE
+                            </button>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleForceK3('AUTO')}
+                          className={`w-full py-2 rounded-xl font-black text-xs border transition-all ${
+                            forcedK3 === 'AUTO'
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500'
+                          }`}
+                        >
+                          ↺ RESET TO AUTO ({ctrlK3})
+                        </button>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-black text-slate-900">⏱ QUEUE NEXT RESULT (DESHI K3)</div>
+                          <span className="text-[10px] text-slate-500">Auto Consumes Next Round</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['BIG', 'SMALL', 'ODD', 'EVEN', 'TRIPLE'].map((preset) => (
+                            <button
+                              key={preset}
+                              onClick={() => handleQueueK3(preset)}
+                              className="py-2.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-purple-400 font-black text-xs text-slate-900 active:scale-95"
+                            >
+                              + {preset}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => handleQueueK3(k3DicePick.join(','))}
+                            className="py-2.5 rounded-xl bg-purple-50 border border-purple-200 hover:border-purple-400 font-mono font-black text-xs text-purple-800 active:scale-95"
+                          >
+                            + [{k3DicePick.join('-')}]
+                          </button>
+                        </div>
+
+                        {k3Queue.length > 0 && (
+                          <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-purple-700 mr-1">QUEUE:</span>
+                            {k3Queue.map((qItem, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[11px] font-mono font-black">
+                                {qItem}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          onClick={handleClearK3Queue}
+                          className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-black"
+                        >
+                          ✕ CLEAR QUEUE
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-black text-cyan-700">
+                            LIVE BET POOL — DESHI K3 {selectedK3Mode.toUpperCase()} (৳{totalPoolAmt.toFixed(2)})
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {Math.max(Number(poolEntry?.betCount || 0), roundBets.length)} live bets • Period {k3Info.period}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex justify-between items-center">
+                          <span className="font-bold text-amber-700">BIG ({bigSt.count})</span>
+                          <span className="font-black text-slate-900">৳{bigSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-cyan-50 border border-cyan-200 flex justify-between items-center">
+                          <span className="font-bold text-cyan-700">SMALL ({smallSt.count})</span>
+                          <span className="font-black text-slate-900">৳{smallSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex justify-between items-center">
+                          <span className="font-bold text-rose-700">ODD ({oddSt.count})</span>
+                          <span className="font-black text-slate-900">৳{oddSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex justify-between items-center">
+                          <span className="font-bold text-emerald-700">EVEN ({evenSt.count})</span>
+                          <span className="font-black text-slate-900">৳{evenSt.amount.toFixed(0)}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                          <span className="font-bold text-slate-600">2 SAME ({twoSameSt.count})</span>
+                          <span className="font-black text-slate-900">৳{twoSameSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                          <span className="font-bold text-slate-600">3 SAME ({threeSameSt.count})</span>
+                          <span className="font-black text-slate-900">৳{threeSameSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                          <span className="font-bold text-slate-600">DIFF ({diffSt.count})</span>
+                          <span className="font-black text-slate-900">৳{diffSt.amount.toFixed(0)}</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">SUMS 3-18 WAGERED (CLICK TO FORCE SUM)</div>
+                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-center font-mono">
+                          {Array.from({ length: 16 }, (_, idx) => idx + 3).map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => handleForceK3(`SUM:${s}`)}
+                              className={`p-2 rounded-xl border transition-all active:scale-95 ${
+                                forcedK3 === `SUM:${s}` ? 'bg-cyan-50 border-cyan-400' : 'bg-slate-50 border-slate-200 hover:border-cyan-500'
+                              }`}
+                            >
+                              <div className="font-black text-slate-900">{s}</div>
+                              <div className="text-[10px] text-cyan-700 font-bold">৳{sumStats[s].amount.toFixed(0)}</div>
+                              <div className="text-[9px] text-slate-500">{sumStats[s].count}x</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {roundBets.length > 0 && (
+                        <div className="pt-2 border-t border-slate-200 space-y-1.5 max-h-48 overflow-y-auto">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase">ACTIVE MOBILE BETS ({roundBets.length})</div>
+                          {roundBets.map((rb) => (
+                            <div key={rb.id} className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                              <div className="min-w-0">
+                                <span className="font-bold text-slate-900">{rb.userPhone || rb.nickname || 'Player'}</span>
+                                <span className="mx-1.5 text-slate-600">•</span>
+                                <span className="font-black uppercase text-cyan-700">{rb.betType}: {rb.selection}</span>
+                              </div>
+                              <div className="font-mono font-black text-cyan-700 flex-shrink-0">৳{Number(rb.totalAmount).toFixed(0)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ---------------- DESHI 5D ENGINE TAB ---------------- */}
+              {engineTab === 'd5' && (() => {
+                const forcedD5 = adminSettings.nextD5Outcomes?.[selectedD5Mode] || 'AUTO';
+                const d5Queue = adminSettings.queuedD5Outcomes?.[selectedD5Mode] || [];
+                const latestServerD5 = adminLotteryResults[`d5_${selectedD5Mode}`];
+                const lastDigits: [number, number, number, number, number] =
+                  Array.isArray(latestServerD5?.digits) && latestServerD5.digits.length === 5
+                    ? latestServerD5.digits
+                    : getSyncedD5Digits(selectedD5Mode, String(BigInt(d5Info.period) - 1n));
+                const lastSum = lastDigits.reduce((a, b) => a + b, 0);
+
+                const poolKey = `d5_${selectedD5Mode}_${d5Info.period}`;
+                const poolEntry = marketPools?.[poolKey];
+                const roundBets = globalLotteryBets.filter(
+                  (b) => b.game === 'd5' && b.mode === selectedD5Mode && b.periodNumber === d5Info.period && b.status === 'pending'
+                );
+
+                const getD5SumStat = (sel: string, bt: string) => {
+                  const key = `SUM:${bt}:${sel}`;
+                  const pAmt = Number(poolEntry?.selections?.[key] || 0);
+                  const pCnt = Number(poolEntry?.selectionCounts?.[key] || 0);
+                  const matching = roundBets.filter((b) => b.position === 'SUM' && b.selection === sel);
+                  const bAmt = matching.reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+                  return { amount: Math.max(pAmt, bAmt), count: Math.max(pCnt, matching.length) };
+                };
+
+                const sumBigSt = getD5SumStat('Big', 'size');
+                const sumSmallSt = getD5SumStat('Small', 'size');
+                const sumOddSt = getD5SumStat('Odd', 'parity');
+                const sumEvenSt = getD5SumStat('Even', 'parity');
+
+                const posStats = (['A', 'B', 'C', 'D', 'E'] as const).map((pos) => {
+                  const pKeys = Object.keys(poolEntry?.selections || {}).filter((k) => k.startsWith(`${pos}:`));
+                  const pAmt = pKeys.reduce((acc, k) => acc + Number(poolEntry?.selections?.[k] || 0), 0);
+                  const pCnt = pKeys.reduce((acc, k) => acc + Number(poolEntry?.selectionCounts?.[k] || 0), 0);
+                  const matching = roundBets.filter((b) => b.position === pos);
+                  const bAmt = matching.reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+                  return { pos, amount: Math.max(pAmt, bAmt), count: Math.max(pCnt, matching.length) };
+                });
+
+                const totalPoolAmt = Math.max(
+                  Number(poolEntry?.totalAmount || 0),
+                  roundBets.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0)
+                );
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs font-black text-slate-500">DESHI 5D TYPE:</span>
+                        <select
+                          value={selectedD5Mode}
+                          onChange={(e) => setSelectedD5Mode(e.target.value as D5Mode)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 outline-none"
+                        >
+                          <option value="1m">Deshi 5D 1 Minute</option>
+                          <option value="3m">Deshi 5D 3 Minutes</option>
+                          <option value="5m">Deshi 5D 5 Minutes</option>
+                          <option value="10m">Deshi 5D 10 Minutes</option>
+                        </select>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                            forcedD5 === 'AUTO'
+                              ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                              : 'bg-cyan-50 text-cyan-700'
+                          }`}
+                        >
+                          {forcedD5 === 'AUTO' ? 'AUTO' : `FORCED: ${forcedD5}`}
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono text-slate-500">Tick: {tickStr}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-black text-slate-900">⚡ FORCE RESULT NOW (DESHI 5D)</div>
+                          <span className="text-[10px] text-slate-500">Instant Sync to App</span>
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase">LAST 5D RESULT</div>
+                            <div className="flex items-center gap-1.5">
+                              {lastDigits.map((dg, idx) => (
+                                <span key={idx} className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0891B2] to-[#0E7490] text-white font-black text-sm flex items-center justify-center shadow-sm">
+                                  {dg}
+                                </span>
+                              ))}
+                              <span className="ml-1 text-xs font-black text-slate-800">
+                                Sum {lastSum} • {lastSum >= 23 ? 'Big' : 'Small'}
+                              </span>
+                            </div>
+                            <div className="text-xs font-mono font-black text-cyan-700 pt-1">Period: {d5Info.period}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">
+                              NEXT IN:{' '}
+                              <span className="text-rose-600 font-black tabular-nums">
+                                {String(Math.floor(d5Info.rem / 60)).padStart(2, '0')}:{String(d5Info.rem % 60).padStart(2, '0')}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 text-center min-w-[82px]">
+                            <div className="text-[9px] font-black text-purple-700 uppercase">QUEUED</div>
+                            <div className="text-xs font-mono font-black text-slate-900 mt-0.5">
+                              {d5Queue.length > 0 ? d5Queue[0] : '—'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-2">
+                          {(['SUM_BIG', 'SUM_SMALL', 'SUM_ODD', 'SUM_EVEN'] as const).map((preset) => (
+                            <button
+                              key={preset}
+                              onClick={() => handleForceD5(preset)}
+                              className={`py-2 rounded-xl font-black text-[11px] border transition-all ${
+                                forcedD5 === preset
+                                  ? 'bg-cyan-600 border-cyan-400 text-white shadow-sm'
+                                  : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-cyan-500'
+                              }`}
+                            >
+                              {preset.replace('SUM_', 'SUM ')}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">EXACT 5-DIGIT PICKER (A-E)</div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {(['A', 'B', 'C', 'D', 'E'] as const).map((posLabel, idx) => (
+                              <select
+                                key={posLabel}
+                                value={d5DigitPick[idx]}
+                                onChange={(e) => {
+                                  const next = [...d5DigitPick] as [number, number, number, number, number];
+                                  next[idx] = Number(e.target.value);
+                                  setD5DigitPick(next);
+                                }}
+                                className="flex-1 min-w-[54px] px-2 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-black text-xs text-slate-900 text-center"
+                              >
+                                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((dg) => (
+                                  <option key={dg} value={dg}>{posLabel}:{dg}</option>
+                                ))}
+                              </select>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => handleForceD5(d5DigitPick.join(','))}
+                              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black whitespace-nowrap"
+                            >
+                              FORCE 5D
+                            </button>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleForceD5('AUTO')}
+                          className={`w-full py-2 rounded-xl font-black text-xs border transition-all ${
+                            forcedD5 === 'AUTO'
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500'
+                          }`}
+                        >
+                          ↺ RESET TO AUTO ({ctrlD5})
+                        </button>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-black text-slate-900">⏱ QUEUE NEXT RESULT (DESHI 5D)</div>
+                          <span className="text-[10px] text-slate-500">Auto Consumes Next Round</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {['SUM_BIG', 'SUM_SMALL', 'SUM_ODD', 'SUM_EVEN'].map((preset) => (
+                            <button
+                              key={preset}
+                              onClick={() => handleQueueD5(preset)}
+                              className="py-2.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-purple-400 font-black text-xs text-slate-900 active:scale-95"
+                            >
+                              + {preset.replace('SUM_', 'SUM ')}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => handleQueueD5(d5DigitPick.join(','))}
+                            className="col-span-2 sm:col-span-2 py-2.5 rounded-xl bg-purple-50 border border-purple-200 hover:border-purple-400 font-mono font-black text-xs text-purple-800 active:scale-95"
+                          >
+                            + [{d5DigitPick.join('-')}]
+                          </button>
+                        </div>
+
+                        {d5Queue.length > 0 && (
+                          <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-purple-700 mr-1">QUEUE:</span>
+                            {d5Queue.map((qItem, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[11px] font-mono font-black">
+                                {qItem}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          onClick={handleClearD5Queue}
+                          className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-black"
+                        >
+                          ✕ CLEAR QUEUE
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-black text-cyan-700">
+                            LIVE BET POOL — DESHI 5D {selectedD5Mode.toUpperCase()} (৳{totalPoolAmt.toFixed(2)})
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {Math.max(Number(poolEntry?.betCount || 0), roundBets.length)} live bets • Period {d5Info.period}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex justify-between items-center">
+                          <span className="font-bold text-amber-700">SUM BIG ({sumBigSt.count})</span>
+                          <span className="font-black text-slate-900">৳{sumBigSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-cyan-50 border border-cyan-200 flex justify-between items-center">
+                          <span className="font-bold text-cyan-700">SUM SMALL ({sumSmallSt.count})</span>
+                          <span className="font-black text-slate-900">৳{sumSmallSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex justify-between items-center">
+                          <span className="font-bold text-rose-700">SUM ODD ({sumOddSt.count})</span>
+                          <span className="font-black text-slate-900">৳{sumOddSt.amount.toFixed(0)}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex justify-between items-center">
+                          <span className="font-bold text-emerald-700">SUM EVEN ({sumEvenSt.count})</span>
+                          <span className="font-black text-slate-900">৳{sumEvenSt.amount.toFixed(0)}</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">POSITION A-E POOL BREAKDOWN</div>
+                        <div className="grid grid-cols-5 gap-2 text-center font-mono">
+                          {posStats.map((ps) => (
+                            <div key={ps.pos} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                              <div className="font-black text-slate-900">Pos {ps.pos}</div>
+                              <div className="text-[11px] text-cyan-700 font-bold">৳{ps.amount.toFixed(0)}</div>
+                              <div className="text-[9px] text-slate-500">{ps.count} bets</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {roundBets.length > 0 && (
+                        <div className="pt-2 border-t border-slate-200 space-y-1.5 max-h-48 overflow-y-auto">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase">ACTIVE MOBILE BETS ({roundBets.length})</div>
+                          {roundBets.map((rb) => (
+                            <div key={rb.id} className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                              <div className="min-w-0">
+                                <span className="font-bold text-slate-900">{rb.userPhone || rb.nickname || 'Player'}</span>
+                                <span className="mx-1.5 text-slate-600">•</span>
+                                <span className="font-black uppercase text-cyan-700">
+                                  {rb.position || 'SUM'} · {rb.betType}: {rb.selection}
+                                </span>
+                              </div>
+                              <div className="font-mono font-black text-cyan-700 flex-shrink-0">৳{Number(rb.totalAmount).toFixed(0)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* 4-MODE MARKET & GAME ENGINE CONTROLLER + BINARY NEXT CANDLE PREVIEW */}
               {(() => {
@@ -2602,6 +3657,18 @@ export const Admin: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">DESHI WINGO MODE</label>
+                        <select
+                          value={ctrlEwiWingo}
+                          onChange={(e) => setCtrlEwiWingo(e.target.value as MarketControlMode)}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+                        >
+                          {controlOptions.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
                       <div>
                         <label className="text-[10px] font-bold text-slate-500 block mb-1">DESHI K3 MODE</label>
                         <select
@@ -2743,6 +3810,7 @@ export const Admin: React.FC = () => {
                       onClick={() =>
                         updateAdminSettings({
                           gameControlModes: {
+                            ewiWingo: ctrlEwiWingo,
                             k3: ctrlK3,
                             d5: ctrlD5,
                             mines: ctrlMines,
@@ -2913,7 +3981,8 @@ export const Admin: React.FC = () => {
                 );
               })()}
             </div>
-          )}
+            );
+          })()}
 
           {/* ---------------- 5. BANNERS ---------------- */}
           {navTab === 'banners' && (

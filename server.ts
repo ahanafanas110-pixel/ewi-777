@@ -208,6 +208,8 @@ interface ServerStore {
   boundNumbers: string[];
   passwordRequests: any[];
   wingoBets: any[];
+  lotteryBets: any[];
+  lotteryResults: Record<string, any[]>;
   supportMessages: any[];
   adminAccessLogs: any[];
   referrals: any[];
@@ -254,6 +256,8 @@ const DEFAULT_STORE: ServerStore = {
   boundNumbers: [],
   passwordRequests: [],
   wingoBets: [],
+  lotteryBets: [],
+  lotteryResults: {},
   supportMessages: [],
   adminAccessLogs: [],
   referrals: [],
@@ -281,6 +285,27 @@ const DEFAULT_STORE: ServerStore = {
       '5m': 'AUTO'
     },
     queuedWingoOutcomes: {},
+    nextEwiWingoOutcomes: {
+      '15s': 'AUTO',
+      '30s': 'AUTO',
+      '1m': 'AUTO',
+      '3m': 'AUTO'
+    },
+    queuedEwiWingoOutcomes: {},
+    nextK3Outcomes: {
+      '1m': 'AUTO',
+      '3m': 'AUTO',
+      '5m': 'AUTO',
+      '10m': 'AUTO'
+    },
+    queuedK3Outcomes: {},
+    nextD5Outcomes: {
+      '1m': 'AUTO',
+      '3m': 'AUTO',
+      '5m': 'AUTO',
+      '10m': 'AUTO'
+    },
+    queuedD5Outcomes: {},
     wingoSyncPath: 'wingo',
     wingoPattern: '1,2,3,4,5',
     showTopEarners: false,
@@ -296,6 +321,7 @@ const DEFAULT_STORE: ServerStore = {
     maintenanceMode: false,
     timezoneOffsetMinutes: 360,
     gameControlModes: {
+      ewiWingo: 'HIGH_BET_LOSS',
       k3: 'HIGH_BET_LOSS',
       d5: 'HIGH_BET_LOSS',
       mines: 'AUTO',
@@ -413,6 +439,8 @@ function loadStore(): ServerStore {
         boundNumbers: Array.isArray(parsed.boundNumbers) ? parsed.boundNumbers : [],
         passwordRequests: Array.isArray(parsed.passwordRequests) ? parsed.passwordRequests : [],
         wingoBets: Array.isArray(parsed.wingoBets) ? parsed.wingoBets : [],
+        lotteryBets: Array.isArray(parsed.lotteryBets) ? parsed.lotteryBets : [],
+        lotteryResults: parsed.lotteryResults && typeof parsed.lotteryResults === 'object' ? parsed.lotteryResults : {},
         supportMessages: Array.isArray(parsed.supportMessages) ? parsed.supportMessages : [],
         adminAccessLogs: Array.isArray(parsed.adminAccessLogs) ? parsed.adminAccessLogs : [],
         referrals: Array.isArray(parsed.referrals) ? parsed.referrals : [],
@@ -431,6 +459,9 @@ function loadStore(): ServerStore {
         settings: {
           ...DEFAULT_STORE.settings,
           ...cleanSaved,
+          games: Array.isArray(cleanSaved.games)
+            ? cleanSaved.games.filter((g: any) => g && g.id !== 'game_ewi_roulette' && g.slug !== 'ewi-roulette')
+            : [],
           depositEnabled: typeof cleanSaved.depositEnabled === 'boolean' ? cleanSaved.depositEnabled : true,
           gameControlModes: {
             ...DEFAULT_STORE.settings.gameControlModes,
@@ -459,6 +490,7 @@ function loadStore(): ServerStore {
               ? cleanSaved.marqueeText
                   .replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win')
                   .replace(/\bHney\b/gi, 'Deshi')
+                  .replace(/,?\s*Deshi Roulette/gi, '')
               : DEFAULT_STORE.settings.marqueeText,
           banners: hasCustomBanners
             ? (Array.isArray(cleanSaved.banners) ? sanitizeBannerList(cleanSaved.banners) : DEFAULT_BANNERS)
@@ -482,6 +514,16 @@ function trimStoreForScale(target: ServerStore) {
   }
   if (Array.isArray(target.wingoBets) && target.wingoBets.length > 500) {
     target.wingoBets = target.wingoBets.slice(0, 500);
+  }
+  if (Array.isArray(target.lotteryBets) && target.lotteryBets.length > 500) {
+    target.lotteryBets = target.lotteryBets.slice(0, 500);
+  }
+  if (target.lotteryResults && typeof target.lotteryResults === 'object') {
+    for (const key of Object.keys(target.lotteryResults)) {
+      if (Array.isArray(target.lotteryResults[key]) && target.lotteryResults[key].length > 50) {
+        target.lotteryResults[key] = target.lotteryResults[key].slice(0, 50);
+      }
+    }
   }
   if (Array.isArray(target.sportsBets) && target.sportsBets.length > 1000) {
     target.sportsBets = target.sportsBets.slice(0, 1000);
@@ -1559,6 +1601,11 @@ async function startServer() {
     };
     if (Array.isArray(nextSettings.banners)) {
       nextSettings.banners = sanitizeBannerList(nextSettings.banners);
+    }
+    if (Array.isArray(nextSettings.games)) {
+      nextSettings.games = nextSettings.games.filter(
+        (g: any) => g && g.id !== 'game_ewi_roulette' && g.slug !== 'ewi-roulette'
+      );
     }
     store.settings = nextSettings;
     saveStore(store);
@@ -4267,7 +4314,9 @@ async function startServer() {
       mode: String(mode || 'default'),
       period: String(period || ''),
       selections: {},
+      selectionCounts: {},
       totalAmount: 0,
+      betCount: 0,
       updatedAt: Date.now()
     };
     const selKey = String(selection || 'BET').slice(0, 48);
@@ -4275,11 +4324,90 @@ async function startServer() {
       ...(existing.selections || {}),
       [selKey]: +(Number(existing.selections?.[selKey] || 0) + numAmt).toFixed(2)
     };
+    existing.selectionCounts = {
+      ...(existing.selectionCounts || {}),
+      [selKey]: Number(existing.selectionCounts?.[selKey] || 0) + 1
+    };
     existing.totalAmount = +(Number(existing.totalAmount || 0) + numAmt).toFixed(2);
+    existing.betCount = Number(existing.betCount || 0) + 1;
     existing.updatedAt = Date.now();
     store.marketPools[cleanId] = existing;
     saveStore(store);
     res.json({ success: true, pool: existing });
+  });
+
+  // Live Multi-Lottery Bets Pool & Resolved Results Sync (Deshi WinGo / K3 / 5D)
+  app.get('/api/lottery/bets', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const gameFilter = req.query.game ? String(req.query.game) : '';
+    const modeFilter = req.query.mode ? String(req.query.mode) : '';
+    const periodFilter = req.query.period ? String(req.query.period) : '';
+    let filtered = store.lotteryBets || [];
+    if (gameFilter) filtered = filtered.filter((b: any) => b.game === gameFilter);
+    if (modeFilter) filtered = filtered.filter((b: any) => b.mode === modeFilter);
+    if (periodFilter) filtered = filtered.filter((b: any) => b.periodNumber === periodFilter);
+    res.json({ success: true, bets: filtered.slice(0, 250) });
+  });
+
+  app.post('/api/lottery/bet', (req, res) => {
+    const b = req.body || {};
+    if (!b.id || !b.game || !b.mode || !b.periodNumber) {
+      return res.status(400).json({ success: false, message: 'Missing lottery bet fields' });
+    }
+    const totalBet = Number(b.totalAmount) || 0;
+    const bettor = findUserServer(b.userId, undefined, b.userPhone);
+    if (bettor && totalBet > 0 && getPlayableBalanceServer(bettor) < totalBet) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hold balance cannot be used for betting! Please wait for Admin release.'
+      });
+    }
+    const sanitizedBet = {
+      id: String(b.id),
+      game: String(b.game) as 'ewi_wingo' | 'k3' | 'd5',
+      userId: String(b.userId || 'guest'),
+      nickname: String(b.nickname || 'Player'),
+      userPhone: String(b.userPhone || ''),
+      mode: String(b.mode),
+      periodNumber: String(b.periodNumber),
+      betType: String(b.betType || ''),
+      position: b.position ? String(b.position) : undefined,
+      selection: String(b.selection || ''),
+      totalAmount: totalBet,
+      status: 'pending' as const,
+      time: String(b.time || new Date().toTimeString().slice(0, 8))
+    };
+    store.lotteryBets = [
+      sanitizedBet,
+      ...(store.lotteryBets || []).filter((x: any) => x.id !== sanitizedBet.id)
+    ].slice(0, 500);
+    saveStore(store);
+    res.json({ success: true, bet: sanitizedBet });
+  });
+
+  app.get('/api/lottery/results', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const key = req.query.key ? String(req.query.key).replace(/[^a-zA-Z0-9_-]/g, '_') : '';
+    if (key) {
+      return res.json({ success: true, results: (store.lotteryResults?.[key] || []).slice(0, 50) });
+    }
+    res.json({ success: true, resultsByKey: store.lotteryResults || {} });
+  });
+
+  app.post('/api/lottery/results', (req, res) => {
+    const { key, result } = req.body || {};
+    const cleanKey = String(key || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+    if (!cleanKey || !result || !result.periodNumber) {
+      return res.status(400).json({ success: false, message: 'Invalid lottery result payload' });
+    }
+    if (!store.lotteryResults || typeof store.lotteryResults !== 'object') {
+      store.lotteryResults = {};
+    }
+    const existing = Array.isArray(store.lotteryResults[cleanKey]) ? store.lotteryResults[cleanKey] : [];
+    const merged = [result, ...existing.filter((r: any) => r.periodNumber !== result.periodNumber)].slice(0, 50);
+    store.lotteryResults[cleanKey] = merged;
+    saveStore(store);
+    res.json({ success: true, results: merged });
   });
 
   // Top-level Express error safeguard so malformed payloads never crash the process

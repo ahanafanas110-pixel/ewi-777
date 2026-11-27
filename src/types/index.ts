@@ -97,7 +97,11 @@ export interface K3Result {
 
 export interface K3Bet {
   id: string;
+  orderNumber?: string;
+  orderTime?: string;
   userId?: string;
+  nickname?: string;
+  userPhone?: string;
   mode: K3Mode;
   periodNumber: string;
   betType: string;
@@ -107,6 +111,8 @@ export interface K3Bet {
   totalAmount: number;
   payoutRate?: number;
   winAmount?: number;
+  resultDice?: [number, number, number];
+  resultSum?: number;
   status: 'pending' | 'won' | 'lost';
   time: string;
 }
@@ -122,7 +128,11 @@ export interface D5Result {
 
 export interface D5Bet {
   id: string;
+  orderNumber?: string;
+  orderTime?: string;
   userId?: string;
+  nickname?: string;
+  userPhone?: string;
   mode: D5Mode;
   periodNumber: string;
   position: 'A' | 'B' | 'C' | 'D' | 'E' | 'SUM';
@@ -133,6 +143,8 @@ export interface D5Bet {
   totalAmount: number;
   payoutRate?: number;
   winAmount?: number;
+  resultDigits?: [number, number, number, number, number];
+  resultSum?: number;
   status: 'pending' | 'won' | 'lost';
   time: string;
 }
@@ -247,6 +259,8 @@ export interface WinGoResult {
 
 export interface WinGoBet {
   id: string;
+  orderNumber?: string;
+  orderTime?: string;
   userId: string;
   nickname?: string;
   userPhone?: string;
@@ -258,12 +272,17 @@ export interface WinGoBet {
   multiplier: number;
   totalAmount: number;
   winAmount?: number;
+  resultNumber?: number;
+  resultColor?: WinGoResult['color'];
+  resultSize?: 'big' | 'small';
   status: 'pending' | 'won' | 'lost';
   time: string;
 }
 
 export interface EwiWingoBet {
   id: string;
+  orderNumber?: string;
+  orderTime?: string;
   userId: string;
   nickname?: string;
   userPhone?: string;
@@ -275,6 +294,25 @@ export interface EwiWingoBet {
   multiplier: number;
   totalAmount: number;
   winAmount?: number;
+  resultNumber?: number;
+  resultColor?: WinGoResult['color'];
+  resultSize?: 'big' | 'small';
+  status: 'pending' | 'won' | 'lost';
+  time: string;
+}
+
+export interface GlobalLotteryBet {
+  id: string;
+  game: 'ewi_wingo' | 'k3' | 'd5';
+  userId: string;
+  nickname?: string;
+  userPhone?: string;
+  mode: string;
+  periodNumber: string;
+  betType: string;
+  position?: string;
+  selection: string;
+  totalAmount: number;
   status: 'pending' | 'won' | 'lost';
   time: string;
 }
@@ -337,10 +375,11 @@ export type MinesPatternMode =
 
 export interface MarketPoolEntry {
   poolId: string;
-  game: 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip';
+  game: 'ewi_wingo' | 'k3' | 'd5' | 'mines' | 'binary' | 'coinflip';
   mode: string;
   period: string;
   selections: Record<string, number>;
+  selectionCounts?: Record<string, number>;
   totalAmount: number;
   betCount?: number;
   updatedAt: number;
@@ -468,6 +507,12 @@ export interface AdminSettings {
   nextWingoOutcome: 'AUTO' | 'RED' | 'GREEN' | 'VIOLET' | number;
   nextWingoOutcomes?: Record<WinGoMode, 'AUTO' | 'RED' | 'GREEN' | 'VIOLET' | number>;
   queuedWingoOutcomes?: Partial<Record<WinGoMode, number[]>>;
+  nextEwiWingoOutcomes?: Partial<Record<EwiWingoMode, 'AUTO' | 'RED' | 'GREEN' | 'VIOLET' | number>>;
+  queuedEwiWingoOutcomes?: Partial<Record<EwiWingoMode, number[]>>;
+  nextK3Outcomes?: Partial<Record<K3Mode, string>>;
+  queuedK3Outcomes?: Partial<Record<K3Mode, string[]>>;
+  nextD5Outcomes?: Partial<Record<D5Mode, string>>;
+  queuedD5Outcomes?: Partial<Record<D5Mode, string[]>>;
   wingoSyncPath?: string;
   wingoPattern?: string;
   showTopEarners?: boolean;
@@ -483,6 +528,7 @@ export interface AdminSettings {
   maintenanceMode?: boolean;
   timezoneOffsetMinutes?: number;
   gameControlModes?: {
+    ewiWingo?: MarketControlMode;
     k3: MarketControlMode;
     d5: MarketControlMode;
     mines: MarketControlMode;

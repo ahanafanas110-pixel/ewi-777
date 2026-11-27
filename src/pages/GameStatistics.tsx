@@ -118,7 +118,7 @@ export const GameStatistics: React.FC = () => {
     {
       key: 'video',
       title: 'Casino & Crash',
-      subtitle: 'PLANE · Roulette · Aviator · Lucky Jet · Coin Flip',
+      subtitle: 'PLANE · Aviator · Lucky Jet · Coin Flip',
       icon: Flame,
       data: stats.video
     },

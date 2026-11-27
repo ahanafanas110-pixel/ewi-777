@@ -44,7 +44,6 @@ import { AllCharts } from './pages/AllCharts';
 import { PlaneGame } from './pages/PlaneGame';
 import { CasinoLobby } from './pages/CasinoLobby';
 import { SlotsLobby } from './pages/SlotsLobby';
-import { EwiRoulette } from './pages/EwiRoulette';
 import { LudoGame } from './pages/LudoGame';
 import { MentorPanel } from './pages/MentorPanel';
 import { SportsBetting } from './pages/SportsBetting';
@@ -237,8 +236,6 @@ const MainApp: React.FC = () => {
         return <CasinoLobby />;
       case 'slots':
         return <SlotsLobby />;
-      case 'ewi-roulette':
-        return <EwiRoulette />;
       case 'activity':
         return <Activity />;
       case 'promotion':
