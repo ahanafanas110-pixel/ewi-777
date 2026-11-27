@@ -63,6 +63,7 @@ export const WinGo: React.FC = () => {
   const [selectedBetType, setSelectedBetType] = useState<'color' | 'number' | 'size'>('color');
   const [selectedBetValue, setSelectedBetValue] = useState<string | number>('green');
   const [baseUnit, setBaseUnit] = useState<number>(10);
+  const [amountInput, setAmountInput] = useState<string>('10');
   const [multiplier, setMultiplier] = useState<number>(1);
   const [activeHistoryTab, setActiveHistoryTab] = useState<'game' | 'my'>('game');
   const [expandedBetId, setExpandedBetId] = useState<string | null>(null);
@@ -76,7 +77,8 @@ export const WinGo: React.FC = () => {
   const secStr = seconds.toString().padStart(2, '0');
   const minStr = minutes.toString().padStart(2, '0');
 
-  const totalBetCost = baseUnit * multiplier;
+  const parsedBaseUnit = Math.max(0, Number(amountInput) || 0);
+  const totalBetCost = parsedBaseUnit * multiplier;
   const isBetLocked = timeRemaining <= 5;
 
   const handleOpenBet = (type: 'color' | 'number' | 'size', value: string | number) => {
@@ -84,15 +86,23 @@ export const WinGo: React.FC = () => {
       showToast('Betting is locked for this round. Please wait for next round!');
       return;
     }
+    const safeUnit = baseUnit >= 1 ? baseUnit : 10;
     setSelectedBetType(type);
     setSelectedBetValue(value);
+    setBaseUnit(safeUnit);
+    setAmountInput(String(safeUnit));
     setMultiplier(1);
     setBetModalOpen(true);
   };
 
   const handleConfirmBet = () => {
-    const res = placeBet(activeWingoMode, selectedBetType, selectedBetValue, baseUnit, multiplier);
+    if (!Number.isFinite(parsedBaseUnit) || parsedBaseUnit < 1) {
+      showToast('Please enter a valid bet amount (Min ৳1)');
+      return;
+    }
+    const res = placeBet(activeWingoMode, selectedBetType, selectedBetValue, parsedBaseUnit, multiplier);
     if (res.success) {
+      setBaseUnit(parsedBaseUnit);
       setBetModalOpen(false);
       setShowBetSuccessOverlay(true);
       setTimeout(() => {
@@ -543,9 +553,13 @@ export const WinGo: React.FC = () => {
                 {[1, 10, 100, 1000].map((unit) => (
                   <button
                     key={unit}
-                    onClick={() => setBaseUnit(unit)}
+                    type="button"
+                    onClick={() => {
+                      setBaseUnit(unit);
+                      setAmountInput(String(unit));
+                    }}
                     className={`py-2 rounded-xl text-xs font-black border transition-all tabular-nums ${
-                      baseUnit === unit
+                      parsedBaseUnit === unit
                         ? 'bg-gradient-to-r from-[#0891B2] to-[#0D9488] border-[#0891B2] text-white shadow-xs'
                         : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-cyan-50'
                     }`}
@@ -556,10 +570,54 @@ export const WinGo: React.FC = () => {
               </div>
             </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="wingo-custom-amount" className="text-xs font-bold text-slate-700">
+                  Custom Amount (৳)
+                </label>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  Playable: ৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 focus-within:border-[#0891B2] focus-within:bg-white focus-within:ring-2 focus-within:ring-cyan-500/20 transition-all">
+                <span className="text-base font-black text-[#0891B2] select-none">৳</span>
+                <input
+                  id="wingo-custom-amount"
+                  type="text"
+                  inputMode="numeric"
+                  value={amountInput}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^\d]/g, '').slice(0, 7);
+                    setAmountInput(cleaned);
+                    const num = Number(cleaned);
+                    if (num > 0) setBaseUnit(num);
+                  }}
+                  onBlur={() => {
+                    if (!amountInput || Number(amountInput) < 1) {
+                      setAmountInput('1');
+                      setBaseUnit(1);
+                    }
+                  }}
+                  placeholder="Type amount (e.g. 50, 250)"
+                  className="w-full bg-transparent text-sm font-black text-slate-900 placeholder:text-slate-400 placeholder:font-semibold focus:outline-none tabular-nums"
+                />
+                {amountInput && (
+                  <button
+                    type="button"
+                    onClick={() => setAmountInput('')}
+                    className="px-2 py-0.5 rounded-lg bg-slate-200/70 hover:bg-slate-200 text-[11px] font-bold text-slate-600 flex-shrink-0"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="flex gap-1.5 overflow-x-auto py-1">
               {[1, 5, 10, 20, 50, 100].map((mul) => (
                 <button
                   key={mul}
+                  type="button"
                   onClick={() => setMultiplier(mul)}
                   className={`flex-1 min-w-[45px] py-1.5 rounded-lg text-xs font-bold border ${
                     multiplier === mul
