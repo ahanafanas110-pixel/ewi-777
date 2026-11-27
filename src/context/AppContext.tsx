@@ -315,6 +315,7 @@ interface AppContextType {
   setUserTurnover: (userId: string, requiredTurnover: number) => void;
   toggleUserBan: (userId: string, reason?: string) => void;
   adminModifyUserBalance: (userId: string, action: 'add' | 'deduct' | 'set', amount: number, reason?: string, opts?: { locked?: boolean; turnover?: number }) => { success: boolean; message: string };
+  holdUserBalance: (userId: string, amount?: number, reason?: string) => { success: boolean; message: string };
   releaseLockedBalance: (userId: string) => void;
   adminUpdateUserRole: (userId: string, role: 'USER' | 'VIP' | 'ADMIN') => void;
   adminDeleteUser: (userId: string) => void;
@@ -374,7 +375,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'wingo',
-    htmlCode: '<!-- EWI 777 Official WinGo 30s Engine -->\n<div class="ewi-game" data-mode="30s">WinGo 30s Live</div>'
+    htmlCode: '<!-- Deshi Win Official WinGo 30s Engine -->\n<div class="ewi-game" data-mode="30s">WinGo 30s Live</div>'
   },
   {
     id: 'game_wingo_1m',
@@ -388,7 +389,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: false,
     targetTab: 'wingo',
-    htmlCode: '<!-- EWI 777 Official WinGo 1m Engine -->\n<div class="ewi-game" data-mode="1m">WinGo 1m Live</div>'
+    htmlCode: '<!-- Deshi Win Official WinGo 1m Engine -->\n<div class="ewi-game" data-mode="1m">WinGo 1m Live</div>'
   },
   {
     id: 'game_wingo_3m',
@@ -402,7 +403,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: false,
     targetTab: 'wingo',
-    htmlCode: '<!-- EWI 777 Official WinGo 3m Engine -->\n<div class="ewi-game" data-mode="3m">WinGo 3m Live</div>'
+    htmlCode: '<!-- Deshi Win Official WinGo 3m Engine -->\n<div class="ewi-game" data-mode="3m">WinGo 3m Live</div>'
   },
   {
     id: 'game_wingo_5m',
@@ -416,7 +417,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: false,
     targetTab: 'wingo',
-    htmlCode: '<!-- EWI 777 Official WinGo 5m Engine -->\n<div class="ewi-game" data-mode="5m">WinGo 5m Live</div>'
+    htmlCode: '<!-- Deshi Win Official WinGo 5m Engine -->\n<div class="ewi-game" data-mode="5m">WinGo 5m Live</div>'
   },
   {
     id: 'game_aviator',
@@ -430,7 +431,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'aviator',
-    htmlCode: '<!-- EWI 777 Aviator Crash Engine -->\n<div class="ewi-game" data-game="aviator">Aviator Plane Crash</div>'
+    htmlCode: '<!-- Deshi Win Aviator Crash Engine -->\n<div class="ewi-game" data-game="aviator">Aviator Plane Crash</div>'
   },
   {
     id: 'game_plane',
@@ -444,12 +445,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'plane',
-    htmlCode: '<!-- EWI 777 PLANE Biplane Crash Engine -->\n<div class="ewi-game" data-game="plane">PLANE Aviation Crash</div>'
+    htmlCode: '<!-- Deshi Win PLANE Biplane Crash Engine -->\n<div class="ewi-game" data-game="plane">PLANE Aviation Crash</div>'
   },
   {
     id: 'game_ewi_roulette',
     slug: 'ewi-roulette',
-    title: 'HNEY ROULETTE',
+    title: 'DESHI ROULETTE',
     imageUrl: '',
     category: 'Slots',
     badge: '36X',
@@ -458,12 +459,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'ewi-roulette',
-    htmlCode: '<!-- Hney Win European Single-Zero Roulette -->\n<div class="ewi-game" data-game="ewi-roulette">HNEY ROULETTE Live</div>'
+    htmlCode: '<!-- Deshi Win European Single-Zero Roulette -->\n<div class="ewi-game" data-game="ewi-roulette">DESHI ROULETTE Live</div>'
   },
   {
     id: 'game_ludo',
     slug: 'ewi-ludo',
-    title: 'Hney Ludo',
+    title: 'Deshi Ludo',
     imageUrl: '',
     category: 'Casino',
     badge: '1.9X',
@@ -472,7 +473,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'ludo',
-    htmlCode: '<!-- Hney Win Multiplayer & Match Ludo -->\n<div class="ewi-game" data-game="ludo">Hney Ludo Live</div>'
+    htmlCode: '<!-- Deshi Win Multiplayer & Match Ludo -->\n<div class="ewi-game" data-game="ludo">Deshi Ludo Live</div>'
   },
   {
     id: 'game_sports',
@@ -486,7 +487,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'sports',
-    htmlCode: '<!-- EWI 777 Live Cricket & Football Team Betting -->\n<div class="ewi-game" data-game="sports">Live Sports</div>'
+    htmlCode: '<!-- Deshi Win Live Cricket & Football Team Betting -->\n<div class="ewi-game" data-game="sports">Live Sports</div>'
   },
   {
     id: 'game_binary',
@@ -500,7 +501,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'binary',
-    htmlCode: '<!-- EWI 777 Binary Market Engine -->\n<div class="ewi-game" data-game="binary">Binary Trading Live</div>'
+    htmlCode: '<!-- Deshi Win Binary Market Engine -->\n<div class="ewi-game" data-game="binary">Binary Trading Live</div>'
   },
   {
     id: 'game_mines',
@@ -514,12 +515,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'mines',
-    htmlCode: '<!-- EWI 777 Mines Treasure Engine -->\n<div class="ewi-game" data-game="mines">Mines 777 Live</div>'
+    htmlCode: '<!-- Deshi Win Mines Treasure Engine -->\n<div class="ewi-game" data-game="mines">Mines 777 Live</div>'
   },
   {
     id: 'game_k3',
     slug: 'k3-lottery',
-    title: 'Hney K3',
+    title: 'Deshi K3',
     imageUrl: '',
     category: 'Lottery',
     badge: '207X',
@@ -528,12 +529,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'k3',
-    htmlCode: '<!-- Hney Win K3 Dice Lottery Engine -->\n<div class="ewi-game" data-game="k3">Hney K3 Dice Live</div>'
+    htmlCode: '<!-- Deshi Win K3 Dice Lottery Engine -->\n<div class="ewi-game" data-game="k3">Deshi K3 Dice Live</div>'
   },
   {
     id: 'game_5d',
     slug: '5d-lottery',
-    title: 'Hney 5D',
+    title: 'Deshi 5D',
     imageUrl: '',
     category: 'Lottery',
     badge: '9X',
@@ -542,7 +543,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: '5d',
-    htmlCode: '<!-- Hney Win 5D Number Lottery Engine -->\n<div class="ewi-game" data-game="5d">Hney 5D Lottery Live</div>'
+    htmlCode: '<!-- Deshi Win 5D Number Lottery Engine -->\n<div class="ewi-game" data-game="5d">Deshi 5D Lottery Live</div>'
   },
   {
     id: 'game_luckyjet',
@@ -556,7 +557,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'luckyjet',
-    htmlCode: '<!-- EWI 777 Lucky Jet Crash Engine -->\n<div class="ewi-game" data-game="luckyjet">Lucky Jet Live</div>'
+    htmlCode: '<!-- Deshi Win Lucky Jet Crash Engine -->\n<div class="ewi-game" data-game="luckyjet">Lucky Jet Live</div>'
   },
   {
     id: 'game_coinflip',
@@ -570,7 +571,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'coinflip',
-    htmlCode: '<!-- EWI 777 Coin Flip Engine -->\n<div class="ewi-game" data-game="coinflip">Coin Flip Gold/Silver</div>'
+    htmlCode: '<!-- Deshi Win Coin Flip Engine -->\n<div class="ewi-game" data-game="coinflip">Coin Flip Gold/Silver</div>'
   },
   {
     id: 'game_gold_market',
@@ -584,12 +585,12 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'gold-market',
-    htmlCode: '<!-- EWI 777 Gold Spot XAU/USD Trading -->\n<div class="ewi-game" data-game="gold-market" data-asset="XAU/USD">Gold Market Live</div>'
+    htmlCode: '<!-- Deshi Win Gold Spot XAU/USD Trading -->\n<div class="ewi-game" data-game="gold-market" data-asset="XAU/USD">Gold Market Live</div>'
   },
   {
     id: 'game_ewi_wingo',
     slug: 'ewi-wingo',
-    title: 'Hney WinGo',
+    title: 'Deshi WinGo',
     imageUrl: '',
     category: 'Lottery',
     badge: '15S+',
@@ -598,7 +599,7 @@ export const DEFAULT_GAMES: GameItem[] = [
     active: true,
     featured: true,
     targetTab: 'ewi-wingo',
-    htmlCode: '<!-- Hney WinGo 15s-3m Engine -->\n<div class="ewi-game" data-game="ewi-wingo">Hney WinGo Live</div>'
+    htmlCode: '<!-- Deshi WinGo 15s-3m Engine -->\n<div class="ewi-game" data-game="ewi-wingo">Deshi WinGo Live</div>'
   }
 ];
 
@@ -686,13 +687,19 @@ function sanitizeBannerListClient(list: any): AdminSettings['banners'] {
   return list
     .map((b: any) => {
       const url = String(b?.url || '');
-      if (url.includes('image_06ccef65.png')) {
-        return { ...b, url: '/assets/brand/welcome-200-banner.png' };
+      const cleanTitle = String(b?.title || '')
+        .replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win')
+        .replace(/\bHney\b/gi, 'Deshi');
+      if (url.includes('image_06ccef65') || url.includes('welcome-200-banner')) {
+        return { ...b, title: cleanTitle, url: '/assets/brand/deshi-banner-2.jpg' };
       }
-      if (url.includes('image_8c5384f7') || url.includes('image_3c433c14')) {
-        return { ...b, url: '/assets/aistudio/image_046bb074.png' };
+      if (url.includes('image_8c5384f7') || url.includes('image_3c433c14') || url.includes('image_046bb074')) {
+        return { ...b, title: cleanTitle, url: '/assets/brand/deshi-banner-1.jpg' };
       }
-      return b;
+      if (url.includes('image_d2e764e7')) {
+        return { ...b, title: cleanTitle, url: '/assets/brand/deshi-banner-3.jpg' };
+      }
+      return { ...b, title: cleanTitle };
     })
     .slice(0, 10);
 }
@@ -708,24 +715,24 @@ function maskPhoneForAudit(phone: string): string {
 export const DEFAULT_BANNERS = [
   {
     id: 'ban_ewi777_official',
-    title: 'Hney Win Official Crown Event',
-    url: '/assets/aistudio/image_046bb074.png',
+    title: 'Deshi Win Official Crown Event',
+    url: '/assets/brand/deshi-banner-1.jpg',
     link: '#/wingo',
     sortOrder: 1,
     active: true
   },
   {
     id: 'ban_welcome_200_bonus',
-    title: 'Hney Win Welcome Bonus up to 200%',
-    url: '/assets/brand/welcome-200-banner.png',
+    title: 'Deshi Win Welcome Bonus up to 200%',
+    url: '/assets/brand/deshi-banner-2.jpg',
     link: '#/deposit',
     sortOrder: 2,
     active: true
   },
   {
     id: 'ban_ewi777_usdt_2pct',
-    title: 'Recharge USDT Get 2% Bonus ($2 - $20,000)',
-    url: '/assets/aistudio/image_d2e764e7.png',
+    title: 'Deshi Win USDT 2% Instant Bonus ($2 - $20,000)',
+    url: '/assets/brand/deshi-banner-3.jpg',
     link: '#/deposit',
     sortOrder: 3,
     active: true
@@ -753,7 +760,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   wingoSyncPath: 'wingo',
   wingoPattern: '1,2,3,4,5',
   showTopEarners: false,
-  appName: 'Hney Win',
+  appName: 'Deshi Win',
   appLogoUrl: '',
   supportLink: '',
   supportPhone: '',
@@ -773,7 +780,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   },
   minesPattern: 'RANDOM',
   binaryNextCandleBias: 'AUTO',
-  marqueeText: 'Notice: Welcome to Hney Win online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
+  marqueeText: 'Notice: Welcome to Deshi Win online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
   popupTitle: '',
   popupMessage: '',
   popupImageUrl: '',
@@ -1338,12 +1345,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (g.id === 'game_luckyjet') return { ...g, category: 'Slots' as const, badge: '10000X', price: '10000X' };
           if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
-          if (g.id === 'game_ewi_roulette') return { ...g, title: 'HNEY ROULETTE', category: 'Slots' as const };
+          if (g.id === 'game_ewi_roulette') return { ...g, title: 'DESHI ROULETTE', category: 'Slots' as const };
           if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
-          if (g.id === 'game_ludo') return { ...g, title: 'Hney Ludo', category: 'Casino' as const, targetTab: 'ludo' };
-          if (g.id === 'game_k3') return { ...g, title: 'Hney K3' };
-          if (g.id === 'game_5d') return { ...g, title: 'Hney 5D' };
-          if (g.id === 'game_ewi_wingo') return { ...g, title: 'Hney WinGo' };
+          if (g.id === 'game_ludo') return { ...g, title: 'Deshi Ludo', category: 'Casino' as const, targetTab: 'ludo' };
+          if (g.id === 'game_k3') return { ...g, title: 'Deshi K3' };
+          if (g.id === 'game_5d') return { ...g, title: 'Deshi 5D' };
+          if (g.id === 'game_ewi_wingo') return { ...g, title: 'Deshi WinGo' };
           if (g.id === 'game_gold_market') {
             return {
               ...g,
@@ -1355,7 +1362,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         const hasLegacyRetiredBanner =
           Array.isArray(parsed.banners) &&
-          parsed.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14'));
+          parsed.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14') || String(b?.url || '').includes('image_046bb074'));
         const hasCustomBanners = Boolean(parsed.bannersCustomized) && !hasLegacyRetiredBanner;
         const loadedBanners = hasCustomBanners
           ? sanitizeBannerListClient(parsed.banners)
@@ -1370,13 +1377,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const adminPhoneHash = rawPhoneH === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : rawPhoneH;
         const adminPasswordHash = rawPassH === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : rawPassH;
         const normalizedAppName =
-          !cleanParsed.appName || /^(ewi\s*777|ewi777)$/i.test(String(cleanParsed.appName).trim())
-            ? 'Hney Win'
+          !cleanParsed.appName || /^(ewi\s*777|ewi777|hney\s*win|hneywin|honey\s*win|honey)$/i.test(String(cleanParsed.appName).trim())
+            ? 'Deshi Win'
             : String(cleanParsed.appName);
         return {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanParsed,
           appName: normalizedAppName,
+          marqueeText:
+            typeof cleanParsed.marqueeText === 'string' && cleanParsed.marqueeText
+              ? cleanParsed.marqueeText.replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win').replace(/\bHney\b/gi, 'Deshi')
+              : INITIAL_ADMIN_SETTINGS.marqueeText,
           appLogoUrl: sanitizeAppLogoUrl(cleanParsed.appLogoUrl),
           gameControlModes: {
             ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
@@ -2048,11 +2059,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
               const normalizedGames = mergedGamesList.map((g: GameItem) => {
                 if (g.id === 'game_aviator') return { ...g, badge: '10000X', price: '10000X' };
-                if (g.id === 'game_ewi_roulette') return { ...g, title: 'HNEY ROULETTE', category: 'Slots' as const };
-                if (g.id === 'game_ludo') return { ...g, title: 'Hney Ludo', category: 'Casino' as const, targetTab: 'ludo' };
-                if (g.id === 'game_k3') return { ...g, title: 'Hney K3' };
-                if (g.id === 'game_5d') return { ...g, title: 'Hney 5D' };
-                if (g.id === 'game_ewi_wingo') return { ...g, title: 'Hney WinGo' };
+                if (g.id === 'game_ewi_roulette') return { ...g, title: 'DESHI ROULETTE', category: 'Slots' as const };
+                if (g.id === 'game_ludo') return { ...g, title: 'Deshi Ludo', category: 'Casino' as const, targetTab: 'ludo' };
+                if (g.id === 'game_k3') return { ...g, title: 'Deshi K3' };
+                if (g.id === 'game_5d') return { ...g, title: 'Deshi 5D' };
+                if (g.id === 'game_ewi_wingo') return { ...g, title: 'Deshi WinGo' };
                 if (g.id === 'game_gold_market') {
                   return {
                     ...g,
@@ -2064,7 +2075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
               const serverHasLegacyBanner =
                 Array.isArray(sData.settings.banners) &&
-                sData.settings.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14'));
+                sData.settings.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14') || String(b?.url || '').includes('image_046bb074'));
               const serverHasBanners =
                 Boolean(sData.settings.bannersCustomized) && !serverHasLegacyBanner;
               const resolvedBanners = serverHasBanners
@@ -2078,13 +2089,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 cleanRemote.adminPasswordHash ||
                 (_spw ? sha256HexSync(String(_spw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH);
               const resolvedAppName =
-                !cleanRemote.appName || /^(ewi\s*777|ewi777)$/i.test(String(cleanRemote.appName).trim())
-                  ? 'Hney Win'
+                !cleanRemote.appName || /^(ewi\s*777|ewi777|hney\s*win|hneywin|honey\s*win|honey)$/i.test(String(cleanRemote.appName).trim())
+                  ? 'Deshi Win'
                   : String(cleanRemote.appName);
               const merged: AdminSettings = {
                 ...INITIAL_ADMIN_SETTINGS,
                 ...cleanRemote,
                 appName: resolvedAppName,
+                marqueeText:
+                  typeof cleanRemote.marqueeText === 'string' && cleanRemote.marqueeText
+                    ? cleanRemote.marqueeText.replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win').replace(/\bHney\b/gi, 'Deshi')
+                    : INITIAL_ADMIN_SETTINGS.marqueeText,
                 gameControlModes: {
                   ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
                   ...(cleanRemote.gameControlModes || {})
@@ -2495,11 +2510,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (g.id === 'game_mines') return { ...g, category: 'Slots' as const };
           if (g.id === 'game_coinflip') return { ...g, category: 'Slots' as const, badge: '1.89X', price: '1.89X' };
           if (g.id === 'game_plane') return { ...g, title: 'PLANE', category: 'Casino' as const, targetTab: 'plane', badge: '20000X', price: '20000X' };
-          if (g.id === 'game_ewi_roulette') return { ...g, title: 'HNEY ROULETTE', category: 'Slots' as const };
-          if (g.id === 'game_ludo') return { ...g, title: 'Hney Ludo', category: 'Casino' as const, targetTab: 'ludo' };
-          if (g.id === 'game_k3') return { ...g, title: 'Hney K3' };
-          if (g.id === 'game_5d') return { ...g, title: 'Hney 5D' };
-          if (g.id === 'game_ewi_wingo') return { ...g, title: 'Hney WinGo' };
+          if (g.id === 'game_ewi_roulette') return { ...g, title: 'DESHI ROULETTE', category: 'Slots' as const };
+          if (g.id === 'game_ludo') return { ...g, title: 'Deshi Ludo', category: 'Casino' as const, targetTab: 'ludo' };
+          if (g.id === 'game_k3') return { ...g, title: 'Deshi K3' };
+          if (g.id === 'game_5d') return { ...g, title: 'Deshi 5D' };
+          if (g.id === 'game_ewi_wingo') return { ...g, title: 'Deshi WinGo' };
           if (g.id === 'game_gold_market') {
             return {
               ...g,
@@ -2511,7 +2526,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         const remoteHasLegacyBanner =
           Array.isArray(remoteSettings.banners) &&
-          remoteSettings.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14'));
+          remoteSettings.banners.some((b: any) => String(b?.url || '').includes('image_3c433c14') || String(b?.url || '').includes('image_046bb074'));
         const remoteHasBanners =
           Boolean(remoteSettings.bannersCustomized) && !remoteHasLegacyBanner;
         const resolvedBanners = remoteHasBanners
@@ -2525,13 +2540,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           cleanRemote.adminPasswordHash ||
           (_rpw ? sha256HexSync(String(_rpw)) : prev.adminPasswordHash || DEFAULT_ADMIN_PASS_HASH);
         const resolvedAppName =
-          !cleanRemote.appName || /^(ewi\s*777|ewi777)$/i.test(String(cleanRemote.appName).trim())
-            ? 'Hney Win'
+          !cleanRemote.appName || /^(ewi\s*777|ewi777|hney\s*win|hneywin|honey\s*win|honey)$/i.test(String(cleanRemote.appName).trim())
+            ? 'Deshi Win'
             : String(cleanRemote.appName);
         const merged: AdminSettings = {
           ...INITIAL_ADMIN_SETTINGS,
           ...cleanRemote,
           appName: resolvedAppName,
+          marqueeText:
+            typeof cleanRemote.marqueeText === 'string' && cleanRemote.marqueeText
+              ? cleanRemote.marqueeText.replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win').replace(/\bHney\b/gi, 'Deshi')
+              : INITIAL_ADMIN_SETTINGS.marqueeText,
           appLogoUrl: sanitizeAppLogoUrl(cleanRemote.appLogoUrl),
           gameControlModes: {
             ...INITIAL_ADMIN_SETTINGS.gameControlModes!,
@@ -3115,17 +3134,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const handleUrlRoute = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash || '';
-      let code = searchParams.get('invitationCode') || searchParams.get('code') || searchParams.get('r_code');
+      const readInviteParam = (params: URLSearchParams) =>
+        params.get('invitationCode') ||
+        params.get('inviteCode') ||
+        params.get('invite') ||
+        params.get('ref') ||
+        params.get('r') ||
+        params.get('code') ||
+        params.get('r_code');
+
+      let code = readInviteParam(searchParams);
 
       if (!code && hash.includes('?')) {
         const hashQuery = hash.split('?')[1];
         const hashParams = new URLSearchParams(hashQuery);
-        code = hashParams.get('invitationCode') || hashParams.get('code') || hashParams.get('r_code');
+        code = readInviteParam(hashParams);
       }
 
       if (code) {
-        setInvitationParam(code);
-        sessionStorage.setItem('win777_invite_code', code);
+        setInvitationParam(code.trim());
+        sessionStorage.setItem('win777_invite_code', code.trim());
       }
 
       const pathnameLower = (window.location.pathname || '').toLowerCase();
@@ -3186,7 +3214,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetTab =
       !userRef.current.isLoggedIn && !PUBLIC_UNAUTH_TABS.has(tab) ? 'login' : tab;
     if (targetTab !== tab) {
-      showToast('Please login or register first to access Hney Win markets!');
+      showToast('Please login or register first to access Deshi Win markets!');
     }
     const targetHash =
       targetTab === 'home'
@@ -3902,6 +3930,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (matchedReferrer) {
       const refCode = matchedReferrer.inviteCode || matchedReferrer.uid;
       const maskedPhone = normInput.length >= 7 ? normInput.slice(0, 3) + '***' + normInput.slice(-4) : normInput;
+      const findUserByCode = (codeVal?: string) => {
+        const c = String(codeVal || '').trim().toUpperCase();
+        if (!c) return undefined;
+        return combinedUsers.find(
+          (u) =>
+            (u.inviteCode && u.inviteCode.toUpperCase() === c) ||
+            (u.uid && u.uid.toUpperCase() === c)
+        );
+      };
+
+      const createdReferrals: ReferralMember[] = [];
       const newReferral: ReferralMember = {
         id: `ref_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
         referrerCode: refCode,
@@ -3914,14 +3953,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         level: 1,
         status: 'active'
       };
+      createdReferrals.push(newReferral);
 
-      setReferrals((prev) => [newReferral, ...prev]);
-      saveReferralToFirebase(newReferral).catch(() => {});
-      fetch(apiUrl('/api/referrals'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ referral: newReferral })
-      }).catch(() => {});
+      const l2Upline = findUserByCode(matchedReferrer.referredBy);
+      if (l2Upline && l2Upline.id !== matchedReferrer.id && l2Upline.uid !== newUid) {
+        const l2Ref: ReferralMember = {
+          id: `ref_${Date.now()}_l2_${Math.random().toString(36).slice(2, 5)}`,
+          referrerCode: l2Upline.inviteCode || l2Upline.uid,
+          phone: maskedPhone,
+          uid: newUid,
+          nickname: newUser.nickname,
+          registrationDate: nowTimeStr,
+          commission: 0,
+          depositAmount: 0,
+          level: 2,
+          status: 'active'
+        };
+        createdReferrals.push(l2Ref);
+
+        const l3Upline = findUserByCode(l2Upline.referredBy);
+        if (
+          l3Upline &&
+          l3Upline.id !== l2Upline.id &&
+          l3Upline.id !== matchedReferrer.id &&
+          l3Upline.uid !== newUid
+        ) {
+          const l3Ref: ReferralMember = {
+            id: `ref_${Date.now()}_l3_${Math.random().toString(36).slice(2, 5)}`,
+            referrerCode: l3Upline.inviteCode || l3Upline.uid,
+            phone: maskedPhone,
+            uid: newUid,
+            nickname: newUser.nickname,
+            registrationDate: nowTimeStr,
+            commission: 0,
+            depositAmount: 0,
+            level: 3,
+            status: 'active'
+          };
+          createdReferrals.push(l3Ref);
+        }
+      }
+
+      setReferrals((prev) => [...createdReferrals, ...prev]);
+      createdReferrals.forEach((refItem) => {
+        saveReferralToFirebase(refItem).catch(() => {});
+        fetch(apiUrl('/api/referrals'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ referral: refItem })
+        }).catch(() => {});
+      });
 
       setAllUsers((prevUsers) =>
         prevUsers.map((u) => {
@@ -3939,7 +4020,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) => [...prev, newUser]);
     clearBanNotice();
     setUser(newUser);
-    showToast('Registration successful! Welcome to Hney Win.');
+    showToast('Registration successful! Welcome to Deshi Win.');
     let pendingRoom = '';
     try {
       pendingRoom = (sessionStorage.getItem('ewi777_pending_ludo_room') || '').trim().toUpperCase();
@@ -4126,7 +4207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
           setIsAdminLoggedIn(true);
-          showToast('Welcome to Hney Win Super Admin.');
+          showToast('Welcome to Deshi Win Super Admin.');
           setActiveTab('admin');
           window.location.hash = '#/admin-ewi777-panel-009';
           return {
@@ -4152,7 +4233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (sha256HexSync(cleanPhone) === expectedPhoneHash && sha256HexSync(cleanPass) === expectedPassHash) {
         logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
         setIsAdminLoggedIn(true);
-        showToast('Welcome to Hney Win Super Admin.');
+        showToast('Welcome to Deshi Win Super Admin.');
         setActiveTab('admin');
         window.location.hash = '#/admin-ewi777-panel-009';
         return { success: true, requires2FA: false, message: 'Admin logged in successfully!' };
@@ -4165,7 +4246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (sha256HexSync(cleanPhone) === expectedPhoneHash && sha256HexSync(cleanPass) === expectedPassHash) {
         logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
         setIsAdminLoggedIn(true);
-        showToast('Welcome to Hney Win Super Admin.');
+        showToast('Welcome to Deshi Win Super Admin.');
         setActiveTab('admin');
         window.location.hash = '#/admin-ewi777-panel-009';
         return { success: true, requires2FA: false, message: 'Admin logged in successfully!' };
@@ -4200,7 +4281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         logAdminAccessEntry('login_success', cleanPhone).catch(() => {});
         setIsAdminLoggedIn(true);
-        showToast('2FA Verified! Welcome to Hney Win Super Admin.');
+        showToast('2FA Verified! Welcome to Deshi Win Super Admin.');
         setActiveTab('admin');
         window.location.hash = '#/admin-ewi777-panel-009';
         return { success: true, message: 'Success' };
@@ -5495,7 +5576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (lockedAmt > 0 && amount > withdrawableAmt) {
       return {
         success: false,
-        message: `Withdrawable balance is ৳${withdrawableAmt.toFixed(2)} (৳${lockedAmt.toFixed(2)} non-withdrawable locked balance is wagerable only)`
+        message: `Withdrawable balance is ৳${withdrawableAmt.toFixed(2)} (৳${lockedAmt.toFixed(2)} balance is on Hold — cannot play or withdraw until Admin releases it)`
       };
     }
 
@@ -5654,7 +5735,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (amount < 200) return { success: false, message: 'Minimum Safe Vault deposit is ৳200' };
       const withdrawableAmt = Math.max(0, +(user.balance - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
       if (user.balance < amount || amount > withdrawableAmt) {
-        return { success: false, message: 'Locked bonus balance cannot be transferred to Safe Vault' };
+        return { success: false, message: 'Balance on Hold cannot be transferred to Safe Vault until released by Admin' };
       }
       const updatedUser = syncUserEverywhere({
         ...user,
@@ -6044,15 +6125,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 3. Check 3 to 5+ number trades in same round
+    // 3. Check 5+ number trades in same round (3-4 numbers allowed without 3x penalty)
     if (type === 'number') {
       const existingNumbers = new Set(
         existingPeriodBets.filter((b) => b.type === 'number').map((b) => b.value)
       );
       existingNumbers.add(value);
-      if (existingNumbers.size >= 3) {
+      if (existingNumbers.size >= 5) {
         isIllegalBet = true;
-        illegalReason = `Placing bets on 3 or more numbers (${existingNumbers.size} numbers)`;
+        illegalReason = `Placing bets on 5 or more numbers (${existingNumbers.size} numbers)`;
       }
     }
 
@@ -6821,7 +6902,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [tx, ...prev]);
     saveTransactionToFirebase(tx).catch(() => {});
-    showToast(`Coin Flip ${side} (Hney Win) placed: ৳${amount}`);
+    showToast(`Coin Flip ${side} (Deshi Win) placed: ৳${amount}`);
     return { success: true, message: 'Bet placed', betId };
   };
 
@@ -6873,10 +6954,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resultNumber: resultSide === 'GOLD' ? 7 : 2,
         resultColor: resultSide === 'GOLD' ? 'green' : 'red',
         resultSize: resultSide === 'GOLD' ? 'big' : 'small',
-        gameLabel: 'Coin Flip Hney Win',
+        gameLabel: 'Coin Flip Deshi Win',
         badges: [
           {
-            label: `${resultSide} Hney Win`,
+            label: `${resultSide} Deshi Win`,
             tone: resultSide === 'GOLD' ? 'amber' : 'slate'
           },
           { label: '1.89X', tone: totalWin > 0 ? 'green' : 'red' }
@@ -6885,75 +6966,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Agent Daily Salary Claim & Midnight 12:00 AM Auto-Collect (Supports bringing ৳2,000+ recharge for ৳300 salary or multi-member tiers)
-  const referralsRef = useRef(referrals);
-  referralsRef.current = referrals;
-
-  useEffect(() => {
-    const tryAutoCollectMidnightSalary = () => {
-      const cur = userRef.current;
-      if (!cur.isLoggedIn || !cur.id || cur.isBanned) return;
-      const tzOffset =
-        typeof adminSettingsRef.current.timezoneOffsetMinutes === 'number'
-          ? adminSettingsRef.current.timezoneOffsetMinutes
-          : 360;
-      const todayStr = getLocalDateStr(new Date(), tzOffset);
-      if (cur.lastSalaryClaimDate === todayStr) return;
-
-      const userReferrals = referralsRef.current.filter(
-        (r) => (r.referrerCode === cur.inviteCode || r.referrerCode === cur.uid) && (r.depositAmount || 0) > 0
-      );
-      const totalRefDeposit = userReferrals.reduce((s, r) => s + (Number(r.depositAmount) || 0), 0);
-      const refCount = userReferrals.length;
-      const salaryTiers = [
-        { members: 50, salary: 22000 },
-        { members: 30, salary: 13000 },
-        { members: 15, salary: 6000 },
-        { members: 10, salary: 4000 },
-        { members: 5, salary: 2000 },
-        { members: 1, salary: 300 }
-      ];
-      let matchedTier = salaryTiers.find((t) => refCount >= t.members);
-      if (!matchedTier && totalRefDeposit >= 2000) {
-        matchedTier = { members: 1, salary: 300 };
-      }
-      if (!matchedTier) return;
-
-      const newBal = +(Number(cur.balance || 0) + matchedTier.salary).toFixed(2);
-      const updatedUser = syncUserEverywhere({
-        ...cur,
-        balance: newBal,
-        lastSalaryClaimDate: todayStr
-      });
-      setUser(updatedUser);
-      setAllUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
-
-      const salTx: Transaction = {
-        id: `tx_${Date.now()}_autosal`,
-        userId: cur.id,
-        type: 'salary_bonus',
-        title: 'Hney Win Agent Daily Salary (12:00 AM Auto)',
-        detail: `${totalRefDeposit >= 2000 && matchedTier.salary === 300 ? '৳2,000+ Team Recharge' : `${matchedTier.members} Recharge Members`} Tier • Auto-collected at 12:00 AM`,
-        amount: matchedTier.salary,
-        balanceAfter: newBal,
-        time: new Date().toLocaleString(),
-        status: 'success'
-      };
-      setTransactions((prev) => [salTx, ...prev]);
-      saveTransactionToFirebase(salTx).catch(() => {});
-      addNotification({
-        title: '12:00 AM Agent Salary Auto-Collected!',
-        message: `৳${matchedTier.salary.toLocaleString()} daily agent salary has been automatically added to your wallet.`,
-        type: 'bonus'
-      });
-      showToast(`12:00 AM Salary +৳${matchedTier.salary.toLocaleString()} auto-collected!`);
-    };
-
-    tryAutoCollectMidnightSalary();
-    const iv = setInterval(tryAutoCollectMidnightSalary, 20000);
-    return () => clearInterval(iv);
-  }, [user.isLoggedIn, user.id, user.lastSalaryClaimDate, referrals.length]);
-
+  // Agent Daily Salary & 3 Level Salary (Apply-Only after meeting conditions; no auto-collect)
   const claimAgentSalary = (tierMembers: number, salaryAmount: number) => {
     if (!user.isLoggedIn || !user.id) {
       return { success: false, message: 'Please log in first' };
@@ -6964,44 +6977,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : 360;
     const today = getLocalDateStr(new Date(), tzOffset);
     if (user.lastSalaryClaimDate === today) {
-      return { success: false, message: 'You have already collected today’s agent salary.' };
+      return { success: false, message: 'You have already applied for today’s agent salary.' };
     }
-    const userReferrals = referrals.filter(
-      (r) => (r.referrerCode === user.inviteCode || r.referrerCode === user.uid) && (r.depositAmount || 0) > 0
-    );
-    const totalRefDeposit = userReferrals.reduce((s, r) => s + (Number(r.depositAmount) || 0), 0);
-    const is2kStarterTier = salaryAmount === 300 && totalRefDeposit >= 2000;
-    if (!is2kStarterTier && userReferrals.length < tierMembers) {
-      return {
-        success: false,
-        message: `You need ${tierMembers - userReferrals.length} more recharge member(s) or ৳2,000+ team deposit.`
-      };
-    }
-    const newBal = +(user.balance + salaryAmount).toFixed(2);
     const updatedUser = syncUserEverywhere({
       ...user,
-      balance: newBal,
       lastSalaryClaimDate: today
     });
     setUser(updatedUser);
     setAllUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
-
-    const salTx: Transaction = {
-      id: `tx_${Date.now()}_sal`,
-      userId: user.id,
-      type: 'salary_bonus',
-      title: `Hney Win Agent Daily Salary`,
-      detail: `${is2kStarterTier ? '৳2,000+ Team Recharge' : `${tierMembers} Recharge Members`} Tier • ৳${salaryAmount.toLocaleString()} credited`,
-      amount: salaryAmount,
-      balanceAfter: newBal,
-      time: new Date().toLocaleString(),
-      status: 'success'
-    };
-    setTransactions((prev) => [salTx, ...prev]);
-    saveTransactionToFirebase(salTx).catch(() => {});
-    confetti({ particleCount: 75, spread: 65 });
-    showToast(`Agent Salary ৳${salaryAmount.toLocaleString()} credited!`);
-    return { success: true, message: 'Salary credited' };
+    showToast(`Agent Salary application (৳${salaryAmount.toLocaleString()}) submitted for verification!`);
+    return { success: true, message: `Application submitted for ${tierMembers} members tier` };
   };
 
   // Activity Award Claim (Daily Missions: 1000->12, 10000->65, 50000->300, 100000->600 & Weekly Tasks)
@@ -7153,7 +7138,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Bonus collected' };
   };
 
-  // Hney K3 Dice Lottery Engine
+  // Deshi K3 Dice Lottery Engine
   const placeK3Bet = (
     mode: K3Mode,
     periodNumber: string,
@@ -7164,7 +7149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutRate: number
   ) => {
     if (!user.isLoggedIn) {
-      return { success: false, message: 'Please log in first to place Hney K3 bets!' };
+      return { success: false, message: 'Please log in first to place Deshi K3 bets!' };
     }
     if (user.isBanned) {
       return { success: false, message: 'Account is banned by Administrator' };
@@ -7208,7 +7193,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_k3b`,
       userId: user.id,
       type: 'k3_bet',
-      title: `Hney K3 ${mode} Bet (${selection})`,
+      title: `Deshi K3 ${mode} Bet (${selection})`,
       detail: `Period ${periodNumber} • ${betType}`,
       amount: -totalAmount,
       balanceAfter: newBal,
@@ -7304,7 +7289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_k3w`,
         userId: userRef.current.id,
         type: 'k3_win',
-        title: `Hney K3 ${mode} Win`,
+        title: `Deshi K3 ${mode} Win`,
         detail: `Period ${periodNumber} • Dice ${dice.join('-')} (Sum ${sum})`,
         amount: totalWinCredit,
         balanceAfter: nextBal,
@@ -7314,7 +7299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [k3WinTx, ...prev]);
       saveTransactionToFirebase(k3WinTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`Hney K3 Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`Deshi K3 Won +৳${totalWinCredit.toFixed(2)}!`);
     }
 
     setWingoResultPopup({
@@ -7325,7 +7310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultNumber: sum,
       resultColor: isBig ? 'red' : 'green',
       resultSize: isBig ? 'big' : 'small',
-      gameLabel: `Hney K3 ${mode}`,
+      gameLabel: `Deshi K3 ${mode}`,
       badges: [
         { label: `Dice ${dice.join('-')}`, tone: 'amber' },
         { label: isBig ? 'Big' : 'Small', tone: isBig ? 'orange' : 'green' },
@@ -7335,7 +7320,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Hney 5D Lottery Engine
+  // Deshi 5D Lottery Engine
   const placeD5Bet = (
     mode: D5Mode,
     periodNumber: string,
@@ -7347,7 +7332,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutRate: number
   ) => {
     if (!user.isLoggedIn) {
-      return { success: false, message: 'Please log in first to place Hney 5D bets!' };
+      return { success: false, message: 'Please log in first to place Deshi 5D bets!' };
     }
     if (user.isBanned) {
       return { success: false, message: 'Account is banned by Administrator' };
@@ -7392,7 +7377,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_d5b`,
       userId: user.id,
       type: 'd5_bet',
-      title: `Hney 5D ${mode} Bet (${position}: ${selection})`,
+      title: `Deshi 5D ${mode} Bet (${position}: ${selection})`,
       detail: `Period ${periodNumber}`,
       amount: -totalAmount,
       balanceAfter: newBal,
@@ -7460,7 +7445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_d5w`,
         userId: userRef.current.id,
         type: 'd5_win',
-        title: `Hney 5D ${mode} Win`,
+        title: `Deshi 5D ${mode} Win`,
         detail: `Period ${periodNumber} • ${digits.join('-')} (Sum ${sum})`,
         amount: totalWinCredit,
         balanceAfter: nextBal,
@@ -7470,7 +7455,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [d5WinTx, ...prev]);
       saveTransactionToFirebase(d5WinTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`Hney 5D Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`Deshi 5D Won +৳${totalWinCredit.toFixed(2)}!`);
     }
 
     const isSumBig = sum >= 23;
@@ -7482,7 +7467,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultNumber: sum,
       resultColor: isSumBig ? 'red' : 'green',
       resultSize: isSumBig ? 'big' : 'small',
-      gameLabel: `Hney 5D ${mode}`,
+      gameLabel: `Deshi 5D ${mode}`,
       badges: [
         { label: digits.join('-'), tone: 'amber' },
         { label: isSumBig ? 'Big' : 'Small', tone: isSumBig ? 'orange' : 'green' },
@@ -7491,7 +7476,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Hney WinGo (Synced fast 15s / 30s / 1m / 3m Market)
+  // Deshi WinGo (Synced fast 15s / 30s / 1m / 3m Market)
   const placeEwiWingoBet = (
     mode: EwiWingoMode,
     periodNumber: string,
@@ -7501,7 +7486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     multiplier: number
   ) => {
     if (!user.isLoggedIn || !user.id) {
-      showToast('Please login first to place Hney WinGo bets!');
+      showToast('Please login first to place Deshi WinGo bets!');
       return { success: false, message: 'Login required' };
     }
     if (user.isBanned) {
@@ -7527,12 +7512,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: Number(user.lockedBalance || 0) > 0 ? 'Holding balance cannot be wagered' : 'Insufficient balance' };
     }
 
+    const existingRoundEwiBets = ewiWingoBetsRef.current.filter(
+      (b) => b.periodNumber === periodNumber && b.mode === mode && b.userId === user.id
+    );
+    let isIllegalBet = false;
+    let illegalReason = '';
+    if (type === 'size') {
+      if (value === 'big' && existingRoundEwiBets.some((b) => b.type === 'size' && b.value === 'small')) {
+        isIllegalBet = true;
+        illegalReason = 'Hedging on both Big & Small simultaneously';
+      } else if (value === 'small' && existingRoundEwiBets.some((b) => b.type === 'size' && b.value === 'big')) {
+        isIllegalBet = true;
+        illegalReason = 'Hedging on both Big & Small simultaneously';
+      }
+    }
+    if (type === 'color') {
+      if (value === 'red' && existingRoundEwiBets.some((b) => b.type === 'color' && b.value === 'green')) {
+        isIllegalBet = true;
+        illegalReason = 'Hedging on both Red & Green simultaneously';
+      } else if (value === 'green' && existingRoundEwiBets.some((b) => b.type === 'color' && b.value === 'red')) {
+        isIllegalBet = true;
+        illegalReason = 'Hedging on both Red & Green simultaneously';
+      }
+    }
+    if (type === 'number') {
+      const existingNumbers = new Set(
+        existingRoundEwiBets.filter((b) => b.type === 'number').map((b) => b.value)
+      );
+      existingNumbers.add(value);
+      if (existingNumbers.size >= 5) {
+        isIllegalBet = true;
+        illegalReason = `Placing bets on 5 or more numbers (${existingNumbers.size} numbers)`;
+      }
+    }
+    const penaltyTurnover = isIllegalBet ? +(Math.max(500, user.balance * 3)).toFixed(2) : 0;
+
     const newBal = +(user.balance - totalAmount).toFixed(2);
     const updatedUser = syncUserEverywhere({
       ...user,
       balance: newBal,
       exp: user.exp + totalAmount,
-      turnoverCompleted: (user.turnoverCompleted || 0) + totalAmount
+      turnoverCompleted: (user.turnoverCompleted || 0) + totalAmount,
+      turnoverRequired: (user.turnoverRequired || 0) + penaltyTurnover,
+      illegalBetCount: isIllegalBet ? (user.illegalBetCount || 0) + 1 : user.illegalBetCount
     });
     setUser(updatedUser);
 
@@ -7552,20 +7574,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ewiWingoBetsRef.current = [newBet, ...ewiWingoBetsRef.current];
     setEwiWingoBets((prev) => [newBet, ...prev]);
 
-    const tx: Transaction = {
-      id: `tx_${Date.now()}_ewgb`,
-      userId: user.id,
-      type: 'ewi_wingo_bet',
-      title: `Hney WinGo ${mode} Bet (${type}: ${value})`,
-      detail: `Period ${periodNumber}`,
-      amount: -totalAmount,
-      balanceAfter: newBal,
-      time: new Date().toLocaleString(),
-      status: 'success'
-    };
-    setTransactions((prev) => [tx, ...prev]);
-    saveTransactionToFirebase(tx).catch(() => {});
-    showToast(`Hney WinGo ${mode} bet placed!`);
+    const txs: Transaction[] = [
+      {
+        id: `tx_${Date.now()}_ewgb`,
+        userId: user.id,
+        type: 'ewi_wingo_bet',
+        title: `Deshi WinGo ${mode} Bet (${type}: ${value})`,
+        detail: `Period ${periodNumber}`,
+        amount: -totalAmount,
+        balanceAfter: newBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      }
+    ];
+    if (isIllegalBet) {
+      txs.unshift({
+        id: `tx_${Date.now()}_ewg_penalty`,
+        userId: user.id,
+        type: 'turnover_penalty',
+        title: '3X Turnover Applied',
+        detail: `${illegalReason} — ৳${penaltyTurnover.toFixed(2)} turnover added.`,
+        amount: 0,
+        balanceAfter: newBal,
+        time: new Date().toLocaleString(),
+        status: 'success'
+      });
+      addNotification({
+        title: '3X Turnover Applied',
+        message: `+৳${penaltyTurnover.toFixed(2)} turnover requirement added to your account.`,
+        reason: `${illegalReason} (Deshi WinGo ${mode} • Period ${periodNumber.slice(-5)})`,
+        type: 'turnover'
+      });
+    }
+    setTransactions((prev) => [...txs, ...prev]);
+    txs.forEach((t) => saveTransactionToFirebase(t).catch(() => {}));
+    showToast(`Deshi WinGo ${mode} bet placed!`);
     return { success: true, message: 'Bet placed' };
   };
 
@@ -7636,7 +7679,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_ewgw`,
         userId: userRef.current.id,
         type: 'ewi_wingo_win',
-        title: `Hney WinGo ${mode} Prize Won!`,
+        title: `Deshi WinGo ${mode} Prize Won!`,
         detail: `Period ${periodNumber.slice(-5)} • Result ${safeNum} (${color.toUpperCase()})`,
         amount: totalWin,
         balanceAfter: nextBal,
@@ -7646,7 +7689,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [winTx, ...prev]);
       saveTransactionToFirebase(winTx).catch(() => {});
       confetti({ particleCount: 75, spread: 65 });
-      showToast(`Hney WinGo ${mode} Won! +৳${totalWin.toFixed(2)}`);
+      showToast(`Deshi WinGo ${mode} Won! +৳${totalWin.toFixed(2)}`);
     }
 
     setWingoResultPopup({
@@ -7657,11 +7700,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resultNumber: safeNum,
       resultColor: color,
       resultSize: size,
-      gameLabel: `Hney WinGo ${mode}`
+      gameLabel: `Deshi WinGo ${mode}`
     });
   };
 
-  // HNEY ROULETTE European Single-Zero Engine
+  // DESHI ROULETTE European Single-Zero Engine
   const placeRouletteBet = (
     periodNumber: string,
     betType: RouletteBetType,
@@ -7671,7 +7714,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payoutMultiplier: number
   ) => {
     if (!user.isLoggedIn || !user.id) {
-      showToast('Please login first to place HNEY ROULETTE bets!');
+      showToast('Please login first to place DESHI ROULETTE bets!');
       return { success: false, message: 'Login required' };
     }
     if (user.isBanned) {
@@ -7721,7 +7764,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_rlb`,
       userId: user.id,
       type: 'roulette_bet',
-      title: `HNEY ROULETTE (${label})`,
+      title: `DESHI ROULETTE (${label})`,
       detail: `Round #${periodNumber.slice(-5)} • ${payoutMultiplier}:1`,
       amount: -cleanAmt,
       balanceAfter: newBal,
@@ -7774,7 +7817,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_rlw`,
         userId: userRef.current.id,
         type: 'roulette_win',
-        title: `HNEY ROULETTE Win (#${winningNumber})`,
+        title: `DESHI ROULETTE Win (#${winningNumber})`,
         detail: `Round #${periodNumber.slice(-5)} • Winning Number ${winningNumber}`,
         amount: totalWinCredit,
         balanceAfter: nextBal,
@@ -7784,7 +7827,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions((prev) => [winTx, ...prev]);
       saveTransactionToFirebase(winTx).catch(() => {});
       confetti({ particleCount: 70, spread: 60 });
-      showToast(`HNEY ROULETTE Won +৳${totalWinCredit.toFixed(2)}!`);
+      showToast(`DESHI ROULETTE Won +৳${totalWinCredit.toFixed(2)}!`);
     }
   };
 
@@ -7854,17 +7897,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Credited ৳${bonus}!` };
   };
 
-  // Hney WinGo 6-Step 3X Loss 100% Refund Claim
+  // Deshi WinGo 6-Step 3X Loss 100% Refund Claim
   const claimWinGoSixStepRefund = () => {
     if (!user.isLoggedIn || !user.id) return { success: false, message: 'Login required' };
     const claimedSet = new Set(user.claimedWingoRefunds || []);
     const myEwi = ewiWingoBets.filter((b) => b.userId === user.id && b.status !== 'pending');
     if (myEwi.length < 6) {
-      return { success: false, message: 'Play at least 6 sequential Hney WinGo rounds following a 3X plan first.' };
+      return { success: false, message: 'Play at least 6 sequential Deshi WinGo rounds following a 3X plan first.' };
     }
     const latestSix = myEwi.slice(0, 6);
     if (!latestSix.every((b) => b.status === 'lost')) {
-      return { success: false, message: 'Your latest 6 consecutive Hney WinGo bets must all be losses for the 100% refund.' };
+      return { success: false, message: 'Your latest 6 consecutive Deshi WinGo bets must all be losses for the 100% refund.' };
     }
     const key = latestSix.map((b) => b.id).join(',');
     if (claimedSet.has(key)) {
@@ -7882,7 +7925,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_wgr`,
       userId: user.id,
       type: 'wingo_refund',
-      title: 'Hney WinGo 6-Step 100% Loss Refund',
+      title: 'Deshi WinGo 6-Step 100% Loss Refund',
       detail: `6 consecutive losses refunded 100% (+৳${totalLoss})`,
       amount: totalLoss,
       balanceAfter: nextBal,
@@ -8062,7 +8105,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_adm`,
       userId: resolvedId,
       type: delta >= 0 ? 'deposit' : 'withdraw',
-      title: `Admin ${action.toUpperCase()} Balance${opts?.locked ? ' (Locked)' : ''}`,
+      title: `Admin ${action.toUpperCase()} Balance${opts?.locked ? ' (On Hold)' : ''}`,
       detail: `${reason?.trim() || 'Balance updated by Super Controller'}${extraTurnover > 0 ? ` • +৳${extraTurnover} Turnover` : ''}`,
       amount: delta,
       balanceAfter: nextBal,
@@ -8072,8 +8115,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions((prev) => [admTx, ...prev]);
     saveTransactionToFirebase(admTx).catch(() => {});
 
-    showToast(`Updated ${target.nickname} balance to ৳${nextBal.toFixed(2)}${opts?.locked ? ' (Locked)' : ''}`);
+    showToast(`Updated ${target.nickname} balance to ৳${nextBal.toFixed(2)}${opts?.locked ? ' (On Hold)' : ''}`);
     return { success: true, message: 'Balance updated' };
+  };
+
+  const holdUserBalance = (userId: string, amount?: number, reason?: string) => {
+    const target =
+      allUsers.find((u) => matchesTargetUser(u, userId)) ||
+      (matchesTargetUser(user, userId) ? user : null);
+    if (!target) return { success: false, message: 'User not found' };
+
+    const curBal = Math.max(0, Number(target.balance || 0));
+    const curLocked = Math.max(0, Number(target.lockedBalance || 0));
+    const availableToHold = Math.max(0, +(curBal - curLocked).toFixed(2));
+    const requested = amount !== undefined && !isNaN(amount) && amount > 0 ? Number(amount) : curBal;
+    const nextLocked = +Math.min(curBal, Math.max(curLocked, amount !== undefined && amount > 0 ? curLocked + requested : curBal)).toFixed(2);
+
+    if (curBal <= 0 || availableToHold <= 0) {
+      showToast('No unlocked balance available to hold');
+      return { success: false, message: 'No unlocked balance available to hold' };
+    }
+
+    const resolvedId = target.id || userId;
+    const mutationTs = Date.now();
+    lastUsersMutationAtRef.current = mutationTs + 2000;
+
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        matchesTargetUser(u, resolvedId, target.phone)
+          ? { ...u, lockedBalance: nextLocked, updatedAt: mutationTs }
+          : u
+      )
+    );
+    if (matchesTargetUser(user, resolvedId, target.phone)) {
+      setUser((u) => ({ ...u, lockedBalance: nextLocked, updatedAt: mutationTs }));
+    }
+
+    updateUserInFirebase(
+      resolvedId,
+      { lockedBalance: nextLocked, updatedAt: mutationTs },
+      { ...target, lockedBalance: nextLocked, updatedAt: mutationTs }
+    ).catch(() => {});
+
+    fetch(apiUrl('/api/users/update'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: resolvedId,
+        userPhone: target.phone,
+        fallbackUser: { ...target, lockedBalance: nextLocked, updatedAt: mutationTs },
+        patch: { lockedBalance: nextLocked, updatedAt: mutationTs }
+      })
+    }).catch(() => {});
+
+    const holdTx: Transaction = {
+      id: `tx_${mutationTs}_hold`,
+      userId: resolvedId,
+      type: 'withdraw',
+      title: 'Balance Placed On Hold by Admin',
+      detail: reason?.trim() || `৳${nextLocked.toFixed(2)} placed on Hold (Play & Withdraw blocked until Admin releases)`,
+      amount: 0,
+      balanceAfter: curBal,
+      time: new Date().toLocaleString(),
+      status: 'pending'
+    };
+    setTransactions((prev) => [holdTx, ...prev]);
+    saveTransactionToFirebase(holdTx).catch(() => {});
+
+    showToast(`৳${nextLocked.toFixed(2)} placed on Hold for ${target.nickname} (Play & Withdraw blocked)`);
+    return { success: true, message: 'Balance placed on hold' };
   };
 
   const releaseLockedBalance = (userId: string) => {
@@ -8083,6 +8193,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       allUsers.find((u) => matchesTargetUser(u, userId)) ||
       (matchesTargetUser(user, userId) ? user : undefined);
     const resolvedId = target?.id || userId;
+    const releasedAmt = Math.max(0, Number(target?.lockedBalance || 0));
     setAllUsers((prev) =>
       prev.map((u) =>
         matchesTargetUser(u, resolvedId, target?.phone)
@@ -8108,7 +8219,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         patch: { lockedBalance: 0, updatedAt: mutationTs }
       })
     }).catch(() => {});
-    showToast('Locked balance released to withdrawable balance!');
+
+    if (releasedAmt > 0) {
+      const relTx: Transaction = {
+        id: `tx_${mutationTs}_rel`,
+        userId: resolvedId,
+        type: 'deposit',
+        title: 'Admin Released Hold Balance',
+        detail: `৳${releasedAmt.toFixed(2)} released — Game Play & Withdraw unlocked`,
+        amount: 0,
+        balanceAfter: Number(target?.balance || 0),
+        time: new Date().toLocaleString(),
+        status: 'success'
+      };
+      setTransactions((prev) => [relTx, ...prev]);
+      saveTransactionToFirebase(relTx).catch(() => {});
+    }
+    showToast('Hold balance released! User can now play games & withdraw.');
   };
 
   const adminUpdateUserRole = (userId: string, role: 'USER' | 'VIP' | 'ADMIN') => {
@@ -8534,7 +8661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const placeLudoBet = (stake: number, mode: 'online_2p' | 'online_4p' | LudoRoomMode) => {
     if (!user.isLoggedIn || !user.id) {
-      showToast('Please log in first to play Hney Ludo');
+      showToast('Please log in first to play Deshi Ludo');
       return { success: false, message: 'Login required' };
     }
     if (user.isBanned) {
@@ -8564,7 +8691,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `tx_${Date.now()}_ldb`,
       userId: user.id,
       type: 'ludo_bet',
-      title: `Hney Ludo Entry (${mode.replace('_', ' ').toUpperCase()})`,
+      title: `Deshi Ludo Entry (${mode.replace('_', ' ').toUpperCase()})`,
       detail: `Match stake ৳${cleanStake.toFixed(0)}`,
       amount: -cleanStake,
       balanceAfter: newBal,
@@ -8618,7 +8745,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `tx_${Date.now()}_ldw`,
         userId: userRef.current.id,
         type: 'ludo_win',
-        title: isRefund ? `Hney Ludo Room Refund (90%)` : `Hney Ludo Prize Won!`,
+        title: isRefund ? `Deshi Ludo Room Refund (90%)` : `Deshi Ludo Prize Won!`,
         detail: `${detail} • +৳${cleanWin.toFixed(2)}`,
         amount: cleanWin,
         balanceAfter: nextBal,
@@ -8631,7 +8758,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(`Ludo Refund Credited +৳${cleanWin.toFixed(2)} (90% of ৳${stake})`);
       } else {
         confetti({ particleCount: 75, spread: 65 });
-        showToast(`Hney Ludo Won +৳${cleanWin.toFixed(2)}!`);
+        showToast(`Deshi Ludo Won +৳${cleanWin.toFixed(2)}!`);
       }
     }
   };
@@ -8719,9 +8846,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cleanAmt < 10 || cleanAmt > 50000) {
       return { success: false, message: 'Bet amount must be between ৳10 and ৳50,000.' };
     }
-    const playable = Number(user.balance || 0);
+    const lockedAmt = Math.max(0, Number(user.lockedBalance || 0));
+    const playable = Math.max(0, +(Number(user.balance || 0) - lockedAmt).toFixed(2));
     if (playable < cleanAmt) {
-      return { success: false, message: 'Insufficient playable balance.' };
+      return {
+        success: false,
+        message: lockedAmt > 0
+          ? 'Holding balance cannot be wagered until released by Admin!'
+          : 'Insufficient playable balance.'
+      };
     }
     const match = sportsMatches.find((m) => m.id === matchId);
     if (!match) {
@@ -8733,7 +8866,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const odds = selectedTeam === 'teamA' ? Number(match.teamAOdds) : Number(match.teamBOdds);
     const teamName = selectedTeam === 'teamA' ? match.teamA : match.teamB;
     const nowMs = Date.now();
-    const newBal = +(playable - cleanAmt).toFixed(2);
+    const newBal = +(Number(user.balance || 0) - cleanAmt).toFixed(2);
     const updatedUser = syncUserEverywhere({
       ...user,
       balance: newBal,
@@ -8979,6 +9112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUserTurnover,
         toggleUserBan,
         adminModifyUserBalance,
+        holdUserBalance,
         releaseLockedBalance,
         adminUpdateUserRole,
         adminDeleteUser,

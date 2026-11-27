@@ -103,14 +103,14 @@ export const CustomerService: React.FC = () => {
     },
     {
       id: 'agent_consultation',
-      title: 'Hney Win Agent Consultation',
+      title: 'Deshi Win Agent Consultation',
       subtitle: 'Daily agent salary tiers & team commission guide',
       icon: <Users className="w-4 h-4 stroke-[2.5]" />
     },
     {
       id: 'telegram_cs',
       title: 'Telegram Customer Service',
-      subtitle: 'Connect directly with live Hney Win support desk',
+      subtitle: 'Connect directly with live Deshi Win support desk',
       icon: <Send className="w-4 h-4 stroke-[2.3]" />
     },
     {
@@ -210,7 +210,7 @@ export const CustomerService: React.FC = () => {
         <div className="flex items-center gap-2">
           <CustomerServiceLogo size={28} />
           <h1 className="text-base font-black tracking-tight text-slate-900">
-            Hney Win Customer Service
+            Deshi Win Customer Service
           </h1>
         </div>
 
@@ -310,7 +310,7 @@ export const CustomerService: React.FC = () => {
         <div className="p-4">
           <div className="bg-white rounded-3xl p-4 shadow-xs border border-cyan-100 space-y-3 min-h-[430px] flex flex-col">
             <div className="text-center text-[11px] text-slate-500 font-bold pb-2 border-b border-slate-100 flex items-center justify-between">
-              <span>Hney Win Official Live Agent Chat</span>
+              <span>Deshi Win Official Live Agent Chat</span>
               <span className="text-[10px] text-emerald-600 font-black">Human Support</span>
             </div>
 
@@ -321,7 +321,7 @@ export const CustomerService: React.FC = () => {
                     <CustomerServiceLogo size={32} />
                   </div>
                   <p className="font-semibold text-slate-500">
-                    Send a message or photo below. An official Hney Win agent will reply here.
+                    Send a message or photo below. An official Deshi Win agent will reply here.
                   </p>
                 </div>
               ) : (
@@ -334,7 +334,7 @@ export const CustomerService: React.FC = () => {
                       <span className="text-[10px] font-black text-cyan-700 mb-0.5 px-1">
                         {m.repliedByRole === 'mentor'
                           ? `Mentor • ${m.repliedByName || 'Support'}`
-                          : 'Hney Win Agent'}
+                          : 'Deshi Win Agent'}
                       </span>
                     )}
                     <div
@@ -593,7 +593,7 @@ export const CustomerService: React.FC = () => {
                 <>
                   <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1.5 text-slate-700 leading-relaxed">
                     <div className="font-black text-emerald-900">E-Wallet Security & Binding Rules:</div>
-                    <p>• Each bKash or Nagad wallet number can only be bound to <strong>one Hney Win account</strong> globally.</p>
+                    <p>• Each bKash or Nagad wallet number can only be bound to <strong>one Deshi Win account</strong> globally.</p>
                     <p>• You must verify your <strong>Account Login Password</strong> to add a wallet.</p>
                     <p>• Bound bKash: <strong className="font-mono">{user.boundBkash || 'Not bound yet'}</strong></p>
                     <p>• Bound Nagad: <strong className="font-mono">{user.boundNagad || 'Not bound yet'}</strong></p>
@@ -645,10 +645,10 @@ export const CustomerService: React.FC = () => {
               {selectedTopic === 'agent_consultation' && (
                 <>
                   <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-cyan-900">Hney Win Official Agent Consultation:</div>
-                    <p>• Earn daily Agent Salary from <strong>৳300</strong> (3 recharge members) up to <strong>৳100,000</strong> (1,000 members).</p>
-                    <p>• Ensure team total recharge is ≥10× salary, own deposit ≥25% of team recharge, and team bets exceed 3× team recharge.</p>
-                    <p>• Multi-tier referral rebates (0.60% / 0.18% / 0.05%) settle automatically daily at 01:00 AM.</p>
+                    <div className="font-black text-cyan-900">Deshi Win Official 3 Level Salary Consultation:</div>
+                    <p>• Earn <strong>3 Level Salary</strong> from <strong>৳251</strong> (3 recharge members / ৳2,000+ team deposit) up to <strong>৳100,000</strong> (1,000 members).</p>
+                    <p>• Minimum <strong>25% deposit</strong> under your team &amp; own deposit is strictly required — without 25%, salary cannot be applied or claimed.</p>
+                    <p>• Salaries are not credited automatically; click <strong>Apply</strong> once conditions are met.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -665,7 +665,7 @@ export const CustomerService: React.FC = () => {
                       onClick={() => {
                         setSelectedTopic(null);
                         setViewMode('chat');
-                        handleSendChat('I need Hney Win Agent Consultation with a Teacher');
+                        handleSendChat('I need Deshi Win Agent Consultation with a Teacher');
                       }}
                       className="py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs"
                     >
@@ -754,10 +754,10 @@ export const CustomerService: React.FC = () => {
               {selectedTopic === 'join_telegram_channel' && (
                 <>
                   <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-sky-900">Hney Win Official Telegram Channel:</div>
+                    <div className="font-black text-sky-900">Deshi Win Official Telegram Channel:</div>
                     <p>• Receive daily WinGo signal alerts &amp; Aviator streak highlights</p>
                     <p>• Get instant drops of limited-claim Gift Codes every day</p>
-                    <p>• Stay notified of Hney Win VIP &amp; Agent salary promotions</p>
+                    <p>• Stay notified of Deshi Win VIP &amp; Agent salary promotions</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button

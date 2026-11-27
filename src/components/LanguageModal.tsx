@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowLeft, Check } from 'lucide-react';
 import { Language } from '../types';
+import { getTranslation, LANGUAGE_OPTIONS } from '../utils/i18n';
 
 interface LanguageModalProps {
   isOpen: boolean;
@@ -15,7 +16,8 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ isOpen, onClose })
 
   const handleSelect = (lang: Language) => {
     setLanguage(lang);
-    showToast(lang === 'en' ? 'Language switched to English' : 'ভাষা পরিবর্তন করা হয়েছে');
+    const meta = LANGUAGE_OPTIONS.find((o) => o.code === lang);
+    showToast(meta?.switchToast || 'Language updated');
     onClose();
   };
 
@@ -29,51 +31,42 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ isOpen, onClose })
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
-        <h2 className="text-base font-bold text-slate-800">Language</h2>
+        <h2 className="text-base font-bold text-slate-800">
+          {getTranslation(language, 'language')}
+        </h2>
         <div className="w-6" />
       </div>
 
       {/* Language List */}
       <div className="p-4 space-y-3">
-        {/* English */}
-        <button
-          onClick={() => handleSelect('en')}
-          className="w-full bg-white rounded-2xl p-4 flex items-center justify-between border border-slate-200 shadow-xs active:scale-98 transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🇺🇸</span>
-            <span className="font-semibold text-slate-800 text-sm">English</span>
-          </div>
-          <div
-            className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
-              language === 'en'
-                ? 'bg-cyan-600 border-cyan-600 text-white'
-                : 'border-slate-300'
+        {LANGUAGE_OPTIONS.map((opt) => (
+          <button
+            key={opt.code}
+            onClick={() => handleSelect(opt.code)}
+            className={`w-full bg-white rounded-2xl p-4 flex items-center justify-between border shadow-xs active:scale-98 transition-all ${
+              language === opt.code
+                ? 'border-cyan-500 bg-cyan-50/40'
+                : 'border-slate-200 hover:bg-slate-50'
             }`}
           >
-            {language === 'en' && <Check className="w-4 h-4 stroke-[3]" />}
-          </div>
-        </button>
-
-        {/* Bengali */}
-        <button
-          onClick={() => handleSelect('bn')}
-          className="w-full bg-white rounded-2xl p-4 flex items-center justify-between border border-slate-200 shadow-xs active:scale-98 transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🇧🇩</span>
-            <span className="font-semibold text-slate-800 text-sm">বাংলা</span>
-          </div>
-          <div
-            className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
-              language === 'bn'
-                ? 'bg-cyan-600 border-cyan-600 text-white'
-                : 'border-slate-300'
-            }`}
-          >
-            {language === 'bn' && <Check className="w-4 h-4 stroke-[3]" />}
-          </div>
-        </button>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{opt.flag}</span>
+              <div className="text-left">
+                <div className="font-bold text-slate-800 text-sm">{opt.nativeName}</div>
+                <div className="text-[11px] text-slate-500">{opt.subtitle}</div>
+              </div>
+            </div>
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
+                language === opt.code
+                  ? 'bg-cyan-600 border-cyan-600 text-white'
+                  : 'border-slate-300'
+              }`}
+            >
+              {language === opt.code && <Check className="w-4 h-4 stroke-[3]" />}
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );

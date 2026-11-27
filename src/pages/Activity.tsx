@@ -101,21 +101,21 @@ export const Activity: React.FC = () => {
           <div>
             <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-cyan-100">
               <Gift className="w-3.5 h-3.5" />
-              <span>Deposit Bonus Center</span>
+              <span>{getTranslation(language, 'depositBonusCenter')}</span>
             </div>
             <div className="font-extrabold text-sm mt-0.5">
               {user.hasClaimedDepositBonus
-                ? 'Deposit Bonus Claimed ✓'
+                ? getTranslation(language, 'depositBonusClaimed')
                 : hasCompletedDeposit
-                ? `Claim ৳${firstBonusAmt} Deposit Bonus (1-Time)!`
-                : `Complete Deposit to Unlock ৳${firstBonusAmt} Bonus`}
+                ? `${getTranslation(language, 'claimDepositBonus')} (৳${firstBonusAmt})`
+                : `${getTranslation(language, 'unlockDepositBonus')} (৳${firstBonusAmt})`}
             </div>
             <div className="text-[10px] text-cyan-50">
               {user.hasClaimedDepositBonus
-                ? '1-time deposit bonus already claimed.'
+                ? getTranslation(language, 'depositBonusClaimed')
                 : hasCompletedDeposit
-                ? `Your deposit is verified! Claim your 1-time ৳${firstBonusAmt} reward.`
-                : 'Available 1 time only after your deposit is approved.'}
+                ? `${getTranslation(language, 'claim')} ৳${firstBonusAmt}`
+                : getTranslation(language, 'unlockDepositBonus')}
             </div>
           </div>
           <button
@@ -130,7 +130,11 @@ export const Activity: React.FC = () => {
                 : 'bg-white/25 text-white border border-white/40'
             }`}
           >
-            {user.hasClaimedDepositBonus ? 'Claimed' : hasCompletedDeposit ? `Claim ৳${firstBonusAmt}` : 'Locked'}
+            {user.hasClaimedDepositBonus
+              ? getTranslation(language, 'claimed')
+              : hasCompletedDeposit
+              ? `${getTranslation(language, 'claim')} ৳${firstBonusAmt}`
+              : getTranslation(language, 'locked')}
           </button>
         </div>
 
@@ -242,14 +246,14 @@ export const Activity: React.FC = () => {
             <div className="p-3 bg-white flex flex-col justify-between flex-1">
               <div>
                 <h4 className="font-black text-sm text-slate-900 group-hover:text-cyan-700 transition-colors">
-                  Daily Sign-In
+                  {getTranslation(language, 'dailySignInMenu')}
                 </h4>
                 <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
-                  Day 1 ৳1 up to Day 7 ৳7 rewards
+                  {getTranslation(language, 'signInDailyDesc')}
                 </p>
               </div>
               <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-cyan-700">
-                <span className="text-[10px] font-black">Check-in</span>
+                <span className="text-[10px] font-black">{getTranslation(language, 'dailySignInMenu')}</span>
                 <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </div>

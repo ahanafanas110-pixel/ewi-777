@@ -52,7 +52,7 @@ export const Safe: React.FC = () => {
       <div className="p-4 space-y-4">
         {/* Banner with Interest Rate */}
         <div className="text-center text-xs font-bold text-cyan-700">
-          Interest rate 0.006%
+          {getTranslation(language, 'interestRate')}
         </div>
 
         {/* Safe Vault Card */}
@@ -61,11 +61,13 @@ export const Safe: React.FC = () => {
             <PinkSafePlateLogo size={36} />
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/15 text-xs font-bold border border-white/20">
               <Shield className="w-3.5 h-3.5 text-cyan-200" />
-              <span>Financial security</span>
+              <span>{getTranslation(language, 'financialSecurity')}</span>
             </div>
           </div>
 
-          <div className="text-xs text-cyan-100 font-medium">Safe Vault Balance</div>
+          <div className="text-xs text-cyan-100 font-medium">
+            {getTranslation(language, 'safeVaultBalance')}
+          </div>
           <div className="text-3xl font-black mt-1 tabular-nums">৳{user.safeBalance.toFixed(2)}</div>
         </div>
 
@@ -80,7 +82,7 @@ export const Safe: React.FC = () => {
                   : 'border-transparent text-slate-400'
               }`}
             >
-              Transfer In
+              {getTranslation(language, 'transferIn')}
             </button>
             <button
               onClick={() => setActiveTabMode('out')}
@@ -90,17 +92,20 @@ export const Safe: React.FC = () => {
                   : 'border-transparent text-slate-400'
               }`}
             >
-              Transfer Out
+              {getTranslation(language, 'transferOut')}
             </button>
           </div>
 
           {/* Amount input & presets */}
           <div>
             <div className="flex items-center justify-between text-xs text-slate-600 font-bold mb-2">
-              <span>Amount (Min ৳200 to Vault In)</span>
+              <span>{getTranslation(language, 'depositAmount')} (Min ৳200)</span>
               <button
                 type="button"
-                onClick={() => setCustomAmount(activeTab === 'in' ? user.balance.toString() : user.safeBalance.toString())}
+                onClick={() => {
+                  const unlocked = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+                  setCustomAmount(activeTab === 'in' ? unlocked.toString() : user.safeBalance.toString());
+                }}
                 className="text-cyan-700 font-black text-xs hover:underline"
               >
                 All
@@ -134,13 +139,15 @@ export const Safe: React.FC = () => {
           {/* Amount Available & Info */}
           <div className="bg-slate-50 rounded-2xl p-3 text-xs space-y-1.5 border border-slate-200">
             <div className="flex items-center justify-between font-semibold text-slate-700">
-              <span>Amount available</span>
+              <span>{getTranslation(language, 'amountAvailable')}</span>
               <span className="font-mono font-bold tabular-nums">
-                ৳{activeTab === 'in' ? user.balance.toFixed(2) : user.safeBalance.toFixed(2)}
+                ৳{activeTab === 'in'
+                  ? Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2)).toFixed(2)
+                  : user.safeBalance.toFixed(2)}
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span>24-hour estimated revenue</span>
+              <span>{getTranslation(language, 'estimatedRevenue24h')}</span>
               <span className="text-cyan-700 font-bold tabular-nums">
                 ৳{((Number(customAmount) || 0) * 0.00006 * 48).toFixed(2)}
               </span>
@@ -151,7 +158,9 @@ export const Safe: React.FC = () => {
             onClick={handleTransfer}
             className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-extrabold text-sm shadow-sm active:scale-98 transition-all hover:brightness-105"
           >
-            {activeTab === 'in' ? 'Transfer In' : 'Transfer Out'}
+            {activeTab === 'in'
+              ? getTranslation(language, 'transferIn')
+              : getTranslation(language, 'transferOut')}
           </button>
         </div>
       </div>

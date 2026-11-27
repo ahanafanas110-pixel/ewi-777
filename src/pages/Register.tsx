@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp, PASSWORD_REGEX, PASSWORD_RULE_MSG } from '../context/AppContext';
 import { ArrowLeft, Smartphone, Lock, Eye, EyeOff, Gift, Check, AlertCircle } from 'lucide-react';
-import { getTranslation } from '../utils/i18n';
+import { getLanguageBadge, getTranslation } from '../utils/i18n';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
 import {
@@ -14,7 +14,8 @@ interface RegisterProps {
 }
 
 export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
-  const { user, register, setActiveTab, language, showToast, invitationParam, adminSettings } = useApp();
+  const { user, allUsers, register, setActiveTab, language, showToast, invitationParam, adminSettings } = useApp();
+  const langBadge = getLanguageBadge(language);
   const registrationDisabled = adminSettings.registrationEnabled === false;
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
@@ -126,8 +127,8 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             onClick={onOpenLanguage}
             className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-bold text-white hover:bg-white/30 active:scale-95 transition-all"
           >
-            <span>{language === 'en' ? '🇺🇸' : '🇧🇩'}</span>
-            <span>{language === 'en' ? 'EN' : 'বাংলা'}</span>
+            <span>{langBadge.flag}</span>
+            <span>{langBadge.short}</span>
           </button>
         </div>
 
@@ -136,7 +137,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
             {getTranslation(language, 'register')}
           </h2>
           <p className="text-xs text-cyan-50 leading-relaxed font-normal">
-            Please register by phone number
+            {getTranslation(language, 'registerSubtitle')}
           </p>
         </div>
       </div>
@@ -149,7 +150,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
               <div className="w-7 h-7 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center">
                 <Smartphone className="w-4 h-4 stroke-[2.5]" />
               </div>
-              <span>Register your phone</span>
+              <span>{getTranslation(language, 'registerPhoneTab')}</span>
               <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-cyan-600 rounded-full" />
             </div>
           </div>
@@ -287,12 +288,29 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   <span>{inviteError}</span>
                 </div>
               )}
-              {inviteCode && !inviteError && (
-                <div className="mt-1 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                  <span>Referral Invitation Code Entered ({inviteCode})</span>
-                </div>
-              )}
+              {inviteCode && !inviteError && (() => {
+                const codeUp = inviteCode.trim().toUpperCase();
+                const inviter = allUsers.find(
+                  (u) =>
+                    (u.inviteCode && u.inviteCode.toUpperCase() === codeUp) ||
+                    (u.uid && u.uid.toUpperCase() === codeUp)
+                );
+                return (
+                  <div className="mt-1.5 p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-700 font-semibold space-y-0.5">
+                    <div className="flex items-center gap-1 font-bold">
+                      <Check className="w-3 h-3 stroke-[3] flex-shrink-0" />
+                      <span>
+                        {inviter
+                          ? `Invited by ${inviter.nickname} (UID ${inviter.uid}) • Level 1 Direct`
+                          : `Invite Code: ${inviteCode} • Level 1 Direct`}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-emerald-600/90 pl-4">
+                      {getTranslation(language, 'threeLevelTracking')}: Level 1 → Level 2 → Level 3
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Privacy Agreement */}
@@ -307,8 +325,10 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                   {agreePrivacy && <Check className="w-3 h-3 stroke-[3]" />}
                 </div>
                 <span className="text-xs text-slate-600 leading-tight">
-                  I have read and agree{' '}
-                  <span className="text-cyan-700 font-semibold">【Privacy Agreement】</span>
+                  {getTranslation(language, 'agreePrivacy')}{' '}
+                  <span className="text-cyan-700 font-semibold">
+                    {getTranslation(language, 'privacyAgreement')}
+                  </span>
                 </span>
               </label>
             </div>
@@ -325,7 +345,9 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 disabled={registrationDisabled || isSubmitting}
                 className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-50"
               >
-                {registrationDisabled ? 'Registration Paused' : getTranslation(language, 'register')}
+                {registrationDisabled
+                  ? getTranslation(language, 'registrationPaused')
+                  : getTranslation(language, 'register')}
               </button>
 
               <button
@@ -336,8 +358,10 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 }}
                 className="w-full py-3.5 rounded-full border border-cyan-300 text-cyan-700 font-bold text-sm hover:bg-cyan-50 active:scale-98 transition-all flex items-center justify-center gap-1"
               >
-                <span>I have an account</span>
-                <span className="font-extrabold underline">Login</span>
+                <span>{getTranslation(language, 'haveAccount')}</span>
+                <span className="font-extrabold underline">
+                  {getTranslation(language, 'haveAccountLogin')}
+                </span>
               </button>
 
               <button
@@ -349,7 +373,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 className="w-full py-2.5 rounded-full bg-slate-50 hover:bg-cyan-50 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
               >
                 <CustomerServiceLogo size={24} />
-                <span>24/7 Customer Service</span>
+                <span>{getTranslation(language, 'customerService247')}</span>
               </button>
             </div>
           </form>

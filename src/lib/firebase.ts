@@ -194,17 +194,31 @@ export async function saveAppSettingsToFirebase(settings: AdminSettings): Promis
   const path = 'appConfig/settings';
   try {
     const safeBanners = Array.isArray(settings.banners)
-      ? settings.banners.slice(0, 10).map((b) => ({
-          ...b,
-          url: String(b.url || '').includes('image_06ccef65.png')
-            ? '/assets/brand/welcome-200-banner.png'
-            : String(b.url || '').slice(0, 320000)
-        }))
+      ? settings.banners.slice(0, 10).map((b) => {
+          const rawUrl = String(b.url || '').slice(0, 320000);
+          let normalizedUrl = rawUrl;
+          if (rawUrl.includes('image_06ccef65') || rawUrl.includes('welcome-200-banner')) {
+            normalizedUrl = '/assets/brand/deshi-banner-2.jpg';
+          } else if (rawUrl.includes('image_d2e764e7')) {
+            normalizedUrl = '/assets/brand/deshi-banner-3.jpg';
+          } else if (rawUrl.includes('image_8c5384f7') || rawUrl.includes('image_3c433c14') || rawUrl.includes('image_046bb074')) {
+            normalizedUrl = '/assets/brand/deshi-banner-1.jpg';
+          }
+          return {
+            ...b,
+            title: String(b.title || '')
+              .replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win')
+              .replace(/\bHney\b/gi, 'Deshi'),
+            url: normalizedUrl
+          };
+        })
       : [];
     const { adminPhone: _omitPhone, adminPassword: _omitPass, ...publicSafeSettings } = settings;
+    const rawAppName = String(settings.appName || 'Deshi Win');
+    const cleanAppName = /^(hney win|ewi\s*777)$/i.test(rawAppName.trim()) ? 'Deshi Win' : rawAppName;
     const payload = stripUndefinedDeep({
       ...publicSafeSettings,
-      appName: String(settings.appName || 'Hney Win').slice(0, 120),
+      appName: cleanAppName.slice(0, 120),
       appLogoUrl: String(settings.appLogoUrl || '').slice(0, 320000),
       marqueeText: String(settings.marqueeText || '').slice(0, 2000),
       popupTitle: String(settings.popupTitle || '').slice(0, 200),

@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Header } from '../components/Header';
 import { Check, Globe } from 'lucide-react';
-import { getTranslation } from '../utils/i18n';
+import { getTranslation, LANGUAGE_OPTIONS } from '../utils/i18n';
 import { Language } from '../types';
 
 export const LanguagePage: React.FC = () => {
@@ -10,7 +10,8 @@ export const LanguagePage: React.FC = () => {
 
   const handleSelect = (lang: Language) => {
     setLanguage(lang);
-    showToast(lang === 'en' ? 'Language switched to English' : 'ভাষা বাংলায় পরিবর্তন করা হয়েছে');
+    const meta = LANGUAGE_OPTIONS.find((o) => o.code === lang);
+    showToast(meta?.switchToast || 'Language updated');
   };
 
   return (
@@ -31,55 +32,41 @@ export const LanguagePage: React.FC = () => {
               <Globe className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-slate-900">Select Display Language</h2>
-              <p className="text-[11px] text-slate-500">Choose your preferred Hney Win interface language</p>
+              <h2 className="text-sm font-black text-slate-900">
+                {getTranslation(language, 'selectDisplayLanguage')}
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                {getTranslation(language, 'choosePreferredLanguage')}
+              </p>
             </div>
           </div>
 
           <div className="space-y-3">
-            <button
-              onClick={() => handleSelect('en')}
-              className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                language === 'en'
-                  ? 'border-cyan-600 bg-cyan-50/70 text-cyan-800 shadow-xs'
-                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center gap-3.5">
-                <span className="text-2xl">🇺🇸</span>
-                <div className="text-left">
-                  <div className="font-black text-sm">English</div>
-                  <div className="text-[11px] opacity-75">Default international interface</div>
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.code}
+                type="button"
+                onClick={() => handleSelect(opt.code)}
+                className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                  language === opt.code
+                    ? 'border-cyan-600 bg-cyan-50/70 text-cyan-800 shadow-xs'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <span className="text-2xl">{opt.flag}</span>
+                  <div className="text-left">
+                    <div className="font-black text-sm">{opt.nativeName}</div>
+                    <div className="text-[11px] opacity-75">{opt.subtitle}</div>
+                  </div>
                 </div>
-              </div>
-              {language === 'en' && (
-                <span className="w-6 h-6 rounded-full bg-cyan-600 text-white flex items-center justify-center">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleSelect('bn')}
-              className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                language === 'bn'
-                  ? 'border-cyan-600 bg-cyan-50/70 text-cyan-800 shadow-xs'
-                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center gap-3.5">
-                <span className="text-2xl">🇧🇩</span>
-                <div className="text-left">
-                  <div className="font-black text-sm">বাংলা (Bengali)</div>
-                  <div className="text-[11px] opacity-75">বাংলাদেশের নিজস্ব ভাষা</div>
-                </div>
-              </div>
-              {language === 'bn' && (
-                <span className="w-6 h-6 rounded-full bg-cyan-600 text-white flex items-center justify-center">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </span>
-              )}
-            </button>
+                {language === opt.code && (
+                  <span className="w-6 h-6 rounded-full bg-cyan-600 text-white flex items-center justify-center">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>

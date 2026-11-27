@@ -2,9 +2,14 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowLeft, Check, Gift } from 'lucide-react';
 import { PinkAttendanceIllustration } from '../components/PinkActivityIllustrations';
+import { getLanguageBadge, getTranslation } from '../utils/i18n';
+import { Language } from '../types';
+
+const LANG_ORDER: Language[] = ['en', 'bn', 'hi', 'ur'];
 
 export const Attendance: React.FC = () => {
   const { attendance, claimAttendanceReward, language, setActiveTab, setLanguage } = useApp();
+  const langBadge = getLanguageBadge(language);
 
   const nextAvailableDay = attendance.find((d) => d.status === 'available');
   const claimedCount = attendance.filter((d) => d.status === 'claimed').length;
@@ -13,6 +18,11 @@ export const Attendance: React.FC = () => {
     if (nextAvailableDay) {
       claimAttendanceReward(nextAvailableDay.day);
     }
+  };
+
+  const cycleLanguage = () => {
+    const idx = LANG_ORDER.indexOf(language);
+    setLanguage(LANG_ORDER[(idx + 1) % LANG_ORDER.length]);
   };
 
   return (
@@ -30,20 +40,20 @@ export const Attendance: React.FC = () => {
         </button>
 
         <h1 className="font-black text-base tracking-wide uppercase text-slate-900">
-          DAILY SIGN-IN
+          {getTranslation(language, 'dailySignIn')}
         </h1>
 
         <button
-          onClick={() => setLanguage(language === 'en' ? 'bn' : 'en')}
+          onClick={cycleLanguage}
           className="px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100"
         >
-          <span>{language === 'en' ? '🇺🇸' : '🇧🇩'}</span>
-          <span>{language === 'en' ? 'EN' : 'BN'}</span>
+          <span>{langBadge.flag}</span>
+          <span>{langBadge.short}</span>
         </button>
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Official EWI 777 Daily Check-In Vector Card */}
+        {/* Official Deshi Win Daily Check-In Vector Card */}
         <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-xs bg-white h-32">
           <PinkAttendanceIllustration className="w-full h-full object-cover" />
         </div>
@@ -54,10 +64,10 @@ export const Attendance: React.FC = () => {
             <Gift className="w-6 h-6" />
           </div>
           <h2 className="text-lg font-black tracking-tight text-slate-900">
-            Sign in every day, get a bonus
+            {getTranslation(language, 'signInDailyTitle')}
           </h2>
           <p className="text-xs mt-1 text-slate-500">
-            Day 1 ৳1 up to Day 7 ৳7. Missing a day starts again from Day 1.
+            {getTranslation(language, 'signInDailyDesc')}
           </p>
         </div>
 
@@ -83,7 +93,7 @@ export const Attendance: React.FC = () => {
                 }`}
               >
                 <span className="text-[11px] font-semibold text-slate-500">
-                  Day {day.day}
+                  {getTranslation(language, 'dayLabel')} {day.day}
                 </span>
                 <span
                   className={`text-base font-black tabular-nums ${
@@ -101,7 +111,9 @@ export const Attendance: React.FC = () => {
                 {isClaimed ? (
                   <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
                 ) : isAvailable ? (
-                  <span className="text-[9px] font-black text-cyan-700 uppercase">Ready</span>
+                  <span className="text-[9px] font-black text-cyan-700 uppercase">
+                    {getTranslation(language, 'ready')}
+                  </span>
                 ) : (
                   <span className="h-3.5" />
                 )}
@@ -122,10 +134,10 @@ export const Attendance: React.FC = () => {
           }`}
         >
           {nextAvailableDay
-            ? `Claim Day ${nextAvailableDay.day} Bonus (৳${nextAvailableDay.amount})`
+            ? `${getTranslation(language, 'claim')} ${getTranslation(language, 'dayLabel')} ${nextAvailableDay.day} (৳${nextAvailableDay.amount})`
             : claimedCount >= 7
             ? 'Cycle Complete • Resets to Day 1 tomorrow (12:00 AM)'
-            : 'Come back tomorrow'}
+            : getTranslation(language, 'comeBackTomorrow')}
         </button>
 
         <div className="text-center text-xs font-medium text-slate-500">

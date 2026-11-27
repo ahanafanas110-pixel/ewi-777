@@ -379,7 +379,7 @@ const MainApp: React.FC = () => {
           IP: {visitorIpInfo.ip || 'Detected'}
         </p>
         <p className="text-xs text-slate-600 max-w-xs leading-relaxed">
-          Your network IP has been restricted from accessing Hney Win by the platform security administrator.
+          Your network IP has been restricted from accessing Deshi Win by the platform security administrator.
         </p>
       </div>
     );
@@ -401,7 +401,7 @@ const MainApp: React.FC = () => {
               SITE IS NOT COMING
             </h1>
             <p className="text-xs text-slate-600 leading-relaxed max-w-xs mb-6">
-              {adminSettings.appName || 'Hney Win'} platform access is currently paused by the administrator. Please check back later.
+              {adminSettings.appName || 'Deshi Win'} platform access is currently paused by the administrator. Please check back later.
             </p>
             <button
               onClick={() => window.location.reload()}
@@ -419,7 +419,7 @@ const MainApp: React.FC = () => {
               <Wrench className="w-10 h-10" />
             </div>
             <h1 className="text-xl font-black text-slate-900 mb-2">
-              {adminSettings.appName || 'Hney Win'} Maintenance
+              {adminSettings.appName || 'Deshi Win'} Maintenance
             </h1>
             <p className="text-xs text-slate-600 leading-relaxed max-w-xs mb-6">
               Our platform is currently undergoing scheduled system maintenance and upgrades to serve you faster. Please check back shortly.

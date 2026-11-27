@@ -502,51 +502,215 @@ export function evaluateCrash30Cap(params: {
   return { shouldForceCrash: false, potentialPayout, payoutCap };
 }
 
-// ================= BINARY 17-MARKET GLOBAL DETERMINISTIC ENGINE =================
+// ================= BINARY & GOLD GLOBAL STOCHASTIC REGIME ENGINE (NO SINE WAVES) =================
 export const BINARY_CANDLE_MS = 8000;
+const BASE_5S_MS = 5000;
 
-function computeDeterministicBinaryCandle(
-  symbol: string,
-  basePrice: number,
-  decimals: number,
-  volatility: number,
-  bucketIdx: number,
-  prevClose: number,
-  maxSubTicks: number,
-  bias: 'AUTO' | 'BULL' | 'BEAR' = 'AUTO',
-  offsetMinutes = 360
-): { candle: Candle; price: number } {
-  const bucketTime = bucketIdx * BINARY_CANDLE_MS;
-  const open = prevClose;
-  let high = open;
-  let low = open;
-  let cur = open;
-  let volume = 8;
+type RegimeMode =
+  | 'IMPULSE_UP'
+  | 'IMPULSE_DOWN'
+  | 'CHOP'
+  | 'SQUEEZE'
+  | 'BREAKOUT_UP'
+  | 'BREAKOUT_DOWN'
+  | 'SWEEP_TOP'
+  | 'SWEEP_BOT';
 
-  for (let sec = 0; sec < maxSubTicks; sec++) {
-    const rng = createSeededRng(`bin:${symbol}:${bucketIdx}:${sec}`);
-    const driftBack = ((basePrice - cur) / Math.max(basePrice * 0.015, volatility * 4)) * volatility * 0.14;
-    const biasDrift =
-      bias === 'BULL' ? volatility * 0.32 : bias === 'BEAR' ? -volatility * 0.32 : 0;
-    const step = (rng() - 0.5) * volatility * 0.88 + driftBack + biasDrift;
-    cur = +Math.max(volatility * 5, cur + step).toFixed(decimals);
-    if (cur > high) high = cur;
-    if (cur < low) low = cur;
-    volume += Math.floor(rng() * 5) + 1;
+interface MarketDnaProfile {
+  minRegimeSteps: number;
+  maxRegimeSteps: number;
+  trendBias: number;
+  chopBias: number;
+  spikeProb: number;
+  spikeScale: number;
+  wickScale: number;
+  pullbackRate: number;
+  meanRev: number;
+  volBase: number;
+}
+
+const MARKET_DNA_PROFILES: Record<string, MarketDnaProfile> = {
+  'BTC/USDT': { minRegimeSteps: 28, maxRegimeSteps: 110, trendBias: 0.34, chopBias: 0.24, spikeProb: 0.055, spikeScale: 1.9, wickScale: 0.68, pullbackRate: 0.31, meanRev: 0.032, volBase: 1.15 },
+  'ETH/USDT': { minRegimeSteps: 22, maxRegimeSteps: 86, trendBias: 0.38, chopBias: 0.28, spikeProb: 0.068, spikeScale: 2.15, wickScale: 0.88, pullbackRate: 0.34, meanRev: 0.038, volBase: 1.25 },
+  'BNB/USDT': { minRegimeSteps: 34, maxRegimeSteps: 120, trendBias: 0.25, chopBias: 0.44, spikeProb: 0.042, spikeScale: 1.8, wickScale: 0.52, pullbackRate: 0.36, meanRev: 0.045, volBase: 0.9 },
+  'SOL/USDT': { minRegimeSteps: 18, maxRegimeSteps: 78, trendBias: 0.45, chopBias: 0.18, spikeProb: 0.088, spikeScale: 2.35, wickScale: 0.96, pullbackRate: 0.28, meanRev: 0.028, volBase: 1.42 },
+  'XRP/USDT': { minRegimeSteps: 36, maxRegimeSteps: 135, trendBias: 0.21, chopBias: 0.54, spikeProb: 0.075, spikeScale: 2.55, wickScale: 0.74, pullbackRate: 0.39, meanRev: 0.052, volBase: 0.95 },
+  'EUR/USD':  { minRegimeSteps: 16, maxRegimeSteps: 64, trendBias: 0.20, chopBias: 0.56, spikeProb: 0.035, spikeScale: 1.65, wickScale: 0.92, pullbackRate: 0.42, meanRev: 0.065, volBase: 0.85 },
+  'GBP/USD':  { minRegimeSteps: 20, maxRegimeSteps: 74, trendBias: 0.28, chopBias: 0.40, spikeProb: 0.065, spikeScale: 2.15, wickScale: 1.24, pullbackRate: 0.37, meanRev: 0.048, volBase: 1.1 },
+  'USD/JPY':  { minRegimeSteps: 30, maxRegimeSteps: 118, trendBias: 0.36, chopBias: 0.30, spikeProb: 0.046, spikeScale: 1.95, wickScale: 0.58, pullbackRate: 0.30, meanRev: 0.035, volBase: 1.0 },
+  'AUD/USD':  { minRegimeSteps: 18, maxRegimeSteps: 62, trendBias: 0.23, chopBias: 0.50, spikeProb: 0.032, spikeScale: 1.55, wickScale: 0.76, pullbackRate: 0.41, meanRev: 0.058, volBase: 0.88 },
+  'USD/CHF':  { minRegimeSteps: 24, maxRegimeSteps: 80, trendBias: 0.21, chopBias: 0.52, spikeProb: 0.034, spikeScale: 1.6, wickScale: 0.68, pullbackRate: 0.41, meanRev: 0.062, volBase: 0.82 },
+  'EUR/JPY':  { minRegimeSteps: 22, maxRegimeSteps: 84, trendBias: 0.35, chopBias: 0.32, spikeProb: 0.058, spikeScale: 2.05, wickScale: 0.88, pullbackRate: 0.33, meanRev: 0.036, volBase: 1.18 },
+  'XAU/USD':  { minRegimeSteps: 20, maxRegimeSteps: 92, trendBias: 0.33, chopBias: 0.30, spikeProb: 0.082, spikeScale: 2.45, wickScale: 1.35, pullbackRate: 0.32, meanRev: 0.038, volBase: 1.22 },
+  'US30':     { minRegimeSteps: 28, maxRegimeSteps: 98, trendBias: 0.31, chopBias: 0.36, spikeProb: 0.044, spikeScale: 1.85, wickScale: 0.62, pullbackRate: 0.34, meanRev: 0.042, volBase: 1.02 },
+  'NAS100':   { minRegimeSteps: 22, maxRegimeSteps: 94, trendBias: 0.42, chopBias: 0.24, spikeProb: 0.072, spikeScale: 2.25, wickScale: 0.82, pullbackRate: 0.29, meanRev: 0.030, volBase: 1.35 },
+  'SPX500':   { minRegimeSteps: 32, maxRegimeSteps: 112, trendBias: 0.30, chopBias: 0.38, spikeProb: 0.032, spikeScale: 1.65, wickScale: 0.52, pullbackRate: 0.35, meanRev: 0.045, volBase: 0.92 }
+};
+
+function getMarketDna(symbol: string): MarketDnaProfile {
+  const explicit = MARKET_DNA_PROFILES[symbol];
+  if (explicit) return explicit;
+  const s = fnv1aSeed(symbol);
+  return {
+    minRegimeSteps: 20 + (s % 14),
+    maxRegimeSteps: 72 + ((s >>> 4) % 45),
+    trendBias: 0.22 + ((s >>> 8) % 20) * 0.01,
+    chopBias: 0.25 + ((s >>> 12) % 25) * 0.01,
+    spikeProb: 0.04 + ((s >>> 16) % 5) * 0.01,
+    spikeScale: 1.7 + ((s >>> 20) % 7) * 0.12,
+    wickScale: 0.6 + ((s >>> 23) % 6) * 0.1,
+    pullbackRate: 0.3 + ((s >>> 26) % 12) * 0.01,
+    meanRev: 0.035 + ((s >>> 19) % 25) * 0.001,
+    volBase: 0.9 + ((s >>> 5) % 4) * 0.12
+  };
+}
+
+interface RegimeSegment {
+  startOffset: number;
+  endOffset: number;
+  mode: RegimeMode;
+  drift: number;
+  volScale: number;
+}
+
+const REGIME_EPOCH_CACHE = new Map<string, RegimeSegment[]>();
+
+function getEpochRegimeSegments(symbol: string, epochIdx: number, epochSpan: number): RegimeSegment[] {
+  const cacheKey = `${symbol}:${epochIdx}:${epochSpan}`;
+  const cached = REGIME_EPOCH_CACHE.get(cacheKey);
+  if (cached) return cached;
+
+  const dna = getMarketDna(symbol);
+  const rng = createSeededRng(`regime:${symbol}:${epochIdx}`);
+  const segs: RegimeSegment[] = [];
+  let cursor = 0;
+  let lastDir = rng() < 0.5 ? 1 : -1;
+
+  while (cursor < epochSpan) {
+    const span =
+      dna.minRegimeSteps + Math.floor(rng() * Math.max(4, dna.maxRegimeSteps - dna.minRegimeSteps + 1));
+    const endOffset = Math.min(epochSpan, cursor + span);
+    const r = rng();
+
+    let mode: RegimeMode = 'CHOP';
+    let drift = 0;
+    let volScale = dna.volBase;
+
+    if (r < dna.chopBias * 0.58) {
+      mode = 'CHOP';
+      drift = (rng() - 0.5) * 0.08;
+      volScale = dna.volBase * (0.72 + rng() * 0.35);
+    } else if (r < dna.chopBias) {
+      mode = 'SQUEEZE';
+      drift = (rng() - 0.5) * 0.04;
+      volScale = dna.volBase * (0.38 + rng() * 0.24);
+    } else if (r < dna.chopBias + 0.14) {
+      // Breakout / liquidity sweep opposite or continuation of prior swing
+      const dir = rng() < 0.55 ? -lastDir : lastDir;
+      lastDir = dir;
+      if (rng() < 0.55) {
+        mode = dir > 0 ? 'BREAKOUT_UP' : 'BREAKOUT_DOWN';
+        drift = dir * dna.trendBias * (1.35 + rng() * 0.65);
+        volScale = dna.volBase * (1.45 + rng() * 0.55);
+      } else {
+        mode = dir > 0 ? 'SWEEP_TOP' : 'SWEEP_BOT';
+        drift = dir * dna.trendBias * 0.45;
+        volScale = dna.volBase * (1.25 + rng() * 0.45);
+      }
+    } else {
+      const dir = rng() < 0.66 ? -lastDir : lastDir;
+      lastDir = dir;
+      mode = dir > 0 ? 'IMPULSE_UP' : 'IMPULSE_DOWN';
+      drift = dir * dna.trendBias * (0.75 + rng() * 0.7);
+      volScale = dna.volBase * (0.85 + rng() * 0.5);
+    }
+
+    segs.push({ startOffset: cursor, endOffset, mode, drift, volScale });
+    cursor = endOffset;
   }
 
-  return {
-    price: cur,
-    candle: {
-      time: bucketTime,
-      timeStr: formatTimeWithOffset(bucketTime, offsetMinutes),
-      open,
-      high,
-      low,
-      close: cur,
-      volume
-    }
-  };
+  if (REGIME_EPOCH_CACHE.size > 400) {
+    REGIME_EPOCH_CACHE.clear();
+  }
+  REGIME_EPOCH_CACHE.set(cacheKey, segs);
+  return segs;
+}
+
+function getRegimeAtStep(symbol: string, stepIdx: number): RegimeSegment {
+  const symSeed = fnv1aSeed(symbol);
+  const epochSpan = 580 + (symSeed % 347);
+  const epochIdx = Math.floor(stepIdx / epochSpan);
+  const offset = ((stepIdx % epochSpan) + epochSpan) % epochSpan;
+  const segs = getEpochRegimeSegments(symbol, epochIdx, epochSpan);
+  for (let i = 0; i < segs.length; i++) {
+    if (offset < segs[i].endOffset) return segs[i];
+  }
+  return segs[segs.length - 1];
+}
+
+function getDeterministic5sDelta(
+  symbol: string,
+  volatility: number,
+  bucket5sIdx: number,
+  bias: 'AUTO' | 'BULL' | 'BEAR' = 'AUTO'
+): { delta: number; highJitter: number; lowJitter: number; vol: number } {
+  const dna = getMarketDna(symbol);
+  const reg = getRegimeAtStep(symbol, bucket5sIdx);
+  const rng = createSeededRng(`bin5s_v2:${symbol}:${bucket5sIdx}`);
+
+  // Local multi-tick micro-impulse (2-5 bar mini-swings, non-periodic hash)
+  const microBlock = Math.floor(bucket5sIdx / 3);
+  const microRng = createSeededRng(`bin5s_micro:${symbol}:${microBlock}`);
+  const microDir = microRng() < 0.5 ? 1 : -1;
+  const microBias = microDir * (0.08 + microRng() * 0.16);
+
+  // Authentic pullback probability inside directional trends so bars alternate naturally
+  const isPullback = rng() < dna.pullbackRate;
+  const regimeDrift = isPullback ? -reg.drift * (0.45 + rng() * 0.55) : reg.drift * (0.65 + rng() * 0.7);
+
+  // Heavy-tailed volatility shock (news spike / liquidity wick)
+  const isSpike = rng() < dna.spikeProb;
+  const shockScale = isSpike ? dna.spikeScale * (0.85 + rng() * 0.5) : 0.65 + rng() * 0.75;
+
+  // Triangular-like noise for realistic fat tails without sine uniformity
+  const n1 = rng() - 0.5;
+  const n2 = rng() - 0.5;
+  const rawNoise = (n1 + n2 * 0.7) * volatility * reg.volScale * shockScale * 0.68;
+
+  const biasShift = bias === 'BULL' ? volatility * 0.34 : bias === 'BEAR' ? -volatility * 0.34 : 0;
+  const delta = rawNoise + (regimeDrift + microBias) * volatility * 0.52 + biasShift;
+
+  // Sweep/pinbar asymmetric wicks
+  const wickMult = dna.wickScale * reg.volScale * (isSpike ? 1.55 : 1.0);
+  const upperSweep = reg.mode === 'SWEEP_TOP' ? 1.45 : 1.0;
+  const lowerSweep = reg.mode === 'SWEEP_BOT' ? 1.45 : 1.0;
+  const highJitter = Math.abs((0.12 + rng() * 0.55) * volatility * wickMult * upperSweep);
+  const lowJitter = Math.abs((0.12 + rng() * 0.55) * volatility * wickMult * lowerSweep);
+
+  const volBase = reg.mode.startsWith('BREAKOUT') ? 22 : reg.mode === 'SQUEEZE' ? 5 : 10;
+  const vol = Math.floor(rng() * (volBase + (isSpike ? 18 : 8))) + 3;
+
+  return { delta, highJitter, lowJitter, vol };
+}
+
+function getSynced5sAnchorPrice(
+  spec: Pick<BinaryMarketConfig, 'symbol' | 'basePrice' | 'decimals' | 'volatility'>,
+  s5Anchor: number
+): number {
+  const dna = getMarketDna(spec.symbol);
+  const anchorSlot = Math.floor(s5Anchor / 140);
+  const anchorRng = createSeededRng(`bin5s_anchor_v2:${spec.symbol}:${anchorSlot}`);
+  const offsetSteps = ((s5Anchor % 140) + 140) % 140;
+  let cur = +(spec.basePrice + (anchorRng() - 0.5) * spec.volatility * 7 * dna.volBase).toFixed(spec.decimals);
+  cur = Math.max(spec.volatility * 5, cur);
+  const start = anchorSlot * 140;
+  for (let i = 0; i < offsetSteps; i++) {
+    const step = getDeterministic5sDelta(spec.symbol, spec.volatility, start + i, 'AUTO');
+    const nextRaw = Math.max(spec.volatility * 5, cur + step.delta);
+    const meanRev = ((spec.basePrice - nextRaw) / Math.max(spec.basePrice * 0.025, spec.volatility * 9)) * spec.volatility * dna.meanRev * 2.2;
+    cur = +(nextRaw + meanRev).toFixed(spec.decimals);
+  }
+  return cur;
 }
 
 export function getSyncedBinarySnapshot(
@@ -559,47 +723,93 @@ export function getSyncedBinarySnapshot(
   candleSecRemaining: number;
   markets: Record<string, BinaryMarketQuote>;
 } {
-  const currentBucket = Math.floor(nowMs / BINARY_CANDLE_MS);
-  const currentSecInCandle = Math.floor((nowMs % BINARY_CANDLE_MS) / 1000) + 1;
+  const current8sBucket = Math.floor(nowMs / BINARY_CANDLE_MS);
   const candleSecRemaining = Math.max(1, 8 - Math.floor((nowMs % BINARY_CANDLE_MS) / 1000));
+  const current5s = Math.floor(nowMs / BASE_5S_MS);
+  const sub5sProgress = Math.min(1, Math.max(0.15, ((nowMs % BASE_5S_MS) + 450) / BASE_5S_MS));
+  const lookback5s = 192; // 16 minutes of 5s steps
+  const start5s = current5s - lookback5s;
 
-  const warmStartBucket = currentBucket - 160;
   const markets: Record<string, BinaryMarketQuote> = {};
 
   for (const spec of specs) {
-    const anchorRng = createSeededRng(`bin_anchor:${spec.symbol}:${Math.floor(warmStartBucket / 20)}`);
-    let prevClose = +(
-      spec.basePrice +
-      (anchorRng() - 0.5) * spec.volatility * 6
-    ).toFixed(spec.decimals);
-    prevClose = Math.max(spec.volatility * 5, prevClose);
+    const dna = getMarketDna(spec.symbol);
+    let cur = getSynced5sAnchorPrice(spec, start5s);
 
-    const allCandles: Candle[] = [];
-    for (let b = warmStartBucket; b <= currentBucket; b++) {
-      const isCur = b === currentBucket;
-      const subTicks = isCur ? Math.min(8, Math.max(1, currentSecInCandle)) : 8;
-      const { candle, price } = computeDeterministicBinaryCandle(
-        spec.symbol,
-        spec.basePrice,
-        spec.decimals,
-        spec.volatility,
-        b,
-        prevClose,
-        subTicks,
-        isCur ? bias : 'AUTO',
-        offsetMinutes
-      );
-      allCandles.push(candle);
-      prevClose = price;
+    // Aggregate 5s bars into 8s snapshot candles cleanly for mini-charts + exact live price
+    const candleMap = new Map<number, Candle>();
+    let liveOpen = cur;
+    let liveTargetClose = cur;
+    let liveHi = cur;
+    let liveLo = cur;
+
+    for (let s5 = start5s; s5 <= current5s; s5++) {
+      const tMs = s5 * BASE_5S_MS;
+      const b8 = Math.floor(tMs / BINARY_CANDLE_MS);
+      const isLive = s5 === current5s;
+      const step = getDeterministic5sDelta(spec.symbol, spec.volatility, s5, isLive ? bias : 'AUTO');
+      const open = cur;
+      const nextRaw = Math.max(spec.volatility * 5, open + step.delta);
+      const meanRev =
+        ((spec.basePrice - nextRaw) / Math.max(spec.basePrice * 0.025, spec.volatility * 9)) *
+        spec.volatility *
+        dna.meanRev *
+        2.2;
+      const fullClose = +(nextRaw + meanRev).toFixed(spec.decimals);
+      const close = isLive
+        ? +(open + (fullClose - open) * sub5sProgress).toFixed(spec.decimals)
+        : fullClose;
+      const hi = +Math.max(open, close, Math.max(open, close) + step.highJitter * (isLive ? sub5sProgress : 1)).toFixed(spec.decimals);
+      const lo = +Math.max(
+        spec.volatility * 4,
+        Math.min(open, close, Math.min(open, close) - step.lowJitter * (isLive ? sub5sProgress : 1))
+      ).toFixed(spec.decimals);
+
+      if (isLive) {
+        liveOpen = open;
+        liveTargetClose = close;
+        liveHi = hi;
+        liveLo = lo;
+      }
+      cur = close;
+
+      const existing = candleMap.get(b8);
+      if (!existing) {
+        const bStart = b8 * BINARY_CANDLE_MS;
+        candleMap.set(b8, {
+          time: bStart,
+          timeStr: formatTimeWithOffset(bStart, offsetMinutes),
+          open,
+          high: hi,
+          low: lo,
+          close,
+          volume: step.vol
+        });
+      } else {
+        existing.high = Math.max(existing.high, hi);
+        existing.low = Math.min(existing.low, lo);
+        existing.close = close;
+        existing.volume = (existing.volume || 0) + step.vol;
+      }
     }
 
-    const visibleCandles = allCandles.slice(-140);
-    const firstOpen = visibleCandles[visibleCandles.length - 28]?.open || visibleCandles[0]?.open || prevClose;
+    const visibleCandles: Candle[] = [];
+    for (let b = current8sBucket - 115; b <= current8sBucket; b++) {
+      const c = candleMap.get(b);
+      if (c) visibleCandles.push(c);
+    }
+
+    const latestPrice = visibleCandles[visibleCandles.length - 1]?.close ?? liveTargetClose ?? liveOpen;
+    const refOpen = visibleCandles[Math.max(0, visibleCandles.length - 28)]?.open || visibleCandles[0]?.open || latestPrice;
+
+    void liveHi;
+    void liveLo;
+
     markets[spec.symbol] = {
       symbol: spec.symbol,
-      price: prevClose,
+      price: latestPrice,
       candles: visibleCandles,
-      changePct: +(((prevClose - firstOpen) / firstOpen) * 100).toFixed(3)
+      changePct: +(((latestPrice - refOpen) / Math.max(1e-9, refOpen)) * 100).toFixed(3)
     };
   }
 
@@ -627,27 +837,25 @@ export function getNextBinaryCandlePreview(
 } {
   const snap = getSyncedBinarySnapshot([spec], nowMs, 'AUTO', offsetMinutes);
   const currentQuote = snap.markets[spec.symbol];
-  const prevClose = currentQuote?.price ?? spec.basePrice;
+  const open = currentQuote?.price ?? spec.basePrice;
   const nextBucket = Math.floor(nowMs / BINARY_CANDLE_MS) + 1;
-  const { candle } = computeDeterministicBinaryCandle(
-    spec.symbol,
-    spec.basePrice,
-    spec.decimals,
-    spec.volatility,
-    nextBucket,
-    prevClose,
-    8,
-    bias,
-    offsetMinutes
-  );
+  const next5s = Math.floor((nextBucket * BINARY_CANDLE_MS) / BASE_5S_MS);
+  const dna = getMarketDna(spec.symbol);
+  const step = getDeterministic5sDelta(spec.symbol, spec.volatility, next5s, bias);
+  const nextRaw = Math.max(spec.volatility * 5, open + step.delta * 1.4);
+  const meanRev = ((spec.basePrice - nextRaw) / Math.max(spec.basePrice * 0.025, spec.volatility * 9)) * spec.volatility * dna.meanRev * 2.2;
+  const close = +(nextRaw + meanRev).toFixed(spec.decimals);
+  const high = +Math.max(open, close, Math.max(open, close) + step.highJitter).toFixed(spec.decimals);
+  const low = +Math.max(spec.volatility * 4, Math.min(open, close, Math.min(open, close) - step.lowJitter)).toFixed(spec.decimals);
+
   return {
     nextBucket,
-    direction: candle.close >= candle.open ? 'BULL' : 'BEAR',
-    open: candle.open,
-    high: candle.high,
-    low: candle.low,
-    close: candle.close,
-    timeLabel: candle.timeStr,
+    direction: close >= open ? 'BULL' : 'BEAR',
+    open,
+    high,
+    low,
+    close,
+    timeLabel: formatTimeWithOffset(nextBucket * BINARY_CANDLE_MS, offsetMinutes),
     secUntilNext: snap.candleSecRemaining
   };
 }
@@ -667,33 +875,13 @@ export function formatCountdownClock(secRemaining: number): string {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-const BASE_5S_MS = 5000;
-
-function getDeterministic5sDelta(
-  symbol: string,
-  volatility: number,
-  bucket5sIdx: number,
-  bias: 'AUTO' | 'BULL' | 'BEAR' = 'AUTO'
-): { delta: number; highJitter: number; lowJitter: number; vol: number } {
-  const rng = createSeededRng(`bin5s:${symbol}:${bucket5sIdx}`);
-  const wave = Math.sin(bucket5sIdx * 0.19 + fnv1aSeed(symbol) % 17) * volatility * 0.22;
-  const macro = Math.cos(bucket5sIdx * 0.045) * volatility * 0.16;
-  const biasShift = bias === 'BULL' ? volatility * 0.26 : bias === 'BEAR' ? -volatility * 0.26 : 0;
-  const delta = (rng() - 0.5) * volatility * 0.72 + wave + macro + biasShift;
-  const highJitter = Math.abs(rng() * volatility * 0.28);
-  const lowJitter = Math.abs(rng() * volatility * 0.28);
-  const vol = Math.floor(rng() * 14) + 4;
-  return { delta, highJitter, lowJitter, vol };
-}
-
 /**
  * Generates timeframe-consistent OHLC candlesticks for Binary & Gold Market.
- * - Base resolution is 5s ticks.
- * - For 5s, 15s, 30s, 1m (60s), 5m (300s): every candle literally aggregates
- *   all underlying 5s steps inside that exact time bucket (so two 30s candles
- *   combine directly into one 1m candle, five 1m candles into 5m, etc.).
- * - For larger timeframes (15m, 30m, 1h, 12h, 24h): scales smoothly from
- *   coarse deterministic sub-candles with live anchor continuity.
+ * - Uses non-periodic Market DNA regime switching (zero sine waves) so every
+ *   asset displays distinct breakouts, consolidations, pullbacks, and wicks.
+ * - For 5s .. 5m: exact aggregation of underlying 5s steps inside each bucket.
+ * - For larger timeframes (15m .. 30d): multi-substep regime evolution anchored
+ *   smoothly to the live price.
  */
 export function getSyncedBinaryCandlesForTimeframe(
   spec: Pick<BinaryMarketConfig, 'symbol' | 'basePrice' | 'decimals' | 'volatility'>,
@@ -708,14 +896,13 @@ export function getSyncedBinaryCandlesForTimeframe(
   const tfMs = tfSec * 1000;
   const currentBucket = Math.floor(nowMs / tfMs);
   const startBucket = currentBucket - (count - 1);
+  const dna = getMarketDna(spec.symbol);
 
   // Fine aggregation path for 5s .. 5m: exact sum of underlying 5s ticks
   if (tfSec <= 300) {
     const start5s = Math.floor((startBucket * tfMs) / BASE_5S_MS);
     const current5s = Math.floor(nowMs / BASE_5S_MS);
-    const anchorRng = createSeededRng(`bin5s_anchor:${spec.symbol}:${Math.floor(start5s / 120)}`);
-    let cur = +(spec.basePrice + (anchorRng() - 0.5) * spec.volatility * 6).toFixed(spec.decimals);
-    cur = Math.max(spec.volatility * 5, cur);
+    let cur = getSynced5sAnchorPrice(spec, start5s);
 
     const candleMap = new Map<number, Candle>();
     for (let s5 = start5s; s5 <= current5s; s5++) {
@@ -724,11 +911,18 @@ export function getSyncedBinaryCandlesForTimeframe(
       const isLiveTick = s5 === current5s;
       const step = getDeterministic5sDelta(spec.symbol, spec.volatility, s5, isLiveTick ? bias : 'AUTO');
       const open = cur;
-      const nextRaw = Math.max(spec.volatility * 5, +(open + step.delta).toFixed(spec.decimals));
-      const meanRev = ((spec.basePrice - nextRaw) / Math.max(spec.basePrice * 0.02, spec.volatility * 8)) * spec.volatility * 0.08;
+      const nextRaw = Math.max(spec.volatility * 5, open + step.delta);
+      const meanRev =
+        ((spec.basePrice - nextRaw) / Math.max(spec.basePrice * 0.025, spec.volatility * 9)) *
+        spec.volatility *
+        dna.meanRev *
+        2.2;
       const close = +(nextRaw + meanRev).toFixed(spec.decimals);
       const hi = +Math.max(open, close, Math.max(open, close) + step.highJitter).toFixed(spec.decimals);
-      const lo = +Math.max(spec.volatility * 4, Math.min(open, close, Math.min(open, close) - step.lowJitter)).toFixed(spec.decimals);
+      const lo = +Math.max(
+        spec.volatility * 4,
+        Math.min(open, close, Math.min(open, close) - step.lowJitter)
+      ).toFixed(spec.decimals);
       cur = close;
 
       const existing = candleMap.get(bIdx);
@@ -767,11 +961,14 @@ export function getSyncedBinaryCandlesForTimeframe(
     return out;
   }
 
-  // Coarse multi-substep aggregation path for 15m .. 30d
+  // Coarse multi-substep regime evolution path for 15m .. 30d
   const scaleFactor = Math.min(18, Math.sqrt(tfSec / 60));
-  const subStepsPerCandle = tfSec >= 86400 ? 14 : tfSec >= 3600 ? 10 : 6;
-  const anchorRng = createSeededRng(`bin_macro_anchor:${spec.symbol}:${tfSec}:${Math.floor(startBucket / 16)}`);
-  let cur = +(spec.basePrice + (anchorRng() - 0.5) * spec.volatility * 4 * Math.min(6, scaleFactor)).toFixed(spec.decimals);
+  const subStepsPerCandle = tfSec >= 86400 ? 14 : tfSec >= 3600 ? 10 : 7;
+  const anchorRng = createSeededRng(`bin_macro_anchor_v2:${spec.symbol}:${tfSec}:${Math.floor(startBucket / 16)}`);
+  let cur = +(
+    spec.basePrice +
+    (anchorRng() - 0.5) * spec.volatility * 5 * dna.volBase * Math.min(5, scaleFactor * 0.7)
+  ).toFixed(spec.decimals);
   cur = Math.max(spec.volatility * 5, cur);
 
   const candles: Candle[] = [];
@@ -782,34 +979,56 @@ export function getSyncedBinaryCandlesForTimeframe(
     let high = open;
     let low = open;
     let volume = 0;
+    const reg = getRegimeAtStep(spec.symbol, b * 12);
 
     const activeSubs = isCur
       ? Math.max(1, Math.min(subStepsPerCandle, Math.ceil(((nowMs - bStart) / tfMs) * subStepsPerCandle)))
       : subStepsPerCandle;
 
     for (let sub = 0; sub < activeSubs; sub++) {
-      const rng = createSeededRng(`bin_macro:${spec.symbol}:${tfSec}:${b}:${sub}`);
-      const driftBack = ((spec.basePrice - cur) / Math.max(spec.basePrice * 0.03, spec.volatility * 10)) * spec.volatility * 0.2;
+      const rng = createSeededRng(`bin_macro_v2:${spec.symbol}:${tfSec}:${b}:${sub}`);
+      const isPullback = rng() < dna.pullbackRate;
+      const regPush = (isPullback ? -reg.drift * 0.5 : reg.drift * 0.75) * spec.volatility * Math.min(4.5, scaleFactor * 0.55);
+      const driftBack =
+        ((spec.basePrice - cur) / Math.max(spec.basePrice * 0.03, spec.volatility * 10)) *
+        spec.volatility *
+        dna.meanRev *
+        4.2;
       const biasDrift = isCur
         ? bias === 'BULL'
-          ? spec.volatility * 0.45 * Math.min(6, scaleFactor) * 0.35
+          ? spec.volatility * 0.45 * Math.min(5, scaleFactor) * 0.32
           : bias === 'BEAR'
-          ? -spec.volatility * 0.45 * Math.min(6, scaleFactor) * 0.35
+          ? -spec.volatility * 0.45 * Math.min(5, scaleFactor) * 0.32
           : 0
         : 0;
-      const stepDelta = (rng() - 0.5) * spec.volatility * 0.72 * Math.min(5.5, scaleFactor * 0.65) + driftBack + biasDrift;
+      const shock = rng() < dna.spikeProb ? dna.spikeScale : 1.0;
+      const stepDelta =
+        (rng() - 0.5 + (rng() - 0.5) * 0.6) *
+          spec.volatility *
+          0.62 *
+          reg.volScale *
+          shock *
+          Math.min(5.2, scaleFactor * 0.6) +
+        regPush +
+        driftBack +
+        biasDrift;
       cur = +Math.max(spec.volatility * 5, cur + stepDelta).toFixed(spec.decimals);
       if (cur > high) high = cur;
       if (cur < low) low = cur;
-      volume += Math.floor(rng() * 35) + 12;
+      volume += Math.floor(rng() * 35 * reg.volScale) + 10;
     }
+
+    const wickPad = spec.volatility * dna.wickScale * Math.min(3.5, scaleFactor * 0.45);
+    const wRng = createSeededRng(`bin_macro_wick:${spec.symbol}:${tfSec}:${b}`);
+    high = +Math.max(high, open, cur, Math.max(open, cur) + wRng() * wickPad).toFixed(spec.decimals);
+    low = +Math.max(spec.volatility * 4, Math.min(low, open, cur, Math.min(open, cur) - wRng() * wickPad)).toFixed(spec.decimals);
 
     candles.push({
       time: bStart,
       timeStr: tfSec >= 86400 ? formatDateWithOffset(bStart, offsetMinutes) : formatTimeWithOffset(bStart, offsetMinutes),
       open,
-      high: +Math.max(high, open, cur).toFixed(spec.decimals),
-      low: +Math.min(low, open, cur).toFixed(spec.decimals),
+      high,
+      low,
       close: cur,
       volume
     });

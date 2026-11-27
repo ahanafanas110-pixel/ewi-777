@@ -23,7 +23,7 @@ import {
   UserCog,
   KeyRound
 } from 'lucide-react';
-import { getTranslation } from '../utils/i18n';
+import { getLanguageBadge, getTranslation } from '../utils/i18n';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
 import {
   GameHistoryGridIcon,
@@ -31,7 +31,7 @@ import {
   DepositHistoryGridIcon,
   WithdrawHistoryGridIcon
 } from '../components/AccountIcons';
-import { AnimatedHoneyBee, HoneycombHiveHome } from '../components/HoneyBeeVisuals';
+import { getVipBadgeImage } from '../constants/vipTiers';
 
 interface AccountProps {
   onOpenLanguage?: () => void;
@@ -81,10 +81,12 @@ export const Account: React.FC<AccountProps> = () => {
     window.location.hash = `#/${tab}`;
   };
 
+  const langBadge = getLanguageBadge(language);
+
   const menuRows = [
     {
       id: 'notification',
-      label: 'Notification',
+      label: getTranslation(language, 'notification'),
       icon: Bell,
       onClick: () => {
         markNotificationsRead();
@@ -102,72 +104,80 @@ export const Account: React.FC<AccountProps> = () => {
     },
     {
       id: 'gifts',
-      label: 'Gifts',
+      label: getTranslation(language, 'gifts'),
       icon: Gift,
       onClick: () => go('gifts')
     },
     {
       id: 'attendance',
-      label: 'Daily Sign-in',
+      label: getTranslation(language, 'dailySignInMenu'),
       icon: CalendarCheck,
       onClick: () => go('attendence')
     },
     {
       id: 'game-statistics',
-      label: 'Game statistics',
+      label: getTranslation(language, 'gameStatistics'),
       icon: BarChart2,
       onClick: () => go('game-statistics')
     },
     {
       id: 'activity',
-      label: 'My activity',
+      label: getTranslation(language, 'myActivity'),
       icon: Award,
       onClick: () => go('activity')
     },
     {
       id: 'language',
-      label: getTranslation(language, 'language') || 'Language',
+      label: getTranslation(language, 'language'),
       icon: Globe,
       onClick: () => go('language'),
-      rightText: language === 'en' ? 'English' : 'বাংলা'
+      rightText: `${langBadge.flag} ${langBadge.nativeName}`
     },
     {
       id: 'safe',
-      label: 'Safe Vault',
+      label: getTranslation(language, 'safeVaultMenu'),
       icon: ShieldCheck,
       onClick: () => go('safe'),
       rightText: `৳${user.safeBalance.toFixed(2)}`
     },
     {
       id: 'vip',
-      label: 'VIP Rewards',
+      label: getTranslation(language, 'vipRewardsMenu'),
       icon: Crown,
       onClick: () => go('vip'),
+      rightNode:
+        user.vipLevel >= 1 ? (
+          <img
+            src={getVipBadgeImage(user.vipLevel)}
+            alt={`VIP${user.vipLevel}`}
+            className="w-5 h-6 object-contain"
+          />
+        ) : null,
       rightText: `VIP${user.vipLevel}`
     },
     {
       id: 'salary',
-      label: 'Agent Daily Salary',
+      label: getTranslation(language, 'agentDailySalaryMenu'),
       icon: Coins,
       onClick: () => go('salary'),
       rightText: 'Up to ৳100,000'
     },
     {
       id: 'change-nickname',
-      label: getTranslation(language, 'changeNickname') || 'Change Nickname',
+      label: getTranslation(language, 'changeNickname'),
       icon: UserCog,
       onClick: () => go('change-nickname'),
       rightText: user.nickname
     },
     {
       id: 'change-password',
-      label: getTranslation(language, 'changePasswordHeader') || 'Change Login Password',
+      label: getTranslation(language, 'changePasswordHeader'),
       icon: KeyRound,
       onClick: () => go('change-login-password')
     },
     {
       id: 'customer-service',
-      label: getTranslation(language, 'customerService') || 'Customer Service',
+      label: getTranslation(language, 'customerService'),
       icon: Headphones,
       onClick: () => go('customer-service')
     }
@@ -209,7 +219,7 @@ export const Account: React.FC<AccountProps> = () => {
 
             <div className="min-w-0">
               <div className="text-base font-black text-slate-900 tracking-tight truncate">
-                Hello, <span className="uppercase">{user.nickname || user.phone || 'MEMBER'}</span>
+                {getTranslation(language, 'helloGreeting')} <span className="uppercase">{user.nickname || user.phone || 'MEMBER'}</span>
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <button
@@ -217,7 +227,15 @@ export const Account: React.FC<AccountProps> = () => {
                   onClick={() => go('vip')}
                   className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-black text-[11px] flex items-center gap-1 shadow-xs active:scale-95"
                 >
-                  <Crown className="w-3 h-3" />
+                  {user.vipLevel >= 1 ? (
+                    <img
+                      src={getVipBadgeImage(user.vipLevel)}
+                      alt={`VIP${user.vipLevel}`}
+                      className="w-4 h-4 object-contain"
+                    />
+                  ) : (
+                    <Crown className="w-3 h-3" />
+                  )}
                   <span>VIP{user.vipLevel}</span>
                 </button>
 
@@ -266,20 +284,12 @@ export const Account: React.FC<AccountProps> = () => {
           </div>
         </div>
 
-        {/* Honey Hive Home Showcase ("Bee er Home") */}
-        <HoneycombHiveHome
-          variant="banner"
-          title={`Welcome to the Hive, ${(user.nickname || user.phone || 'Member').toUpperCase()}`}
-          subtitle={`VIP${user.vipLevel} Honey Guardian • Sweet Golden Rewards`}
-        />
-
-        {/* Holding Assets Card (No Profit & Loss Displayed) */}
+        {/* Holding Assets Card */}
         <div className="bg-white rounded-3xl p-4 border border-cyan-100 shadow-sm space-y-4 relative overflow-hidden">
-          <AnimatedHoneyBee size={22} flight="hover" delayMs={300} className="absolute top-3 right-3 opacity-90" />
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                <span>Holding assets (BDT)</span>
+                <span>{getTranslation(language, 'holdingAssetsBdt')}</span>
                 <button
                   type="button"
                   onClick={() => setHideBalance((prev) => !prev)}
@@ -304,7 +314,7 @@ export const Account: React.FC<AccountProps> = () => {
               onClick={() => go('wallet')}
               className="px-3 py-1.5 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-800 text-[11px] font-black flex items-center gap-1 active:scale-95"
             >
-              <span>Wallet</span>
+              <span>{getTranslation(language, 'wallet')}</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -340,9 +350,11 @@ export const Account: React.FC<AccountProps> = () => {
             <GameHistoryGridIcon size={36} />
             <div className="min-w-0">
               <div className="font-extrabold text-xs text-slate-900 truncate">
-                {getTranslation(language, 'gameHistory') || 'Game History'}
+                {getTranslation(language, 'gameHistory')}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My game history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {getTranslation(language, 'myGameHistory')}
+              </div>
             </div>
           </button>
 
@@ -357,9 +369,11 @@ export const Account: React.FC<AccountProps> = () => {
             <TransactionGridIcon size={36} />
             <div className="min-w-0">
               <div className="font-extrabold text-xs text-slate-900 truncate">
-                {getTranslation(language, 'transactionHistory') || 'Transaction'}
+                {getTranslation(language, 'transactionHistory')}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My transaction history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {getTranslation(language, 'myTransactionHistory')}
+              </div>
             </div>
           </button>
 
@@ -374,9 +388,11 @@ export const Account: React.FC<AccountProps> = () => {
             <DepositHistoryGridIcon size={36} />
             <div className="min-w-0">
               <div className="font-extrabold text-xs text-slate-900 truncate">
-                {getTranslation(language, 'deposit') || 'Deposit'}
+                {getTranslation(language, 'deposit')}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My deposit history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {getTranslation(language, 'myDepositHistory')}
+              </div>
             </div>
           </button>
 
@@ -391,9 +407,11 @@ export const Account: React.FC<AccountProps> = () => {
             <WithdrawHistoryGridIcon size={36} />
             <div className="min-w-0">
               <div className="font-extrabold text-xs text-slate-900 truncate">
-                {getTranslation(language, 'withdraw') || 'Withdraw'}
+                {getTranslation(language, 'withdraw')}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">My withdraw history</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {getTranslation(language, 'myWithdrawHistory')}
+              </div>
             </div>
           </button>
         </div>

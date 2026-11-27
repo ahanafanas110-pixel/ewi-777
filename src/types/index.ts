@@ -1,4 +1,4 @@
-export type Language = 'en' | 'bn';
+export type Language = 'en' | 'bn' | 'hi' | 'ur';
 
 export type WinGoMode = '30s' | '1m' | '3m' | '5m';
 export type EwiWingoMode = '15s' | '30s' | '1m' | '3m';

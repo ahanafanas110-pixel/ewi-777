@@ -198,7 +198,7 @@ export const BrandBallsLogo: React.FC<{ size?: number; className?: string }> = (
 };
 
 /**
- * Official Hney Win Gilded Honey Bee Crest & Metallic Plaque Logo (exports kept as Ewi777Logo for compatibility)
+ * Official Deshi Win Royal Crest & Plaque Logo (built directly from user's DESHI + WIN artwork)
  */
 export const Ewi777Logo: React.FC<{
   showText?: boolean;
@@ -218,8 +218,10 @@ export const Ewi777Logo: React.FC<{
     Boolean(trimmed) &&
     !trimmed.includes('ewi777-logo-transparent') &&
     !trimmed.includes('hney-win-logo') &&
+    !trimmed.includes('deshi-win-logo') &&
     !trimmed.includes('image_86b34144') &&
-    !trimmed.toLowerCase().includes('ewi777');
+    !trimmed.toLowerCase().includes('ewi777') &&
+    !trimmed.toLowerCase().includes('hney');
 
   const frameHeight = Math.max(32, Math.round(height));
 
@@ -228,7 +230,7 @@ export const Ewi777Logo: React.FC<{
       <div className={`inline-flex items-center justify-center flex-shrink-0 select-none ${className}`}>
         <img
           src={trimmed}
-          alt="Hney Win"
+          alt="Deshi Win"
           style={{ height: frameHeight }}
           referrerPolicy="no-referrer"
           className="w-auto max-w-full object-contain drop-shadow-[0_3px_10px_rgba(217,119,6,0.3)]"
@@ -237,210 +239,57 @@ export const Ewi777Logo: React.FC<{
     );
   }
 
-  const badgeSize = Math.max(30, Math.round(frameHeight * 0.96));
-  const plaqueHeight = Math.max(26, Math.round(frameHeight * 0.82));
-  const miniBeeSize = Math.max(15, Math.round(frameHeight * 0.4));
+  if (!showText) {
+    const iconSize = Math.max(32, Math.round(frameHeight));
+    return (
+      <div
+        className={`inline-flex items-center justify-center flex-shrink-0 rounded-xl p-[1.5px] bg-gradient-to-br from-[#FEF08A] via-[#D4AF37] to-[#92400E] shadow-[0_3px_10px_rgba(13,34,52,0.35)] select-none ${className}`}
+        style={{ width: iconSize, height: iconSize }}
+        role="img"
+        aria-label="Deshi Win"
+      >
+        <img
+          src="/deshi-win-logo.png"
+          alt="Deshi Win"
+          className="w-full h-full rounded-[10px] object-cover"
+        />
+      </div>
+    );
+  }
+
+  const wordHeight = Math.max(17, Math.round(frameHeight * 0.45));
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center flex-shrink-0 max-w-full select-none ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 flex-shrink-0 max-w-full select-none ${className}`}
       role="img"
-      aria-label="Hney Win"
+      aria-label="Deshi Win"
     >
-      {/* Left: Official Transparent Honey Bee Circular Emblem */}
-      <div
-        className="relative z-10 flex-shrink-0 honey-crest-float"
-        style={{ width: badgeSize, height: badgeSize }}
-      >
-        <img
-          src="/hney-win-logo.png"
-          alt="Hney Win"
-          width={badgeSize}
-          height={badgeSize}
-          className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(245,158,11,0.42)]"
-        />
-      </div>
-
-      {/* Right: Gilded Dark-Slate Metallic Plaque with Bold Hney Win */}
-      {showText && (
-        <div
-          className="relative -ml-2.5 pl-3 pr-2.5 rounded-r-2xl rounded-l-lg p-[1.5px] bg-gradient-to-r from-[#FDE047] via-[#D97706] to-[#FEF08A] shadow-[0_3px_12px_rgba(217,119,6,0.34)] flex items-center"
-          style={{ height: plaqueHeight }}
-        >
-          <div className="relative h-full px-2 rounded-r-[14px] rounded-l-[6px] bg-gradient-to-b from-[#1E293B] via-[#0F172A] to-[#0B2235] overflow-hidden sheen-effect flex items-center">
-            <svg
-              height={Math.round(plaqueHeight * 0.78)}
-              viewBox="0 0 116 30"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-auto"
-            >
-              <defs>
-                <linearGradient id="hwGoldName" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#FEF9C3" />
-                  <stop offset="50%" stopColor="#FACC15" />
-                  <stop offset="100%" stopColor="#D97706" />
-                </linearGradient>
-                <linearGradient id="hwCyanName" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#FFFFFF" />
-                  <stop offset="55%" stopColor="#A5F3FC" />
-                  <stop offset="100%" stopColor="#06B6D4" />
-                </linearGradient>
-              </defs>
-              <text
-                x="1"
-                y="19"
-                fill="url(#hwCyanName)"
-                fontSize="18"
-                fontWeight="900"
-                fontStyle="italic"
-                fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-                letterSpacing="-0.4"
-              >
-                Hney
-              </text>
-              <text
-                x="51"
-                y="19"
-                fill="url(#hwGoldName)"
-                fontSize="18"
-                fontWeight="900"
-                fontStyle="italic"
-                fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-                letterSpacing="-0.4"
-              >
-                Win
-              </text>
-              <text
-                x="2"
-                y="27.5"
-                fill="#FDE047"
-                fontSize="6.3"
-                fontWeight="900"
-                fontFamily="system-ui, sans-serif"
-                letterSpacing="1.8"
-              >
-                HONEY • CLUB
-              </text>
-            </svg>
-          </div>
-
-          {/* Animated Fluttering Bee perched on right tip */}
-          <span
-            className="bee-hover-flight pointer-events-none -mr-1.5 -mt-5 -ml-1.5 flex-shrink-0 z-20"
-            style={{ width: miniBeeSize, height: miniBeeSize }}
-            aria-hidden="true"
-          >
-            <svg width={miniBeeSize} height={miniBeeSize} viewBox="0 0 64 64" fill="none">
-              <g className="bee-wing-l">
-                <ellipse
-                  cx="26"
-                  cy="22"
-                  rx="11"
-                  ry="6.5"
-                  transform="rotate(-30 26 22)"
-                  fill="#FFFFFF"
-                  fillOpacity="0.94"
-                  stroke="#94A3B8"
-                  strokeWidth="1.4"
-                />
-              </g>
-              <g className="bee-wing-r">
-                <ellipse
-                  cx="39"
-                  cy="21"
-                  rx="10"
-                  ry="6"
-                  transform="rotate(24 39 21)"
-                  fill="#E0F2FE"
-                  fillOpacity="0.9"
-                  stroke="#94A3B8"
-                  strokeWidth="1.4"
-                />
-              </g>
-              <ellipse cx="36" cy="36" rx="14" ry="10.5" fill="#FACC15" stroke="#451A03" strokeWidth="2.2" />
-              <path d="M30 27.5 C28.5 32 28.5 40 30 44.5" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" />
-              <path d="M38 26.5 C36.5 31 36.5 41 38 45" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" />
-              <circle cx="20.5" cy="34" r="7.5" fill="#0F172A" />
-              <circle cx="18" cy="32.5" r="2" fill="#FFFFFF" />
-            </svg>
-          </span>
-        </div>
-      )}
+      <img
+        src="/assets/brand/deshi-word.png"
+        alt="DESHI"
+        style={{ height: wordHeight }}
+        className="w-auto max-w-full object-contain select-none pointer-events-none drop-shadow-[0_1px_2px_rgba(15,23,42,0.14)]"
+      />
+      <img
+        src="/assets/brand/win-word.png"
+        alt="WIN"
+        style={{ height: wordHeight }}
+        className="w-auto max-w-full object-contain select-none pointer-events-none drop-shadow-[0_1px_2px_rgba(15,23,42,0.14)]"
+      />
     </div>
   );
 };
 
 /**
- * Compact Hney Win Honey Bee Crest + Wordmark for Sub-Headers
+ * Compact Deshi Win Crest + Plaque for Sub-Headers
  */
 export const Ewi777TransparentWordmark: React.FC<{ height?: number; className?: string }> = ({
-  height = 24,
+  height = 28,
   className = ''
 }) => {
-  const badge = Math.max(20, Math.round(height));
-  return (
-    <span className={`inline-flex items-center gap-1.5 select-none ${className}`}>
-      <img
-        src="/hney-win-logo.png"
-        alt="Hney Win"
-        width={badge}
-        height={badge}
-        className="object-contain honey-crest-float drop-shadow-xs"
-        style={{ width: badge, height: badge }}
-      />
-      <svg
-        height={Math.max(18, Math.round(height * 0.85))}
-        viewBox="0 0 112 30"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="inline-block w-auto select-none"
-      >
-        <defs>
-          <linearGradient id="ewiGoldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#ECFEFF" />
-            <stop offset="50%" stopColor="#67E8F9" />
-            <stop offset="100%" stopColor="#06B6D4" />
-          </linearGradient>
-          <linearGradient id="ewiSilverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FEF9C3" />
-            <stop offset="65%" stopColor="#FACC15" />
-            <stop offset="100%" stopColor="#D97706" />
-          </linearGradient>
-        </defs>
-        <text
-          x="2"
-          y="23"
-          fill="url(#ewiGoldGrad)"
-          stroke="#0F172A"
-          strokeWidth="3.4"
-          paintOrder="stroke fill"
-          fontSize="21"
-          fontWeight="900"
-          fontStyle="italic"
-          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-0.5"
-        >
-          Hney
-        </text>
-        <text
-          x="58"
-          y="23"
-          fill="url(#ewiSilverGrad)"
-          stroke="#451A03"
-          strokeWidth="3.4"
-          paintOrder="stroke fill"
-          fontSize="21"
-          fontWeight="900"
-          fontStyle="italic"
-          fontFamily="'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif"
-          letterSpacing="-0.5"
-        >
-          Win
-        </text>
-      </svg>
-    </span>
-  );
+  const scaled = Math.max(32, Math.round(height * 1.15));
+  return <Ewi777Logo height={scaled} className={className} />;
 };
 
 /**

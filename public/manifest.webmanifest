@@ -1,13 +1,13 @@
 {
-  "name": "Hney Win - Premium Lottery, Aviator & Binary Platform",
-  "short_name": "Hney Win",
-  "description": "Hney Win authentic online lottery, Aviator Plane, Binary Market trading, and VIP Honey Hive rewards platform.",
+  "name": "Deshi Win - Premium Lottery, Aviator & Binary Platform",
+  "short_name": "Deshi Win",
+  "description": "Deshi Win authentic online lottery, Aviator Plane, Binary & Gold Market trading, live sportsbook, and casino platform.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFDF7",
-  "theme_color": "#D97706",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0891B2",
   "categories": ["entertainment", "games", "finance"],
   "icons": [
     {

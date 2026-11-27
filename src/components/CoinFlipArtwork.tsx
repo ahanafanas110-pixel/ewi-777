@@ -31,7 +31,7 @@ export const EwiCoinFace: React.FC<EwiCoinFaceProps> = ({
       viewBox="0 0 240 240"
       className={`select-none ${className}`}
       role="img"
-      aria-label={`${isGold ? 'Gold' : 'Silver'} Hney Win Coin`}
+      aria-label={`${isGold ? 'Gold' : 'Silver'} Deshi Win Coin`}
     >
       <defs>
         {/* Outer specular bevel ring */}
@@ -207,7 +207,7 @@ export const EwiCoinFace: React.FC<EwiCoinFaceProps> = ({
         />
       </g>
 
-      {/* Engraved Italic Bold HNEY WIN Center Emblem */}
+      {/* Engraved Italic Bold DESHI WIN Center Emblem */}
       <g transform="translate(120 122) skewX(-9)">
         <text
           x="0"
@@ -221,7 +221,7 @@ export const EwiCoinFace: React.FC<EwiCoinFaceProps> = ({
           fill={isGold ? '#FEF08A' : '#F8FAFC'}
           fillOpacity="0.65"
         >
-          HNEY WIN
+          DESHI WIN
         </text>
         <text
           x="0"
@@ -236,7 +236,7 @@ export const EwiCoinFace: React.FC<EwiCoinFaceProps> = ({
           stroke={isGold ? '#854D0E' : '#475569'}
           strokeWidth="0.6"
         >
-          HNEY WIN
+          DESHI WIN
         </text>
       </g>
     </svg>

@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowLeft, Mail, Download } from 'lucide-react';
 import { CustomerServiceLogo, Ewi777Logo } from './BrandLogos';
+import { getLanguageBadge, getTranslation } from '../utils/i18n';
 
 interface HeaderProps {
   title?: string;
@@ -27,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
     setIsNotificationOpen,
     markNotificationsRead
   } = useApp();
+  const langBadge = getLanguageBadge(language);
 
   const handleBack = () => {
     if (onBack) {
@@ -58,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1 px-2 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-800 active:scale-95 transition-transform"
           >
             <CustomerServiceLogo size={24} />
-            <span className="text-[11px] font-black">{language === 'bn' ? 'সাপোর্ট' : 'Care'}</span>
+            <span className="text-[11px] font-black">{getTranslation(language, 'supportCare')}</span>
           </button>
         ) : null}
 
@@ -100,17 +102,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onLanguageClick}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 active:scale-95 transition-all whitespace-nowrap"
             >
-              {language === 'en' ? (
-                <>
-                  <span className="text-xs">🇬🇧</span>
-                  <span>EN</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-xs">🇧🇩</span>
-                  <span>বাংলা</span>
-                </>
-              )}
+              <span className="text-xs">{langBadge.flag}</span>
+              <span>{langBadge.short}</span>
             </button>
           )}
 

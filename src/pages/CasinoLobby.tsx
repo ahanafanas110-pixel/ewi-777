@@ -70,29 +70,29 @@ export const CasinoLobby: React.FC = () => {
 
       <main className="px-4 pt-4 space-y-4">
         {/* Highlight Banner Card */}
-        <div className="rounded-3xl bg-gradient-to-r from-[#0E7490] via-[#0891B2] to-[#06B6D4] p-4 text-white shadow-md flex items-center justify-between gap-3">
+        <div className="rounded-3xl bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] p-4 text-white shadow-md border border-amber-300/30 flex items-center justify-between gap-3">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase tracking-wider">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-white/15 text-[10px] font-black uppercase tracking-wider text-amber-200">
               <ShieldCheck className="w-3 h-3" />
-              <span>Official Hney Casino</span>
+              <span>Deshi Win Casino</span>
             </div>
             <h2 className="text-lg font-black leading-tight">Live Casino Collection</h2>
             <p className="text-[11px] text-cyan-50 font-medium">
-              Play Hney Ludo multiplayer boards &amp; PLANE Crash in crisp Taka (৳) rooms.
+              Play Deshi Ludo multiplayer boards &amp; PLANE Crash in crisp Taka (৳) rooms.
             </p>
           </div>
           <img
             src={casinoTileImg}
             alt="Casino"
-            className="w-16 h-16 rounded-2xl object-cover border-2 border-white/50 shadow-md flex-shrink-0"
+            className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-300/50 shadow-md flex-shrink-0"
           />
         </div>
 
-        {/* Game 1: HNEY LUDO */}
+        {/* Game 1: DESHI LUDO */}
         <div
           onClick={() => {
             if (!isGameActive('game_ludo')) {
-              showToast('Hney Ludo is currently offline for maintenance');
+              showToast('Deshi Ludo is currently offline for maintenance');
               return;
             }
             goTab('ludo', '#/ludo');
@@ -106,11 +106,11 @@ export const CasinoLobby: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-black text-base text-slate-900">HNEY LUDO</span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                  <span className="font-black text-base text-slate-900">DESHI LUDO</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
                     NEW
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 text-[9px] font-black uppercase">
+                  <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[9px] font-black uppercase">
                     2P / 4P
                   </span>
                 </div>
@@ -128,7 +128,7 @@ export const CasinoLobby: React.FC = () => {
 
           <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
             <span className="text-slate-600 font-semibold">৳20 → ৳38 (2P) • 4P Split Mode</span>
-            <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black flex items-center gap-1 shadow-xs whitespace-nowrap">
+            <span className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black flex items-center gap-1 shadow-xs whitespace-nowrap">
               <span>Play Ludo</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </span>
@@ -152,10 +152,10 @@ export const CasinoLobby: React.FC = () => {
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-black text-base text-slate-900">PLANE</span>
-                  <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-black uppercase">
+                  <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[9px] font-black uppercase">
                     HOT
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 text-[9px] font-black uppercase">
+                  <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[9px] font-black uppercase">
                     TAKA ৳
                   </span>
                 </div>
@@ -173,7 +173,7 @@ export const CasinoLobby: React.FC = () => {
 
           <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
             <span className="text-slate-600 font-semibold">Min Bet ৳10 • Instant Cash Out</span>
-            <span className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black flex items-center gap-1 shadow-xs whitespace-nowrap">
+            <span className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black flex items-center gap-1 shadow-xs whitespace-nowrap">
               <span>Play PLANE</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </span>

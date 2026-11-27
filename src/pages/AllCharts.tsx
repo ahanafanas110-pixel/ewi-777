@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp, getLocalDateStr } from '../context/AppContext';
 import {
   ArrowLeft,
@@ -6,12 +6,15 @@ import {
   Flame,
   Gift,
   Headphones,
+  ImagePlus,
   RotateCcw,
   Users,
   Calendar,
-  CheckCircle2
+  CheckCircle2,
+  X
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
+import { compressImageFileToDataUrl } from '../utils/imageCompress';
 
 type ChartTabId =
   | 'weekly_deposit'
@@ -122,13 +125,17 @@ export const AllCharts: React.FC = () => {
     ewiWingoBets,
     sendSupportMessage,
     claimWinGoStreakBonus,
-    claimWinGoSixStepRefund,
     setActiveTab,
     showToast
   } = useApp();
 
   const [activeChart, setActiveChart] = useState<ChartTabId>('weekly_deposit');
   const [midnightCountdown, setMidnightCountdown] = useState('00:00:00');
+  const [refundProofImage, setRefundProofImage] = useState<string | null>(null);
+  const [refundNote, setRefundNote] = useState('');
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundSubmitted, setRefundSubmitted] = useState(false);
+  const refundFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const updateClock = () => {
@@ -248,17 +255,57 @@ export const AllCharts: React.FC = () => {
     goCustomerCare();
   };
 
-  const handleSixStepRefund = () => {
-    if (!isRefundEligible) {
-      showToast('Not eligible yet — requires 6 consecutive lost Hney WinGo rounds.');
+  const handleRefundImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      let dataUrl = await compressImageFileToDataUrl(file, 900, 0.72);
+      if (dataUrl.length > 280000) {
+        dataUrl = await compressImageFileToDataUrl(file, 680, 0.55);
+      }
+      if (dataUrl.length > 340000) {
+        showToast('Image too large. Please upload a smaller screenshot.');
+        return;
+      }
+      setRefundProofImage(dataUrl);
+      setRefundSubmitted(false);
+    } catch {
+      showToast('Failed to read screenshot. Please try another image.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleSixStepRefund = async () => {
+    if (!user.isLoggedIn || !user.id) {
+      showToast('Please log in first to apply for 6-Step Refund.');
       return;
     }
-    const res = claimWinGoSixStepRefund();
-    if (!res.success) {
-      showToast(res.message);
+    if (!refundProofImage) {
+      showToast('Please attach a screenshot proving your 6-step loss before applying.');
       return;
     }
-    sendBonusChatNotice('Hney WinGo 6-Step 100% Refund', '6 Consecutive Losses Refunded');
+    const lostTotal = latestSixEwi
+      .filter((b) => b.status === 'lost')
+      .reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+    setRefundSubmitting(true);
+    try {
+      await sendSupportMessage({
+        userId: user.id || 'guest',
+        userUid: user.uid || 'GUEST',
+        userNickname: user.nickname || user.phone || 'Member',
+        userPhone: user.phone || user.email || '',
+        sender: 'user',
+        text: `[6-Step Loss Refund Application] UID: ${user.uid || 'GUEST'} | Recent Losses Tracked: ${latestSixEwi.filter((b) => b.status === 'lost').length}/6 (৳${lostTotal.toLocaleString()})${refundNote.trim() ? ` | Note: ${refundNote.trim()}` : ''}`,
+        imageUrl: refundProofImage
+      });
+      setRefundSubmitted(true);
+      showToast('6-Step Refund application with loss screenshot sent to Customer Care!');
+    } catch {
+      showToast('Failed to submit refund application. Please try again.');
+    } finally {
+      setRefundSubmitting(false);
+    }
   };
 
   return (
@@ -318,7 +365,7 @@ export const AllCharts: React.FC = () => {
           <div className="space-y-3.5">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
               <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
-                HNEY WIN WEEKLY REWARD
+                DESHI WIN WEEKLY REWARD
               </div>
               <h2 className="text-lg font-black mt-0.5">Weekly Deposit Bonus Chart</h2>
               <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
@@ -500,7 +547,7 @@ export const AllCharts: React.FC = () => {
               </div>
               <h2 className="text-lg font-black mt-0.5">Agent Weekly Salary Chart</h2>
               <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
-                Grow your active team over 7 days and apply with Hney Win Customer Care every Monday for weekly agent salary payout.
+                Grow your active team over 7 days and apply with Deshi Win Customer Care every Monday for weekly agent salary payout.
               </p>
             </div>
 
@@ -629,14 +676,14 @@ export const AllCharts: React.FC = () => {
           </div>
         )}
 
-        {/* 6. HNEY WINGO 6-STEP 3X LOSS 100% REFUND MATRIX */}
+        {/* 6. DESHI WINGO 6-STEP 3X LOSS 100% REFUND MATRIX */}
         {activeChart === 'wingo_refund' && (
           <div className="space-y-3.5">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-4 text-white shadow-md">
               <div className="text-[10px] font-black uppercase tracking-widest text-cyan-200">
                 WIN GO 100% CAPITAL PROTECTION
               </div>
-              <h2 className="text-lg font-black mt-0.5">Hney WinGo 6-Step 3X Loss Refund</h2>
+              <h2 className="text-lg font-black mt-0.5">Deshi WinGo 6-Step 3X Loss Refund</h2>
               <p className="text-xs text-cyan-100 mt-1 leading-relaxed">
                 Follow the official 6-Step 3× martingale table strictly on WinGo. If all 6 consecutive steps lose, claim 100% of your capital back immediately!
               </p>
@@ -681,29 +728,111 @@ export const AllCharts: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3 shadow-xs">
+            <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3.5 shadow-xs">
               <div className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
                 <RotateCcw className="w-4 h-4 text-cyan-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Verifies your latest 6 consecutive lost WinGo / Hney WinGo trades against the exact 3× step progression above and refunds 100% instantly.
+                  To claim the 6-Step Refund, you must apply manually and upload a screenshot proving your 6-step loss for Customer Care verification.
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleSixStepRefund}
-                className={`w-full py-3.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-                  isRefundEligible
-                    ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-md active:scale-98'
-                    : 'bg-slate-200 text-slate-500 opacity-50 blur-[0.5px]'
-                }`}
-              >
-                <Gift className="w-4 h-4" />
-                <span>
-                  {isRefundEligible
-                    ? 'Verify & Claim 100% 6-Step Loss Refund'
-                    : 'Requires 6 Consecutive Losses to Unlock'}
+
+              <div className="bg-slate-50 rounded-2xl px-3 py-2.5 border border-slate-200 flex items-center justify-between text-xs tabular-nums">
+                <span className="font-bold text-slate-600">Recent Sequential Losses</span>
+                <span className={`font-black ${isRefundEligible ? 'text-emerald-700' : 'text-slate-800'}`}>
+                  {latestSixEwi.filter((b) => b.status === 'lost').length} / 6 Rounds
                 </span>
-              </button>
+              </div>
+
+              {/* Required Loss Screenshot Upload */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700">
+                  Loss Proof Screenshot (Required) *
+                </label>
+                <input
+                  ref={refundFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleRefundImagePick}
+                  className="hidden"
+                />
+                {refundProofImage ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-cyan-200 bg-slate-50 p-2">
+                    <img
+                      src={refundProofImage}
+                      alt="6-Step loss proof screenshot"
+                      className="w-full max-h-56 object-contain rounded-xl bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefundProofImage(null);
+                        setRefundSubmitted(false);
+                      }}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/80 text-white flex items-center justify-center shadow-sm hover:bg-slate-900"
+                      aria-label="Remove loss screenshot"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => refundFileInputRef.current?.click()}
+                    className="w-full py-5 px-4 rounded-2xl border-2 border-dashed border-cyan-300 bg-cyan-50/40 hover:bg-cyan-50 text-cyan-800 flex flex-col items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <ImagePlus className="w-6 h-6 text-cyan-600" />
+                    <span className="text-xs font-black">Upload Loss Screenshot Photo</span>
+                    <span className="text-[11px] font-medium text-slate-500">
+                      Attach your 6-step bet history screenshot
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              <input
+                type="text"
+                value={refundNote}
+                onChange={(e) => setRefundNote(e.target.value)}
+                placeholder="Optional: Period number or loss amount note"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
+              />
+
+              {refundSubmitted ? (
+                <div className="space-y-2">
+                  <div className="w-full py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-xs flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Submitted with Proof Photo ✓</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={goCustomerCare}
+                    className="w-full py-3 rounded-full bg-slate-900 text-cyan-300 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 min-h-[44px]"
+                  >
+                    <Headphones className="w-4 h-4" />
+                    <span>View in Customer Care Chat →</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSixStepRefund}
+                  disabled={refundSubmitting || !refundProofImage}
+                  className={`w-full py-3.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all min-h-[44px] ${
+                    refundProofImage && !refundSubmitting
+                      ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-md active:scale-98'
+                      : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  <Gift className="w-4 h-4" />
+                  <span>
+                    {refundSubmitting
+                      ? 'Submitting Application...'
+                      : refundProofImage
+                      ? 'Apply 6-Step Refund with Photo'
+                      : 'Upload Loss Photo to Apply'}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -318,7 +318,7 @@ export const Deposit: React.FC = () => {
           }}
           className="text-xs font-bold text-cyan-700 hover:underline whitespace-nowrap"
         >
-          Deposit History
+          {getTranslation(language, 'myDepositHistory')}
         </button>
       </div>
 
@@ -326,7 +326,7 @@ export const Deposit: React.FC = () => {
         {/* Balance Card */}
         <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
           <div className="flex items-center justify-between text-xs text-cyan-100 font-semibold mb-1">
-            <span>Available Balance</span>
+            <span>{getTranslation(language, 'totalBalance')}</span>
             <button
               type="button"
               onClick={() => showToast('Balance synced')}
@@ -349,7 +349,7 @@ export const Deposit: React.FC = () => {
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[10px] font-bold"
             >
               <Headphones className="w-3 h-3" />
-              <span>Care</span>
+              <span>{getTranslation(language, 'supportCare')}</span>
             </button>
           </div>
         </div>
@@ -415,12 +415,12 @@ export const Deposit: React.FC = () => {
                 }`}
               >
                 <Gift className="w-3.5 h-3.5" />
-                <span>First Deposit Bonus (1x Only)</span>
+                <span>{getTranslation(language, 'depositBonusCenter')}</span>
               </div>
               <div className={`font-extrabold text-sm mt-0.5 ${hasCompletedDeposit ? 'text-white' : 'text-slate-900'}`}>
                 {hasCompletedDeposit
-                  ? `Claim ৳${firstBonusAmt} Cash Bonus!`
-                  : `Unlock ৳${firstBonusAmt} After Deposit`}
+                  ? `${getTranslation(language, 'claimDepositBonus')} (৳${firstBonusAmt})`
+                  : `${getTranslation(language, 'unlockDepositBonus')} (৳${firstBonusAmt})`}
               </div>
               <div
                 className={`text-[10px] ${
@@ -428,8 +428,8 @@ export const Deposit: React.FC = () => {
                 }`}
               >
                 {hasCompletedDeposit
-                  ? 'Deposit completed • Click Claim to collect (1-time)'
-                  : 'Complete your first deposit (৳200+) to unlock this 1-time bonus'}
+                  ? `${getTranslation(language, 'claim')} ৳${firstBonusAmt}`
+                  : getTranslation(language, 'unlockDepositBonus')}
               </div>
             </div>
             {hasCompletedDeposit ? (
@@ -438,12 +438,12 @@ export const Deposit: React.FC = () => {
                 onClick={() => claimDepositBonus()}
                 className="px-4 py-2 rounded-full bg-white text-slate-900 font-black text-xs shadow-sm active:scale-95 transition-all hover:bg-cyan-50 flex-shrink-0"
               >
-                Claim ৳{firstBonusAmt}
+                {getTranslation(language, 'claim')} ৳{firstBonusAmt}
               </button>
             ) : (
               <div className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 font-bold text-[11px] flex items-center gap-1 flex-shrink-0">
                 <Lock className="w-3 h-3" />
-                <span>Locked</span>
+                <span>{getTranslation(language, 'locked')}</span>
               </div>
             )}
           </div>
@@ -667,7 +667,7 @@ export const Deposit: React.FC = () => {
         <div className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-              Select Channel
+              {getTranslation(language, 'selectChannel')}
             </span>
             <span className="text-[10px] font-bold text-cyan-700">
               {selectedMethod === 'USDT' ? 'Binance Pay Verified' : `${selectedMethod} · EWI PAY`}

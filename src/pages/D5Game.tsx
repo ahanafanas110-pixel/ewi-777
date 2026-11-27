@@ -14,7 +14,6 @@ import {
   Lock
 } from 'lucide-react';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
-import { AnimatedHoneyBee, HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 import { computeDailyIssueInfo, nextIssueFromLatest } from '../utils/lotteryApi';
 import {
   formatTimeWithOffset,
@@ -216,7 +215,7 @@ export const D5Game: React.FC = () => {
       showToast(res.message);
       return;
     }
-    showToast(`Hney 5D Bet placed: ${selectedPos} ${betSlip.label}`);
+    showToast(`Deshi 5D Bet placed: ${selectedPos} ${betSlip.label}`);
     setBetSlip(null);
   };
 
@@ -356,22 +355,15 @@ export const D5Game: React.FC = () => {
                   : 'text-slate-600 hover:bg-cyan-50'
               }`}
             >
-              Hney 5D {m === '1m' ? '1Min' : m === '3m' ? '3Min' : m === '5m' ? '5Min' : '10Min'}
+              Deshi 5D {m === '1m' ? '1Min' : m === '3m' ? '3Min' : m === '5m' ? '5Min' : '10Min'}
             </button>
           ))}
         </div>
-
-        <HoneycombHiveHome
-          variant="pill"
-          title={`Hney 5D Hive • ${mode.toUpperCase()} Draw`}
-          subtitle="5-Digit Golden Honeycombs • Live Synced Results"
-        />
 
         <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-200 space-y-3 relative overflow-hidden">
           <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
             <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
               <span>Lottery results</span>
-              <AnimatedHoneyBee size={16} flight="hover" delayMs={180} />
             </span>
             <div className="flex items-center gap-1.5">
               {(['A', 'B', 'C', 'D', 'E'] as const).map((letter, idx) => (
@@ -752,7 +744,7 @@ export const D5Game: React.FC = () => {
           {activeRecordTab === 'my' && (
             <div className="space-y-2.5">
               {myModeBets.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500">No Hney 5D bets placed yet.</div>
+                <div className="py-10 text-center text-xs text-slate-500">No Deshi 5D bets placed yet.</div>
               ) : (
                 myModeBets.slice(0, 30).map((b) => (
                   <div
@@ -792,7 +784,7 @@ export const D5Game: React.FC = () => {
           <div className="w-full max-w-md bg-white border-t border-slate-200 rounded-t-3xl p-5 space-y-4 shadow-2xl animate-fade-in">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] -mx-5 -mt-5 px-5 py-3.5 rounded-t-3xl text-white flex items-center justify-between">
               <div>
-                <div className="text-xs font-bold text-cyan-100">Hney 5D {mode.toUpperCase()} • Pos {selectedPos}</div>
+                <div className="text-xs font-bold text-cyan-100">Deshi 5D {mode.toUpperCase()} • Pos {selectedPos}</div>
                 <div className="text-base font-black">Select: {betSlip.label} ({betSlip.payoutRate}X)</div>
               </div>
               <button onClick={() => setBetSlip(null)} className="p-1 rounded-full hover:bg-white/20">
@@ -884,7 +876,7 @@ export const D5Game: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-xs bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl">
             <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] p-4 text-white text-center font-black text-sm">
-              Hney 5D Rules
+              Deshi 5D Rules
             </div>
             <div className="p-4 text-xs text-slate-600 space-y-2 leading-relaxed">
               <p>Each round draws 5 numbers (A, B, C, D, E) from 0 to 9 plus their total SUM.</p>

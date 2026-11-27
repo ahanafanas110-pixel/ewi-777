@@ -110,25 +110,36 @@ const ChipToken: React.FC<{
 const PlacedChipMarker: React.FC<{ amount: number; isPlacedOnly?: boolean }> = ({ amount, isPlacedOnly }) => {
   const color =
     amount >= 500
-      ? 'bg-slate-900 text-amber-300 border-amber-400'
+      ? 'bg-gradient-to-b from-slate-800 to-slate-950 text-amber-300 border-amber-400'
       : amount >= 100
-      ? 'bg-indigo-600 text-white border-indigo-200'
+      ? 'bg-gradient-to-b from-indigo-500 to-indigo-800 text-white border-indigo-200'
       : amount >= 50
-      ? 'bg-rose-600 text-white border-rose-200'
+      ? 'bg-gradient-to-b from-rose-500 to-rose-800 text-white border-rose-200'
       : amount >= 20
-      ? 'bg-sky-600 text-white border-sky-200'
-      : 'bg-emerald-600 text-white border-emerald-200';
+      ? 'bg-gradient-to-b from-sky-500 to-sky-800 text-white border-sky-200'
+      : 'bg-gradient-to-b from-emerald-500 to-emerald-800 text-white border-emerald-200';
 
   return (
     <span
-      className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-1 rounded-full border-2 border-dashed text-[8.5px] font-black shadow-[0_3px_6px_rgba(0,0,0,0.55)] tabular-nums ${color} ${
-        isPlacedOnly ? 'ring-1 ring-amber-300' : 'ring-1 ring-white'
+      className={`inline-flex items-center justify-center min-w-[23px] h-[23px] px-1 rounded-full border-2 border-dashed text-[8.5px] font-black shadow-[0_4px_8px_rgba(0,0,0,0.65),inset_0_1px_1px_rgba(255,255,255,0.35)] tabular-nums ${color} ${
+        isPlacedOnly ? 'ring-1 ring-amber-300' : 'ring-1 ring-white/90'
       }`}
     >
       {formatCompactChip(amount)}
     </span>
   );
 };
+
+/** Classic Crystal/Brass Casino Marker Dolly for Winning Number */
+const WinDollyMarker: React.FC = () => (
+  <span
+    aria-hidden="true"
+    className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center drop-shadow-[0_4px_8px_rgba(0,0,0,0.85)]"
+  >
+    <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-b from-amber-100 via-amber-400 to-amber-700 border border-white/80 shadow-inner" />
+    <span className="w-5 h-1.5 -mt-0.5 rounded-full bg-gradient-to-b from-amber-200 to-amber-600 border border-amber-900/60" />
+  </span>
+);
 
 export const EwiRoulette: React.FC = () => {
   const {
@@ -347,12 +358,23 @@ export const EwiRoulette: React.FC = () => {
             ctx.stroke();
           }
 
-          // Outer brushed gold trim ring
+          // Outer brushed gold trim ring + 16 brass mahogany rim studs
           ctx.beginPath();
           ctx.arc(cx, cy, outerR - 2.2 * dpr, 0, Math.PI * 2);
-          ctx.lineWidth = 1.8 * dpr;
-          ctx.strokeStyle = '#D4AF37';
+          ctx.lineWidth = 2.2 * dpr;
+          ctx.strokeStyle = '#E5C158';
           ctx.stroke();
+
+          for (let s = 0; s < 16; s++) {
+            const sa = (s * Math.PI * 2) / 16;
+            const sr = outerR * 0.955;
+            const sx = cx + Math.cos(sa) * sr;
+            const sy = cy + Math.sin(sa) * sr;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.5 * dpr, 0, Math.PI * 2);
+            ctx.fillStyle = s % 2 === 0 ? '#FEF08A' : '#D4AF37';
+            ctx.fill();
+          }
 
           // 2. Concave Slanted Ball Track + Lip Shadow
           const trackOuterR = outerR * 0.91;
@@ -598,15 +620,27 @@ export const EwiRoulette: React.FC = () => {
           ctx.fillStyle = '#DC2626';
           ctx.fill();
 
-          // 6. Specular Ivory Roulette Ball
+          // 6. Specular Ivory Roulette Ball + Subtle Motion Trail when Spinning
           const ballR = outerR * ballRadiusRatioRef.current;
           const bAngle = ballAngleRef.current - Math.PI / 2;
           const bx = cx + Math.cos(bAngle) * ballR;
           const by = cy + Math.sin(bAngle) * ballR;
 
+          if (gs.phase === 'spinning') {
+            for (let tr = 1; tr <= 4; tr++) {
+              const tAngle = bAngle + tr * 0.08;
+              const tx = cx + Math.cos(tAngle) * ballR;
+              const ty = cy + Math.sin(tAngle) * ballR;
+              ctx.beginPath();
+              ctx.arc(tx, ty, Math.max(1.5, 4.4 - tr * 0.8) * dpr, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(255, 255, 255, ${(0.28 - tr * 0.06).toFixed(2)})`;
+              ctx.fill();
+            }
+          }
+
           ctx.beginPath();
-          ctx.arc(bx + 1.8 * dpr, by + 2.2 * dpr, 4.8 * dpr, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0,0,0,0.48)';
+          ctx.arc(bx + 1.8 * dpr, by + 2.2 * dpr, 4.9 * dpr, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,0,0,0.52)';
           ctx.fill();
 
           const ballGrad = ctx.createRadialGradient(
@@ -615,13 +649,13 @@ export const EwiRoulette: React.FC = () => {
             0.7 * dpr,
             bx,
             by,
-            5.0 * dpr
+            5.1 * dpr
           );
           ballGrad.addColorStop(0, '#FFFFFF');
-          ballGrad.addColorStop(0.6, '#E2E8F0');
-          ballGrad.addColorStop(1, '#64748B');
+          ballGrad.addColorStop(0.55, '#F1F5F9');
+          ballGrad.addColorStop(1, '#475569');
           ctx.beginPath();
-          ctx.arc(bx, by, 5.0 * dpr, 0, Math.PI * 2);
+          ctx.arc(bx, by, 5.1 * dpr, 0, Math.PI * 2);
           ctx.fillStyle = ballGrad;
           ctx.fill();
 
@@ -766,8 +800,14 @@ export const EwiRoulette: React.FC = () => {
       showToast('Please log in to place bets');
       return;
     }
-    if (totalStagedAmount > user.balance) {
-      showToast('Insufficient balance');
+    const lockedAmt = Math.max(0, Number(user.lockedBalance || 0));
+    const playableBal = Math.max(0, +(Number(user.balance || 0) - lockedAmt).toFixed(2));
+    if (totalStagedAmount > playableBal) {
+      showToast(
+        lockedAmt > 0
+          ? 'Holding balance cannot be wagered until released by Admin!'
+          : 'Insufficient balance'
+      );
       return;
     }
 
@@ -895,37 +935,46 @@ export const EwiRoulette: React.FC = () => {
     ]);
   }, [hoveredWheelIdx]);
 
+  const playableBalance = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-12">
-      {/* Light Mode Header */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 shadow-xs">
+    <div
+      className="min-h-screen text-white pb-12"
+      style={{
+        background: 'radial-gradient(circle at 50% 0%, #102B24 0%, #071316 48%, #04090C 100%)'
+      }}
+    >
+      {/* Luxury VIP Casino Header */}
+      <header className="sticky top-0 z-30 bg-[#071417]/95 backdrop-blur-md border-b border-[#D4AF37]/30 px-3 py-2 flex items-center justify-between gap-2 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
         <div className="flex items-center gap-1.5 min-w-0">
           <button
             type="button"
             onClick={() => goTab('casino', '#/casino')}
-            className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-slate-100 active:scale-95"
+            className="p-1.5 -ml-1 rounded-full text-amber-200 hover:bg-white/10 active:scale-95"
             aria-label="Back to Casino"
           >
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
           <div className="min-w-0">
-            <div className="font-black text-sm text-slate-900 truncate">HNEY CASINO ROULETTE</div>
-            <div className="text-[10px] font-mono font-bold text-cyan-700 truncate">
+            <div className="font-black text-sm tracking-wide text-amber-100 truncate flex items-center gap-1.5">
+              <span>MONTE CARLO VIP ROULETTE</span>
+            </div>
+            <div className="text-[10px] font-mono font-bold text-emerald-300/90 truncate">
               {gameState.roundId} · European Single Zero
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1 pl-2 pr-1 py-1 rounded-full bg-slate-100 border border-slate-200">
-            <span className="text-[10px] font-black text-cyan-700">৳</span>
-            <span className="text-xs font-extrabold tabular-nums text-slate-900 max-w-[64px] truncate">
-              {user.balance.toFixed(2)}
+          <div className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-black/45 border border-[#D4AF37]/50">
+            <span className="text-[10px] font-black text-amber-300">৳</span>
+            <span className="text-xs font-extrabold tabular-nums text-white max-w-[68px] truncate">
+              {playableBalance.toFixed(2)}
             </span>
             <button
               type="button"
               onClick={() => goTab('deposit', '#/deposit')}
-              className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center active:scale-90"
+              className="w-5 h-5 rounded-full bg-gradient-to-b from-amber-300 to-amber-500 text-slate-950 flex items-center justify-center active:scale-90"
               aria-label="Deposit"
             >
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
@@ -935,7 +984,7 @@ export const EwiRoulette: React.FC = () => {
           <button
             type="button"
             onClick={() => setStatsOpen(true)}
-            className="w-8 h-8 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-800 flex items-center justify-center active:scale-95"
+            className="w-8 h-8 rounded-full bg-white/10 border border-[#D4AF37]/40 text-amber-200 flex items-center justify-center active:scale-95"
             aria-label="Statistics"
           >
             <BarChart3 className="w-4 h-4" />
@@ -944,7 +993,7 @@ export const EwiRoulette: React.FC = () => {
           <button
             type="button"
             onClick={() => goTab('customer-service', '#/customer-service')}
-            className="p-0.5 rounded-full bg-cyan-50 border border-cyan-200 active:scale-95"
+            className="p-0.5 rounded-full bg-white/10 border border-[#D4AF37]/40 active:scale-95"
             aria-label="Customer Care"
           >
             <CustomerServiceLogo size={26} />
@@ -953,7 +1002,7 @@ export const EwiRoulette: React.FC = () => {
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center active:scale-95"
+            className="w-8 h-8 rounded-full bg-white/10 border border-[#D4AF37]/40 text-amber-200 flex items-center justify-center active:scale-95"
             aria-label="Menu"
           >
             <Menu className="w-4 h-4" />
@@ -962,116 +1011,125 @@ export const EwiRoulette: React.FC = () => {
       </header>
 
       <main className="max-w-md mx-auto px-3 pt-3 space-y-3">
-        {/* Luxury Monte Carlo Studio Stage (No Sticker Over Spindle!) */}
-        <div
-          className="relative rounded-3xl p-3.5 border-2 border-[#D4AF37]/65 shadow-xl overflow-hidden space-y-2.5 text-white"
-          style={{
-            background: 'radial-gradient(circle at 50% 42%, #0F3D31 0%, #08231C 58%, #04120E 100%)'
-          }}
-        >
-          {/* Live Studio Status Bar */}
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${
-                gameState.phase === 'betting'
-                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-200'
-                  : gameState.phase === 'spinning'
-                  ? 'bg-amber-500/20 border-amber-400/40 text-amber-200'
-                  : 'bg-white/15 border-[#D4AF37]/70 text-amber-300'
-              }`}
-            >
-              <Clock className="w-3 h-3" />
-              <span>
-                {gameState.phase === 'betting'
-                  ? `Place Your Bets · ${gameState.phaseRemaining}s`
-                  : gameState.phase === 'spinning'
-                  ? `No More Bets · Spinning ${gameState.phaseRemaining}s`
-                  : `Winning #${gameState.winningNumber} (${gameState.winningColor.toUpperCase()})`}
-              </span>
-            </span>
-
-            {totalActiveRoundAmount > 0 ? (
-              <span className="px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-200 text-[10px] font-black tabular-nums">
-                In Play: ৳{totalActiveRoundAmount}
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold text-emerald-200/75 uppercase tracking-wider">
-                Min ৳10 · 36X
-              </span>
-            )}
+        {Number(user.lockedBalance || 0) > 0 && (
+          <div className="px-3 py-2 rounded-2xl bg-amber-950/75 border border-amber-400/50 text-[11px] font-bold text-amber-200 flex items-center justify-between gap-2">
+            <span>Hold Balance: ৳{Number(user.lockedBalance || 0).toFixed(2)} (Blocked until Admin releases)</span>
+            <span className="font-mono text-emerald-300">Playable: ৳{playableBalance.toFixed(2)}</span>
           </div>
+        )}
 
-          {/* Smooth Countdown Progress Track */}
-          <div className="h-1 rounded-full bg-black/40 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-200 ${
-                gameState.phase === 'betting'
-                  ? 'bg-emerald-400'
-                  : gameState.phase === 'spinning'
-                  ? 'bg-amber-400'
-                  : 'bg-cyan-400'
-              }`}
-              style={{ width: `${phasePct}%` }}
-            />
-          </div>
+        {/* Luxury Monte Carlo Studio Stage Framed by Mahogany & Brushed Brass */}
+        <div className="p-1.5 rounded-[30px] bg-gradient-to-b from-[#60230D] via-[#3A1205] to-[#1D0802] border-2 border-[#D4AF37]/80 shadow-[0_20px_50px_rgba(0,0,0,0.7)]">
+          <div
+            className="relative rounded-[24px] p-3.5 border border-[#D4AF37]/40 overflow-hidden space-y-2.5 text-white shadow-inner"
+            style={{
+              background: 'radial-gradient(circle at 50% 42%, #114738 0%, #08271F 60%, #03120E 100%)'
+            }}
+          >
+            {/* Live Studio Status Bar */}
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${
+                  gameState.phase === 'betting'
+                    ? 'bg-emerald-500/20 border-emerald-400/45 text-emerald-200'
+                    : gameState.phase === 'spinning'
+                    ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
+                    : 'bg-white/15 border-[#D4AF37]/80 text-amber-200'
+                }`}
+              >
+                <Clock className="w-3 h-3" />
+                <span>
+                  {gameState.phase === 'betting'
+                    ? `Place Your Bets · ${gameState.phaseRemaining}s`
+                    : gameState.phase === 'spinning'
+                    ? `No More Bets · Spinning ${gameState.phaseRemaining}s`
+                    : `Winning #${gameState.winningNumber} (${gameState.winningColor.toUpperCase()})`}
+                </span>
+              </span>
 
-          {/* Unobstructed Photorealistic HiDPI Wheel Canvas */}
-          <div className="relative flex items-center justify-center py-0.5">
-            <canvas ref={canvasRef} width={580} height={580} className="w-[286px] h-[286px] block" />
+              {totalActiveRoundAmount > 0 ? (
+                <span className="px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-300/45 text-amber-200 text-[10px] font-black tabular-nums">
+                  In Play: ৳{totalActiveRoundAmount}
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-amber-200/80 uppercase tracking-wider">
+                  Min ৳10 · 36X
+                </span>
+              )}
+            </div>
 
-            {/* Corner Result Medallion Callout when Settled (leaves center brass turret visible!) */}
-            {gameState.phase === 'result' && (
-              <div className="absolute top-1.5 right-1.5 pointer-events-none">
-                <div
-                  className={`w-14 h-14 rounded-2xl border-2 border-[#D4AF37] shadow-2xl flex flex-col items-center justify-center ${
-                    gameState.winningColor === 'green'
-                      ? 'bg-emerald-700'
-                      : gameState.winningColor === 'red'
-                      ? 'bg-rose-700'
-                      : 'bg-slate-950'
-                  }`}
-                >
-                  <span className="text-xl font-black leading-none text-white tabular-nums">
-                    {gameState.winningNumber}
-                  </span>
-                  <span className="text-[8px] font-black uppercase text-amber-300 tracking-wider mt-0.5">
-                    {gameState.winningColor}
-                  </span>
+            {/* Smooth Countdown Progress Track */}
+            <div className="h-1.5 rounded-full bg-black/50 border border-white/10 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-200 ${
+                  gameState.phase === 'betting'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-300'
+                    : gameState.phase === 'spinning'
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-300'
+                    : 'bg-gradient-to-r from-amber-300 to-emerald-300'
+                }`}
+                style={{ width: `${phasePct}%` }}
+              />
+            </div>
+
+            {/* Unobstructed Photorealistic HiDPI Wheel Canvas */}
+            <div className="relative flex items-center justify-center py-0.5">
+              <canvas ref={canvasRef} width={580} height={580} className="w-[286px] h-[286px] block" />
+
+              {/* Corner Result Medallion Callout when Settled */}
+              {gameState.phase === 'result' && (
+                <div className="absolute top-1.5 right-1.5 pointer-events-none">
+                  <div
+                    className={`w-14 h-14 rounded-2xl border-2 border-[#D4AF37] shadow-[0_8px_24px_rgba(0,0,0,0.65)] flex flex-col items-center justify-center ${
+                      gameState.winningColor === 'green'
+                        ? 'bg-emerald-700'
+                        : gameState.winningColor === 'red'
+                        ? 'bg-rose-700'
+                        : 'bg-slate-950'
+                    }`}
+                  >
+                    <span className="text-xl font-black leading-none text-white tabular-nums">
+                      {gameState.winningNumber}
+                    </span>
+                    <span className="text-[8px] font-black uppercase text-amber-300 tracking-wider mt-0.5">
+                      {gameState.winningColor}
+                    </span>
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {gameState.phase === 'result' && roundWonAmount > 0 && (
+              <div className="p-2.5 rounded-2xl bg-gradient-to-r from-emerald-600/35 via-amber-500/20 to-emerald-600/35 border border-amber-300/60 text-amber-100 text-center text-xs font-black shadow-lg">
+                Congratulations! Won ৳{roundWonAmount.toFixed(2)} on #{gameState.winningNumber}
               </div>
             )}
-          </div>
 
-          {gameState.phase === 'result' && roundWonAmount > 0 && (
-            <div className="p-2.5 rounded-2xl bg-emerald-500/25 border border-emerald-400/50 text-emerald-100 text-center text-xs font-black">
-              Congratulations! Won ৳{roundWonAmount.toFixed(2)} on #{gameState.winningNumber}
-            </div>
-          )}
-
-          {/* Casino Marquee History Strip */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-2 border-t border-white/10">
-            <span className="text-[9px] font-black text-amber-300/80 uppercase mr-1 flex-shrink-0 tracking-wider">
-              History
-            </span>
-            {gameState.history.slice(0, 14).map((item, idx) => (
-              <span
-                key={item.roundId}
-                className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center text-white flex-shrink-0 tabular-nums border border-white/15 ${
-                  item.color === 'green'
-                    ? 'bg-emerald-600'
-                    : item.color === 'red'
-                    ? 'bg-rose-600'
-                    : 'bg-slate-900'
-                } ${idx === 0 ? 'ring-2 ring-amber-400 scale-105' : 'opacity-85'}`}
-              >
-                {item.number}
+            {/* Casino Marquee History Strip */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-2 border-t border-[#D4AF37]/25">
+              <span className="text-[9px] font-black text-amber-300/85 uppercase mr-1 flex-shrink-0 tracking-wider">
+                Board
               </span>
-            ))}
+              {gameState.history.slice(0, 14).map((item, idx) => (
+                <span
+                  key={item.roundId}
+                  className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center text-white flex-shrink-0 tabular-nums border border-white/20 ${
+                    item.color === 'green'
+                      ? 'bg-emerald-600'
+                      : item.color === 'red'
+                      ? 'bg-rose-600'
+                      : 'bg-slate-950'
+                  } ${idx === 0 ? 'ring-2 ring-amber-400 scale-105 shadow-[0_0_10px_rgba(251,191,36,0.6)]' : 'opacity-85'}`}
+                >
+                  {item.number}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Mode Tabs: Table / Racetrack / Favourites */}
-        <div className="bg-white rounded-2xl p-1 border border-slate-200 grid grid-cols-3 gap-1 shadow-2xs">
+        {/* Luxury Dark Velvet Mode Tabs */}
+        <div className="bg-[#081A18] rounded-2xl p-1 border border-[#D4AF37]/40 grid grid-cols-3 gap-1 shadow-lg">
           {(
             [
               { id: 'table', label: 'Casino Felt' },
@@ -1085,8 +1143,8 @@ export const EwiRoulette: React.FC = () => {
               onClick={() => setViewTab(t.id)}
               className={`py-2 rounded-xl text-xs font-black transition-all ${
                 viewTab === t.id
-                  ? 'bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-gradient-to-b from-[#E5C158] to-[#B68D28] text-slate-950 shadow-sm'
+                  : 'text-amber-100/75 hover:text-amber-100 hover:bg-white/5'
               }`}
             >
               {t.label}
@@ -1094,282 +1152,290 @@ export const EwiRoulette: React.FC = () => {
           ))}
         </div>
 
-        {/* TABLE VIEW — Authentic European Emerald Baize Felt */}
+        {/* TABLE VIEW — Authentic European Emerald Baize Felt Inside Mahogany Rail */}
         {viewTab === 'table' && (
-          <div
-            className="rounded-3xl p-3 border-2 border-[#D4AF37]/75 shadow-xl space-y-2"
-            style={{
-              background: 'radial-gradient(circle at 50% 35%, #11644B 0%, #0A4635 65%, #062F23 100%)'
-            }}
-          >
-            {/* Scalloped Zero Crown */}
-            {(() => {
-              const { staged, placed } = getSpotAmount('straight_0');
-              const total = staged + placed;
-              const isWin = gameState.phase === 'result' && gameState.winningNumber === 0;
-              return (
-                <button
-                  type="button"
-                  onClick={() => stageSpot('straight_0', 'straight', '#0', [0], 36)}
-                  className={`w-full py-2.5 rounded-t-2xl rounded-b-lg bg-emerald-700/95 border border-[#D4AF37]/80 text-white font-black text-base relative flex items-center justify-center gap-2 shadow-inner active:scale-99 ${
-                    isWin ? 'ring-3 ring-amber-300 shadow-[0_0_16px_rgba(253,224,71,0.7)]' : ''
-                  }`}
-                >
-                  <span>0</span>
-                  {total > 0 && <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />}
-                </button>
-              );
-            })()}
+          <div className="p-1.5 rounded-[30px] bg-gradient-to-b from-[#5A210D] via-[#3A1306] to-[#200801] border-2 border-[#D4AF37]/80 shadow-[0_20px_50px_rgba(0,0,0,0.65)]">
+            <div
+              className="rounded-[24px] p-3 border border-[#D4AF37]/60 shadow-inner space-y-2"
+              style={{
+                background: 'radial-gradient(circle at 50% 35%, #12694E 0%, #0B4B38 62%, #062D21 100%)'
+              }}
+            >
+              {/* Scalloped Zero Crown */}
+              {(() => {
+                const { staged, placed } = getSpotAmount('straight_0');
+                const total = staged + placed;
+                const isWin = gameState.phase === 'result' && gameState.winningNumber === 0;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => stageSpot('straight_0', 'straight', '#0', [0], 36)}
+                    className={`w-full py-2.5 rounded-t-2xl rounded-b-lg bg-gradient-to-b from-emerald-600/95 to-emerald-800/95 border border-[#D4AF37]/85 text-white font-black text-base relative flex items-center justify-center gap-2 shadow-inner active:scale-99 ${
+                      isWin ? 'ring-3 ring-amber-300 shadow-[0_0_18px_rgba(253,224,71,0.75)]' : ''
+                    }`}
+                  >
+                    {isWin && <WinDollyMarker />}
+                    <span>0</span>
+                    {total > 0 && <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />}
+                  </button>
+                );
+              })()}
 
-            {/* Main Grid + Outside Left Strip */}
-            <div className="grid grid-cols-4 gap-1.5">
-              {/* Left Column Outside Bets with Authentic Rotated Casino Diamonds */}
-              <div className="flex flex-col gap-1.5">
-                {[
-                  {
-                    key: 'low_1-18',
-                    type: 'low' as RouletteBetType,
-                    label: '1–18',
-                    nums: Array.from({ length: 18 }, (_, i) => i + 1),
-                    diamond: null
-                  },
-                  {
-                    key: 'even_EVEN',
-                    type: 'even' as RouletteBetType,
-                    label: 'EVEN',
-                    nums: Array.from({ length: 18 }, (_, i) => (i + 1) * 2),
-                    diamond: null
-                  },
-                  {
-                    key: 'red_RED',
-                    type: 'red' as RouletteBetType,
-                    label: 'RED',
-                    nums: Array.from(ROULETTE_RED_NUMBERS),
-                    diamond: 'red' as const
-                  },
-                  {
-                    key: 'black_BLACK',
-                    type: 'black' as RouletteBetType,
-                    label: 'BLACK',
-                    nums: Array.from({ length: 36 }, (_, i) => i + 1).filter(
-                      (n) => !ROULETTE_RED_NUMBERS.has(n)
-                    ),
-                    diamond: 'black' as const
-                  },
-                  {
-                    key: 'odd_ODD',
-                    type: 'odd' as RouletteBetType,
-                    label: 'ODD',
-                    nums: Array.from({ length: 18 }, (_, i) => i * 2 + 1),
-                    diamond: null
-                  },
-                  {
-                    key: 'high_19-36',
-                    type: 'high' as RouletteBetType,
-                    label: '19–36',
-                    nums: Array.from({ length: 18 }, (_, i) => i + 19),
-                    diamond: null
-                  }
-                ].map((ob) => {
-                  const { staged, placed } = getSpotAmount(ob.key);
-                  const total = staged + placed;
-                  return (
-                    <button
-                      key={ob.key}
-                      type="button"
-                      onClick={() => stageSpot(ob.key, ob.type, ob.label, ob.nums, 2)}
-                      className="flex-1 rounded-xl bg-[#094232]/90 border border-[#D4AF37]/60 text-amber-50 font-black text-[11px] flex flex-col items-center justify-center py-2 relative active:scale-95 hover:bg-[#0D5641]"
-                    >
-                      {ob.diamond ? (
-                        <span
-                          className={`w-5 h-5 rotate-45 border border-[#D4AF37] shadow-xs ${
-                            ob.diamond === 'red' ? 'bg-[#DC2626]' : 'bg-[#0F172A]'
-                          }`}
-                          aria-label={ob.label}
-                        />
-                      ) : (
-                        <span className="tracking-wide">{ob.label}</span>
-                      )}
-                      {total > 0 && (
-                        <div className="mt-1">
-                          <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 1..36 European Table Grid (3 cols × 12 rows) + Bottom 2:1 */}
-              <div className="col-span-3 space-y-1.5">
-                <div className="grid grid-cols-3 gap-1">
-                  {rows.flat().map((num) => {
-                    const isRed = ROULETTE_RED_NUMBERS.has(num);
-                    const { staged, placed } = getSpotAmount(`straight_${num}`);
+              {/* Main Grid + Outside Left Strip */}
+              <div className="grid grid-cols-4 gap-1.5">
+                {/* Left Column Outside Bets with Authentic Rotated Casino Diamonds */}
+                <div className="flex flex-col gap-1.5">
+                  {[
+                    {
+                      key: 'low_1-18',
+                      type: 'low' as RouletteBetType,
+                      label: '1–18',
+                      nums: Array.from({ length: 18 }, (_, i) => i + 1),
+                      diamond: null
+                    },
+                    {
+                      key: 'even_EVEN',
+                      type: 'even' as RouletteBetType,
+                      label: 'EVEN',
+                      nums: Array.from({ length: 18 }, (_, i) => (i + 1) * 2),
+                      diamond: null
+                    },
+                    {
+                      key: 'red_RED',
+                      type: 'red' as RouletteBetType,
+                      label: 'RED',
+                      nums: Array.from(ROULETTE_RED_NUMBERS),
+                      diamond: 'red' as const
+                    },
+                    {
+                      key: 'black_BLACK',
+                      type: 'black' as RouletteBetType,
+                      label: 'BLACK',
+                      nums: Array.from({ length: 36 }, (_, i) => i + 1).filter(
+                        (n) => !ROULETTE_RED_NUMBERS.has(n)
+                      ),
+                      diamond: 'black' as const
+                    },
+                    {
+                      key: 'odd_ODD',
+                      type: 'odd' as RouletteBetType,
+                      label: 'ODD',
+                      nums: Array.from({ length: 18 }, (_, i) => i * 2 + 1),
+                      diamond: null
+                    },
+                    {
+                      key: 'high_19-36',
+                      type: 'high' as RouletteBetType,
+                      label: '19–36',
+                      nums: Array.from({ length: 18 }, (_, i) => i + 19),
+                      diamond: null
+                    }
+                  ].map((ob) => {
+                    const { staged, placed } = getSpotAmount(ob.key);
                     const total = staged + placed;
-                    const isWin = gameState.phase === 'result' && gameState.winningNumber === num;
                     return (
                       <button
-                        key={num}
+                        key={ob.key}
                         type="button"
-                        onClick={() => stageSpot(`straight_${num}`, 'straight', `#${num}`, [num], 36)}
-                        className={`h-10 rounded-lg border border-[#D4AF37]/50 bg-[#0A4635]/80 relative flex items-center justify-center active:scale-95 transition-all ${
-                          isWin ? 'ring-2 ring-amber-300 bg-amber-400/20 scale-105 z-10 shadow-[0_0_12px_rgba(251,191,36,0.65)]' : ''
-                        }`}
+                        onClick={() => stageSpot(ob.key, ob.type, ob.label, ob.nums, 2)}
+                        className="flex-1 rounded-xl bg-[#083C2E]/95 border border-[#D4AF37]/65 text-amber-50 font-black text-[11px] flex flex-col items-center justify-center py-2 relative active:scale-95 hover:bg-[#0D5641] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
                       >
-                        <span
-                          className={`w-8 h-7 rounded-full flex items-center justify-center font-black text-xs text-white border border-white/20 shadow-inner ${
-                            isRed ? 'bg-[#C81E1E]' : 'bg-[#0B1120]'
-                          }`}
-                        >
-                          {num}
-                        </span>
+                        {ob.diamond ? (
+                          <span
+                            className={`w-5 h-5 rotate-45 border border-[#D4AF37] shadow-sm ${
+                              ob.diamond === 'red' ? 'bg-gradient-to-br from-[#EF4444] to-[#991B1B]' : 'bg-gradient-to-br from-[#334155] to-[#020617]'
+                            }`}
+                            aria-label={ob.label}
+                          />
+                        ) : (
+                          <span className="tracking-wide">{ob.label}</span>
+                        )}
                         {total > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 z-20">
+                          <div className="mt-1">
                             <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />
-                          </span>
+                          </div>
                         )}
                       </button>
                     );
                   })}
                 </div>
 
-                {/* 2:1 Columns */}
-                <div className="grid grid-cols-3 gap-1">
-                  {[
-                    { key: 'column_Col1', label: '2:1 (1)', nums: col1Nums },
-                    { key: 'column_Col2', label: '2:1 (2)', nums: col2Nums },
-                    { key: 'column_Col3', label: '2:1 (3)', nums: col3Nums }
-                  ].map((c) => {
-                    const { staged, placed } = getSpotAmount(c.key);
-                    const total = staged + placed;
-                    return (
-                      <button
-                        key={c.key}
-                        type="button"
-                        onClick={() => stageSpot(c.key, 'column', c.label.split(' ')[1] || c.label, c.nums, 3)}
-                        className="py-2 rounded-lg bg-[#094232] border border-[#D4AF37]/60 text-amber-200 font-black text-[11px] flex flex-col items-center justify-center gap-0.5 active:scale-95"
-                      >
-                        <span>2:1</span>
-                        {total > 0 && <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />}
-                      </button>
-                    );
-                  })}
+                {/* 1..36 European Table Grid (3 cols × 12 rows) + Bottom 2:1 */}
+                <div className="col-span-3 space-y-1.5">
+                  <div className="grid grid-cols-3 gap-1">
+                    {rows.flat().map((num) => {
+                      const isRed = ROULETTE_RED_NUMBERS.has(num);
+                      const { staged, placed } = getSpotAmount(`straight_${num}`);
+                      const total = staged + placed;
+                      const isWin = gameState.phase === 'result' && gameState.winningNumber === num;
+                      return (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => stageSpot(`straight_${num}`, 'straight', `#${num}`, [num], 36)}
+                          className={`h-10 rounded-lg border border-[#D4AF37]/55 bg-[#094232]/90 relative flex items-center justify-center active:scale-95 transition-all ${
+                            isWin ? 'ring-2 ring-amber-300 bg-amber-400/25 scale-105 z-10 shadow-[0_0_14px_rgba(251,191,36,0.75)]' : ''
+                          }`}
+                        >
+                          {isWin && <WinDollyMarker />}
+                          <span
+                            className={`w-8 h-7 rounded-full flex items-center justify-center font-black text-xs text-white border border-amber-200/35 shadow-[0_2px_4px_rgba(0,0,0,0.45),inset_0_1px_1px_rgba(255,255,255,0.25)] ${
+                              isRed
+                                ? 'bg-gradient-to-b from-[#DC2626] to-[#991B1B]'
+                                : 'bg-gradient-to-b from-[#1E293B] to-[#020617]'
+                            }`}
+                          >
+                            {num}
+                          </span>
+                          {total > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 z-20">
+                              <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 2:1 Columns */}
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { key: 'column_Col1', label: '2:1 (1)', nums: col1Nums },
+                      { key: 'column_Col2', label: '2:1 (2)', nums: col2Nums },
+                      { key: 'column_Col3', label: '2:1 (3)', nums: col3Nums }
+                    ].map((c) => {
+                      const { staged, placed } = getSpotAmount(c.key);
+                      const total = staged + placed;
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => stageSpot(c.key, 'column', c.label.split(' ')[1] || c.label, c.nums, 3)}
+                          className="py-2 rounded-lg bg-[#083C2E] border border-[#D4AF37]/65 text-amber-200 font-black text-[11px] flex flex-col items-center justify-center gap-0.5 active:scale-95"
+                        >
+                          <span>2:1</span>
+                          {total > 0 && <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Dozens Row */}
-            <div className="grid grid-cols-3 gap-1.5 pt-1">
-              {[
-                { key: 'dozen_1st 12', label: '1st 12', nums: Array.from({ length: 12 }, (_, i) => i + 1) },
-                { key: 'dozen_2nd 12', label: '2nd 12', nums: Array.from({ length: 12 }, (_, i) => i + 13) },
-                { key: 'dozen_3rd 12', label: '3rd 12', nums: Array.from({ length: 12 }, (_, i) => i + 25) }
-              ].map((d) => {
-                const { staged, placed } = getSpotAmount(d.key);
-                const total = staged + placed;
-                return (
-                  <button
-                    key={d.key}
-                    type="button"
-                    onClick={() => stageSpot(d.key, 'dozen', d.label, d.nums, 3)}
-                    className="py-2.5 rounded-xl bg-[#094232] border border-[#D4AF37]/60 text-amber-50 font-black text-xs flex flex-col items-center justify-center gap-1 active:scale-95"
-                  >
-                    <span>{d.label}</span>
-                    {total > 0 && <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />}
-                  </button>
-                );
-              })}
+              {/* Dozens Row */}
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                {[
+                  { key: 'dozen_1st 12', label: '1st 12', nums: Array.from({ length: 12 }, (_, i) => i + 1) },
+                  { key: 'dozen_2nd 12', label: '2nd 12', nums: Array.from({ length: 12 }, (_, i) => i + 13) },
+                  { key: 'dozen_3rd 12', label: '3rd 12', nums: Array.from({ length: 12 }, (_, i) => i + 25) }
+                ].map((d) => {
+                  const { staged, placed } = getSpotAmount(d.key);
+                  const total = staged + placed;
+                  return (
+                    <button
+                      key={d.key}
+                      type="button"
+                      onClick={() => stageSpot(d.key, 'dozen', d.label, d.nums, 3)}
+                      className="py-2.5 rounded-xl bg-[#083C2E] border border-[#D4AF37]/65 text-amber-50 font-black text-xs flex flex-col items-center justify-center gap-1 active:scale-95"
+                    >
+                      <span>{d.label}</span>
+                      {total > 0 && <PlacedChipMarker amount={total} isPlacedOnly={staged === 0} />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
         {/* RACETRACK VIEW — European Casino Oval Stadium & French Call Sectors */}
         {viewTab === 'racetrack' && (
-          <div
-            className="rounded-3xl p-4 border-2 border-[#D4AF37]/75 shadow-xl space-y-3.5 text-white"
-            style={{
-              background: 'radial-gradient(circle at 50% 45%, #11644B 0%, #0A4635 68%, #062F23 100%)'
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
-                French Call Racetrack
-              </span>
-              <span className="text-[10px] font-bold text-emerald-100/80">Tap sector or number ±2 neighbors</span>
-            </div>
-
-            {/* Stadium Inner 4 Classic French Sectors */}
-            <div className="rounded-full border-2 border-[#D4AF37]/75 bg-[#063226]/90 p-2 grid grid-cols-4 gap-1 shadow-inner">
-              {[
-                { name: 'TIER', sub: '12#', nums: TIER_NUMBERS },
-                { name: 'ORPH.', sub: '8#', nums: ORPHELINS_NUMBERS },
-                { name: 'VOISINS', sub: '17#', nums: VOISINS_NUMBERS },
-                { name: 'ZERO', sub: '7#', nums: ZERO_GAME_NUMBERS }
-              ].map((sec, idx) => (
-                <button
-                  key={sec.name}
-                  type="button"
-                  onClick={() => handleStageCallGroup(sec.name, sec.nums)}
-                  className={`py-2.5 px-1 text-center transition-all active:scale-95 hover:bg-emerald-700/60 border-[#D4AF37]/40 ${
-                    idx === 0
-                      ? 'rounded-l-full border-r'
-                      : idx === 3
-                      ? 'rounded-r-full'
-                      : 'border-r'
-                  }`}
-                >
-                  <div className="font-black text-[10px] text-amber-200 tracking-wide">{sec.name}</div>
-                  <div className="text-[9px] font-bold text-emerald-200/80 mt-0.5">
-                    {sec.sub} · ৳{sec.nums.length * selectedChip}
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Wheel-Order Oval Track Perimeter */}
-            <div className="pt-1">
-              <div className="text-[10px] font-bold text-emerald-100/80 mb-2">
-                Wheel Sequence Track (Tap any pocket for Number + 2 Wheel Neighbors):
+          <div className="p-1.5 rounded-[30px] bg-gradient-to-b from-[#5A210D] via-[#3A1306] to-[#200801] border-2 border-[#D4AF37]/80 shadow-[0_20px_50px_rgba(0,0,0,0.65)]">
+            <div
+              className="rounded-[24px] p-4 border border-[#D4AF37]/60 shadow-inner space-y-3.5 text-white"
+              style={{
+                background: 'radial-gradient(circle at 50% 45%, #12694E 0%, #0B4B38 68%, #062D21 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                  French Call Racetrack
+                </span>
+                <span className="text-[10px] font-bold text-emerald-100/80">Tap sector or number ±2 neighbors</span>
               </div>
-              <div className="grid grid-cols-7 gap-1">
-                {ROULETTE_WHEEL_ORDER.map((num, idx) => {
-                  const color = getRouletteNumberColor(num);
-                  const isHighlighted = highlightedWheelSet.has(num);
-                  const { staged, placed } = getSpotAmount(`straight_${num}`);
-                  return (
-                    <button
-                      key={num}
-                      type="button"
-                      onMouseEnter={() => setHoveredWheelIdx(idx)}
-                      onMouseLeave={() => setHoveredWheelIdx(null)}
-                      onClick={() => {
-                        setHoveredWheelIdx(idx);
-                        const len = ROULETTE_WHEEL_ORDER.length;
-                        const picks = [
-                          ROULETTE_WHEEL_ORDER[(idx - 2 + len) % len],
-                          ROULETTE_WHEEL_ORDER[(idx - 1 + len) % len],
-                          num,
-                          ROULETTE_WHEEL_ORDER[(idx + 1) % len],
-                          ROULETTE_WHEEL_ORDER[(idx + 2) % len]
-                        ];
-                        handleStageCallGroup(`#${num} & ±2 Neighbors`, picks);
-                      }}
-                      className={`h-9 rounded-lg text-[11px] font-black text-white relative border transition-all active:scale-90 ${
-                        color === 'green'
-                          ? 'bg-emerald-600 border-amber-300/70'
-                          : color === 'red'
-                          ? 'bg-[#C81E1E] border-[#D4AF37]/50'
-                          : 'bg-[#0B1120] border-[#D4AF37]/50'
-                      } ${isHighlighted ? 'ring-2 ring-amber-300 scale-105 z-10' : ''}`}
-                    >
-                      <span>{num}</span>
-                      {staged + placed > 0 && (
-                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-300 border border-slate-900" />
-                      )}
-                    </button>
-                  );
-                })}
+
+              {/* Stadium Inner 4 Classic French Sectors */}
+              <div className="rounded-full border-2 border-[#D4AF37]/75 bg-[#063226]/90 p-2 grid grid-cols-4 gap-1 shadow-inner">
+                {[
+                  { name: 'TIER', sub: '12#', nums: TIER_NUMBERS },
+                  { name: 'ORPH.', sub: '8#', nums: ORPHELINS_NUMBERS },
+                  { name: 'VOISINS', sub: '17#', nums: VOISINS_NUMBERS },
+                  { name: 'ZERO', sub: '7#', nums: ZERO_GAME_NUMBERS }
+                ].map((sec, idx) => (
+                  <button
+                    key={sec.name}
+                    type="button"
+                    onClick={() => handleStageCallGroup(sec.name, sec.nums)}
+                    className={`py-2.5 px-1 text-center transition-all active:scale-95 hover:bg-emerald-700/60 border-[#D4AF37]/40 ${
+                      idx === 0
+                        ? 'rounded-l-full border-r'
+                        : idx === 3
+                        ? 'rounded-r-full'
+                        : 'border-r'
+                    }`}
+                  >
+                    <div className="font-black text-[10px] text-amber-200 tracking-wide">{sec.name}</div>
+                    <div className="text-[9px] font-bold text-emerald-200/80 mt-0.5">
+                      {sec.sub} · ৳{sec.nums.length * selectedChip}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Wheel-Order Oval Track Perimeter */}
+              <div className="pt-1">
+                <div className="text-[10px] font-bold text-emerald-100/80 mb-2">
+                  Wheel Sequence Track (Tap any pocket for Number + 2 Wheel Neighbors):
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {ROULETTE_WHEEL_ORDER.map((num, idx) => {
+                    const color = getRouletteNumberColor(num);
+                    const isHighlighted = highlightedWheelSet.has(num);
+                    const { staged, placed } = getSpotAmount(`straight_${num}`);
+                    return (
+                      <button
+                        key={num}
+                        type="button"
+                        onMouseEnter={() => setHoveredWheelIdx(idx)}
+                        onMouseLeave={() => setHoveredWheelIdx(null)}
+                        onClick={() => {
+                          setHoveredWheelIdx(idx);
+                          const len = ROULETTE_WHEEL_ORDER.length;
+                          const picks = [
+                            ROULETTE_WHEEL_ORDER[(idx - 2 + len) % len],
+                            ROULETTE_WHEEL_ORDER[(idx - 1 + len) % len],
+                            num,
+                            ROULETTE_WHEEL_ORDER[(idx + 1) % len],
+                            ROULETTE_WHEEL_ORDER[(idx + 2) % len]
+                          ];
+                          handleStageCallGroup(`#${num} & ±2 Neighbors`, picks);
+                        }}
+                        className={`h-9 rounded-lg text-[11px] font-black text-white relative border transition-all active:scale-90 ${
+                          color === 'green'
+                            ? 'bg-emerald-600 border-amber-300/70'
+                            : color === 'red'
+                            ? 'bg-[#C81E1E] border-[#D4AF37]/50'
+                            : 'bg-[#0B1120] border-[#D4AF37]/50'
+                        } ${isHighlighted ? 'ring-2 ring-amber-300 scale-105 z-10' : ''}`}
+                      >
+                        <span>{num}</span>
+                        {staged + placed > 0 && (
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-300 border border-slate-900" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -1377,16 +1443,16 @@ export const EwiRoulette: React.FC = () => {
 
         {/* FAVOURITES VIEW */}
         {viewTab === 'favourites' && (
-          <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-3">
+          <div className="bg-[#0A201D] rounded-3xl p-4 border border-[#D4AF37]/45 shadow-xl space-y-3 text-white">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <Star className="w-4 h-4 text-cyan-600" />
+              <div className="text-xs font-black text-amber-200 flex items-center gap-1.5">
+                <Star className="w-4 h-4 text-amber-400" />
                 <span>Saved Bet Patterns</span>
               </div>
               <button
                 type="button"
                 onClick={handleSaveFavourite}
-                className="px-3 py-1 rounded-full bg-cyan-600 text-white text-[11px] font-black flex items-center gap-1 active:scale-95"
+                className="px-3 py-1 rounded-full bg-gradient-to-b from-amber-300 to-amber-500 text-slate-950 text-[11px] font-black flex items-center gap-1 active:scale-95"
               >
                 <Heart className="w-3 h-3" />
                 <span>Save Current</span>
@@ -1394,7 +1460,7 @@ export const EwiRoulette: React.FC = () => {
             </div>
 
             {favourites.length === 0 ? (
-              <p className="text-xs text-slate-500 py-6 text-center">
+              <p className="text-xs text-emerald-100/70 py-6 text-center">
                 Stage bets on the table and tap &ldquo;Save Current&rdquo; to save favourite layouts.
               </p>
             ) : (
@@ -1402,11 +1468,11 @@ export const EwiRoulette: React.FC = () => {
                 {favourites.map((fav) => (
                   <div
                     key={fav.id}
-                    className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2"
+                    className="p-2.5 rounded-2xl bg-black/30 border border-[#D4AF37]/30 flex items-center justify-between gap-2"
                   >
                     <div>
-                      <div className="text-xs font-black text-slate-800">{fav.name}</div>
-                      <div className="text-[10px] text-slate-500 truncate max-w-[200px]">
+                      <div className="text-xs font-black text-amber-100">{fav.name}</div>
+                      <div className="text-[10px] text-emerald-200/70 truncate max-w-[200px]">
                         {fav.spots.map((s) => s.label).join(', ')}
                       </div>
                     </div>
@@ -1423,7 +1489,7 @@ export const EwiRoulette: React.FC = () => {
                           setViewTab('table');
                           showToast('Loaded favourite layout');
                         }}
-                        className="px-2.5 py-1.5 rounded-xl bg-cyan-600 text-white text-[11px] font-black"
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-[11px] font-black"
                       >
                         Load
                       </button>
@@ -1434,7 +1500,7 @@ export const EwiRoulette: React.FC = () => {
                           setFavourites(next);
                           localStorage.setItem('ewi777_roulette_favs', JSON.stringify(next));
                         }}
-                        className="p-1.5 rounded-xl bg-rose-50 text-rose-600"
+                        className="p-1.5 rounded-xl bg-rose-500/20 text-rose-300"
                         aria-label="Delete pattern"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1447,8 +1513,13 @@ export const EwiRoulette: React.FC = () => {
           </div>
         )}
 
-        {/* Authentic Casino Chip Selector Tray & Action Bar */}
-        <div className="bg-white rounded-3xl p-3.5 border border-slate-200 shadow-sm space-y-3">
+        {/* Authentic Leather & Brass Casino Chip Rack & Action Console */}
+        <div
+          className="rounded-3xl p-3.5 border border-[#D4AF37]/50 shadow-[0_14px_34px_rgba(0,0,0,0.65)] space-y-3"
+          style={{
+            background: 'linear-gradient(180deg, #102522 0%, #071316 100%)'
+          }}
+        >
           <div className="flex items-center justify-around py-1">
             {CHIP_CONFIGS.map((cfg) => (
               <ChipToken
@@ -1465,7 +1536,7 @@ export const EwiRoulette: React.FC = () => {
               type="button"
               onClick={handleUndo}
               disabled={undoStack.length === 0}
-              className="py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 disabled:opacity-40 active:scale-95"
+              className="py-2.5 rounded-xl bg-white/10 border border-white/15 text-amber-100 font-bold text-[11px] flex items-center justify-center gap-1 disabled:opacity-35 active:scale-95"
             >
               <Undo2 className="w-3.5 h-3.5" />
               <span>Undo</span>
@@ -1474,7 +1545,7 @@ export const EwiRoulette: React.FC = () => {
               type="button"
               onClick={handleDouble}
               disabled={stagedSpots.length === 0}
-              className="py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-black text-[11px] disabled:opacity-40 active:scale-95"
+              className="py-2.5 rounded-xl bg-white/10 border border-white/15 text-amber-200 font-black text-[11px] disabled:opacity-35 active:scale-95"
             >
               2x
             </button>
@@ -1482,7 +1553,7 @@ export const EwiRoulette: React.FC = () => {
               type="button"
               onClick={handleRepeat}
               disabled={lastPlacedSpots.length === 0}
-              className="py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 disabled:opacity-40 active:scale-95"
+              className="py-2.5 rounded-xl bg-white/10 border border-white/15 text-amber-100 font-bold text-[11px] flex items-center justify-center gap-1 disabled:opacity-35 active:scale-95"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Repeat</span>
@@ -1491,7 +1562,7 @@ export const EwiRoulette: React.FC = () => {
               type="button"
               onClick={handleClear}
               disabled={stagedSpots.length === 0}
-              className="py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-rose-600 font-bold text-[11px] flex items-center justify-center gap-1 disabled:opacity-40 active:scale-95"
+              className="py-2.5 rounded-xl bg-rose-500/15 border border-rose-400/30 text-rose-300 font-bold text-[11px] flex items-center justify-center gap-1 disabled:opacity-35 active:scale-95"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Clear</span>
@@ -1502,7 +1573,7 @@ export const EwiRoulette: React.FC = () => {
             type="button"
             onClick={handleConfirmBets}
             disabled={gameState.phase !== 'betting' || stagedSpots.length === 0}
-            className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0E7490] via-[#0891B2] to-[#06B6D4] text-white font-black text-sm shadow-md active:scale-98 disabled:opacity-45 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#D4AF37] via-[#FDE047] to-[#D4AF37] text-slate-950 font-black text-sm shadow-[0_6px_22px_rgba(212,175,55,0.4)] active:scale-98 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
           >
             <Check className="w-4 h-4 stroke-[3]" />
             <span>
@@ -1515,29 +1586,29 @@ export const EwiRoulette: React.FC = () => {
 
         {/* Recent Player Bets */}
         {rouletteBets.length > 0 && (
-          <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-2">
-            <div className="text-xs font-black text-slate-800">My Recent Roulette Bets</div>
+          <div className="bg-[#0A1E1C]/95 rounded-3xl p-4 border border-[#D4AF37]/35 shadow-lg space-y-2">
+            <div className="text-xs font-black text-amber-200">My Recent Roulette Bets</div>
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
               {rouletteBets.slice(0, 10).map((b) => (
                 <div
                   key={b.id}
-                  className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
+                  className="p-2.5 rounded-2xl bg-black/35 border border-white/10 flex items-center justify-between text-xs"
                 >
                   <div>
-                    <div className="font-black text-slate-800">
-                      {b.label} <span className="text-[10px] text-slate-400">({b.roundId})</span>
+                    <div className="font-black text-white">
+                      {b.label} <span className="text-[10px] text-amber-200/60">({b.roundId})</span>
                     </div>
-                    <div className="text-[10px] text-slate-500">
+                    <div className="text-[10px] text-emerald-200/75">
                       Stake: ৳{b.amount} · {b.payoutMultiplier}x
                     </div>
                   </div>
                   <span
                     className={`font-black tabular-nums ${
                       b.status === 'won'
-                        ? 'text-emerald-600'
+                        ? 'text-emerald-400'
                         : b.status === 'lost'
-                        ? 'text-rose-600'
-                        : 'text-cyan-700'
+                        ? 'text-rose-400'
+                        : 'text-amber-300'
                     }`}
                   >
                     {b.status === 'won'
@@ -1558,7 +1629,7 @@ export const EwiRoulette: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-[#0E7490] to-[#06B6D4] px-4 py-3 text-white flex items-center justify-between">
-              <span className="font-black text-sm">Hney Roulette Statistics (Last 50)</span>
+              <span className="font-black text-sm">Deshi Roulette Statistics (Last 50)</span>
               <button type="button" onClick={() => setStatsOpen(false)} className="p-1 rounded-full bg-white/20">
                 <X className="w-4 h-4" />
               </button>

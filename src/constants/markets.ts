@@ -114,24 +114,6 @@ export const BINARY_MARKETS: BinaryMarketConfig[] = [
     volatility: 0.85,
     payoutRate: 0.90,
   },
-  {
-    symbol: 'XAG/USD',
-    name: 'Silver Spot / USD',
-    category: 'Commodities',
-    basePrice: 31.45,
-    decimals: 3,
-    volatility: 0.032,
-    payoutRate: 0.88,
-  },
-  {
-    symbol: 'WTI/USD',
-    name: 'Crude Oil WTI',
-    category: 'Commodities',
-    basePrice: 71.85,
-    decimals: 2,
-    volatility: 0.085,
-    payoutRate: 0.88,
-  },
 
   // Indices
   {

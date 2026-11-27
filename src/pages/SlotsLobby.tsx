@@ -14,7 +14,7 @@ const RouletteWheelLogo: React.FC = () => (
   <div className="w-14 h-14 rounded-2xl bg-white border border-cyan-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs">
     <img
       src={rouletteWheelImg}
-      alt="Hney Roulette"
+      alt="Deshi Roulette"
       referrerPolicy="no-referrer"
       className="w-full h-full object-cover select-none block"
     />
@@ -104,11 +104,11 @@ export const SlotsLobby: React.FC = () => {
 
       <main className="px-4 pt-4 space-y-4">
         {/* Banner Header */}
-        <div className="rounded-3xl bg-gradient-to-r from-[#0E7490] via-[#0891B2] to-[#06B6D4] p-4 text-white shadow-md flex items-center justify-between gap-3">
+        <div className="rounded-3xl bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] p-4 text-white shadow-md border border-amber-300/30 flex items-center justify-between gap-3">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase tracking-wider">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-white/15 text-[10px] font-black uppercase tracking-wider text-amber-200">
               <ShieldCheck className="w-3 h-3" />
-              <span>Hney Slots Hub</span>
+              <span>Deshi Win Slots Hub</span>
             </div>
             <h2 className="text-lg font-black leading-tight">Roulette, Lucky Jet, Aviator &amp; More</h2>
             <p className="text-[11px] text-cyan-50 font-medium">
@@ -118,7 +118,7 @@ export const SlotsLobby: React.FC = () => {
           <img
             src={slotsTileImg}
             alt="Slots"
-            className="w-16 h-16 rounded-2xl object-cover border-2 border-white/50 shadow-md flex-shrink-0"
+            className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-300/50 shadow-md flex-shrink-0"
           />
         </div>
 
@@ -230,9 +230,9 @@ export const SlotsLobby: React.FC = () => {
             </span>
           </div>
 
-          {/* HNEY ROULETTE */}
+          {/* DESHI ROULETTE */}
           <div
-            onClick={() => handleLaunch('game_ewi_roulette', 'ewi-roulette', 'HNEY ROULETTE')}
+            onClick={() => handleLaunch('game_ewi_roulette', 'ewi-roulette', 'DESHI ROULETTE')}
             className="bg-white rounded-3xl p-4 border border-cyan-200 shadow-xs hover:border-cyan-400 cursor-pointer active:scale-99 transition-all space-y-2.5"
           >
             <div className="flex items-center justify-between gap-3">
@@ -240,8 +240,8 @@ export const SlotsLobby: React.FC = () => {
                 <RouletteWheelLogo />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-black text-base text-slate-900">HNEY ROULETTE</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                    <span className="font-black text-base text-slate-900">DESHI ROULETTE</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
                       LIVE 36X
                     </span>
                   </div>

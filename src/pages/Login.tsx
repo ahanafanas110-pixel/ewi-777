@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowLeft, Smartphone, Mail, Lock, Eye, EyeOff, Check, ShieldCheck, Ban } from 'lucide-react';
-import { getTranslation } from '../utils/i18n';
+import { getLanguageBadge, getTranslation } from '../utils/i18n';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { EventRewardsModal } from '../components/AccountIcons';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
@@ -22,6 +22,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
     banNotice,
     clearBanNotice
   } = useApp();
+  const langBadge = getLanguageBadge(language);
   const [authMode, setAuthMode] = useState<'phone' | 'email'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -115,8 +116,8 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
             onClick={onOpenLanguage}
             className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-bold text-white hover:bg-white/30 active:scale-95 transition-all"
           >
-            <span>{language === 'en' ? '🇺🇸' : '🇧🇩'}</span>
-            <span>{language === 'en' ? 'EN' : 'বাংলা'}</span>
+            <span>{langBadge.flag}</span>
+            <span>{langBadge.short}</span>
           </button>
         </div>
 
@@ -125,9 +126,9 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
             {getTranslation(language, 'login')}
           </h2>
           <p className="text-xs text-cyan-50 leading-relaxed font-normal">
-            Please log in with your phone number or email
+            {getTranslation(language, 'loginSubtitle')}
             <br />
-            If you forget your password, please contact customer service
+            {getTranslation(language, 'loginSubtitle2')}
           </p>
         </div>
       </div>
@@ -158,7 +159,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
 
           <div className="mb-4 px-3 py-2 rounded-2xl bg-cyan-50 border border-cyan-200 text-[11px] font-bold text-cyan-800 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 flex-shrink-0 text-cyan-600" />
-            <span>Account login or registration is required to enter WinGo, Casino, Slots &amp; Markets.</span>
+            <span>{getTranslation(language, 'authNoticeBanner')}</span>
           </div>
 
           {/* Tabs: Phone Number vs Email */}
@@ -326,7 +327,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                 disabled={isSubmitting}
                 className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-bold text-sm shadow-md active:scale-98 transition-all hover:brightness-105 tracking-wide disabled:opacity-60"
               >
-                {isSubmitting ? 'Logging in...' : getTranslation(language, 'login')}
+                {isSubmitting ? getTranslation(language, 'loggingIn') : getTranslation(language, 'login')}
               </button>
 
               <button
@@ -349,7 +350,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                 className="w-full py-2.5 rounded-full bg-slate-50 hover:bg-cyan-50 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
               >
                 <CustomerServiceLogo size={24} />
-                <span>24/7 Customer Service</span>
+                <span>{getTranslation(language, 'customerService247')}</span>
               </button>
             </div>
           </form>

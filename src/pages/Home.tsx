@@ -9,7 +9,6 @@ import {
   Headphones
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
-import { HoneycombHiveHome } from '../components/HoneyBeeVisuals';
 import {
   TileWingoIcon,
   TileEwiWingoIcon,
@@ -19,10 +18,10 @@ import {
   TileGoldIcon,
   TileCasinoIcon,
   TileSlotsIcon,
-  TileLudoIcon,
-  TileSportsIcon
+  TileLudoIcon
 } from '../components/DashboardArtwork';
 import { GameItem } from '../types';
+import { getLanguageBadge, getTranslation } from '../utils/i18n';
 
 interface HomeProps {
   onOpenLanguage: () => void;
@@ -69,6 +68,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     adminSettings,
     showToast
   } = useApp();
+  const langBadge = getLanguageBadge(language);
 
   const [bannerIdx, setBannerIdx] = useState<number>(0);
   const [activeCustomGame, setActiveCustomGame] = useState<GameItem | null>(null);
@@ -81,16 +81,23 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     link?: string;
   }
 
+  const resolveBannerUrl = (raw?: string) => {
+    const u = String(raw || '');
+    if (u.includes('image_046bb074')) return '/assets/brand/deshi-banner-1.jpg';
+    if (u.includes('image_06ccef65') || u.includes('welcome-200-banner')) return '/assets/brand/deshi-banner-2.jpg';
+    if (u.includes('image_d2e764e7')) return '/assets/brand/deshi-banner-3.jpg';
+    if (u.includes('image_8c5384f7') || u.includes('image_3c433c14')) return '/assets/brand/deshi-banner-1.jpg';
+    return u;
+  };
+
   const adminActiveBanners: BannerItem[] = (adminSettings.banners || [])
     .filter((b) => b.active !== false)
     .slice()
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map((b) => ({
       id: b.id,
-      title: b.title,
-      url: String(b.url || '').includes('image_06ccef65.png')
-        ? '/assets/brand/welcome-200-banner.png'
-        : b.url,
+      title: String(b.title || '').replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win'),
+      url: resolveBannerUrl(b.url),
       link: b.link,
       targetTab: 'activity'
     }));
@@ -98,20 +105,20 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
   const fallbackOfficialBanners: BannerItem[] = [
     {
       id: 'hero_official_crown',
-      title: 'Hney Win Super Jackpot',
-      url: '/assets/aistudio/image_046bb074.png',
+      title: 'Deshi Win Official Super Jackpot',
+      url: '/assets/brand/deshi-banner-1.jpg',
       targetTab: 'wingo'
     },
     {
       id: 'hero_welcome_200_bonus',
-      title: 'Hney Win Welcome Bonus up to 200%',
-      url: '/assets/brand/welcome-200-banner.png',
+      title: 'Deshi Win Welcome Bonus up to 200%',
+      url: '/assets/brand/deshi-banner-2.jpg',
       targetTab: 'deposit'
     },
     {
       id: 'hero_usdt_binance_bonus',
-      title: 'Recharge USDT Get 2% Bonus',
-      url: '/assets/aistudio/image_d2e764e7.png',
+      title: 'Deshi Win Recharge USDT Get 2% Bonus',
+      url: '/assets/brand/deshi-banner-3.jpg',
       targetTab: 'deposit'
     }
   ];
@@ -184,7 +191,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
   const handleGoldMarketClick = () => {
     if (!isGameActive('game_gold_market') && !isGameActive('game_binary')) {
-      showToast('Gold Trading is currently offline for maintenance');
+      showToast('Gold Market is currently offline for maintenance');
       return;
     }
     goTab('gold-market');
@@ -211,19 +218,19 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
   };
 
   const HOME_TILES = [
-    { id: 'wingo', label: 'Wingo', icon: <TileWingoIcon size={54} />, onClick: () => goTab('wingo') },
-    { id: 'ewi-wingo', label: 'Hney Wingo', icon: <TileEwiWingoIcon size={54} />, onClick: () => goTab('ewi-wingo') },
-    { id: 'k3', label: 'Hney K3', icon: <TileEwiK3Icon size={54} />, onClick: () => goTab('k3') },
-    { id: '5d', label: 'Hney 5D', icon: <TileEwi5DIcon size={54} />, onClick: () => goTab('5d') },
-    { id: 'binary', label: 'Binary Trading', icon: <TileBinaryIcon size={54} />, onClick: handleBinaryClick },
-    { id: 'gold', label: 'Gold Trading', icon: <TileGoldIcon size={54} />, onClick: handleGoldMarketClick },
-    { id: 'casino', label: 'Casino', icon: <TileCasinoIcon size={54} />, onClick: () => goTab('casino') },
-    { id: 'slots', label: 'Slots', icon: <TileSlotsIcon size={54} />, onClick: () => goTab('slots') }
+    { id: 'wingo', label: getTranslation(language, 'winGo'), icon: <TileWingoIcon size={54} />, onClick: () => goTab('wingo') },
+    { id: 'ewi-wingo', label: getTranslation(language, 'deshiWinGo'), icon: <TileEwiWingoIcon size={54} />, onClick: () => goTab('ewi-wingo') },
+    { id: 'k3', label: getTranslation(language, 'deshiK3'), icon: <TileEwiK3Icon size={54} />, onClick: () => goTab('k3') },
+    { id: '5d', label: getTranslation(language, 'deshi5D'), icon: <TileEwi5DIcon size={54} />, onClick: () => goTab('5d') },
+    { id: 'binary', label: getTranslation(language, 'binaryPro'), icon: <TileBinaryIcon size={54} />, onClick: handleBinaryClick },
+    { id: 'gold', label: getTranslation(language, 'goldMarket'), icon: <TileGoldIcon size={54} />, onClick: handleGoldMarketClick },
+    { id: 'casino', label: getTranslation(language, 'casino'), icon: <TileCasinoIcon size={54} />, onClick: () => goTab('casino') },
+    { id: 'slots', label: getTranslation(language, 'slots'), icon: <TileSlotsIcon size={54} />, onClick: () => goTab('slots') }
   ];
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-28">
-      {/* Light Mode Top Bar with Customer Care, Official Logo, Balance & Language */}
+      {/* Light Mode Top Bar with Customer Care, Official Deshi Win Logo, Balance & Language */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-cyan-100 px-3 py-2 flex items-center justify-between gap-2">
         <button
           type="button"
@@ -234,12 +241,12 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           <Headphones className="w-4 h-4" />
         </button>
 
-        {/* Centered Official Hney Win Crown Logo */}
+        {/* Centered Official Deshi Win Logo */}
         <div
           onClick={() => goTab('home')}
-          className="flex items-center justify-center cursor-pointer active:scale-98 transition-transform relative"
+          className="flex-1 min-w-0 flex items-center justify-center cursor-pointer active:scale-98 transition-transform relative px-1"
         >
-          <Ewi777Logo height={44} logoUrl={adminSettings.appLogoUrl} />
+          <Ewi777Logo height={40} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
         {/* Right Balance + Deposit + Language */}
@@ -267,7 +274,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               onClick={() => goTab('login')}
               className="px-2.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white text-[11px] font-black shadow-xs whitespace-nowrap active:scale-95"
             >
-              Sign In
+              {getTranslation(language, 'signIn')}
             </button>
           )}
 
@@ -276,15 +283,15 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             onClick={onOpenLanguage}
             className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-700 active:scale-95 transition-all whitespace-nowrap"
           >
-            <span>{language === 'en' ? '🇬🇧' : '🇧🇩'}</span>
-            <span>{language === 'en' ? 'EN' : 'বাংলা'}</span>
+            <span>{langBadge.flag}</span>
+            <span>{langBadge.short}</span>
           </button>
         </div>
       </header>
 
       <div className="px-3.5 pt-3 space-y-4">
         {/* Hero Banner Carousel */}
-        <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-cyan-200 shadow-sm select-none">
+        <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-amber-300/60 shadow-[0_10px_28px_rgba(15,23,42,0.14)] select-none">
           <div
             className="flex transition-transform duration-500 ease-out"
             style={{
@@ -331,7 +338,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   onClick={() => setBannerIdx(i)}
                   className={`h-1.5 rounded-full transition-all ${
                     i === bannerIdx % allBanners.length
-                      ? 'w-4 bg-cyan-400'
+                      ? 'w-4 bg-amber-400'
                       : 'w-1.5 bg-white/45'
                   }`}
                 />
@@ -347,8 +354,9 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
           <div className="flex-1 overflow-hidden whitespace-nowrap text-xs text-slate-600 font-medium">
             <div className="animate-marquee inline-block">
-              {adminSettings.marqueeText ||
-                'Notice: Welcome to Hney Win Official! Play Hney Ludo & PLANE in Casino, Hney Roulette, Lucky Jet & Aviator in Slots, instant bKash/Nagad deposits & withdrawals.'}
+              {(adminSettings.marqueeText || getTranslation(language, 'marqueeDefault'))
+                .replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win')
+                .replace(/\bHney\b/gi, 'Deshi')}
             </div>
           </div>
           <button
@@ -356,18 +364,11 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             onClick={() => goTab('activity')}
             className="flex-shrink-0 px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 hover:bg-cyan-100 font-bold text-[11px] active:scale-95 whitespace-nowrap"
           >
-            Detail
+            {getTranslation(language, 'detail')}
           </button>
         </div>
 
-        {/* Hney Win Beehive Sanctuary Strip */}
-        <HoneycombHiveHome
-          variant="pill"
-          title="Hney Win • Golden Honey Hive"
-          subtitle="WinGo • Hney WinGo • Hney K3 • Hney 5D"
-        />
-
-        {/* 4×2 Locked Square Tile Grid with Water-Drop Gloss */}
+        {/* 4×2 Premium Square Game Tile Grid */}
         <div className="grid grid-cols-4 gap-2.5">
           {HOME_TILES.map((tile) => (
             <button
@@ -376,20 +377,11 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               onClick={tile.onClick}
               className="flex flex-col items-center gap-1.5 group active:scale-95 transition-transform"
             >
-              <div className="relative w-full aspect-square rounded-2xl flex items-center justify-center p-1 bg-white border border-cyan-100 shadow-[0_6px_16px_rgba(8,145,178,0.10)] group-hover:border-cyan-400 overflow-hidden transition-all">
+              <div className="relative w-full aspect-square rounded-2xl flex items-center justify-center p-1 bg-white border border-slate-200/90 shadow-[0_8px_18px_rgba(15,23,42,0.06)] group-hover:border-cyan-400 group-hover:shadow-[0_8px_20px_rgba(8,145,178,0.16)] overflow-hidden transition-all">
                 <div className="w-full h-full rounded-xl overflow-hidden">{tile.icon}</div>
-                {/* Water-drop specular sheen overlay */}
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/55 via-transparent to-cyan-400/10"
-                />
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -top-2 -left-2 w-9 h-9 rounded-full bg-white/40 blur-[2px]"
-                />
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute top-2 right-2 w-2 h-2 rounded-full bg-white/75 shadow-[0_0_6px_rgba(255,255,255,0.9)]"
+                  className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/50 via-transparent to-cyan-400/10"
                 />
               </div>
               <span className="text-[11px] font-bold tracking-tight text-center leading-tight whitespace-nowrap truncate max-w-full text-slate-700">
@@ -399,68 +391,38 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           ))}
         </div>
 
-        {/* Featured Hney Ludo Card */}
+        {/* Featured Deshi Ludo Card — Crisp White with Smooth Animations */}
         <div
           onClick={() => {
             if (!isGameActive('game_ludo')) {
-              showToast('Hney Ludo is currently offline for maintenance');
+              showToast('Deshi Ludo is currently offline for maintenance');
               return;
             }
             goTab('ludo');
           }}
-          className="bg-white rounded-3xl p-3.5 border border-cyan-200 shadow-xs hover:border-cyan-400 cursor-pointer active:scale-99 transition-all flex items-center justify-between gap-3"
+          className="sheen-effect group relative overflow-hidden bg-white rounded-3xl p-4 border border-cyan-200/80 shadow-[0_10px_26px_rgba(8,145,178,0.10)] hover:shadow-[0_14px_30px_rgba(8,145,178,0.16)] hover:border-cyan-300 cursor-pointer active:scale-[0.99] transition-all duration-200 flex items-center justify-between gap-3 text-slate-900"
         >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative w-12 h-12 rounded-2xl overflow-hidden border border-cyan-200 shadow-xs flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0 relative z-10">
+            <div className="ludo-board-float relative w-12 h-12 rounded-2xl overflow-hidden border border-cyan-200 shadow-sm flex-shrink-0 bg-cyan-50/40">
               <TileLudoIcon />
-              <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/45 via-transparent to-cyan-400/10" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-sm text-slate-900">HNEY LUDO</span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase">
-                  NEW
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-black text-sm text-slate-900 tracking-wide">
+                  {getTranslation(language, 'deshiLudo')}
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                  · {getTranslation(language, 'ludoRoomsTag')}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-semibold truncate">
-                Online 2P/4P &amp; Private Friends Rooms • ৳20–৳50,000
+              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                {getTranslation(language, 'ludoSubtitle')}
               </p>
             </div>
           </div>
-          <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-xs">
-            Play Ludo →
-          </span>
-        </div>
-
-        {/* Featured Live Cricket & Football Card */}
-        <div
-          onClick={() => {
-            if (!isGameActive('game_sports')) {
-              showToast('Live Sports betting is currently offline for maintenance');
-              return;
-            }
-            goTab('sports');
-          }}
-          className="bg-white rounded-3xl p-3.5 border border-cyan-200 shadow-xs hover:border-cyan-400 cursor-pointer active:scale-99 transition-all flex items-center justify-between gap-3"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative w-12 h-12 rounded-2xl overflow-hidden border border-cyan-200 shadow-xs flex-shrink-0">
-              <TileSportsIcon />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-sm text-slate-900">LIVE CRICKET &amp; FOOTBALL</span>
-                <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-black uppercase">
-                  LIVE
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 font-semibold truncate">
-                Team Win Market Only • Instant Auto Wallet Credit
-              </p>
-            </div>
-          </div>
-          <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-xs">
-            Bet Live →
+          <span className="relative z-10 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-sm group-hover:brightness-105 transition-all flex-shrink-0 flex items-center gap-1">
+            <span>{getTranslation(language, 'playLudo')}</span>
+            <span className="arrow-nudge">→</span>
           </span>
         </div>
 
@@ -470,10 +432,10 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             <div className="flex items-center justify-between px-1">
               <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
                 <Gamepad2 className="w-4 h-4 text-cyan-600" />
-                <span>Featured Games</span>
+                <span>{getTranslation(language, 'featuredGames')}</span>
               </h3>
               <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-full">
-                {customAdminGames.length} Live
+                {customAdminGames.length} {getTranslation(language, 'liveTag')}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -500,7 +462,9 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                       <div className="font-extrabold text-xs text-slate-800 truncate">{g.title}</div>
                       <div className="text-[10px] text-slate-400">{g.category}</div>
                     </div>
-                    <span className="text-[11px] font-black text-cyan-600">Play →</span>
+                    <span className="text-[11px] font-black text-cyan-600">
+                      {getTranslation(language, 'playNow')}
+                    </span>
                   </div>
                 </div>
               ))}

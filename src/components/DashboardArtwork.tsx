@@ -8,6 +8,7 @@ import tileSlotsImg from '../assets/images/tile_slots_dragon_edited_179516851773
 import tileBinaryImg from '../assets/images/binary_trading_emblem_1795251768060.jpg';
 import tileGoldImg from '../assets/images/gold_trading_emblem_1795251766450.jpg';
 import tileLudoImg from '../assets/images/ludo_realistic_icon_1795251767143.jpg';
+import aviatorRedPlaneCleanImg from '../assets/images/aviator_red_plane_clean_1795168517074.jpg';
 
 export const TileWingoIcon: React.FC<{ size?: number }> = () => (
   <img
@@ -21,7 +22,7 @@ export const TileWingoIcon: React.FC<{ size?: number }> = () => (
 export const TileEwiWingoIcon: React.FC<{ size?: number }> = () => (
   <img
     src={tileEwiWingoImg}
-    alt="Hney Wingo"
+    alt="Deshi Wingo"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block"
   />
@@ -30,7 +31,7 @@ export const TileEwiWingoIcon: React.FC<{ size?: number }> = () => (
 export const TileEwiK3Icon: React.FC<{ size?: number }> = () => (
   <img
     src={tileEwiK3Img}
-    alt="Hney K3"
+    alt="Deshi K3"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block"
   />
@@ -39,7 +40,7 @@ export const TileEwiK3Icon: React.FC<{ size?: number }> = () => (
 export const TileEwi5DIcon: React.FC<{ size?: number }> = () => (
   <img
     src={tileEwi5DImg}
-    alt="Hney 5D"
+    alt="Deshi 5D"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block"
   />
@@ -66,7 +67,7 @@ export const TileGoldIcon: React.FC<{ size?: number }> = () => (
 export const TileLudoIcon: React.FC<{ size?: number }> = () => (
   <img
     src={tileLudoImg}
-    alt="Hney Ludo"
+    alt="Deshi Ludo"
     referrerPolicy="no-referrer"
     className="w-full h-full rounded-xl object-cover select-none block bg-white"
   />
@@ -108,19 +109,14 @@ export const PlaneGameLogo: React.FC<{ size?: number; className?: string }> = ({
 }) => (
   <div
     style={{ width: size, height: size }}
-    className={`relative rounded-2xl bg-gradient-to-br from-[#ECFEFF] via-[#E0F2FE] to-[#CFFAFE] border border-cyan-400 flex items-center justify-center overflow-hidden shadow-xs flex-shrink-0 ${className}`}
+    className={`relative rounded-2xl bg-gradient-to-br from-[#F0F9FF] via-white to-[#ECFEFF] border border-cyan-300 flex items-center justify-center overflow-hidden shadow-xs flex-shrink-0 ${className}`}
   >
-    <svg width={Math.round(size * 0.85)} height={Math.round(size * 0.85)} viewBox="0 0 64 64" fill="none">
-      <path d="M8 46 Q 28 40 52 18" stroke="#E11D48" strokeWidth="2.8" strokeLinecap="round" strokeOpacity="0.75" />
-      <g transform="translate(10, 12) rotate(-14 22 20)">
-        <path d="M6 20 L38 14 L46 20 L38 25 L6 23 Z" fill="#E11D48" stroke="#FB7185" strokeWidth="1.2" />
-        <rect x="16" y="10" width="22" height="5" rx="2.5" fill="#0891B2" />
-        <rect x="14" y="23" width="20" height="4.5" rx="2.2" fill="#0E7490" />
-        <line x1="47" y1="12" x2="47" y2="28" stroke="#0F172A" strokeWidth="2.5" strokeLinecap="round" />
-      </g>
-      <circle cx="49" cy="49" r="9.5" fill="#0891B2" stroke="#FFFFFF" strokeWidth="1.4" />
-      <text x="49" y="52.5" textAnchor="middle" fill="#FFFFFF" fontSize="11" fontWeight="900">৳</text>
-    </svg>
+    <img
+      src={aviatorRedPlaneCleanImg}
+      alt="Plane Crash"
+      referrerPolicy="no-referrer"
+      className="w-full h-full object-cover select-none block"
+    />
   </div>
 );
 

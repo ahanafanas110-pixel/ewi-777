@@ -111,7 +111,7 @@ export const GameStatistics: React.FC = () => {
     {
       key: 'lottery',
       title: 'Lottery',
-      subtitle: 'WinGo · Hney WinGo · K3 · 5D',
+      subtitle: 'WinGo · Deshi WinGo · K3 · 5D',
       icon: Trophy,
       data: stats.lottery
     },

@@ -15,31 +15,31 @@ export const BottomNav: React.FC = () => {
   const navItems = [
     {
       id: 'home',
-      label: getTranslation(language, 'home') || 'Home',
+      label: getTranslation(language, 'home'),
       icon: HomeIcon,
       isActive: activeTab === 'home'
     },
     {
       id: 'salary',
-      label: language === 'bn' ? 'স্যালারি' : 'Salary',
+      label: getTranslation(language, 'salary'),
       icon: Coins,
       isActive: activeTab === 'salary' || activeTab === 'activity'
     },
     {
       id: 'binary',
-      label: language === 'bn' ? 'ট্রেড' : 'Trade',
+      label: getTranslation(language, 'trade'),
       icon: ArrowLeftRight,
       isActive: activeTab === 'binary' || activeTab === 'gold-market'
     },
     {
       id: 'promotion',
-      label: getTranslation(language, 'promotion') || 'Promotion',
+      label: getTranslation(language, 'promotion'),
       icon: Heart,
       isActive: activeTab === 'promotion'
     },
     {
       id: 'account',
-      label: getTranslation(language, 'account') || 'Account',
+      label: getTranslation(language, 'account'),
       icon: UserIcon,
       isActive: activeTab === 'account' || activeTab === 'wallet'
     }

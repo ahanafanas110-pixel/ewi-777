@@ -136,6 +136,7 @@ export const Admin: React.FC = () => {
     setUserTurnover,
     toggleUserBan,
     adminModifyUserBalance,
+    holdUserBalance,
     releaseLockedBalance,
     adminUpdateUserRole,
     adminDeleteUser,
@@ -253,6 +254,7 @@ export const Admin: React.FC = () => {
   const [noticeModalUser, setNoticeModalUser] = useState<User | null>(null);
   const [personalNoticeText, setPersonalNoticeText] = useState('');
   const [turnoverDraft, setTurnoverDraft] = useState('');
+  const [holdDraft, setHoldDraft] = useState('');
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
 
   // =================== GAMES MANAGEMENT STATE ===================
@@ -391,7 +393,7 @@ export const Admin: React.FC = () => {
   );
   const [isSyncingWithdraws, setIsSyncingWithdraws] = useState(false);
 
-  const [appNameDraft, setAppNameDraft] = useState(adminSettings.appName || 'Hney Win');
+  const [appNameDraft, setAppNameDraft] = useState(adminSettings.appName || 'Deshi Win');
   const [appLogoDraft, setAppLogoDraft] = useState(adminSettings.appLogoUrl || '');
   const [supportLinkDraft, setSupportLinkDraft] = useState(adminSettings.supportLink || '');
   const [supportPhoneDraft, setSupportPhoneDraft] = useState(adminSettings.supportPhone || '');
@@ -543,7 +545,7 @@ export const Admin: React.FC = () => {
     setEwiNagadWithdrawStatusUrl(ep?.nagadWithdrawStatusUrl || `${base}/api/v1/nagad/withdrawals/:id/status`);
     setEwiUnifiedCheckoutUrl(ep?.unifiedCheckoutUrl || `${base}/api/v1/checkout/create`);
     setEwiMemberStatusUrl(ep?.memberStatusUrl || `${base}/api/v1/member/:siteUserId/status`);
-    setAppNameDraft(adminSettings.appName || 'Hney Win');
+    setAppNameDraft(adminSettings.appName || 'Deshi Win');
     setAppLogoDraft(adminSettings.appLogoUrl || '');
     setSupportLinkDraft(adminSettings.supportLink || '');
     setSupportPhoneDraft(adminSettings.supportPhone || '');
@@ -1249,7 +1251,7 @@ export const Admin: React.FC = () => {
             </div>
             <h1 className="font-black text-xl tracking-tight text-slate-900">SUPER CONTROLLER</h1>
             <p className="text-xs text-slate-500">
-              Enter Administrator Phone &amp; Password to open Hney Win Control Center
+              Enter Administrator Phone &amp; Password to open Deshi Win Control Center
             </p>
           </div>
 
@@ -1942,7 +1944,13 @@ export const Admin: React.FC = () => {
                                 )}
                               </td>
                               <td className="px-4 py-3 font-mono font-black text-cyan-700">
-                                ৳{Number(u.balance || 0).toFixed(2)}
+                                <div>৳{Number(u.balance || 0).toFixed(2)}</div>
+                                {Number(u.lockedBalance || 0) > 0 && (
+                                  <div className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-300 text-[9px] font-black text-amber-800">
+                                    <Lock className="w-2.5 h-2.5" />
+                                    <span>Hold: ৳{Number(u.lockedBalance || 0).toFixed(2)}</span>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-3 font-mono font-bold text-emerald-600">
                                 ৳{Number(u.totalDeposited || 0).toFixed(2)}
@@ -1968,10 +1976,32 @@ export const Admin: React.FC = () => {
                               </td>
                               <td className="px-4 py-3 text-right">
                                 <div className="inline-flex items-center gap-1.5">
+                                  {Number(u.lockedBalance || 0) > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => releaseLockedBalance(u.id)}
+                                      className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black inline-flex items-center gap-1 active:scale-95"
+                                      title="Release Hold Balance (Allow Play & Withdraw)"
+                                    >
+                                      <Unlock className="w-3 h-3" />
+                                      <span>Release</span>
+                                    </button>
+                                  ) : Number(u.balance || 0) > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => holdUserBalance(u.id)}
+                                      className="px-2 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black inline-flex items-center gap-1 active:scale-95"
+                                      title="Hold Balance (Block Gameplay & Withdraw)"
+                                    >
+                                      <Lock className="w-3 h-3" />
+                                      <span>Hold</span>
+                                    </button>
+                                  ) : null}
                                   <button
                                     onClick={() => {
                                       setControlUser(u);
                                       setTurnoverDraft(String(u.turnoverRequired || 0));
+                                      setHoldDraft('');
                                     }}
                                     className="p-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white active:scale-95"
                                     title="User Control"
@@ -2623,7 +2653,7 @@ export const Admin: React.FC = () => {
                           4-MODE MARKET &amp; GAME ENGINE CONTROLLER
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Control Hney K3, Hney 5D, Mines 777, Binary &amp; Gold Market, and Coin Flip live payout pools.
+                          Control Deshi K3, Deshi 5D, Mines 777, Binary &amp; Gold Market, and Coin Flip live payout pools.
                         </p>
                       </div>
                       <span className="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-emerald-600">
@@ -2633,7 +2663,7 @@ export const Admin: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-500 block mb-1">HNEY K3 MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">DESHI K3 MODE</label>
                         <select
                           value={ctrlK3}
                           onChange={(e) => setCtrlK3(e.target.value as MarketControlMode)}
@@ -2645,7 +2675,7 @@ export const Admin: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-500 block mb-1">HNEY 5D MODE</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">DESHI 5D MODE</label>
                         <select
                           value={ctrlD5}
                           onChange={(e) => setCtrlD5(e.target.value as MarketControlMode)}
@@ -4166,7 +4196,7 @@ export const Admin: React.FC = () => {
                           type="text"
                           value={appLogoDraft}
                           onChange={(e) => setAppLogoDraft(e.target.value)}
-                          placeholder="Leave blank for Official Hney Win Crown Logo"
+                          placeholder="Leave blank for Official Deshi Win Crest Logo"
                           className="flex-1 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                         />
                         <button
@@ -4208,7 +4238,7 @@ export const Admin: React.FC = () => {
                     <button
                       onClick={() =>
                         updateAdminSettings({
-                          appName: appNameDraft.trim() || 'Hney Win',
+                          appName: appNameDraft.trim() || 'Deshi Win',
                           appLogoUrl: appLogoDraft.trim(),
                           supportLink: supportLinkDraft.trim(),
                           supportPhone: supportPhoneDraft.trim()
@@ -6529,26 +6559,70 @@ export const Admin: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 mt-1">
-                      <span>
-                        Locked Balance:{' '}
-                        <strong className={Number(liveUser.lockedBalance || 0) > 0 ? 'text-cyan-700' : 'text-slate-700'}>
-                          ৳{Number(liveUser.lockedBalance || 0).toFixed(2)}
-                        </strong>
-                      </span>
-                      {Number(liveUser.lockedBalance || 0) > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            releaseLockedBalance(liveUser.id);
-                            setControlUser((prev) =>
-                              prev && prev.id === liveUser.id ? { ...prev, lockedBalance: 0 } : prev
-                            );
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-black text-[10px] whitespace-nowrap active:scale-95"
-                        >
-                          Release Locked
-                        </button>
+                    <div className="space-y-2 pt-1.5 border-t border-slate-200 mt-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-[11px]">
+                            Hold Balance:{' '}
+                            <strong className={Number(liveUser.lockedBalance || 0) > 0 ? 'text-amber-700' : 'text-slate-700'}>
+                              ৳{Number(liveUser.lockedBalance || 0).toFixed(2)}
+                            </strong>
+                            <span className="ml-1.5 text-[10px] text-slate-500">
+                              (Playable: ৳{Math.max(0, Number(liveUser.balance || 0) - Number(liveUser.lockedBalance || 0)).toFixed(2)})
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            Hold amount cannot play games or withdraw until released by Admin.
+                          </div>
+                        </div>
+                        {Number(liveUser.lockedBalance || 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              releaseLockedBalance(liveUser.id);
+                              setControlUser((prev) =>
+                                prev && prev.id === liveUser.id ? { ...prev, lockedBalance: 0 } : prev
+                              );
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] whitespace-nowrap active:scale-95 flex items-center gap-1"
+                          >
+                            <Unlock className="w-3 h-3" />
+                            <span>Release Hold</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {Math.max(0, Number(liveUser.balance || 0) - Number(liveUser.lockedBalance || 0)) > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            value={holdDraft}
+                            onChange={(e) => setHoldDraft(e.target.value)}
+                            placeholder={`Hold amount (empty = all ৳${Math.max(0, Number(liveUser.balance || 0) - Number(liveUser.lockedBalance || 0)).toFixed(0)})`}
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-[11px] font-mono text-slate-900"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const parsedHold = holdDraft.trim() ? Number(holdDraft) : undefined;
+                              const res = holdUserBalance(liveUser.id, parsedHold);
+                              if (res.success) {
+                                const curBal = Number(liveUser.balance || 0);
+                                const curL = Number(liveUser.lockedBalance || 0);
+                                const nextL = Math.min(curBal, parsedHold && parsedHold > 0 ? curL + parsedHold : curBal);
+                                setControlUser((prev) =>
+                                  prev && prev.id === liveUser.id ? { ...prev, lockedBalance: nextL } : prev
+                                );
+                                setHoldDraft('');
+                              }
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-black text-[10px] whitespace-nowrap active:scale-95 flex items-center gap-1"
+                          >
+                            <Lock className="w-3 h-3" />
+                            <span>Hold Balance</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -6720,9 +6794,9 @@ export const Admin: React.FC = () => {
                   className="mt-0.5 h-4 w-4 rounded accent-cyan-600"
                 />
                 <div>
-                  <div className="text-[11px] font-black text-cyan-700">Locked (Non-Withdrawable)</div>
+                  <div className="text-[11px] font-black text-amber-700">Hold Balance (Play &amp; Withdraw Blocked)</div>
                   <div className="text-[10px] text-slate-500">
-                    User can play games with this amount, but cannot withdraw until released.
+                    User CANNOT play games or withdraw this amount until released by Admin.
                   </div>
                 </div>
               </label>

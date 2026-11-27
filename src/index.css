@@ -113,137 +113,55 @@
   pointer-events: none;
 }
 
-/* Honey Bee & Beehive ("Hney Win") GPU-composited Animations */
-@keyframes beeHoverFloat {
+/* Deshi Win Luxury Emblem Subtle Float */
+@keyframes crestFloat {
   0%, 100% {
-    transform: translate3d(0px, 0px, 0) rotate(-3deg);
-  }
-  25% {
-    transform: translate3d(5px, -5px, 0) rotate(3deg);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(0px, -8px, 0) rotate(0deg);
-  }
-  75% {
-    transform: translate3d(-5px, -4px, 0) rotate(-4deg);
+    transform: translate3d(0, -1px, 0);
   }
 }
 
-@keyframes beeOrbitFlight {
-  0% {
-    transform: translate3d(-10px, 2px, 0) rotate(-6deg);
-  }
-  25% {
-    transform: translate3d(2px, -8px, 0) rotate(4deg);
-  }
-  50% {
-    transform: translate3d(12px, 0px, 0) rotate(6deg);
-  }
-  75% {
-    transform: translate3d(0px, 6px, 0) rotate(-4deg);
-  }
-  100% {
-    transform: translate3d(-10px, 2px, 0) rotate(-6deg);
-  }
-}
-
-@keyframes beeWingLeft {
-  0%, 100% {
-    transform: rotate(-10deg) scaleY(1);
-  }
-  50% {
-    transform: rotate(-38deg) scaleY(0.72);
-  }
-}
-
-@keyframes beeWingRight {
-  0%, 100% {
-    transform: rotate(10deg) scaleY(1);
-  }
-  50% {
-    transform: rotate(38deg) scaleY(0.72);
-  }
-}
-
-@keyframes honeyCrestFloat {
-  0%, 100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(0, -1.5px, 0) scale(1.03);
-  }
-}
-
-@keyframes honeyDropPulse {
-  0%, 100% {
-    transform: translate3d(0, 0, 0) scaleY(1);
-    opacity: 0.92;
-  }
-  50% {
-    transform: translate3d(0, 2.5px, 0) scaleY(1.08);
-    opacity: 1;
-  }
-}
-
-@keyframes hiveHexShimmer {
-  0%, 100% {
-    opacity: 0.72;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.bee-hover-flight {
-  animation: beeHoverFloat 3.4s ease-in-out infinite;
+.deshi-crest-float {
+  animation: crestFloat 4s ease-in-out infinite;
   will-change: transform;
 }
 
-.bee-orbit-flight {
-  animation: beeOrbitFlight 4.6s ease-in-out infinite;
+@keyframes ludoBoardFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0) rotate(3deg) scale(1.04);
+  }
+}
+
+.ludo-board-float {
+  animation: ludoBoardFloat 3.2s ease-in-out infinite;
   will-change: transform;
 }
 
-.bee-wing-l {
-  transform-box: fill-box;
-  transform-origin: 70% 85%;
-  animation: beeWingLeft 0.16s ease-in-out infinite;
+@keyframes arrowNudge {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(3px, 0, 0);
+  }
+}
+
+.arrow-nudge {
+  display: inline-block;
+  animation: arrowNudge 1.4s ease-in-out infinite;
   will-change: transform;
-}
-
-.bee-wing-r {
-  transform-box: fill-box;
-  transform-origin: 30% 85%;
-  animation: beeWingRight 0.16s ease-in-out infinite;
-  will-change: transform;
-}
-
-.honey-crest-float {
-  animation: honeyCrestFloat 3.8s ease-in-out infinite;
-  will-change: transform;
-}
-
-.honey-drip-anim {
-  transform-box: fill-box;
-  transform-origin: 50% 0%;
-  animation: honeyDropPulse 2.8s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.hive-hex-shimmer {
-  animation: hiveHexShimmer 3.2s ease-in-out infinite;
-  will-change: opacity;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bee-hover-flight,
-  .bee-orbit-flight,
-  .bee-wing-l,
-  .bee-wing-r,
-  .honey-crest-float,
-  .honey-drip-anim,
-  .hive-hex-shimmer {
+  .deshi-crest-float,
+  .ludo-board-float,
+  .arrow-nudge,
+  .sheen-effect::after {
     animation: none !important;
   }
 }
-

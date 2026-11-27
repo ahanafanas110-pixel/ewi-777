@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { getTranslation } from '../utils/i18n';
@@ -17,7 +17,7 @@ import {
 
 export const AddToDesktop: React.FC = () => {
   const { language, setShowInstallModal } = useApp();
-  const { canNativeInstall, isInstalled, triggerNativeInstall } = usePWAInstall();
+  const { canNativeInstall, isInstalled, isMobile, triggerNativeInstall } = usePWAInstall();
 
   const handleClick = async () => {
     if (canNativeInstall) {
@@ -36,13 +36,17 @@ export const AddToDesktop: React.FC = () => {
         <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center">
           {isInstalled ? (
             <CheckCircle2 className="w-4 h-4 text-white" />
+          ) : isMobile ? (
+            <Smartphone className="w-3.5 h-3.5 text-white stroke-[2.5]" />
           ) : (
-            <Download className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+            <Monitor className="w-3.5 h-3.5 text-white stroke-[2.5]" />
           )}
         </div>
         <span>
           {isInstalled
             ? 'App Installed on Device ✓'
+            : isMobile
+            ? getTranslation(language, 'addToMobile')
             : getTranslation(language, 'addToDesktop')}
         </span>
       </button>
@@ -52,25 +56,31 @@ export const AddToDesktop: React.FC = () => {
 
 export const AddToDesktopModal: React.FC = () => {
   const { showInstallModal, setShowInstallModal, showToast } = useApp();
-  const { canNativeInstall, isInstalled, isIOS, isAndroid, isDesktop, triggerNativeInstall } =
+  const { canNativeInstall, isInstalled, isIOS, isAndroid, isMobile, isDesktop, triggerNativeInstall } =
     usePWAInstall();
 
   const defaultTab: 'desktop' | 'android' | 'ios' = isIOS
     ? 'ios'
-    : isAndroid
+    : isAndroid || isMobile
     ? 'android'
     : isDesktop
     ? 'desktop'
-    : 'android';
+    : 'desktop';
 
   const [guideTab, setGuideTab] = useState<'desktop' | 'android' | 'ios'>(defaultTab);
+
+  useEffect(() => {
+    if (showInstallModal) {
+      setGuideTab(isIOS ? 'ios' : isMobile ? 'android' : 'desktop');
+    }
+  }, [showInstallModal, isIOS, isMobile]);
 
   if (!showInstallModal) return null;
 
   const handleNativeInstall = async () => {
     const res = await triggerNativeInstall();
     if (res === 'accepted') {
-      showToast('Hney Win shortcut added to your device!');
+      showToast('Deshi Win shortcut added to your device!');
       setShowInstallModal(false);
     } else if (res === 'unavailable') {
       showToast('Follow the quick steps below to pin the shortcut!');
@@ -93,16 +103,20 @@ export const AddToDesktopModal: React.FC = () => {
           <div className="flex items-center gap-3.5 pr-8">
             <img
               src="/pwa-192x192.png"
-              alt="Hney Win App Icon"
+              alt="Deshi Win App Icon"
               className="w-14 h-14 rounded-2xl shadow-lg border-2 border-white/60 bg-white flex-shrink-0"
             />
             <div>
               <div className="text-[10px] font-black uppercase tracking-wider text-cyan-100">
-                Home Screen & Desktop App
+                {isMobile ? 'Mobile Home Screen App' : 'Desktop Shortcut App'}
               </div>
-              <h3 className="text-lg font-black leading-tight">Install Hney Win Shortcut</h3>
+              <h3 className="text-lg font-black leading-tight">
+                {isMobile ? 'Add Deshi Win to Mobile' : 'Add Deshi Win to Desktop'}
+              </h3>
               <p className="text-[11px] text-cyan-50 mt-0.5">
-                Launch Hney Win full-screen from your Desktop or Home Screen in 1 tap.
+                {isMobile
+                  ? 'Launch Deshi Win full-screen from your phone Home Screen in 1 tap.'
+                  : 'Launch Deshi Win full-screen directly from your Desktop in 1 click.'}
               </p>
             </div>
           </div>
@@ -117,14 +131,14 @@ export const AddToDesktopModal: React.FC = () => {
               className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-black text-sm shadow-md active:scale-98 transition-all flex items-center justify-center gap-2"
             >
               <Download className="w-4 h-4 stroke-[2.5]" />
-              <span>Install Hney Win Shortcut Now</span>
+              <span>Install Deshi Win Shortcut Now</span>
             </button>
           )}
 
           {isInstalled && (
             <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>Hney Win is already installed as an app shortcut on this device!</span>
+              <span>Deshi Win is already installed as an app shortcut on this device!</span>
             </div>
           )}
 
@@ -197,7 +211,7 @@ export const AddToDesktopModal: React.FC = () => {
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-200 font-bold text-slate-800">
                     <MoreVertical className="w-3 h-3" />
                   </span>{' '}
-                  → <strong>Cast, save, and share</strong> → <strong>Create shortcut...</strong> (or <strong>Install Hney Win</strong>).
+                  → <strong>Cast, save, and share</strong> → <strong>Create shortcut...</strong> (or <strong>Install Deshi Win</strong>).
                 </div>
               </div>
 
@@ -206,7 +220,7 @@ export const AddToDesktopModal: React.FC = () => {
                   3
                 </div>
                 <div className="text-slate-700 leading-relaxed">
-                  Check <strong>&quot;Open as window&quot;</strong> and click <strong>Create</strong>. Your Hney Win shortcut icon will appear directly on your Desktop &amp; Taskbar!
+                  Check <strong>&quot;Open as window&quot;</strong> and click <strong>Create</strong>. Your Deshi Win shortcut icon will appear directly on your Desktop &amp; Taskbar!
                 </div>
               </div>
             </div>
@@ -250,7 +264,7 @@ export const AddToDesktopModal: React.FC = () => {
                   3
                 </div>
                 <div className="text-slate-700 leading-relaxed">
-                  Tap <strong>Install / Add</strong>. The Hney Win icon is now pinned to your phone&apos;s Home Screen!
+                  Tap <strong>Install / Add</strong>. The Deshi Win icon is now pinned to your phone&apos;s Home Screen!
                 </div>
               </div>
             </div>
@@ -294,7 +308,7 @@ export const AddToDesktopModal: React.FC = () => {
                   3
                 </div>
                 <div className="text-slate-700 leading-relaxed">
-                  Tap <strong>Add</strong> in the top-right corner to place the Hney Win shortcut icon on your Home Screen.
+                  Tap <strong>Add</strong> in the top-right corner to place the Deshi Win shortcut icon on your Home Screen.
                 </div>
               </div>
             </div>

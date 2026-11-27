@@ -10,7 +10,6 @@ import {
   Shield,
   TrendingUp,
   Ticket,
-  Sparkles,
   X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -341,7 +340,7 @@ export const SportsBetting: React.FC = () => {
           </button>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-black text-slate-900 truncate tracking-tight">HNEY SPORTSBOOK</h1>
+              <h1 className="text-sm font-black text-slate-900 truncate tracking-tight">DESHI SPORTSBOOK</h1>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-600 text-[9px] font-black uppercase">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                 {liveCount} Live
@@ -839,7 +838,6 @@ export const SportsBetting: React.FC = () => {
                 <TeamCrest name={selectedTeamName} sport={selectedSlip.match.sport} size="md" />
                 <div className="min-w-0">
                   <div className="text-[10px] font-black uppercase text-[#0891B2] flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
                     {selectedSlip.match.sport === 'cricket' ? 'Cricket Team Win' : 'Football Team Win'}
                   </div>
                   <h3 className="text-sm font-black text-slate-900 truncate">

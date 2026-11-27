@@ -12,7 +12,11 @@ export function usePWAInstall() {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
   const isAndroid = /Android/i.test(ua);
-  const isDesktop = !isIOS && !isAndroid;
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
+
+  const [isNarrowViewport, setIsNarrowViewport] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
 
   useEffect(() => {
     const standalone =
@@ -30,14 +34,23 @@ export function usePWAInstall() {
       setDeferredPrompt(null);
     };
 
+    const onResize = () => {
+      setIsNarrowViewport(window.innerWidth < 768);
+    };
+
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
     window.addEventListener('appinstalled', onAppInstalled);
+    window.addEventListener('resize', onResize);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
       window.removeEventListener('appinstalled', onAppInstalled);
+      window.removeEventListener('resize', onResize);
     };
   }, []);
+
+  const isMobile = isIOS || isAndroid || isMobileUA || isNarrowViewport;
+  const isDesktop = !isMobile;
 
   const triggerNativeInstall = async (): Promise<'accepted' | 'dismissed' | 'unavailable'> => {
     if (!deferredPrompt) return 'unavailable';
@@ -57,6 +70,7 @@ export function usePWAInstall() {
     isInstalled,
     isIOS,
     isAndroid,
+    isMobile,
     isDesktop,
     triggerNativeInstall,
   };

@@ -124,21 +124,22 @@ export const Wallet: React.FC = () => {
           </div>
 
           {(user?.lockedBalance || 0) > 0 && (
-            <div className="grid grid-cols-2 gap-2 mb-3 bg-black/20 rounded-2xl px-3 py-2 border border-white/15 text-[11px] tabular-nums">
+            <div className="grid grid-cols-2 gap-2 mb-3 bg-black/20 rounded-2xl px-3 py-2 border border-amber-300/30 text-[11px] tabular-nums">
               <div>
-                <div className="text-cyan-200/80 text-[10px] font-bold">Withdrawable</div>
+                <div className="text-cyan-200/80 text-[10px] font-bold">{getTranslation(language, 'playableWithdrawable')}</div>
                 <div className="font-black text-white">
                   ৳{Math.max(0, (user?.balance || 0) - (user?.lockedBalance || 0)).toFixed(2)}
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-cyan-200/80 text-[10px] font-bold flex items-center justify-end gap-1">
+                <div className="text-amber-300 text-[10px] font-bold flex items-center justify-end gap-1">
                   <Lock className="w-2.5 h-2.5" />
-                  <span>Locked Bonus</span>
+                  <span>{getTranslation(language, 'onHoldBlocked')}</span>
                 </div>
-                <div className="font-black text-cyan-200">
+                <div className="font-black text-amber-200">
                   ৳{(user?.lockedBalance || 0).toFixed(2)}
                 </div>
+                <div className="text-[9px] text-amber-100/80">{getTranslation(language, 'waitForAdminRelease')}</div>
               </div>
             </div>
           )}
@@ -169,15 +170,15 @@ export const Wallet: React.FC = () => {
 
         <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-2xs space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-extrabold text-slate-800">Turnover Requirement</span>
+            <span className="font-extrabold text-slate-800">{getTranslation(language, 'turnoverRequirement')}</span>
             <span
               className={`font-black text-xs tabular-nums ${
                 remainingTurnover === 0 ? 'text-emerald-600' : 'text-cyan-700'
               }`}
             >
               {remainingTurnover === 0
-                ? 'Completed (Withdraw Available)'
-                : `Need ৳${remainingTurnover.toFixed(2)} more`}
+                ? getTranslation(language, 'completedWithdrawAvailable')
+                : `৳${remainingTurnover.toFixed(2)}`}
             </span>
           </div>
 
@@ -195,8 +196,8 @@ export const Wallet: React.FC = () => {
           </div>
 
           <div className="flex justify-between text-[10px] text-slate-500 tabular-nums">
-            <span>Completed: ৳{(user?.turnoverCompleted || 0).toFixed(2)}</span>
-            <span>Target: ৳{(user?.turnoverRequired || 0).toFixed(2)}</span>
+            <span>{getTranslation(language, 'completed')}: ৳{(user?.turnoverCompleted || 0).toFixed(2)}</span>
+            <span>{getTranslation(language, 'target')}: ৳{(user?.turnoverRequired || 0).toFixed(2)}</span>
           </div>
         </div>
 
@@ -204,14 +205,14 @@ export const Wallet: React.FC = () => {
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
               <Smartphone className="w-4 h-4 text-cyan-600" />
-              <span>Withdrawal Accounts (bKash / Nagad)</span>
+              <span>{getTranslation(language, 'withdrawalAccounts')}</span>
             </h3>
             <button
               type="button"
               onClick={() => setShowBindModal(true)}
               className="text-[11px] font-bold text-white bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] hover:brightness-105 px-3 py-1.5 rounded-full shadow-2xs active:scale-95 transition-all flex items-center gap-1"
             >
-              <span>+ Add Account</span>
+              <span>{getTranslation(language, 'addAccount')}</span>
             </button>
           </div>
 
@@ -237,12 +238,12 @@ export const Wallet: React.FC = () => {
                         {w.number}
                       </div>
                       <div className="text-[9px] text-slate-400 mt-0.5">
-                        Added: {w.addedAt}
+                        {w.addedAt}
                       </div>
                     </div>
                   </div>
                   <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    Verified
+                    {getTranslation(language, 'verified')}
                   </span>
                 </div>
               ))
@@ -292,18 +293,18 @@ export const Wallet: React.FC = () => {
             <div className="w-11 h-11 rounded-2xl bg-cyan-50 flex items-center justify-center shadow-2xs">
               <PinkSafePlateLogo size={36} />
             </div>
-            <div>
-              <div className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
-                <span>Financial Safe Vault</span>
-                <span className="text-[10px] text-cyan-700 font-bold">
-                  · 0.006% Rate
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
-                Balance: ৳{(user?.safeBalance || 0).toFixed(2)}
+              <div>
+                <div className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
+                  <span>{getTranslation(language, 'safeVaultMenu')}</span>
+                  <span className="text-[10px] text-cyan-700 font-bold">
+                    · {getTranslation(language, 'interestRate')}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+                  {getTranslation(language, 'balance')}: ৳{(user?.safeBalance || 0).toFixed(2)}
+                </div>
               </div>
             </div>
-          </div>
           <ChevronRight className="w-4 h-4 text-slate-400" />
         </div>
 
@@ -319,8 +320,8 @@ export const Wallet: React.FC = () => {
           >
             <DepositHistoryGridIcon size={36} />
             <div className="min-w-0">
-              <div className="font-extrabold text-xs text-slate-900 truncate">Deposit History</div>
-              <div className="text-[10px] text-slate-500 truncate">All bKash / Nagad</div>
+              <div className="font-extrabold text-xs text-slate-900 truncate">{getTranslation(language, 'myDepositHistory')}</div>
+              <div className="text-[10px] text-slate-500 truncate">bKash / Nagad</div>
             </div>
           </button>
           <button
@@ -334,8 +335,8 @@ export const Wallet: React.FC = () => {
           >
             <WithdrawHistoryGridIcon size={36} />
             <div className="min-w-0">
-              <div className="font-extrabold text-xs text-slate-900 truncate">Withdraw History</div>
-              <div className="text-[10px] text-slate-500 truncate">Payout tracking</div>
+              <div className="font-extrabold text-xs text-slate-900 truncate">{getTranslation(language, 'myWithdrawHistory')}</div>
+              <div className="text-[10px] text-slate-500 truncate">{getTranslation(language, 'withdraw')}</div>
             </div>
           </button>
         </div>

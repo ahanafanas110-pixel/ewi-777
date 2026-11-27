@@ -219,24 +219,24 @@ interface ServerStore {
 const DEFAULT_BANNERS = [
   {
     id: 'ban_ewi777_official',
-    title: 'Hney Win Official Crown Event',
-    url: '/assets/aistudio/image_046bb074.png',
+    title: 'Deshi Win Official Crown Event',
+    url: '/assets/brand/deshi-banner-1.jpg',
     link: '#/wingo',
     sortOrder: 1,
     active: true
   },
   {
     id: 'ban_welcome_200_bonus',
-    title: 'Hney Win Welcome Bonus up to 200%',
-    url: '/assets/brand/welcome-200-banner.png',
+    title: 'Deshi Win Welcome Bonus up to 200%',
+    url: '/assets/brand/deshi-banner-2.jpg',
     link: '#/deposit',
     sortOrder: 2,
     active: true
   },
   {
     id: 'ban_ewi777_usdt_2pct',
-    title: 'Recharge USDT Get 2% Bonus ($2 - $20,000)',
-    url: '/assets/aistudio/image_d2e764e7.png',
+    title: 'Deshi Win USDT 2% Instant Bonus ($2 - $20,000)',
+    url: '/assets/brand/deshi-banner-3.jpg',
     link: '#/deposit',
     sortOrder: 3,
     active: true
@@ -280,7 +280,7 @@ const DEFAULT_STORE: ServerStore = {
     wingoSyncPath: 'wingo',
     wingoPattern: '1,2,3,4,5',
     showTopEarners: false,
-    appName: 'Hney Win',
+    appName: 'Deshi Win',
     appLogoUrl: '',
     supportLink: '',
     supportPhone: '',
@@ -301,7 +301,7 @@ const DEFAULT_STORE: ServerStore = {
     minesPattern: 'RANDOM',
     binaryNextCandleBias: 'AUTO',
     updatedAt: 0,
-    marqueeText: 'Notice: Welcome to Hney Win online entertainment. Fast 24/7 deposits & payouts via bKash, Nagad and Binance Pay.',
+    marqueeText: 'Notice: Welcome to Deshi Win online entertainment. Fast 24/7 deposits & payouts via bKash, Nagad and Binance Pay.',
     popupTitle: '',
     popupMessage: '',
     popupImageUrl: '',
@@ -345,13 +345,19 @@ function isValidBdPhoneServer(normPhone: string): boolean {
 function sanitizeBannerList(banners: any[]) {
   return banners.slice(0, 10).map((b: any) => {
     const rawUrl = String(b?.url || '');
-    if (rawUrl.includes('image_06ccef65.png')) {
-      return { ...b, url: '/assets/brand/welcome-200-banner.png' };
+    const cleanTitle = String(b?.title || '')
+      .replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win')
+      .replace(/\bHney\b/gi, 'Deshi');
+    if (rawUrl.includes('image_06ccef65') || rawUrl.includes('welcome-200-banner')) {
+      return { ...b, title: cleanTitle, url: '/assets/brand/deshi-banner-2.jpg' };
     }
-    if (rawUrl.includes('image_8c5384f7') || rawUrl.includes('image_3c433c14')) {
-      return { ...b, url: '/assets/aistudio/image_046bb074.png' };
+    if (rawUrl.includes('image_8c5384f7') || rawUrl.includes('image_3c433c14') || rawUrl.includes('image_046bb074')) {
+      return { ...b, title: cleanTitle, url: '/assets/brand/deshi-banner-1.jpg' };
     }
-    return { ...b, url: rawUrl };
+    if (rawUrl.includes('image_d2e764e7')) {
+      return { ...b, title: cleanTitle, url: '/assets/brand/deshi-banner-3.jpg' };
+    }
+    return { ...b, title: cleanTitle, url: rawUrl };
   });
 }
 
@@ -440,6 +446,16 @@ function loadStore(): ServerStore {
           popupMessage: '',
           popupImageUrl: '',
           enableSystemPopup: false,
+          appName:
+            !cleanSaved.appName || /^(ewi\s*777|ewi777|hney\s*win|hneywin|honey\s*win|honey)$/i.test(String(cleanSaved.appName).trim())
+              ? 'Deshi Win'
+              : String(cleanSaved.appName),
+          marqueeText:
+            typeof cleanSaved.marqueeText === 'string' && cleanSaved.marqueeText
+              ? cleanSaved.marqueeText
+                  .replace(/Hney Win|EWI 777|EWI777/gi, 'Deshi Win')
+                  .replace(/\bHney\b/gi, 'Deshi')
+              : DEFAULT_STORE.settings.marqueeText,
           banners: hasCustomBanners
             ? (Array.isArray(cleanSaved.banners) ? sanitizeBannerList(cleanSaved.banners) : DEFAULT_BANNERS)
             : DEFAULT_BANNERS
@@ -4017,7 +4033,7 @@ async function startServer() {
   expiryTimer.unref?.();
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`EWI 777 Full-Stack Server active on http://0.0.0.0:${PORT}`);
+    console.log(`Deshi Win Full-Stack Server active on http://0.0.0.0:${PORT}`);
   });
 }
 

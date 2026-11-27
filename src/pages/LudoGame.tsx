@@ -981,7 +981,7 @@ export const LudoGame: React.FC = () => {
     settleLudoMatch(
       humanWon ? prize : 0,
       onlineMatch.mode,
-      humanWon ? `${winnerName} won Hney Ludo!` : `${winnerName} finished first`,
+      humanWon ? `${winnerName} won Deshi Ludo!` : `${winnerName} finished first`,
       onlineMatch.stake
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2067,10 +2067,10 @@ export const LudoGame: React.FC = () => {
     const url = buildInviteUrl(room.code);
     const cleanPass =
       room.password && room.password !== '***' ? room.password : hostSecretsRef.current[room.code.toUpperCase()] || '';
-    const text = `Join my Hney Ludo Room #${room.code} (Stake ৳${room.stake})${cleanPass ? ` | Password: ${cleanPass}` : ''}`;
+    const text = `Join my Deshi Ludo Room #${room.code} (Stake ৳${room.stake})${cleanPass ? ` | Password: ${cleanPass}` : ''}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Hney Ludo Room #${room.code}`, text, url });
+        await navigator.share({ title: `Deshi Ludo Room #${room.code}`, text, url });
         return;
       } catch {}
     }
@@ -2395,7 +2395,7 @@ export const LudoGame: React.FC = () => {
         <div className="flex flex-col items-center">
           <Ewi777Logo height={36} logoUrl={adminSettings.appLogoUrl} />
           <div className="text-[10px] font-bold text-cyan-100 mt-0.5">
-            Hney Ludo • ৳20 – ৳50,000
+            Deshi Ludo • ৳20 – ৳50,000
           </div>
         </div>
 
@@ -2420,12 +2420,12 @@ export const LudoGame: React.FC = () => {
           <div className="bg-white border border-cyan-100 rounded-3xl p-3.5 shadow-xs flex items-center gap-3.5">
             <img
               src={ludoHeroImg}
-              alt="Hney Ludo Royal Board"
+              alt="Deshi Ludo Royal Board"
               className="w-16 h-16 rounded-2xl object-cover border border-cyan-100 shadow-xs flex-shrink-0"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black text-slate-900">Hney Royal Ludo Club</span>
+                <span className="text-sm font-black text-slate-900">Deshi Royal Ludo Club</span>
                 <span className="px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-[#0891B2] text-[9px] font-black uppercase">
                   Live Table
                 </span>
@@ -3277,7 +3277,7 @@ export const LudoGame: React.FC = () => {
           </div>
         )}
 
-        {/* Recent Hney Ludo Matches (hidden while in active board/room) */}
+        {/* Recent Deshi Ludo Matches (hidden while in active board/room) */}
         {!onlineMatch && !activeRoom && ludoBets.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-3xl p-4 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-black text-slate-700 uppercase">
