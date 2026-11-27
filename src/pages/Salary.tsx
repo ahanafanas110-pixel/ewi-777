@@ -13,10 +13,9 @@ import {
 import { getTranslation } from '../utils/i18n';
 
 const SALARY_TIERS = [
-  { members: 3, salary: 251 },
-  { members: 5, salary: 500 },
-  { members: 12, salary: 1300 },
-  { members: 20, salary: 2300 },
+  { members: 5, salary: 300 },
+  { members: 12, salary: 1000 },
+  { members: 20, salary: 2200 },
   { members: 35, salary: 4000 },
   { members: 60, salary: 8000 },
   { members: 80, salary: 13000 },
@@ -28,13 +27,14 @@ const SALARY_TIERS = [
 ];
 
 const SALARY_TERMS = [
+  'Minimum salary starts from 5 active recharge members (৳300). Under 5 recharge members is not eligible for salary.',
   'Must be active and play daily (at least 1 bet yourself). Fake members put the salary on hold or stop it.',
   'Same IP, same bank/wallet details or same phone number cannot claim salary.',
-  '3 Level Salary: Level 1 (direct invite), Level 2 (Level 1’s invite), and Level 3 (Level 2’s invite). Whatever total team deposit comes in (e.g. ৳2,500 or ৳2,600), minimum 25% deposit MUST be met under your team & own deposit — without 25%, salary can NEVER be claimed.',
-  'Even if total 3-level deposit is ৳2,500 or ৳2,600 (under 5 members / ৳5,000 tier), salary stays ৳251 until the next tier conditions are fully unlocked.',
-  '400 × 10 = 4,000 — if team recharge is over ৳4,000, you get ৳500.',
+  '3 Level Salary: Level 1 (direct invite), Level 2 (Level 1’s invite), and Level 3 (Level 2’s invite). Minimum 25% deposit MUST be met under your team & own deposit — without 25%, salary can NEVER be claimed.',
+  'Even if total 3-level deposit is ৳3,500 or ৳4,000 (under 12 members / ৳10,000 tier), salary stays ৳300 until the next tier conditions are fully unlocked.',
+  '300 × 10 = 3,000 — with at least 5 recharge members & ৳3,000+ team deposit (plus 25% rule), you unlock ৳300.',
   'For all tiers, your own deposit and minimum 25% deposit rule must be satisfied (team total recharge ≥ 10× salary).',
-  'For higher tiers (৳500+), team total betting must be over 3× the team recharge.',
+  'For higher tiers (৳1,000+), team total betting must be over 3× the team recharge.',
   'Salary is NOT credited automatically — meet the 25% & tier conditions first, then click Apply for verification.',
   'All decisions are final by Deshi Win.'
 ];
@@ -203,13 +203,6 @@ export const Salary: React.FC = () => {
   const l3Has25 = threeLevelTotalDeposit > 0 && l3Deposit >= min25Threshold;
   const ownHas25 = threeLevelTotalDeposit > 0 && yourDeposit >= min25Threshold;
 
-  const hasMin25All =
-    threeLevelTotalDeposit >= 2000 &&
-    ownHas25 &&
-    l1Has25 &&
-    l2Has25 &&
-    l3Has25;
-
   // Direct/Team tier calculations
   const rechargeMembersList = level1.filter((r) => r.depositAmount > 0);
   const rechargeMembersCount = rechargeMembersList.length;
@@ -217,6 +210,14 @@ export const Salary: React.FC = () => {
   const teamBetsTotal = Math.round(
     [...level1, ...level2, ...level3].reduce((sum, r) => sum + r.commission * 120, 0)
   );
+
+  const hasMin25All =
+    rechargeMembersCount >= 5 &&
+    threeLevelTotalDeposit >= 3000 &&
+    ownHas25 &&
+    l1Has25 &&
+    l2Has25 &&
+    l3Has25;
 
   const hasPlacedBetToday =
     bets.some((b) => b.userId === user.id) ||
@@ -231,8 +232,8 @@ export const Salary: React.FC = () => {
   const nextTier = SALARY_TIERS.find((t) => rechargeMembersCount < t.members);
   const membersNeeded = nextTier ? Math.max(0, nextTier.members - rechargeMembersCount) : 0;
 
-  // Strict tier eligibility: 25% minimum deposit required for EVERY tier;
-  // Total deposits like ৳2,500 or ৳2,600 remain capped at ৳251 until 5 members + ৳5,000 (500×10) + 3× bet are met.
+  // Strict tier eligibility: minimum 5 recharge members + 25% deposit required for EVERY tier;
+  // Total deposits remain capped at ৳300 until 12 members + ৳10,000 (1,000×10) + 3× bet are met.
   const matchedFullTier = [...SALARY_TIERS]
     .reverse()
     .find(
@@ -242,13 +243,13 @@ export const Salary: React.FC = () => {
         teamRechargeTotal >= t.salary * 10 &&
         yourDeposit >= teamRechargeTotal * 0.25 &&
         hasMin25All &&
-        teamBetsTotal > teamRechargeTotal * 3
+        (t.members <= 5 || teamBetsTotal > teamRechargeTotal * 3)
     );
 
   const unlockedThreeLevelSalary = matchedFullTier
     ? matchedFullTier.salary
     : hasMin25All && hasPlacedBetToday
-    ? 251
+    ? 300
     : 0;
 
   const alreadyAppliedToday = user.lastSalaryClaimDate === today;
@@ -507,7 +508,7 @@ export const Salary: React.FC = () => {
               {matchedFullTier
                 ? `Unlocked ৳${matchedFullTier.salary.toLocaleString()} Tier Salary — Ready to Apply!`
                 : hasMin25All && hasPlacedBetToday
-                ? '৳251 Base Salary Ready (stays ৳251 until 5 members & ৳5,000+ tier unlocked)'
+                ? '৳300 Base Salary Ready (stays ৳300 until 12 members & ৳10,000+ tier unlocked)'
                 : nextTier
                 ? `Need 25% minimum deposit + ${membersNeeded} more recharge member(s) for ৳${nextTier.salary.toLocaleString()} tier`
                 : 'Maximum 1,000+ recharge member tier unlocked!'}

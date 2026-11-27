@@ -661,7 +661,7 @@ export const CustomerService: React.FC = () => {
                 <>
                   <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-1.5 text-slate-700 leading-relaxed">
                     <div className="font-black text-cyan-900">Deshi Win Official 3 Level Salary Consultation:</div>
-                    <p>• Earn <strong>3 Level Salary</strong> from <strong>৳251</strong> (3 recharge members / ৳2,000+ team deposit) up to <strong>৳100,000</strong> (1,000 members).</p>
+                    <p>• Earn <strong>3 Level Salary</strong> from <strong>৳300</strong> (5 recharge members / ৳3,000+ team deposit) up to <strong>৳100,000</strong> (1,000 members).</p>
                     <p>• Minimum <strong>25% deposit</strong> under your team &amp; own deposit is strictly required — without 25%, salary cannot be applied or claimed.</p>
                     <p>• Salaries are not credited automatically; click <strong>Apply</strong> once conditions are met.</p>
                   </div>
