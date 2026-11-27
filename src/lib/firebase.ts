@@ -12,6 +12,7 @@ import {
   deleteDoc,
   onSnapshot,
   query,
+  where,
   limit,
   orderBy,
   Unsubscribe
@@ -249,8 +250,9 @@ export async function getAppSettingsFromFirebase(): Promise<Partial<AdminSetting
 // ================= USERS =================
 export function subscribeUsersInFirebase(onUpdate: (users: User[]) => void): Unsubscribe {
   const path = 'users';
+  const q = query(collection(db, 'users'), limit(600));
   return onSnapshot(
-    collection(db, 'users'),
+    q,
     (snap) => {
       const list: User[] = [];
       snap.forEach((d) => {
@@ -258,7 +260,8 @@ export function subscribeUsersInFirebase(onUpdate: (users: User[]) => void): Uns
         if (data && data.id) {
           list.push({
             ...data,
-            balance: Math.max(0, Number(data.balance) || 0)
+            balance: Math.max(0, Number(data.balance) || 0),
+            lockedBalance: Math.max(0, Number(data.lockedBalance) || 0)
           });
         }
       });
@@ -266,6 +269,35 @@ export function subscribeUsersInFirebase(onUpdate: (users: User[]) => void): Uns
     },
     (error) => {
       logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeSingleUserInFirebase(
+  userId: string,
+  onUpdate: (user: User | null) => void
+): Unsubscribe {
+  const id = sanitizeFirestoreId(userId);
+  if (!id) return () => {};
+  const path = `users/${id}`;
+  return onSnapshot(
+    doc(db, 'users', id),
+    (snap) => {
+      if (!snap.exists()) {
+        onUpdate(null);
+        return;
+      }
+      const data = snap.data() as User;
+      if (data && data.id) {
+        onUpdate({
+          ...data,
+          balance: Math.max(0, Number(data.balance) || 0),
+          lockedBalance: Math.max(0, Number(data.lockedBalance) || 0)
+        });
+      }
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.GET, path);
     }
   );
 }
@@ -279,6 +311,7 @@ export async function saveUserToFirebase(user: User): Promise<void> {
       ...user,
       id,
       balance: Math.max(0, Number(user.balance) || 0),
+      lockedBalance: Math.max(0, Number(user.lockedBalance) || 0),
       avatar: String(user.avatar || '').slice(0, 320000),
       nickname: String(user.nickname || 'Player').slice(0, 80)
     });
@@ -300,6 +333,9 @@ export async function updateUserInFirebase(
     const cleanPatch = stripUndefinedDeep({
       ...patch,
       ...(patch.balance !== undefined ? { balance: Math.max(0, Number(patch.balance) || 0) } : {}),
+      ...(patch.lockedBalance !== undefined
+        ? { lockedBalance: Math.max(0, Number(patch.lockedBalance) || 0) }
+        : {}),
       ...(patch.avatar !== undefined ? { avatar: String(patch.avatar || '').slice(0, 320000) } : {}),
       ...(patch.nickname !== undefined ? { nickname: String(patch.nickname || 'Player').slice(0, 80) } : {})
     });
@@ -308,7 +344,8 @@ export async function updateUserInFirebase(
         ...fallbackUser,
         ...cleanPatch,
         id,
-        balance: Math.max(0, Number(cleanPatch.balance ?? fallbackUser.balance ?? 0) || 0)
+        balance: Math.max(0, Number(cleanPatch.balance ?? fallbackUser.balance ?? 0) || 0),
+        lockedBalance: Math.max(0, Number(cleanPatch.lockedBalance ?? fallbackUser.lockedBalance ?? 0) || 0)
       });
       await setDoc(doc(db, 'users', id), merged, { merge: true });
     } else {
@@ -337,11 +374,18 @@ export async function deleteUserFromFirebase(userId: string): Promise<void> {
 export async function fetchAllUsersFromFirebase(): Promise<User[]> {
   const path = 'users';
   try {
-    const snap = await getDocs(collection(db, 'users'));
+    const q = query(collection(db, 'users'), limit(600));
+    const snap = await getDocs(q);
     const list: User[] = [];
     snap.forEach((d) => {
       const data = d.data() as User;
-      if (data && data.id) list.push(data);
+      if (data && data.id) {
+        list.push({
+          ...data,
+          balance: Math.max(0, Number(data.balance) || 0),
+          lockedBalance: Math.max(0, Number(data.lockedBalance) || 0)
+        });
+      }
     });
     return list;
   } catch (error) {
@@ -353,15 +397,41 @@ export async function fetchAllUsersFromFirebase(): Promise<User[]> {
 // ================= DEPOSITS =================
 export function subscribeDepositsInFirebase(onUpdate: (deposits: DepositRequest[]) => void): Unsubscribe {
   const path = 'deposits';
+  const q = query(collection(db, 'deposits'), limit(500));
   return onSnapshot(
-    collection(db, 'deposits'),
+    q,
     (snap) => {
       const list: DepositRequest[] = [];
       snap.forEach((d) => {
         const data = d.data() as DepositRequest;
         if (data && data.id) list.push(data);
       });
-      list.sort((a, b) => (b.id > a.id ? 1 : -1));
+      list.sort((a, b) => (Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0)) || (b.id > a.id ? 1 : -1));
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeUserDepositsInFirebase(
+  userId: string,
+  onUpdate: (deposits: DepositRequest[]) => void
+): Unsubscribe {
+  const uid = String(userId || '').trim();
+  if (!uid) return () => {};
+  const path = `deposits?userId=${uid}`;
+  const q = query(collection(db, 'deposits'), where('userId', '==', uid), limit(100));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: DepositRequest[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as DepositRequest;
+        if (data && data.id) list.push(data);
+      });
+      list.sort((a, b) => (Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0)) || (b.id > a.id ? 1 : -1));
       onUpdate(list);
     },
     (error) => {
@@ -412,15 +482,41 @@ export async function updateDepositInFirebase(
 // ================= WITHDRAWS =================
 export function subscribeWithdrawsInFirebase(onUpdate: (withdraws: WithdrawRequest[]) => void): Unsubscribe {
   const path = 'withdraws';
+  const q = query(collection(db, 'withdraws'), limit(500));
   return onSnapshot(
-    collection(db, 'withdraws'),
+    q,
     (snap) => {
       const list: WithdrawRequest[] = [];
       snap.forEach((d) => {
         const data = d.data() as WithdrawRequest;
         if (data && data.id) list.push(data);
       });
-      list.sort((a, b) => (b.id > a.id ? 1 : -1));
+      list.sort((a, b) => (Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0)) || (b.id > a.id ? 1 : -1));
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeUserWithdrawsInFirebase(
+  userId: string,
+  onUpdate: (withdraws: WithdrawRequest[]) => void
+): Unsubscribe {
+  const uid = String(userId || '').trim();
+  if (!uid) return () => {};
+  const path = `withdraws?userId=${uid}`;
+  const q = query(collection(db, 'withdraws'), where('userId', '==', uid), limit(100));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: WithdrawRequest[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as WithdrawRequest;
+        if (data && data.id) list.push(data);
+      });
+      list.sort((a, b) => (Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0)) || (b.id > a.id ? 1 : -1));
       onUpdate(list);
     },
     (error) => {
@@ -490,6 +586,31 @@ export function subscribeSupportMessagesInFirebase(
   );
 }
 
+export function subscribeUserSupportMessagesInFirebase(
+  userId: string,
+  onUpdate: (messages: SupportMessage[]) => void
+): Unsubscribe {
+  const uid = String(userId || '').trim();
+  if (!uid) return () => {};
+  const path = `supportMessages?userId=${uid}`;
+  const q = query(collection(db, 'supportMessages'), where('userId', '==', uid), limit(120));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: SupportMessage[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as SupportMessage;
+        if (data && data.id) list.push(data);
+      });
+      list.sort((a, b) => (Number(a.timestamp || 0) - Number(b.timestamp || 0)));
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
 export async function saveSupportMessageToFirebase(msg: SupportMessage): Promise<void> {
   if (!msg?.id) return;
   const id = sanitizeFirestoreId(msg.id);
@@ -523,8 +644,9 @@ export function subscribePasswordRequestsInFirebase(
   onUpdate: (tickets: PasswordRecoveryTicket[]) => void
 ): Unsubscribe {
   const path = 'passwordRequests';
+  const q = query(collection(db, 'passwordRequests'), limit(200));
   return onSnapshot(
-    collection(db, 'passwordRequests'),
+    q,
     (snap) => {
       const list: PasswordRecoveryTicket[] = [];
       snap.forEach((d) => {
@@ -555,6 +677,31 @@ export async function savePasswordRequestToFirebase(ticket: PasswordRecoveryTick
 export function subscribeWingoBetsInFirebase(onUpdate: (bets: WinGoBet[]) => void): Unsubscribe {
   const path = 'wingoBets';
   const q = query(collection(db, 'wingoBets'), limit(250));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: WinGoBet[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as WinGoBet;
+        if (data && data.id) list.push(data);
+      });
+      list.sort((a, b) => (b.id > a.id ? 1 : -1));
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeUserWingoBetsInFirebase(
+  userId: string,
+  onUpdate: (bets: WinGoBet[]) => void
+): Unsubscribe {
+  const uid = String(userId || '').trim();
+  if (!uid) return () => {};
+  const path = `wingoBets?userId=${uid}`;
+  const q = query(collection(db, 'wingoBets'), where('userId', '==', uid), limit(100));
   return onSnapshot(
     q,
     (snap) => {
@@ -604,6 +751,31 @@ export function subscribeTransactionsInFirebase(onUpdate: (txs: Transaction[]) =
   );
 }
 
+export function subscribeUserTransactionsInFirebase(
+  userId: string,
+  onUpdate: (txs: Transaction[]) => void
+): Unsubscribe {
+  const uid = String(userId || '').trim();
+  if (!uid) return () => {};
+  const path = `transactions?userId=${uid}`;
+  const q = query(collection(db, 'transactions'), where('userId', '==', uid), limit(150));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: Transaction[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as Transaction;
+        if (data && data.id) list.push(data);
+      });
+      list.sort((a, b) => (b.id > a.id ? 1 : -1));
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
 export async function saveTransactionToFirebase(tx: Transaction): Promise<void> {
   if (!tx?.id) return;
   const id = sanitizeFirestoreId(tx.id);
@@ -618,6 +790,31 @@ export async function saveTransactionToFirebase(tx: Transaction): Promise<void> 
 export function subscribeNotificationsInFirebase(onUpdate: (notifs: AppNotification[]) => void): Unsubscribe {
   const path = 'notifications';
   const q = query(collection(db, 'notifications'), limit(150));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: AppNotification[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as AppNotification;
+        if (data && data.id) list.push(data);
+      });
+      list.sort((a, b) => (b.id > a.id ? 1 : -1));
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeUserNotificationsInFirebase(
+  userId: string,
+  onUpdate: (notifs: AppNotification[]) => void
+): Unsubscribe {
+  const uid = String(userId || '').trim();
+  if (!uid) return () => {};
+  const path = `notifications?userId=${uid}`;
+  const q = query(collection(db, 'notifications'), where('userId', '==', uid), limit(80));
   return onSnapshot(
     q,
     (snap) => {
@@ -747,7 +944,31 @@ export function subscribeReferralsInFirebase(
   onUpdate: (referrals: ReferralMember[]) => void
 ): Unsubscribe {
   const path = 'referrals';
-  const q = query(collection(db, 'referrals'), limit(400));
+  const q = query(collection(db, 'referrals'), limit(600));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: ReferralMember[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as ReferralMember;
+        if (data && data.id) list.push(data);
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeUserReferralsInFirebase(
+  inviteCode: string,
+  onUpdate: (referrals: ReferralMember[]) => void
+): Unsubscribe {
+  const code = String(inviteCode || '').trim();
+  if (!code) return () => {};
+  const path = `referrals?referrerCode=${code}`;
+  const q = query(collection(db, 'referrals'), where('referrerCode', '==', code), limit(300));
   return onSnapshot(
     q,
     (snap) => {
@@ -1078,6 +1299,31 @@ export function subscribeSportsBetsInFirebase(
         const data = d.data() as SportsBet;
         if (data && data.id) list.push(data);
       });
+      onUpdate(list);
+    },
+    (error) => {
+      logFirestoreNonFatal(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeUserSportsBetsInFirebase(
+  userId: string,
+  onUpdate: (bets: SportsBet[]) => void
+): Unsubscribe {
+  const uid = String(userId || '').trim();
+  if (!uid) return () => {};
+  const path = `sportsBets?userId=${uid}`;
+  const q = query(collection(db, 'sportsBets'), where('userId', '==', uid), limit(100));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: SportsBet[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as SportsBet;
+        if (data && data.id) list.push(data);
+      });
+      list.sort((a, b) => (Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0)));
       onUpdate(list);
     },
     (error) => {

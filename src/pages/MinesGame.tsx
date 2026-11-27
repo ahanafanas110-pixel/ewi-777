@@ -236,16 +236,23 @@ export const MinesGame: React.FC = () => {
           <Ewi777Logo height={40} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
-        <button
-          onClick={() => {
-            syncServerDataNow();
-            showToast('Wallet balance synced');
-          }}
-          className="relative z-10 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/30 backdrop-blur-xs border border-cyan-300/35 text-xs font-black tabular-nums active:scale-95"
-        >
-          <span>৳{user.balance.toFixed(2)}</span>
-          <RefreshCw className="w-3 h-3 text-cyan-300" />
-        </button>
+        <div className="relative z-10 flex items-center gap-1.5">
+          {(user.lockedBalance || 0) > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/25 border border-amber-300/50 text-[10px] font-black text-amber-200 tabular-nums">
+              Hold ৳{(user.lockedBalance || 0).toFixed(0)}
+            </span>
+          )}
+          <button
+            onClick={() => {
+              syncServerDataNow();
+              showToast('Wallet balance synced');
+            }}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/30 backdrop-blur-xs border border-cyan-300/35 text-xs font-black tabular-nums active:scale-95"
+          >
+            <span>৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}</span>
+            <RefreshCw className="w-3 h-3 text-cyan-300" />
+          </button>
+        </div>
       </div>
 
       <div className="p-4 space-y-4">

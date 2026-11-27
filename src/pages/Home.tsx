@@ -257,7 +257,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                 ৳
               </span>
               <span className="text-xs font-extrabold tabular-nums text-slate-900 max-w-[64px] truncate">
-                {user.balance.toFixed(2)}
+                {Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}
               </span>
               <button
                 type="button"

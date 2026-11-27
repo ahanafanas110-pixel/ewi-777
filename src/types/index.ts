@@ -197,7 +197,11 @@ export interface Transaction {
     | 'ludo_bet'
     | 'ludo_win'
     | 'sports_bet'
-    | 'sports_win';
+    | 'sports_win'
+    | 'admin_adjust'
+    | 'admin_hold'
+    | 'admin_release'
+    | 'withdraw_refund';
   title: string;
   detail?: string;
   amount: number;

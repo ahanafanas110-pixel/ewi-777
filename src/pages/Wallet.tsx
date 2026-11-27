@@ -361,37 +361,55 @@ export const Wallet: React.FC = () => {
           </div>
 
           <div className="space-y-2.5">
-            {transactions.filter((tx) => tx.userId === user.id).slice(0, 5).map((tx) => (
-              <div
-                key={tx.id}
-                className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
-              >
-                <div>
-                  <div className="font-bold text-slate-900">{tx.title}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">{tx.time}</div>
-                </div>
-                <div className="text-right">
-                  <div
-                    className={`font-black tabular-nums ${
-                      tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'
-                    }`}
-                  >
-                    {tx.amount > 0 ? `+৳${tx.amount.toFixed(2)}` : `-৳${Math.abs(tx.amount).toFixed(2)}`}
+            {(() => {
+              const recentList = user.isLoggedIn && user.id
+                ? transactions
+                    .filter(
+                      (tx) =>
+                        tx.userId === user.id &&
+                        !((tx.type === 'admin_hold' || tx.type === 'admin_release') && Math.abs(Number(tx.amount) || 0) === 0)
+                    )
+                    .slice(0, 5)
+                : [];
+              if (recentList.length === 0) {
+                return (
+                  <div className="py-6 text-center text-xs text-slate-400 font-semibold">
+                    No recent transactions yet.
                   </div>
-                  <span
-                    className={`text-[10px] font-bold ${
-                      tx.status === 'success'
-                        ? 'text-emerald-600'
-                        : tx.status === 'rejected'
-                        ? 'text-rose-600'
-                        : 'text-cyan-700'
-                    }`}
-                  >
-                    {tx.status === 'success' ? 'Completed' : tx.status === 'rejected' ? 'Rejected' : 'Pending'}
-                  </span>
+                );
+              }
+              return recentList.map((tx) => (
+                <div
+                  key={tx.id}
+                  className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <div className="font-bold text-slate-900">{tx.title}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{tx.time}</div>
+                  </div>
+                  <div className="text-right">
+                    <div
+                      className={`font-black tabular-nums ${
+                        tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                      }`}
+                    >
+                      {tx.amount >= 0 ? `+৳${tx.amount.toFixed(2)}` : `-৳${Math.abs(tx.amount).toFixed(2)}`}
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold ${
+                        tx.status === 'success'
+                          ? 'text-emerald-600'
+                          : tx.status === 'rejected'
+                          ? 'text-rose-600'
+                          : 'text-cyan-700'
+                      }`}
+                    >
+                      {tx.status === 'success' ? 'Completed' : tx.status === 'rejected' ? 'Rejected' : 'Pending'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </div>
       </div>

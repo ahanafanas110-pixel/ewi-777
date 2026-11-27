@@ -353,9 +353,14 @@ export const SportsBetting: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {(user.lockedBalance || 0) > 0 && (
+            <span className="px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-black text-amber-800 tabular-nums">
+              Hold ৳{(user.lockedBalance || 0).toFixed(0)}
+            </span>
+          )}
           <div className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-cyan-50 border border-cyan-200">
             <span className="text-[11px] font-black text-cyan-800 tabular-nums">
-              ৳{Number(user.balance || 0).toFixed(2)}
+              ৳{Math.max(0, Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2)}
             </span>
             <button
               type="button"

@@ -38,8 +38,6 @@ import {
   Layers,
   RefreshCw,
   Upload,
-  MessageSquare,
-  Send,
   Eye,
   EyeOff,
   Globe,
@@ -80,7 +78,6 @@ type AdminNavTab =
   | 'deposits'
   | 'withdraws'
   | 'giftcodes'
-  | 'support'
   | 'access_logs'
   | 'mentors'
   | 'sports'
@@ -151,8 +148,6 @@ export const Admin: React.FC = () => {
     syncServerDataNow,
     syncEwiPayTransactions,
     marketPools,
-    supportMessages,
-    sendSupportMessage,
     adminAccessLogs,
     logAdminAccessEntry,
     heartbeatAdminAccess,
@@ -185,12 +180,6 @@ export const Admin: React.FC = () => {
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [sessionConflict, setSessionConflict] = useState<ActiveAdminSession | null>(null);
-
-  // Support Chat Inbox State
-  const [selectedChatUserId, setSelectedChatUserId] = useState<string>('');
-  const [adminReplyText, setAdminReplyText] = useState('');
-  const [adminChatZoomUrl, setAdminChatZoomUrl] = useState<string | null>(null);
-  const [isAdminSendingPhoto, setIsAdminSendingPhoto] = useState(false);
 
   // Navigation & Live Clock (1s interval powers real-time visitor elapsed timers)
   const [navTab, setNavTab] = useState<AdminNavTab>('dashboard');
@@ -645,53 +634,6 @@ export const Admin: React.FC = () => {
     });
     return records.slice(0, 8);
   }, [adminSettings.activeGiftCodes]);
-
-  const supportThreads = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        userId: string;
-        userUid: string;
-        userNickname: string;
-        userPhone: string;
-        lastMessage: string;
-        lastTime: number;
-        count: number;
-        hasUnanswered: boolean;
-      }
-    >();
-    supportMessages.forEach((m) => {
-      const existing = map.get(m.userId);
-      const ts = Number(m.timestamp) || Date.now();
-      const preview = m.text?.trim() ? m.text.trim() : m.imageUrl ? '[Photo Attachment]' : '';
-      if (!existing || ts >= existing.lastTime) {
-        map.set(m.userId, {
-          userId: m.userId,
-          userUid: m.userUid || existing?.userUid || 'GUEST',
-          userNickname: m.sender === 'user' ? m.userNickname || existing?.userNickname || 'Member' : existing?.userNickname || m.userNickname || 'Member',
-          userPhone: m.sender === 'user' ? m.userPhone || existing?.userPhone || '' : existing?.userPhone || m.userPhone || '',
-          lastMessage: preview,
-          lastTime: ts,
-          count: (existing?.count || 0) + 1,
-          hasUnanswered: m.sender === 'user'
-        });
-      } else {
-        existing.count += 1;
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => b.lastTime - a.lastTime);
-  }, [supportMessages]);
-
-  const unansweredSupportCount = useMemo(
-    () => supportThreads.filter((t) => t.hasUnanswered).length,
-    [supportThreads]
-  );
-
-  useEffect(() => {
-    if (!selectedChatUserId && supportThreads.length > 0) {
-      setSelectedChatUserId(supportThreads[0].userId);
-    }
-  }, [selectedChatUserId, supportThreads]);
 
   const fetchIpSecurityReport = React.useCallback(async () => {
     setIsLoadingIpReport(true);
@@ -1409,7 +1351,6 @@ export const Admin: React.FC = () => {
     { id: 'deposits', label: 'Deposits', icon: <ArrowDownCircle className="w-4 h-4" />, badge: pendingDepCount || undefined },
     { id: 'withdraws', label: 'Withdraws', icon: <ArrowUpCircle className="w-4 h-4" />, badge: pendingWdCount || undefined },
     { id: 'giftcodes', label: 'Gift Codes', icon: <Gift className="w-4 h-4" /> },
-    { id: 'support', label: 'Support Chat', icon: <MessageSquare className="w-4 h-4" />, badge: unansweredSupportCount || undefined },
     { id: 'mentors', label: 'Mentor Control', icon: <UserCheck className="w-4 h-4" />, badge: (adminSettings.mentors || []).length || undefined },
     { id: 'sports', label: 'Live Sports', icon: <Trophy className="w-4 h-4" />, badge: sportsMatches.filter((m) => m.status === 'live').length || undefined },
     { id: 'access_logs', label: 'IP & Entry Logs', icon: <Globe className="w-4 h-4" />, badge: adminAccessLogs.length || undefined },
@@ -1426,7 +1367,6 @@ export const Admin: React.FC = () => {
     deposits: 'DEPOSITS',
     withdraws: 'WITHDRAWS',
     giftcodes: 'GIFT CODES',
-    support: 'SUPPORT CHAT INBOX',
     mentors: 'MENTOR GOVERNANCE & AUDIT',
     sports: 'LIVE CRICKET & FOOTBALL',
     access_logs: 'VISITOR IP & ENTRY TIMELINE',
@@ -4940,223 +4880,6 @@ export const Admin: React.FC = () => {
             </div>
           )}
 
-          {/* =================== SUPPORT CHAT INBOX =================== */}
-          {navTab === 'support' && (
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              {/* Threads Sidebar */}
-              <div className="md:col-span-4 bg-white border border-slate-200 rounded-2xl p-3 space-y-2 max-h-[640px] overflow-y-auto">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-slate-200">
-                  <span className="text-xs font-black text-cyan-700 tracking-wider">
-                    USER THREADS ({supportThreads.length})
-                  </span>
-                  {unansweredSupportCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black">
-                      {unansweredSupportCount} Unanswered
-                    </span>
-                  )}
-                </div>
-
-                {supportThreads.length === 0 ? (
-                  <div className="py-12 text-center text-xs text-slate-500">
-                    No customer support messages yet.
-                  </div>
-                ) : (
-                  supportThreads.map((thread) => {
-                    const active = selectedChatUserId === thread.userId;
-                    return (
-                      <button
-                        key={thread.userId}
-                        onClick={() => setSelectedChatUserId(thread.userId)}
-                        className={`w-full p-3 rounded-xl text-left border transition-all flex items-start gap-2.5 ${
-                          active
-                            ? 'bg-cyan-600/20 border-cyan-400/60'
-                            : 'bg-slate-50 border-slate-200 hover:border-slate-200'
-                        }`}
-                      >
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0891B2] to-[#0D9488] text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                          {(thread.userNickname || 'M')[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-xs font-black text-slate-900 truncate">
-                              {thread.userNickname}
-                            </span>
-                            {thread.hasUnanswered && (
-                              <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" />
-                            )}
-                          </div>
-                          <div className="text-[10px] font-mono text-slate-500 truncate">
-                            UID: {thread.userUid} {thread.userPhone ? `• ${thread.userPhone}` : ''}
-                          </div>
-                          <div className="text-[11px] text-slate-700 truncate mt-1">
-                            {thread.lastMessage || 'New message'}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Conversation Panel */}
-              <div className="md:col-span-8 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col min-h-[540px] max-h-[640px]">
-                {(() => {
-                  const activeThread = supportThreads.find((t) => t.userId === selectedChatUserId);
-                  if (!activeThread) {
-                    return (
-                      <div className="flex-1 flex items-center justify-center text-xs text-slate-500">
-                        Select a user thread from the left to view messages & reply.
-                      </div>
-                    );
-                  }
-                  const threadMsgs = supportMessages.filter((m) => m.userId === activeThread.userId);
-
-                  const handleSendAdminReply = async (e?: React.FormEvent, imageUrl?: string) => {
-                    if (e) e.preventDefault();
-                    const text = imageUrl ? '' : adminReplyText.trim();
-                    if (!text && !imageUrl) return;
-                    if (!imageUrl) setAdminReplyText('');
-                    await sendSupportMessage({
-                      userId: activeThread.userId,
-                      userUid: activeThread.userUid,
-                      userNickname: activeThread.userNickname,
-                      userPhone: activeThread.userPhone,
-                      sender: 'admin',
-                      text,
-                      imageUrl
-                    });
-                  };
-
-                  const handleAdminPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setIsAdminSendingPhoto(true);
-                    try {
-                      const steps: Array<[number, number]> = [
-                        [720, 0.72],
-                        [520, 0.62],
-                        [400, 0.5]
-                      ];
-                      let dataUrl = '';
-                      for (const [maxDim, quality] of steps) {
-                        dataUrl = await compressImageFileToDataUrl(file, maxDim, quality);
-                        if (dataUrl.length <= 280000) break;
-                      }
-                      if (!dataUrl || dataUrl.length > 340000) {
-                        showToast('Image too large even after compression');
-                        return;
-                      }
-                      await handleSendAdminReply(undefined, dataUrl);
-                      showToast('Photo reply sent to user');
-                    } catch {
-                      showToast('Failed to send photo');
-                    } finally {
-                      setIsAdminSendingPhoto(false);
-                      e.target.value = '';
-                    }
-                  };
-
-                  return (
-                    <>
-                      <div className="pb-3 border-b border-slate-200 flex items-center justify-between">
-                        <div>
-                          <div className="font-black text-sm text-slate-900">
-                            {activeThread.userNickname}
-                          </div>
-                          <div className="text-[11px] font-mono text-slate-500">
-                            UID: {activeThread.userUid} • Phone: {activeThread.userPhone || 'N/A'}
-                          </div>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 text-[10px] font-black">
-                          2-Way Live Sync
-                        </span>
-                      </div>
-
-                      <div className="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1">
-                        {threadMsgs.map((m) => (
-                          <div
-                            key={m.id}
-                            className={`flex flex-col ${m.sender === 'admin' ? 'items-end' : 'items-start'}`}
-                          >
-                            <div
-                              className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-xs space-y-2 ${
-                                m.sender === 'admin'
-                                  ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white'
-                                  : 'bg-slate-50 border border-slate-200 text-slate-800'
-                              }`}
-                            >
-                              {m.imageUrl && (
-                                <img
-                                  src={m.imageUrl}
-                                  alt="Attachment"
-                                  referrerPolicy="no-referrer"
-                                  onClick={() => setAdminChatZoomUrl(m.imageUrl!)}
-                                  className="max-w-[220px] max-h-[220px] rounded-xl object-cover cursor-pointer border border-white/20"
-                                />
-                              )}
-                              {m.text && <div className="break-words">{m.text}</div>}
-                            </div>
-                            <span className="text-[10px] text-slate-500 mt-0.5 px-1">
-                              {m.sender === 'admin' ? (
-                                m.repliedByRole === 'mentor' ? (
-                                  <span className="font-bold text-[#0891B2]">
-                                    Mentor • {m.repliedByName || 'Support'}
-                                  </span>
-                                ) : (
-                                  'Admin'
-                                )
-                              ) : (
-                                activeThread.userNickname
-                              )}{' '}
-                              •{' '}
-                              {m.timestamp
-                                ? new Date(m.timestamp).toLocaleTimeString('en-US', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: false
-                                  })
-                                : m.time}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <form onSubmit={(e) => handleSendAdminReply(e)} className="pt-3 border-t border-slate-200 flex items-center gap-2">
-                        <label
-                          title="Send photo from gallery"
-                          className={`w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 text-cyan-700 flex items-center justify-center cursor-pointer hover:border-cyan-400 flex-shrink-0 ${
-                            isAdminSendingPhoto ? 'opacity-50 pointer-events-none' : ''
-                          }`}
-                        >
-                          <ImageIcon className="w-4 h-4" />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleAdminPhotoUpload}
-                            className="hidden"
-                          />
-                        </label>
-                        <input
-                          type="text"
-                          value={adminReplyText}
-                          onChange={(e) => setAdminReplyText(e.target.value)}
-                          placeholder="Type official admin reply..."
-                          className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-cyan-400"
-                        />
-                        <button
-                          type="submit"
-                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs flex items-center gap-1.5"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Send</span>
-                        </button>
-                      </form>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
           {/* =================== VISITOR IP, MULTI-ACCOUNT & VPN SECURITY MONITOR =================== */}
           {navTab === 'access_logs' && (
             <div className="space-y-4">
@@ -6377,27 +6100,6 @@ export const Admin: React.FC = () => {
           )}
         </main>
       </div>
-
-      {/* SUPPORT CHAT IMAGE ZOOM LIGHTBOX */}
-      {adminChatZoomUrl && (
-        <div
-          onClick={() => setAdminChatZoomUrl(null)}
-          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
-        >
-          <button
-            onClick={() => setAdminChatZoomUrl(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 text-slate-900"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <img
-            src={adminChatZoomUrl}
-            alt="Zoomed support"
-            referrerPolicy="no-referrer"
-            className="max-w-full max-h-[85vh] rounded-2xl object-contain"
-          />
-        </div>
-      )}
 
       {/* =================== MODALS =================== */}
 

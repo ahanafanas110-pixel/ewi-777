@@ -163,6 +163,10 @@ async function inspectIpIntelligence(
       } catch {}
     }
 
+    if (ipIntelCache.size >= 4000) {
+      const oldestKey = ipIntelCache.keys().next().value;
+      if (oldestKey) ipIntelCache.delete(oldestKey);
+    }
     ipIntelCache.set(cleanIp, { data: baseIntel, expiresAt: Date.now() + 6 * 3600 * 1000 });
   }
 
@@ -468,15 +472,127 @@ function loadStore(): ServerStore {
   return { ...DEFAULT_STORE };
 }
 
-function saveStore(store: ServerStore) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save server data:', err);
+function trimStoreForScale(target: ServerStore) {
+  const now = Date.now();
+  if (Array.isArray(target.deposits) && target.deposits.length > 2500) {
+    target.deposits = target.deposits.slice(0, 2500);
+  }
+  if (Array.isArray(target.withdraws) && target.withdraws.length > 2500) {
+    target.withdraws = target.withdraws.slice(0, 2500);
+  }
+  if (Array.isArray(target.wingoBets) && target.wingoBets.length > 500) {
+    target.wingoBets = target.wingoBets.slice(0, 500);
+  }
+  if (Array.isArray(target.sportsBets) && target.sportsBets.length > 1000) {
+    target.sportsBets = target.sportsBets.slice(0, 1000);
+  }
+  if (Array.isArray(target.supportMessages) && target.supportMessages.length > 400) {
+    target.supportMessages = target.supportMessages.slice(-400);
+  }
+  if (Array.isArray(target.notifications) && target.notifications.length > 400) {
+    target.notifications = target.notifications.slice(0, 400);
+  }
+  if (Array.isArray(target.adminAccessLogs) && target.adminAccessLogs.length > 200) {
+    target.adminAccessLogs = target.adminAccessLogs.slice(0, 200);
+  }
+  if (Array.isArray(target.referrals) && target.referrals.length > 5000) {
+    target.referrals = target.referrals.slice(0, 5000);
+  }
+  if (target.marketPools && typeof target.marketPools === 'object') {
+    const cutoff = now - 20 * 60 * 1000;
+    const prunedPools: Record<string, any> = {};
+    for (const [k, v] of Object.entries(target.marketPools)) {
+      if (v && Number((v as any).updatedAt || 0) >= cutoff) prunedPools[k] = v;
+    }
+    target.marketPools = prunedPools;
+  }
+  if (target.ludoRooms && typeof target.ludoRooms === 'object') {
+    const cutoff = now - 2 * 3600 * 1000;
+    const entries = Object.entries(target.ludoRooms)
+      .filter(([, v]) => v && (Number((v as any).updatedAt || 0) >= cutoff || (v as any).status === 'playing' || (v as any).status === 'waiting'))
+      .sort((a, b) => Number((b[1] as any)?.updatedAt || 0) - Number((a[1] as any)?.updatedAt || 0))
+      .slice(0, 200);
+    target.ludoRooms = Object.fromEntries(entries);
   }
 }
 
+let pendingSaveTimer: NodeJS.Timeout | null = null;
+let isWritingStore = false;
+let dirtyDuringWrite = false;
+let lastStoreRef: ServerStore | null = null;
+
+async function flushStoreAsync(target: ServerStore) {
+  if (isWritingStore) {
+    dirtyDuringWrite = true;
+    lastStoreRef = target;
+    return;
+  }
+  isWritingStore = true;
+  try {
+    trimStoreForScale(target);
+    const json = JSON.stringify(target);
+    const tmpFile = `${DATA_FILE}.tmp`;
+    await fs.promises.writeFile(tmpFile, json, 'utf-8');
+    await fs.promises.rename(tmpFile, DATA_FILE);
+  } catch (err) {
+    console.error('Failed to save server data:', err);
+  } finally {
+    isWritingStore = false;
+    if (dirtyDuringWrite && lastStoreRef) {
+      dirtyDuringWrite = false;
+      const next = lastStoreRef;
+      void flushStoreAsync(next);
+    }
+  }
+}
+
+function flushStoreSync(target: ServerStore) {
+  try {
+    if (pendingSaveTimer) {
+      clearTimeout(pendingSaveTimer);
+      pendingSaveTimer = null;
+    }
+    trimStoreForScale(target);
+    const tmpFile = `${DATA_FILE}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(target), 'utf-8');
+    fs.renameSync(tmpFile, DATA_FILE);
+  } catch (err) {
+    console.error('Failed to flush server data synchronously:', err);
+  }
+}
+
+function saveStore(target: ServerStore) {
+  lastStoreRef = target;
+  if (pendingSaveTimer) return;
+  pendingSaveTimer = setTimeout(() => {
+    pendingSaveTimer = null;
+    if (lastStoreRef) void flushStoreAsync(lastStoreRef);
+  }, 250);
+  pendingSaveTimer.unref?.();
+}
+
 let store = loadStore();
+
+function getPlayableBalanceServer(u: any): number {
+  if (!u) return 0;
+  const total = Math.max(0, Number(u.balance) || 0);
+  const locked = Math.max(0, Number(u.lockedBalance) || 0);
+  return Math.max(0, +(total - locked).toFixed(2));
+}
+
+function findUserServer(userId?: string, uid?: string, phone?: string): any | null {
+  const cleanId = String(userId || '').trim();
+  const cleanUid = String(uid || '').trim();
+  const normPhone = normalizePhoneServer(String(phone || ''));
+  return (
+    (store.users || []).find(
+      (u: any) =>
+        (cleanId && (u.id === cleanId || u.uid === cleanId)) ||
+        (cleanUid && u.uid === cleanUid) ||
+        (normPhone && normalizePhoneServer(u.phone || '') === normPhone)
+    ) || null
+  );
+}
 
 function resolveCreatedAtMs(rec: any): number {
   if (typeof rec?.createdAtMs === 'number' && Number.isFinite(rec.createdAtMs) && rec.createdAtMs > 0) {
@@ -633,7 +749,20 @@ async function startServer() {
   // 1. Deposits API (Shared across all phones/devices worldwide)
   app.get('/api/deposits', (req, res) => {
     sweepExpiredRequests();
-    res.json({ success: true, deposits: store.deposits });
+    const userIdFilter = String(req.query.userId || '').trim();
+    const phoneFilter = normalizePhoneServer(String(req.query.phone || ''));
+    if (userIdFilter || phoneFilter) {
+      const matched = (store.deposits || []).filter((d: any) => {
+        if (userIdFilter && (d.userId === userIdFilter || d.senderNumber === userIdFilter)) return true;
+        if (phoneFilter) {
+          const dp = normalizePhoneServer(String(d.userPhone || d.senderNumber || ''));
+          if (dp && dp === phoneFilter) return true;
+        }
+        return false;
+      });
+      return res.json({ success: true, deposits: matched.slice(0, 150) });
+    }
+    res.json({ success: true, deposits: (store.deposits || []).slice(0, 800) });
   });
 
   app.post('/api/deposits', (req, res) => {
@@ -718,6 +847,18 @@ async function startServer() {
 
   // 2. Users & Strict Auth API (Centrally maintained, 1 account per phone)
   app.get('/api/users', (req, res) => {
+    const userIdFilter = String(req.query.userId || '').trim();
+    const uidFilter = String(req.query.uid || '').trim();
+    const phoneFilter = normalizePhoneServer(String(req.query.phone || ''));
+    if (userIdFilter || uidFilter || phoneFilter) {
+      const matched = (store.users || []).filter(
+        (u: any) =>
+          (userIdFilter && (u.id === userIdFilter || u.uid === userIdFilter)) ||
+          (uidFilter && u.uid === uidFilter) ||
+          (phoneFilter && normalizePhoneServer(u.phone || '') === phoneFilter)
+      );
+      return res.json({ success: true, users: matched });
+    }
     res.json({ success: true, users: store.users });
   });
 
@@ -1029,9 +1170,16 @@ async function startServer() {
         }
         const preservedAvatar = clientUser.avatar || existing.avatar || '';
         const mergedTs = Math.max(existingTs, clientTs || Date.now());
+        // Keep lockedBalance server-authoritative so stale client snapshots never clear an admin Hold
+        const authoritativeLocked =
+          existing.lockedBalance !== undefined
+            ? Math.max(0, Number(existing.lockedBalance) || 0)
+            : Math.max(0, Number(clientUser.lockedBalance) || 0);
         store.users[idx] = {
           ...existing,
           ...clientUser,
+          balance: Math.max(0, Number(clientUser.balance ?? existing.balance ?? 0) || 0),
+          lockedBalance: authoritativeLocked,
           avatar: preservedAvatar,
           registeredIp: existing.registeredIp || clientUser.registeredIp || (clientIp !== 'Unknown' ? clientIp : undefined),
           lastIp: existing.lastIp || clientUser.lastIp || (clientIp !== 'Unknown' ? clientIp : undefined),
@@ -1044,6 +1192,8 @@ async function startServer() {
       } else {
         store.users.push({
           ...clientUser,
+          balance: Math.max(0, Number(clientUser.balance) || 0),
+          lockedBalance: Math.max(0, Number(clientUser.lockedBalance) || 0),
           registeredIp: clientUser.registeredIp || (clientIp !== 'Unknown' ? clientIp : undefined),
           lastIp: clientUser.lastIp || (clientIp !== 'Unknown' ? clientIp : undefined),
           updatedAt: Number(clientUser.updatedAt || Date.now())
@@ -1055,7 +1205,17 @@ async function startServer() {
   });
 
   app.post('/api/users/modify-balance', (req, res) => {
-    const { userId, action, amount, userPhone, fallbackUser } = req.body || {};
+    const {
+      userId,
+      action,
+      amount,
+      userPhone,
+      fallbackUser,
+      lockedBalance,
+      locked,
+      turnoverRequired,
+      turnoverDelta
+    } = req.body || {};
     const normPhone = normalizePhoneServer(String(userPhone || fallbackUser?.phone || ''));
     let idx = store.users.findIndex(
       (u) =>
@@ -1069,12 +1229,34 @@ async function startServer() {
     }
     if (idx < 0) return res.status(404).json({ success: false, message: 'User not found' });
     const numAmt = Number(amount) || 0;
-    const curBal = Number(store.users[idx].balance || 0);
+    const curBal = Math.max(0, Number(store.users[idx].balance || 0));
     let nextBal = curBal;
     if (action === 'add') nextBal = +(curBal + numAmt).toFixed(2);
     else if (action === 'deduct') nextBal = +Math.max(0, curBal - numAmt).toFixed(2);
     else if (action === 'set') nextBal = +Math.max(0, numAmt).toFixed(2);
     store.users[idx].balance = nextBal;
+
+    const curLocked = Math.max(0, Number(store.users[idx].lockedBalance || 0));
+    if (lockedBalance !== undefined) {
+      store.users[idx].lockedBalance = Math.max(0, +(Number(lockedBalance) || 0).toFixed(2));
+    } else if (locked === true) {
+      if (action === 'add') store.users[idx].lockedBalance = +(curLocked + Math.max(0, numAmt)).toFixed(2);
+      else if (action === 'set') store.users[idx].lockedBalance = nextBal;
+    } else if (locked === false) {
+      store.users[idx].lockedBalance = Math.min(curLocked, nextBal);
+    } else if (curLocked > nextBal) {
+      store.users[idx].lockedBalance = nextBal;
+    }
+
+    if (turnoverRequired !== undefined) {
+      store.users[idx].turnoverRequired = Math.max(0, Number(turnoverRequired) || 0);
+    } else if (turnoverDelta !== undefined) {
+      store.users[idx].turnoverRequired = Math.max(
+        0,
+        +(Number(store.users[idx].turnoverRequired || 0) + (Number(turnoverDelta) || 0)).toFixed(2)
+      );
+    }
+
     store.users[idx].updatedAt = Date.now();
     saveStore(store);
     res.json({ success: true, user: store.users[idx] });
@@ -1099,7 +1281,14 @@ async function startServer() {
       idx = store.users.length - 1;
     }
     if (idx >= 0 && patch) {
-      store.users[idx] = { ...store.users[idx], ...patch, updatedAt: Date.now() };
+      const normalizedPatch = {
+        ...patch,
+        ...(patch.balance !== undefined ? { balance: Math.max(0, Number(patch.balance) || 0) } : {}),
+        ...(patch.lockedBalance !== undefined
+          ? { lockedBalance: Math.max(0, Number(patch.lockedBalance) || 0) }
+          : {})
+      };
+      store.users[idx] = { ...store.users[idx], ...normalizedPatch, updatedAt: Date.now() };
       saveStore(store);
     }
     res.json({ success: true, user: idx >= 0 ? store.users[idx] : null });
@@ -1108,7 +1297,20 @@ async function startServer() {
   // 2B. Withdraws API
   app.get('/api/withdraws', (req, res) => {
     sweepExpiredRequests();
-    res.json({ success: true, withdraws: store.withdraws });
+    const userIdFilter = String(req.query.userId || '').trim();
+    const phoneFilter = normalizePhoneServer(String(req.query.phone || ''));
+    if (userIdFilter || phoneFilter) {
+      const matched = (store.withdraws || []).filter((w: any) => {
+        if (userIdFilter && (w.userId === userIdFilter || w.userPhone === userIdFilter)) return true;
+        if (phoneFilter) {
+          const wp = normalizePhoneServer(String(w.userPhone || ''));
+          if (wp && wp === phoneFilter) return true;
+        }
+        return false;
+      });
+      return res.json({ success: true, withdraws: matched.slice(0, 150) });
+    }
+    res.json({ success: true, withdraws: (store.withdraws || []).slice(0, 800) });
   });
 
   app.post('/api/withdraws', (req, res) => {
@@ -1136,6 +1338,20 @@ async function startServer() {
     if (numAmt < minWd || numAmt > 50000) {
       return res.status(400).json({ success: false, message: `Withdrawal amount must be between ৳${minWd} and ৳50,000` });
     }
+    const uIdx = store.users.findIndex((u) => u.id === userId || u.uid === userId);
+    if (uIdx >= 0) {
+      const targetUser = store.users[uIdx];
+      const playable = getPlayableBalanceServer(targetUser);
+      if (playable < numAmt) {
+        return res.status(403).json({
+          success: false,
+          message:
+            Number(targetUser.lockedBalance || 0) > 0
+              ? `Insufficient playable balance! ৳${Number(targetUser.lockedBalance || 0).toFixed(2)} is on Hold and cannot be withdrawn or played.`
+              : 'Insufficient balance'
+        });
+      }
+    }
     const nowMs = Number(createdAtMs) || Date.now();
     const wdId = String(clientId || orderId || `wd_${nowMs}_${Math.random().toString(36).substring(2, 6)}`).trim();
     const cleanOrder = String(orderId || wdId).trim();
@@ -1158,7 +1374,6 @@ async function startServer() {
       newWd,
       ...(store.withdraws || []).filter((w: any) => w.id !== wdId && w.orderId !== cleanOrder)
     ];
-    const uIdx = store.users.findIndex((u) => u.id === userId || u.uid === userId);
     if (uIdx >= 0) {
       store.users[uIdx].balance = +Math.max(0, Number(store.users[uIdx].balance || 0) - numAmt).toFixed(2);
       store.users[uIdx].updatedAt = Date.now();
@@ -1366,6 +1581,14 @@ async function startServer() {
     if (!b.id || !b.periodNumber || !b.mode || !b.type || b.value === undefined) {
       return res.status(400).json({ success: false, message: 'Missing WinGo bet fields' });
     }
+    const totalBet = Number(b.totalAmount) || Number(b.amount) || 0;
+    const bettor = findUserServer(b.userId, undefined, b.userPhone);
+    if (bettor && getPlayableBalanceServer(bettor) < totalBet) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hold balance cannot be used for betting! Please wait for Admin release.'
+      });
+    }
     const sanitizedBet = {
       id: String(b.id),
       userId: String(b.userId || 'guest'),
@@ -1377,7 +1600,7 @@ async function startServer() {
       value: b.value,
       amount: Number(b.amount) || 0,
       multiplier: Number(b.multiplier) || 1,
-      totalAmount: Number(b.totalAmount) || 0,
+      totalAmount: totalBet,
       status: 'pending',
       time: String(b.time || new Date().toTimeString().slice(0, 8))
     };
@@ -2313,6 +2536,13 @@ async function startServer() {
     if (!userId || numStake < 20 || numStake > 50000 || !String(password || '').trim()) {
       return res.status(400).json({ success: false, message: 'Stake must be ৳20–৳50,000 and password is required.' });
     }
+    const hostUser = findUserServer(userId, uid);
+    if (hostUser && getPlayableBalanceServer(hostUser) < numStake) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hold balance cannot be used for Ludo rooms! Please wait for Admin release.'
+      });
+    }
     const nowMs = Date.now();
     const maxPlayers = mode === '2p_winner' ? 2 : 4;
     const code = `LUDO${Math.floor(100000 + Math.random() * 900000)}`;
@@ -2356,6 +2586,13 @@ async function startServer() {
     if (!roomEntry) return res.status(404).json({ success: false, message: 'Ludo room not found.' });
     if (String(roomEntry.password || '') !== String(password || '').trim()) {
       return res.status(401).json({ success: false, message: 'Incorrect room password!' });
+    }
+    const joinerUser = findUserServer(userId, uid);
+    if (joinerUser && getPlayableBalanceServer(joinerUser) < Number(roomEntry.stake || 0)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hold balance cannot be used for Ludo rooms! Please wait for Admin release.'
+      });
     }
     const players: any[] = Array.isArray(roomEntry.players) ? [...roomEntry.players] : [];
     if (!players.some((p) => p.userId === userId)) {
@@ -2583,6 +2820,13 @@ async function startServer() {
     }
     if (cleanAmount < 10 || cleanAmount > 50000 || cleanOdds < 1.05) {
       return res.status(400).json({ success: false, message: 'Stake must be between ৳10 and ৳50,000.' });
+    }
+    const sportsUser = findUserServer(userId);
+    if (sportsUser && getPlayableBalanceServer(sportsUser) < cleanAmount) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hold balance cannot be used for sports betting! Please wait for Admin release.'
+      });
     }
     const matches: any[] = Array.isArray(store.settings?.sportsMatches) ? store.settings.sportsMatches : [];
     const foundMatch = matches.find((m: any) => String(m?.id) === String(matchId));
@@ -3178,6 +3422,13 @@ async function startServer() {
     const betId = String(req.body?.betId || `cb_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
     if (!roundId || amount < 10) {
       return res.status(400).json({ success: false, message: 'Minimum bet is ৳10' });
+    }
+    const crashUser = findUserServer(userId);
+    if (crashUser && getPlayableBalanceServer(crashUser) < amount) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hold balance cannot be used for betting! Please wait for Admin release.'
+      });
     }
     const pool = ensureCrashPoolForRound(game, roundId);
     if (pool.forcedCrashMultiplier > 0) {
@@ -3928,7 +4179,14 @@ async function startServer() {
   // 7C. Cross-Device Referrals API
   app.get('/api/referrals', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ success: true, referrals: store.referrals || [] });
+    const inviteCode = String(req.query.inviteCode || '').trim().toUpperCase();
+    if (inviteCode) {
+      const l1 = (store.referrals || []).filter(
+        (r: any) => String(r.referrerCode || '').trim().toUpperCase() === inviteCode
+      );
+      return res.json({ success: true, referrals: l1.slice(0, 500) });
+    }
+    res.json({ success: true, referrals: (store.referrals || []).slice(0, 2000) });
   });
 
   app.post('/api/referrals', (req, res) => {
@@ -3936,7 +4194,7 @@ async function startServer() {
     if (!r || !r.id || !r.referrerCode) {
       return res.status(400).json({ success: false, message: 'Invalid referral record' });
     }
-    store.referrals = [r, ...(store.referrals || []).filter((x: any) => x.id !== r.id)].slice(0, 500);
+    store.referrals = [r, ...(store.referrals || []).filter((x: any) => x.id !== r.id)].slice(0, 5000);
     saveStore(store);
     res.json({ success: true, referral: r });
   });
@@ -3959,6 +4217,15 @@ async function startServer() {
   });
 
   app.post('/api/binary/bet', (req, res) => {
+    const { userId, amount } = req.body || {};
+    const numAmt = Number(amount) || 0;
+    const binUser = findUserServer(userId);
+    if (binUser && numAmt > 0 && getPlayableBalanceServer(binUser) < numAmt) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hold balance cannot be used for trading! Please wait for Admin release.'
+      });
+    }
     res.json({ success: true });
   });
 
@@ -3976,11 +4243,20 @@ async function startServer() {
   });
 
   app.post('/api/market-pools/bet', (req, res) => {
-    const { poolId, game, mode, period, selection, amount } = req.body || {};
+    const { poolId, game, mode, period, selection, amount, userId } = req.body || {};
     const cleanId = String(poolId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
     const numAmt = Number(amount) || 0;
     if (!cleanId || !game || numAmt <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid market pool bet payload' });
+    }
+    if (userId) {
+      const poolUser = findUserServer(userId);
+      if (poolUser && getPlayableBalanceServer(poolUser) < numAmt) {
+        return res.status(403).json({
+          success: false,
+          message: 'Hold balance cannot be used for betting! Please wait for Admin release.'
+        });
+      }
     }
     if (!store.marketPools || typeof store.marketPools !== 'object') {
       store.marketPools = {};
@@ -4004,6 +4280,15 @@ async function startServer() {
     store.marketPools[cleanId] = existing;
     saveStore(store);
     res.json({ success: true, pool: existing });
+  });
+
+  // Top-level Express error safeguard so malformed payloads never crash the process
+  app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!err) return next();
+    console.error('Express API error:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(err?.status || 500).json({ success: false, message: 'Internal server error' });
+    }
   });
 
   // =================== VITE MIDDLEWARE / STATIC FILES ===================
@@ -4032,10 +4317,31 @@ async function startServer() {
   const expiryTimer = setInterval(sweepExpiredRequests, 30000);
   expiryTimer.unref?.();
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Deshi Win Full-Stack Server active on http://0.0.0.0:${PORT}`);
   });
+  server.requestTimeout = 30000;
+  server.headersTimeout = 35000;
+  server.keepAliveTimeout = 65000;
 }
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection caught cleanly:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('SIGINT', () => {
+  flushStoreSync(store);
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  flushStoreSync(store);
+  process.exit(0);
+});
+process.on('beforeExit', () => {
+  flushStoreSync(store);
+});
 
 startServer().catch((err) => {
   console.error('Fatal Server Boot Error:', err);

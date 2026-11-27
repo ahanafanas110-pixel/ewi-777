@@ -743,12 +743,17 @@ export const LuckyJetGame: React.FC = () => {
           >
             <HelpCircle className="w-4 h-4" />
           </button>
+          {(user.lockedBalance || 0) > 0 && (
+            <span className="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-black text-amber-800 tabular-nums">
+              Hold ৳{(user.lockedBalance || 0).toFixed(0)}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => showToast('Balance synced')}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-50 border border-cyan-200 text-xs font-black font-mono tabular-nums text-cyan-800 active:scale-95"
           >
-            <span>৳{user.balance.toFixed(0)}</span>
+            <span>৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(0)}</span>
             <RefreshCw className="w-3 h-3 text-cyan-600" />
           </button>
         </div>

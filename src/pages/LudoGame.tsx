@@ -2408,8 +2408,13 @@ export const LudoGame: React.FC = () => {
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-cyan-200" />}
           </button>
+          {(user.lockedBalance || 0) > 0 && (
+            <div className="px-2 py-1 rounded-full bg-amber-500/25 border border-amber-300/50 text-[10px] font-black text-amber-100 tabular-nums">
+              Hold ৳{(user.lockedBalance || 0).toFixed(0)}
+            </div>
+          )}
           <div className="px-2.5 py-1 rounded-full bg-white/15 border border-white/25 text-xs font-mono font-black tabular-nums">
-            ৳{Number(user.balance || 0).toFixed(0)}
+            ৳{Math.max(0, Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(0)}
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { normalizePhone, useApp } from '../context/AppContext';
 import {
   ArrowLeft,
   Send,
@@ -51,13 +51,28 @@ export const CustomerService: React.FC = () => {
   const [issueNote, setIssueNote] = useState('');
   const [usdtDraft, setUsdtDraft] = useState('');
 
-  const myMessages = supportMessages.filter((m) => m.userId === (user.id || 'guest'));
+  const myMessages = user.isLoggedIn && user.id
+    ? supportMessages.filter((m) => m.userId === user.id)
+    : [];
   const [inputMessage, setInputMessage] = useState('');
   const [isSendingPhoto, setIsSendingPhoto] = useState(false);
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
 
-  const myDeposits = depositRequests.filter((d) => d.userId === user.id || d.senderNumber === user.phone);
-  const myWithdraws = withdrawRequests.filter((w) => w.userId === user.id || w.userPhone === user.phone);
+  const normPhone = normalizePhone(user.phone || '');
+  const myDeposits = user.isLoggedIn && user.id
+    ? depositRequests.filter(
+        (d) =>
+          d.userId === user.id ||
+          (normPhone && d.senderNumber && normalizePhone(d.senderNumber) === normPhone)
+      )
+    : [];
+  const myWithdraws = user.isLoggedIn && user.id
+    ? withdrawRequests.filter(
+        (w) =>
+          w.userId === user.id ||
+          (normPhone && w.userPhone && normalizePhone(w.userPhone) === normPhone)
+      )
+    : [];
   const remainingTurnover = Math.max(0, (user.turnoverRequired || 0) - (user.turnoverCompleted || 0));
 
   const telegramChannelLink =

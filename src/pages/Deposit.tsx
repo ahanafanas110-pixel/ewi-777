@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { normalizePhone, useApp } from '../context/AppContext';
 import {
   ArrowLeft,
   RefreshCw,
@@ -62,6 +62,7 @@ export const Deposit: React.FC = () => {
     submitDepositRequest,
     claimDepositBonus,
     setActiveTab,
+    setHistoryFilterTab,
     language,
     showToast
   } = useApp();
@@ -127,10 +128,16 @@ export const Deposit: React.FC = () => {
   );
 
   const myRecentDeposits = useMemo(() => {
+    if (!user.isLoggedIn || !user.id) return [];
+    const normPhone = normalizePhone(user.phone || '');
     const seen = new Set<string>();
     const list = [];
     for (const d of depositRequests) {
-      if (d.userId !== user.id) continue;
+      const ownsDeposit =
+        d.userId === user.id ||
+        (normPhone && d.senderNumber && normalizePhone(d.senderNumber) === normPhone) ||
+        (normPhone && d.userPhone && normalizePhone(d.userPhone) === normPhone);
+      if (!ownsDeposit) continue;
       const key = String(d.sessionId || d.orderId || d.trxId || d.id || '').trim();
       if (key && seen.has(key)) continue;
       if (key) seen.add(key);
@@ -138,7 +145,7 @@ export const Deposit: React.FC = () => {
       if (list.length >= 5) break;
     }
     return list;
-  }, [depositRequests, user.id]);
+  }, [depositRequests, user.isLoggedIn, user.id, user.phone]);
 
   const activePendingGift = useMemo(() => {
     const code = String(user.pendingDepositBonusCode || '').trim().toUpperCase();
@@ -313,6 +320,7 @@ export const Deposit: React.FC = () => {
         <button
           type="button"
           onClick={() => {
+            setHistoryFilterTab('deposit');
             setActiveTab('transaction-history');
             window.location.hash = '#/transaction-history';
           }}
@@ -338,6 +346,12 @@ export const Deposit: React.FC = () => {
           <div className="text-3xl font-black tracking-tight tabular-nums">
             ৳{user.balance.toFixed(2)}
           </div>
+          {(user.lockedBalance || 0) > 0 && (
+            <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-200 text-[10px] font-black tabular-nums">
+              <Lock className="w-2.5 h-2.5" />
+              <span>Playable: ৳{Math.max(0, user.balance - (user.lockedBalance || 0)).toFixed(2)} • Hold: ৳{(user.lockedBalance || 0).toFixed(2)}</span>
+            </div>
+          )}
           <div className="text-[11px] text-cyan-100 mt-2 flex items-center justify-between gap-2 font-medium">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />

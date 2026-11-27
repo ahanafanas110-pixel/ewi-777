@@ -1171,6 +1171,11 @@ export const PlaneGame: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {(user.lockedBalance || 0) > 0 && (
+            <span className="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-black text-amber-800 tabular-nums">
+              Hold ৳{(user.lockedBalance || 0).toFixed(0)}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -1180,7 +1185,7 @@ export const PlaneGame: React.FC = () => {
             className="flex items-center gap-1.5 rounded-xl bg-cyan-50 border border-cyan-200 px-2.5 py-1.5 text-xs font-mono font-black text-cyan-800 tabular-nums active:scale-95"
           >
             <TakaCoinBadge size={18} />
-            <span>৳{user.balance.toFixed(2)}</span>
+            <span>৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}</span>
             <RefreshCw className="w-3 h-3 opacity-70" />
           </button>
 

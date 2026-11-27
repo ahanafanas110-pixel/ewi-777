@@ -175,10 +175,17 @@ export const EwiWinGo: React.FC = () => {
         <div className="bg-white rounded-2xl px-4 py-3 border border-slate-200 flex items-center justify-between shadow-xs">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Wallet Balance
+              Playable Balance
             </div>
-            <div className="text-xl font-black text-slate-900 tabular-nums">
-              ৳{user.balance.toFixed(2)}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-xl font-black text-slate-900 tabular-nums">
+                ৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}
+              </div>
+              {(user.lockedBalance || 0) > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-extrabold text-amber-800 tabular-nums">
+                  Hold: ৳{(user.lockedBalance || 0).toFixed(2)}
+                </span>
+              )}
             </div>
           </div>
           <button

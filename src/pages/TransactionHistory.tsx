@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { ArrowLeft, Copy, Check, FileText } from 'lucide-react';
+import { normalizePhone, useApp } from '../context/AppContext';
+import { ArrowLeft, Copy, Check, FileText, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Language } from '../types';
 
 interface HistoryCardRow {
   id: string;
+  source: 'deposit_req' | 'withdraw_req' | 'ledger';
   type: string;
   badgeLabel: string;
   methodLabel: string;
+  channelLabel?: string;
   time: string;
+  sortMs: number;
   amount: number;
   orderNumber: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'REJECTED';
@@ -20,6 +24,159 @@ interface HistoryCardRow {
   senderNumber?: string;
 }
 
+const HISTORY_COPY: Record<
+  Language,
+  {
+    allTitle: string;
+    depositTitle: string;
+    withdrawTitle: string;
+    allOpt: string;
+    depOpt: string;
+    wdOpt: string;
+    rebateOpt: string;
+    giftOpt: string;
+    winOpt: string;
+    emptyAll: string;
+    emptyDeposit: string;
+    emptyWithdraw: string;
+    depAmount: string;
+    wdAmount: string;
+    amount: string;
+    type: string;
+    time: string;
+    orderNo: string;
+    payoutTrx: string;
+    note: string;
+    completed: string;
+    processing: string;
+    rejected: string;
+    pending: string;
+    completePay: string;
+    opening: string;
+  }
+> = {
+  en: {
+    allTitle: 'TRANSACTION HISTORY',
+    depositTitle: 'DEPOSIT HISTORY',
+    withdrawTitle: 'WITHDRAWAL HISTORY',
+    allOpt: 'All Records',
+    depOpt: 'Deposit History',
+    wdOpt: 'Withdrawal History',
+    rebateOpt: 'Rebate',
+    giftOpt: 'Gifts',
+    winOpt: 'Lottery Win',
+    emptyAll: 'No transaction records yet.',
+    emptyDeposit: 'No deposit history yet.',
+    emptyWithdraw: 'No withdrawal requests yet.',
+    depAmount: 'Deposit amount',
+    wdAmount: 'Withdrawal amount',
+    amount: 'Amount',
+    type: 'Type',
+    time: 'Time',
+    orderNo: 'Order / TrxID',
+    payoutTrx: 'Payout TrxID',
+    note: 'Note',
+    completed: 'Completed',
+    processing: 'Processing',
+    rejected: 'Rejected',
+    pending: 'Pending',
+    completePay: 'COMPLETE PAYMENT',
+    opening: 'OPENING CHECKOUT...'
+  },
+  bn: {
+    allTitle: 'লেনদেনের ইতিহাস',
+    depositTitle: 'ডিপোজিট ইতিহাস',
+    withdrawTitle: 'উইথড্র ইতিহাস',
+    allOpt: 'সব রেকর্ড',
+    depOpt: 'ডিপোজিট ইতিহাস',
+    wdOpt: 'উইথড্র ইতিহাস',
+    rebateOpt: 'রিবেট',
+    giftOpt: 'গিফট',
+    winOpt: 'লটারি জয়',
+    emptyAll: 'এখনো কোনো লেনদেন পাওয়া যায়নি।',
+    emptyDeposit: 'এখনো কোনো ডিপোজিট ইতিহাস নেই।',
+    emptyWithdraw: 'আপনি এখনো কোনো উইথড্র করেননি।',
+    depAmount: 'ডিপোজিট পরিমাণ',
+    wdAmount: 'উইথড্র পরিমাণ',
+    amount: 'পরিমাণ',
+    type: 'মাধ্যম',
+    time: 'সময়',
+    orderNo: 'অর্ডার / TrxID',
+    payoutTrx: 'পেআউট TrxID',
+    note: 'নোট',
+    completed: 'সম্পন্ন',
+    processing: 'প্রক্রিয়াধীন',
+    rejected: 'বাতিল',
+    pending: 'অপেক্ষমান',
+    completePay: 'পেমেন্ট সম্পন্ন করুন',
+    opening: 'চেকআউট খোলা হচ্ছে...'
+  },
+  hi: {
+    allTitle: 'लेनदेन इतिहास',
+    depositTitle: 'डिपॉज़िट इतिहास',
+    withdrawTitle: 'विथड्रॉ इतिहास',
+    allOpt: 'सभी रिकॉर्ड',
+    depOpt: 'डिपॉज़िट इतिहास',
+    wdOpt: 'विथड्रॉ इतिहास',
+    rebateOpt: 'रिबेट',
+    giftOpt: 'गिफ्ट',
+    winOpt: 'लॉटरी जीत',
+    emptyAll: 'अभी तक कोई लेनदेन रिकॉर्ड नहीं है।',
+    emptyDeposit: 'अभी तक कोई डिपॉज़िट इतिहास नहीं है।',
+    emptyWithdraw: 'आपने अभी तक कोई विथड्रॉ नहीं किया है।',
+    depAmount: 'डिपॉज़िट राशि',
+    wdAmount: 'विथड्रॉ राशि',
+    amount: 'राशि',
+    type: 'माध्यम',
+    time: 'समय',
+    orderNo: 'ऑर्डर / TrxID',
+    payoutTrx: 'पेआउट TrxID',
+    note: 'नोट',
+    completed: 'पूर्ण',
+    processing: 'प्रोसेसिंग',
+    rejected: 'अस्वीकृत',
+    pending: 'लंबित',
+    completePay: 'भुगतान पूरा करें',
+    opening: 'चेकआउट खुल रहा है...'
+  },
+  ur: {
+    allTitle: 'لین دین کی تاریخ',
+    depositTitle: 'ڈپازٹ ہسٹری',
+    withdrawTitle: 'ودڈرا ہسٹری',
+    allOpt: 'تمام ریکارڈز',
+    depOpt: 'ڈپازٹ ہسٹری',
+    wdOpt: 'ودڈرا ہسٹری',
+    rebateOpt: 'ریبیٹ',
+    giftOpt: 'تحائف',
+    winOpt: 'لاٹری جیت',
+    emptyAll: 'ابھی تک کوئی لین دین موجود نہیں۔',
+    emptyDeposit: 'ابھی تک کوئی ڈپازٹ ہسٹری موجود نہیں۔',
+    emptyWithdraw: 'آپ نے ابھی تک کوئی ودڈرا کی درخواست نہیں دی۔',
+    depAmount: 'ڈپازٹ رقم',
+    wdAmount: 'ودڈرا رقم',
+    amount: 'رقم',
+    type: 'طریقہ',
+    time: 'وقت',
+    orderNo: 'آرڈر / TrxID',
+    payoutTrx: 'پے آؤٹ TrxID',
+    note: 'نوٹ',
+    completed: 'مکمل',
+    processing: 'جاری ہے',
+    rejected: 'مسترد',
+    pending: 'زیر التواء',
+    completePay: 'ادائیگی مکمل کریں',
+    opening: 'چیک آؤٹ کھل رہا ہے...'
+  }
+};
+
+function resolveSortTimeMs(rec: { createdAtMs?: number; id?: string; time?: string }): number {
+  if (typeof rec.createdAtMs === 'number' && rec.createdAtMs > 0) return rec.createdAtMs;
+  const match = String(rec.id || '').match(/_(\d{13})(?:_|$)/);
+  if (match) return Number(match[1]) || 0;
+  const parsed = rec.time ? Date.parse(rec.time) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
 export const TransactionHistory: React.FC = () => {
   const {
     user,
@@ -30,9 +187,11 @@ export const TransactionHistory: React.FC = () => {
     setActiveTab,
     historyFilterTab,
     setHistoryFilterTab,
+    language,
     showToast
   } = useApp();
 
+  const copy = HISTORY_COPY[language] || HISTORY_COPY.en;
   const [filterType, setFilterType] = useState<string>(historyFilterTab || 'all');
   const [filterDate, setFilterDate] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -60,7 +219,7 @@ export const TransactionHistory: React.FC = () => {
       document.body.removeChild(ta);
     }
     setCopiedId(id);
-    showToast('Order number copied');
+    showToast('Order / TrxID copied');
     setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
   };
 
@@ -89,24 +248,36 @@ export const TransactionHistory: React.FC = () => {
   };
 
   const combinedItems = useMemo<HistoryCardRow[]>(() => {
+    if (!user.isLoggedIn || !user.id) return [];
+
+    const normUserPhone = normalizePhone(user.phone || '');
     const list: HistoryCardRow[] = [];
     const seenKeys = new Set<string>();
 
-    // 1. User Deposit Requests (all statuses: pending, approved, rejected)
+    // 1. User Deposit Requests ONLY
     depositRequests
-      .filter((d) => d.userId === user.id || (user.phone && d.senderNumber === user.phone))
+      .filter((d) => {
+        if (d.userId === user.id) return true;
+        if (normUserPhone && d.senderNumber && normalizePhone(d.senderNumber) === normUserPhone) return true;
+        if (normUserPhone && d.userPhone && normalizePhone(d.userPhone) === normUserPhone) return true;
+        return false;
+      })
       .forEach((d) => {
         const dedupKey = `dep:${d.sessionId || d.orderId || d.trxId || d.id}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
         const status: HistoryCardRow['status'] =
           d.status === 'approved' ? 'COMPLETED' : d.status === 'rejected' ? 'REJECTED' : 'PENDING';
+        const channelStr = String(d.channel || '').trim();
         list.push({
           id: `dep_req_${d.id}`,
+          source: 'deposit_req',
           type: 'deposit',
           badgeLabel: 'DEPOSIT',
-          methodLabel: String(d.method || 'bKash'),
+          methodLabel: `${d.method || 'bKash'}${channelStr ? ` · ${channelStr}` : ''}`,
+          channelLabel: channelStr || undefined,
           time: d.time,
+          sortMs: resolveSortTimeMs(d),
           amount: Math.abs(Number(d.amount) || 0),
           orderNumber: String(d.orderId || d.trxId || d.sessionId || d.id),
           status,
@@ -118,11 +289,15 @@ export const TransactionHistory: React.FC = () => {
         });
       });
 
-    // 2. User Withdraw Requests (all statuses: pending, processing, completed, rejected)
+    // 2. User Withdraw Requests ONLY (strictly real submitted withdrawals)
     withdrawRequests
-      .filter((w) => w.userId === user.id || (user.phone && w.userPhone === user.phone))
+      .filter((w) => {
+        if (w.userId === user.id) return true;
+        if (normUserPhone && w.userPhone && normalizePhone(w.userPhone) === normUserPhone) return true;
+        return false;
+      })
       .forEach((w) => {
-        const dedupKey = `wd:${w.id}`;
+        const dedupKey = `wd:${w.orderId || w.id}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
         const status: HistoryCardRow['status'] =
@@ -135,10 +310,12 @@ export const TransactionHistory: React.FC = () => {
             : 'PENDING';
         list.push({
           id: `wd_req_${w.id}`,
+          source: 'withdraw_req',
           type: 'withdraw',
           badgeLabel: 'WITHDRAW',
           methodLabel: `${w.method}${w.number ? ` · ${w.number}` : ''}`,
           time: w.time,
+          sortMs: resolveSortTimeMs(w),
           amount: Math.abs(Number(w.amount) || 0),
           orderNumber: String(w.orderId || w.id),
           status,
@@ -150,33 +327,16 @@ export const TransactionHistory: React.FC = () => {
         });
       });
 
-    // 3. Remaining Transactions (strictly exclude gift codes from Deposit, deduplicate deposit/withdraw entries already covered)
+    // 3. Other Account Ledger Transactions (excludes deposit/withdraw & zero-amount admin hold noise)
     transactions
       .filter((tx) => tx.userId === user.id)
       .forEach((tx) => {
-        if (tx.type === 'deposit') {
-          const matchingReq = depositRequests.some(
-            (d) =>
-              d.userId === user.id &&
-              d.status === 'approved' &&
-              (String(tx.detail || '').includes(d.trxId) ||
-                (Math.abs(d.amount - Math.abs(tx.amount)) < 0.01 && tx.time === d.time))
-          );
-          if (matchingReq) return;
-        }
-        if (tx.type === 'withdraw') {
-          const matchingWd = withdrawRequests.some(
-            (w) =>
-              w.userId === user.id &&
-              Math.abs(w.amount - Math.abs(tx.amount)) < 0.01 &&
-              (tx.time === w.time || String(tx.detail || '').includes(w.number))
-          );
-          if (matchingWd) return;
+        if (tx.type === 'deposit' || tx.type === 'withdraw') return;
+        if ((tx.type === 'admin_hold' || tx.type === 'admin_release') && Math.abs(Number(tx.amount) || 0) === 0) {
+          return;
         }
 
         const badgeMap: Record<string, string> = {
-          deposit: 'DEPOSIT',
-          withdraw: 'WITHDRAW',
           gift: 'GIFT',
           rebate: 'REBATE',
           salary_bonus: 'SALARY',
@@ -184,30 +344,36 @@ export const TransactionHistory: React.FC = () => {
           recharge_bonus: 'RECHARGE BONUS',
           daily_refer_bonus: 'DAILY REFER',
           wingo_streak_bonus: 'WIN STREAK',
-          wingo_refund: 'WINGO REFUND'
+          wingo_refund: 'WINGO REFUND',
+          admin_adjust: 'ADJUSTMENT',
+          admin_hold: 'HOLD',
+          admin_release: 'RELEASE',
+          withdraw_refund: 'WD REFUND'
         };
 
         list.push({
           id: tx.id,
+          source: 'ledger',
           type: tx.type,
           badgeLabel: badgeMap[tx.type] || tx.type.replace(/_/g, ' ').toUpperCase(),
           methodLabel: tx.title,
           time: tx.time,
+          sortMs: resolveSortTimeMs(tx),
           amount: tx.amount,
-          orderNumber: String(tx.id).toUpperCase(),
+          orderNumber: String(tx.trxId || tx.id).toUpperCase(),
           status: tx.status === 'rejected' ? 'REJECTED' : tx.status === 'pending' ? 'PENDING' : 'COMPLETED',
           detail: tx.detail
         });
       });
 
-    return list;
-  }, [depositRequests, withdrawRequests, transactions, user.id, user.phone]);
+    return list.sort((a, b) => (b.sortMs || 0) - (a.sortMs || 0));
+  }, [depositRequests, withdrawRequests, transactions, user.isLoggedIn, user.id, user.phone]);
 
   const filtered = combinedItems.filter((tx) => {
     if (filterType === 'deposit') {
-      if (tx.type !== 'deposit') return false;
+      if (tx.source !== 'deposit_req') return false;
     } else if (filterType === 'withdraw') {
-      if (tx.type !== 'withdraw') return false;
+      if (tx.source !== 'withdraw_req') return false;
     } else if (filterType !== 'all') {
       if (tx.type !== filterType) return false;
     }
@@ -217,10 +383,17 @@ export const TransactionHistory: React.FC = () => {
 
   const headingTitle =
     filterType === 'deposit'
-      ? 'DEPOSIT HISTORY'
+      ? copy.depositTitle
       : filterType === 'withdraw'
-      ? 'WITHDRAWAL HISTORY'
-      : 'TRANSACTION HISTORY';
+      ? copy.withdrawTitle
+      : copy.allTitle;
+
+  const emptyMessage =
+    filterType === 'withdraw'
+      ? copy.emptyWithdraw
+      : filterType === 'deposit'
+      ? copy.emptyDeposit
+      : copy.emptyAll;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
@@ -254,12 +427,12 @@ export const TransactionHistory: React.FC = () => {
               }}
               className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 shadow-2xs appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
-              <option value="all">All Records</option>
-              <option value="deposit">Deposit History</option>
-              <option value="withdraw">Withdrawal History</option>
-              <option value="rebate">Rebate</option>
-              <option value="gift">Gifts</option>
-              <option value="lottery_win">Lottery Win</option>
+              <option value="all">{copy.allOpt}</option>
+              <option value="deposit">{copy.depOpt}</option>
+              <option value="withdraw">{copy.wdOpt}</option>
+              <option value="rebate">{copy.rebateOpt}</option>
+              <option value="gift">{copy.giftOpt}</option>
+              <option value="lottery_win">{copy.winOpt}</option>
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400 text-[10px]">
               ▼
@@ -277,25 +450,38 @@ export const TransactionHistory: React.FC = () => {
         </div>
 
         {/* Section Subtitle */}
-        <div className="flex items-center gap-2 px-1 pt-0.5">
-          <div className="w-5 h-5 rounded-full bg-cyan-500/15 text-cyan-700 flex items-center justify-center">
-            <FileText className="w-3 h-3" />
+        <div className="flex items-center justify-between px-1 pt-0.5">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-cyan-500/15 text-cyan-700 flex items-center justify-center">
+              {filterType === 'withdraw' ? (
+                <ArrowUpCircle className="w-3.5 h-3.5" />
+              ) : filterType === 'deposit' ? (
+                <ArrowDownCircle className="w-3.5 h-3.5" />
+              ) : (
+                <FileText className="w-3 h-3" />
+              )}
+            </div>
+            <span className="text-xs font-black tracking-wide text-slate-700 uppercase">
+              {headingTitle}
+            </span>
           </div>
-          <span className="text-xs font-black tracking-wide text-slate-700 uppercase">
-            {headingTitle}
-          </span>
+          {filtered.length > 0 && (
+            <span className="text-[11px] font-bold font-mono text-slate-400">
+              {filtered.length}
+            </span>
+          )}
         </div>
 
         {/* Records Cards */}
         <div className="space-y-3">
           {filtered.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-3xl p-6 border border-slate-200">
-              No records found.
+            <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-3xl p-6 border border-slate-200 font-semibold">
+              {emptyMessage}
             </div>
           ) : (
             filtered.map((row) => {
-              const isDep = row.type === 'deposit';
-              const isWd = row.type === 'withdraw';
+              const isDep = row.source === 'deposit_req';
+              const isWd = row.source === 'withdraw_req';
               const statusStyle =
                 row.status === 'COMPLETED'
                   ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
@@ -327,20 +513,20 @@ export const TransactionHistory: React.FC = () => {
                       className={`px-2.5 py-0.5 rounded-md border text-[10px] font-black tracking-wide ${statusStyle}`}
                     >
                       {row.status === 'COMPLETED'
-                        ? 'Completed'
+                        ? copy.completed
                         : row.status === 'PROCESSING'
-                        ? 'Processing'
+                        ? copy.processing
                         : row.status === 'REJECTED'
-                        ? 'Rejected'
-                        : 'Pending'}
+                        ? copy.rejected
+                        : copy.pending}
                     </span>
                   </div>
 
-                  {/* 4 Key Rows */}
+                  {/* Key Rows */}
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 font-medium">
-                        {isDep ? 'Deposit amount' : isWd ? 'Withdrawal amount' : 'Amount'}
+                        {isDep ? copy.depAmount : isWd ? copy.wdAmount : copy.amount}
                       </span>
                       <span
                         className={`font-black font-mono tabular-nums text-sm ${
@@ -360,21 +546,21 @@ export const TransactionHistory: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-slate-500 font-medium">Type</span>
+                      <span className="text-slate-500 font-medium">{copy.type}</span>
                       <span className="font-bold text-slate-900 text-right truncate max-w-[65%]">
                         {row.methodLabel}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500 font-medium">Time</span>
+                      <span className="text-slate-500 font-medium">{copy.time}</span>
                       <span className="font-semibold text-slate-800 font-mono tabular-nums">
                         {row.time}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-500 font-medium">Order number</span>
+                      <span className="text-slate-500 font-medium">{copy.orderNo}</span>
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="font-mono font-bold text-slate-900 truncate max-w-[175px]">
                           {row.orderNumber}
@@ -396,7 +582,7 @@ export const TransactionHistory: React.FC = () => {
 
                     {row.payoutTrxId && (
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500 font-medium">Payout TrxID</span>
+                        <span className="text-slate-500 font-medium">{copy.payoutTrx}</span>
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="font-mono font-bold text-emerald-700 truncate max-w-[175px]">
                             {row.payoutTrxId}
@@ -419,7 +605,7 @@ export const TransactionHistory: React.FC = () => {
 
                     {row.rejectionReason && (
                       <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-[11px] font-semibold text-rose-700">
-                        Note: {row.rejectionReason}
+                        {copy.note}: {row.rejectionReason}
                       </div>
                     )}
 
@@ -436,7 +622,7 @@ export const TransactionHistory: React.FC = () => {
                       onClick={() => handleCompletePayment(row)}
                       className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs tracking-wider uppercase shadow-sm hover:brightness-105 active:scale-98 transition-all disabled:opacity-60"
                     >
-                      {resumingId === row.id ? 'OPENING CHECKOUT...' : 'COMPLETE PAYMENT'}
+                      {resumingId === row.id ? copy.opening : copy.completePay}
                     </button>
                   )}
                 </div>

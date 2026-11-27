@@ -78,7 +78,7 @@ export const SlotsLobby: React.FC = () => {
             <div className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-slate-100 border border-slate-200">
               <span className="text-[11px] font-black text-cyan-700">৳</span>
               <span className="text-xs font-extrabold tabular-nums text-slate-900 max-w-[70px] truncate">
-                {user.balance.toFixed(2)}
+                {Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}
               </span>
               <button
                 type="button"

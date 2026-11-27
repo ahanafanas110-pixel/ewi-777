@@ -1451,8 +1451,13 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
                 {isGoldMode ? 'GOLD' : 'REAL'}
               </span>
               <span className="text-xs font-black font-mono tabular-nums truncate text-slate-900">
-                ৳{user.balance.toFixed(2)}
+                ৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}
               </span>
+              {(user.lockedBalance || 0) > 0 && (
+                <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-black tabular-nums flex-shrink-0">
+                  Hold ৳{(user.lockedBalance || 0).toFixed(0)}
+                </span>
+              )}
             </div>
 
             <button

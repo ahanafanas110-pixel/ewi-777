@@ -50,34 +50,43 @@ import {
   saveAppSettingsToFirebase,
   getAppSettingsFromFirebase,
   subscribeUsersInFirebase,
+  subscribeSingleUserInFirebase,
   saveUserToFirebase,
   updateUserInFirebase,
   deleteUserFromFirebase,
   fetchAllUsersFromFirebase,
   subscribeDepositsInFirebase,
+  subscribeUserDepositsInFirebase,
   saveDepositToFirebase,
   updateDepositInFirebase,
   subscribeWithdrawsInFirebase,
+  subscribeUserWithdrawsInFirebase,
   saveWithdrawToFirebase,
   updateWithdrawInFirebase,
   subscribeSupportMessagesInFirebase,
+  subscribeUserSupportMessagesInFirebase,
   saveSupportMessageToFirebase,
   savePasswordRequestToFirebase,
   subscribeWingoBetsInFirebase,
+  subscribeUserWingoBetsInFirebase,
   saveWingoBetToFirebase,
   subscribeTransactionsInFirebase,
+  subscribeUserTransactionsInFirebase,
   saveTransactionToFirebase,
   subscribeNotificationsInFirebase,
+  subscribeUserNotificationsInFirebase,
   saveNotificationToFirebase,
   subscribeAdminAccessLogsInFirebase,
   saveAdminAccessLogToFirebase,
   subscribeMarketPoolsInFirebase,
   saveMarketPoolInFirebase,
   subscribeReferralsInFirebase,
+  subscribeUserReferralsInFirebase,
   saveReferralToFirebase,
   subscribeCrashStateInFirebase,
   saveCrashStateToFirebase,
   subscribeSportsBetsInFirebase,
+  subscribeUserSportsBetsInFirebase,
   saveSportsBetToFirebase
 } from '../lib/firebase';
 import { BINARY_MARKETS, BINARY_MARKET_MAP } from '../constants/markets';
@@ -1234,6 +1243,31 @@ function deriveWingoMeta(num: number): { color: WinGoResult['color']; size: 'big
   return { color, size: safeNum >= 5 ? 'big' : 'small' };
 }
 
+function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function isMentorRouteActive(): boolean {
+  try {
+    const loc = `${window.location.pathname} ${window.location.hash}`.toLowerCase();
+    return loc.includes('mentor-ewi777-panel');
+  } catch {
+    return false;
+  }
+}
+
+function isPrivilegedSessionHost(isAdminAuth?: boolean): boolean {
+  if (isAdminAuth) return true;
+  try {
+    const loc = `${window.location.pathname} ${window.location.hash}`.toLowerCase();
+    return loc.includes('admin-ewi777-panel-009') || loc.includes('mentor-ewi777-panel');
+  } catch {
+    return false;
+  }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Always safely merge loaded user with defaults; starts logged out by default for fresh sessions
   const [user, setUser] = useState<User>(() => {
@@ -1282,7 +1316,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem('ewi777_all_bound_numbers', JSON.stringify(globalBoundNumbers));
+    safeLocalStorageSet('ewi777_all_bound_numbers', JSON.stringify(globalBoundNumbers.slice(-2000)));
   }, [globalBoundNumbers]);
 
   const [referrals, setReferrals] = useState<ReferralMember[]>(() => {
@@ -1707,9 +1741,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [user.isLoggedIn, user.attendanceState, adminSettings.timezoneOffsetMinutes]);
 
-  // Persist states
+  // Persist states safely without localStorage QuotaExceededError crashes
   useEffect(() => {
-    localStorage.setItem('win777_current_user', JSON.stringify(user));
+    safeLocalStorageSet('win777_current_user', JSON.stringify(user));
     if (user.isLoggedIn && user.id) {
       setAllUsers((prev) => {
         const exists = prev.some((u) => u.id === user.id);
@@ -1720,52 +1754,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem('win777_all_users', JSON.stringify(allUsers));
-  }, [allUsers]);
+    if (!isPrivilegedSessionHost(isAdminLoggedIn)) return;
+    safeLocalStorageSet('win777_all_users', JSON.stringify(allUsers.slice(0, 600)));
+  }, [allUsers, isAdminLoggedIn]);
 
   useEffect(() => {
-    localStorage.setItem('win777_admin_settings', JSON.stringify(adminSettings));
+    safeLocalStorageSet('win777_admin_settings', JSON.stringify(adminSettings));
   }, [adminSettings]);
 
   useEffect(() => {
-    localStorage.setItem('win777_admin_auth', isAdminLoggedIn ? 'true' : 'false');
+    safeLocalStorageSet('win777_admin_auth', isAdminLoggedIn ? 'true' : 'false');
   }, [isAdminLoggedIn]);
 
   useEffect(() => {
-    localStorage.setItem('win777_deposit_requests', JSON.stringify(depositRequests));
+    safeLocalStorageSet('win777_deposit_requests', JSON.stringify(depositRequests.slice(0, 100)));
   }, [depositRequests]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_withdraw_requests', JSON.stringify(withdrawRequests));
+    safeLocalStorageSet('ewi777_withdraw_requests', JSON.stringify(withdrawRequests.slice(0, 100)));
   }, [withdrawRequests]);
 
   useEffect(() => {
-    localStorage.setItem('win777_referrals', JSON.stringify(referrals));
+    safeLocalStorageSet('win777_referrals', JSON.stringify(referrals.slice(0, 200)));
   }, [referrals]);
 
   useEffect(() => {
-    localStorage.setItem('win777_transactions', JSON.stringify(transactions));
+    safeLocalStorageSet('win777_transactions', JSON.stringify(transactions.slice(0, 150)));
   }, [transactions]);
 
   useEffect(() => {
-    localStorage.setItem('win777_bets', JSON.stringify(bets));
+    safeLocalStorageSet('win777_bets', JSON.stringify(bets.slice(0, 150)));
   }, [bets]);
 
   useEffect(() => {
-    localStorage.setItem('win777_aviator_bets', JSON.stringify(aviatorBets));
+    safeLocalStorageSet('win777_aviator_bets', JSON.stringify(aviatorBets.slice(0, 100)));
   }, [aviatorBets]);
 
   useEffect(() => {
-    localStorage.setItem('win777_binary_bets', JSON.stringify(binaryBets));
+    safeLocalStorageSet('win777_binary_bets', JSON.stringify(binaryBets.slice(0, 100)));
   }, [binaryBets]);
 
   useEffect(() => {
-    localStorage.setItem('win777_language', language);
+    safeLocalStorageSet('win777_language', language);
   }, [language]);
 
   useEffect(() => {
+    safeLocalStorageSet('ewi777_theme', 'light');
     try {
-      localStorage.setItem('ewi777_theme', 'light');
       document.documentElement.classList.remove('dark');
     } catch {}
   }, []);
@@ -1789,36 +1824,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user.isLoggedIn, user.id]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_notifications', JSON.stringify(notifications.slice(0, 50)));
+    safeLocalStorageSet('ewi777_notifications', JSON.stringify(notifications.slice(0, 50)));
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_support_messages', JSON.stringify(supportMessages.slice(-250)));
+    safeLocalStorageSet('ewi777_support_messages', JSON.stringify(supportMessages.slice(-200)));
   }, [supportMessages]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_k3_bets', JSON.stringify(k3Bets.slice(0, 150)));
+    safeLocalStorageSet('ewi777_k3_bets', JSON.stringify(k3Bets.slice(0, 150)));
   }, [k3Bets]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_d5_bets', JSON.stringify(d5Bets.slice(0, 150)));
+    safeLocalStorageSet('ewi777_d5_bets', JSON.stringify(d5Bets.slice(0, 150)));
   }, [d5Bets]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_coinflip_bets', JSON.stringify(coinFlipBets.slice(0, 150)));
+    safeLocalStorageSet('ewi777_coinflip_bets', JSON.stringify(coinFlipBets.slice(0, 150)));
   }, [coinFlipBets]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_ewi_wingo_bets', JSON.stringify(ewiWingoBets.slice(0, 150)));
+    safeLocalStorageSet('ewi777_ewi_wingo_bets', JSON.stringify(ewiWingoBets.slice(0, 150)));
   }, [ewiWingoBets]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_roulette_bets', JSON.stringify(rouletteBets.slice(0, 150)));
+    safeLocalStorageSet('ewi777_roulette_bets', JSON.stringify(rouletteBets.slice(0, 150)));
   }, [rouletteBets]);
 
   useEffect(() => {
-    localStorage.setItem('ewi777_admin_access_logs', JSON.stringify(adminAccessLogs.slice(0, 200)));
-  }, [adminAccessLogs]);
+    if (!isPrivilegedSessionHost(isAdminLoggedIn)) return;
+    safeLocalStorageSet('ewi777_admin_access_logs', JSON.stringify(adminAccessLogs.slice(0, 200)));
+  }, [adminAccessLogs, isAdminLoggedIn]);
 
   // Auto-reject pending/processing deposits and withdrawals older than 1 hour (refunding expired withdrawals)
   useEffect(() => {
@@ -1918,19 +1954,148 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
+  const isAdminLoggedInRef = useRef<boolean>(isAdminLoggedIn);
+  isAdminLoggedInRef.current = isAdminLoggedIn;
+  const activeTabRef = useRef<string>(activeTab);
+  activeTabRef.current = activeTab;
+
+  const mergeRemoteMatchedUser = (matched: User | null | undefined) => {
+    if (!matched || !userRef.current.isLoggedIn || !userRef.current.id) return;
+    const curLocalTs = Number(userRef.current.updatedAt || 0);
+    const matchedTs = Number(matched.updatedAt || 0);
+    const isMatchedStale = Boolean(curLocalTs > 0 && matchedTs > 0 && matchedTs < curLocalTs);
+    if (isMatchedStale) return;
+
+    const needsAvatarPush = Boolean(userRef.current.avatar && !matched.avatar);
+    if (needsAvatarPush) {
+      fetch(apiUrl('/api/users/update'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userRef.current.id, patch: { avatar: userRef.current.avatar } })
+      }).catch(() => {});
+      updateUserInFirebase(userRef.current.id, { avatar: userRef.current.avatar }, userRef.current).catch(() => {});
+    }
+
+    const resolvedAvatar = matched.avatar || userRef.current.avatar || '';
+    const resolvedClaimedFd = matched.claimedFirstDepositTiers || userRef.current.claimedFirstDepositTiers;
+    const nextLockedBal = Math.max(0, Number(matched.lockedBalance) || 0);
+    const curLockedBal = Math.max(0, Number(userRef.current.lockedBalance) || 0);
+
+    const needsFieldSync =
+      matched.balance !== userRef.current.balance ||
+      nextLockedBal !== curLockedBal ||
+      matched.totalDeposited !== userRef.current.totalDeposited ||
+      matched.isBanned !== userRef.current.isBanned ||
+      matched.banReason !== userRef.current.banReason ||
+      matched.turnoverRequired !== userRef.current.turnoverRequired ||
+      matched.role !== userRef.current.role ||
+      (matched.pendingDepositBonusCode || '') !== (userRef.current.pendingDepositBonusCode || '') ||
+      (matched.lastGiftReason || '') !== (userRef.current.lastGiftReason || '') ||
+      (matched.loginPassword && matched.loginPassword !== userRef.current.loginPassword) ||
+      resolvedAvatar !== (userRef.current.avatar || '') ||
+      JSON.stringify(resolvedClaimedFd || {}) !==
+        JSON.stringify(userRef.current.claimedFirstDepositTiers || {});
+
+    const baseUser: User = needsFieldSync
+      ? {
+          ...userRef.current,
+          balance: Number(matched.balance) || 0,
+          lockedBalance: nextLockedBal,
+          totalDeposited: Number(matched.totalDeposited) || 0,
+          totalWithdrawn: Number(matched.totalWithdrawn) || userRef.current.totalWithdrawn || 0,
+          vipLevel: matched.vipLevel ?? userRef.current.vipLevel,
+          role: matched.role ?? userRef.current.role,
+          turnoverRequired: Number(matched.turnoverRequired) || 0,
+          isBanned: matched.isBanned,
+          banReason: matched.banReason,
+          pendingDepositBonusCode: matched.pendingDepositBonusCode,
+          creditedDepositBonusCodes: matched.creditedDepositBonusCodes,
+          lastGiftReason: matched.lastGiftReason,
+          lastGiftCode: matched.lastGiftCode ?? userRef.current.lastGiftCode,
+          lastGiftAmount: matched.lastGiftAmount ?? userRef.current.lastGiftAmount,
+          lastGiftClaimTime: matched.lastGiftClaimTime ?? userRef.current.lastGiftClaimTime,
+          loginPassword: matched.loginPassword || userRef.current.loginPassword,
+          avatar: resolvedAvatar,
+          claimedFirstDepositTiers: resolvedClaimedFd,
+          updatedAt: Math.max(curLocalTs, matchedTs)
+        }
+      : userRef.current;
+
+    const autoVip = applyAutoVipRewards(baseUser);
+    if (needsFieldSync || autoVip.totalCredited > 0 || autoVip.updatedUser.vipLevel !== baseUser.vipLevel) {
+      setUser(autoVip.updatedUser);
+      if (autoVip.newTxs.length > 0) {
+        setTransactions((txs) => [...autoVip.newTxs, ...txs]);
+        autoVip.newTxs.forEach((tx) => saveTransactionToFirebase(tx).catch(() => {}));
+      }
+      if (autoVip.newNotifs.length > 0) {
+        setNotifications((ns) => [...autoVip.newNotifs, ...ns].slice(0, 50));
+        autoVip.newNotifs.forEach((nf) => saveNotificationToFirebase(nf).catch(() => {}));
+      }
+      if (autoVip.totalCredited > 0) {
+        syncUserEverywhere(autoVip.updatedUser);
+      }
+    }
+  };
+
   useEffect(() => {
-    const syncServerData = async () => {
-      const pollStartedAt = Date.now();
+    let inFlight = false;
+    let lastTickMs = 0;
+
+    const syncServerData = async (forceRun = false) => {
+      if (inFlight) return;
+      if (!forceRun && document.visibilityState === 'hidden') return;
+
+      const isPrivileged = isPrivilegedSessionHost(isAdminLoggedInRef.current);
+      const curUser = userRef.current;
+      const isLoggedInUser = Boolean(curUser.isLoggedIn && curUser.id);
+      const minGap = isPrivileged ? 2400 : isLoggedInUser ? 4200 : 5800;
+      const now = Date.now();
+      if (!forceRun && now - lastTickMs < minGap) return;
+
+      inFlight = true;
+      lastTickMs = now;
+      const pollStartedAt = now;
+
       try {
-        const [depRes, wdRes, setRes, usrRes, wBetRes, csRes, refRes, poolRes] = await Promise.all([
-          fetch(apiUrl('/api/deposits'), { cache: 'no-store' }).catch(() => null),
-          fetch(apiUrl('/api/withdraws'), { cache: 'no-store' }).catch(() => null),
+        const userQs = isLoggedInUser
+          ? `userId=${encodeURIComponent(curUser.id)}${curUser.uid ? `&uid=${encodeURIComponent(curUser.uid)}` : ''}${curUser.phone ? `&phone=${encodeURIComponent(curUser.phone)}` : ''}`
+          : '';
+        const shouldFetchSupport =
+          isMentorRouteActive() || (isLoggedInUser && activeTabRef.current === 'customer-service');
+
+        const [setRes, depRes, wdRes, usrRes, poolRes, refRes, wBetRes, csRes, logRes] = await Promise.all([
           fetch(apiUrl('/api/settings'), { cache: 'no-store' }).catch(() => null),
-          fetch(apiUrl('/api/users'), { cache: 'no-store' }).catch(() => null),
-          fetch(apiUrl('/api/wingo/bets'), { cache: 'no-store' }).catch(() => null),
-          fetch(apiUrl('/api/support/messages'), { cache: 'no-store' }).catch(() => null),
-          fetch(apiUrl('/api/referrals'), { cache: 'no-store' }).catch(() => null),
-          fetch(apiUrl('/api/market-pools'), { cache: 'no-store' }).catch(() => null),
+          isPrivileged || isLoggedInUser
+            ? fetch(apiUrl(isPrivileged ? '/api/deposits' : `/api/deposits?${userQs}`), { cache: 'no-store' }).catch(() => null)
+            : Promise.resolve(null),
+          isPrivileged || isLoggedInUser
+            ? fetch(apiUrl(isPrivileged ? '/api/withdraws' : `/api/withdraws?${userQs}`), { cache: 'no-store' }).catch(() => null)
+            : Promise.resolve(null),
+          isPrivileged || isLoggedInUser
+            ? fetch(apiUrl(isPrivileged ? '/api/users' : `/api/users?${userQs}`), { cache: 'no-store' }).catch(() => null)
+            : Promise.resolve(null),
+          isPrivileged || isLoggedInUser
+            ? fetch(apiUrl('/api/market-pools'), { cache: 'no-store' }).catch(() => null)
+            : Promise.resolve(null),
+          isPrivileged || (isLoggedInUser && curUser.inviteCode)
+            ? fetch(
+                apiUrl(isPrivileged ? '/api/referrals' : `/api/referrals?inviteCode=${encodeURIComponent(curUser.inviteCode || '')}`),
+                { cache: 'no-store' }
+              ).catch(() => null)
+            : Promise.resolve(null),
+          isPrivileged
+            ? fetch(apiUrl('/api/wingo/bets'), { cache: 'no-store' }).catch(() => null)
+            : Promise.resolve(null),
+          shouldFetchSupport
+            ? fetch(
+                apiUrl(isMentorRouteActive() ? '/api/support/messages' : `/api/support/messages?userId=${encodeURIComponent(curUser.id)}`),
+                { cache: 'no-store' }
+              ).catch(() => null)
+            : Promise.resolve(null),
+          isPrivileged
+            ? fetch(apiUrl('/api/admin/access-logs'), { cache: 'no-store' }).catch(() => null)
+            : Promise.resolve(null)
         ]);
 
         const refCt = refRes?.headers.get('content-type') || '';
@@ -1961,7 +2126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const csCt = csRes?.headers.get('content-type') || '';
         if (csRes && csRes.ok && csCt.includes('application/json')) {
-          const csData = await csRes.json();
+          const csData = await csRes.json().catch(() => null);
           if (csData && Array.isArray(csData.messages)) {
             setSupportMessages((prev) => {
               const map = new Map(prev.map((m) => [m.id, m]));
@@ -1980,10 +2145,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const depCt = depRes?.headers.get('content-type') || '';
         if (depRes && depRes.ok && depCt.includes('application/json') && lastDepositsMutationAtRef.current < pollStartedAt && Date.now() - lastDepositsMutationAtRef.current > 2500) {
-          const data = await depRes.json();
+          const data = await depRes.json().catch(() => null);
           if (data && Array.isArray(data.deposits)) {
             setDepositRequests((prev) => {
-              const deduped = dedupeDepositsList([...prev, ...data.deposits]);
+              const base = isPrivileged ? prev : prev.filter((d) => d.userId === curUser.id);
+              const deduped = dedupeDepositsList([...base, ...data.deposits]);
               if (deduped.length === prev.length && JSON.stringify(deduped) === JSON.stringify(prev)) return prev;
               return deduped;
             });
@@ -1992,12 +2158,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const wdCt = wdRes?.headers.get('content-type') || '';
         if (wdRes && wdRes.ok && wdCt.includes('application/json') && lastWithdrawsMutationAtRef.current < pollStartedAt && Date.now() - lastWithdrawsMutationAtRef.current > 2500) {
-          const wData = await wdRes.json();
+          const wData = await wdRes.json().catch(() => null);
           if (wData && Array.isArray(wData.withdraws)) {
             const wdRank = (s?: string) => (s === 'completed' || s === 'rejected' ? 3 : s === 'processing' ? 2 : 1);
             setWithdrawRequests((prev) => {
-              const prevMap = new Map(prev.map((w) => [w.id, w]));
-              let hasChange = false;
+              const scopedPrev = isPrivileged ? prev : prev.filter((w) => w.userId === curUser.id);
+              const prevMap = new Map(scopedPrev.map((w) => [w.id, w]));
+              let hasChange = scopedPrev.length !== prev.length;
               for (const sw of wData.withdraws) {
                 const cur = prevMap.get(sw.id);
                 if (!cur) {
@@ -2036,7 +2203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const wbCt = wBetRes?.headers.get('content-type') || '';
         if (wBetRes && wBetRes.ok && wbCt.includes('application/json')) {
-          const wbData = await wBetRes.json();
+          const wbData = await wBetRes.json().catch(() => null);
           if (wbData && Array.isArray(wbData.bets)) {
             setGlobalWingoBets(wbData.bets);
           }
@@ -2044,7 +2211,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const setCt = setRes?.headers.get('content-type') || '';
         if (setRes && setRes.ok && setCt.includes('application/json') && lastSettingsPushAtRef.current < pollStartedAt && Date.now() - lastSettingsPushAtRef.current > 2500) {
-          const sData = await setRes.json();
+          const sData = await setRes.json().catch(() => null);
           if (sData && sData.settings) {
             setAdminSettings((prev) => {
               const rawGames =
@@ -2129,7 +2296,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
 
-        const logRes = await fetch(apiUrl('/api/admin/access-logs'), { cache: 'no-store' }).catch(() => null);
         const logCt = logRes?.headers.get('content-type') || '';
         if (logRes && logRes.ok && logCt.includes('application/json')) {
           const logData = await logRes.json().catch(() => null);
@@ -2153,24 +2319,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const usrCt = usrRes?.headers.get('content-type') || '';
         if (usrRes && usrRes.ok && usrCt.includes('application/json') && lastUsersMutationAtRef.current < pollStartedAt && Date.now() - lastUsersMutationAtRef.current > 2500) {
-          const uData = await usrRes.json();
+          const uData = await usrRes.json().catch(() => null);
           if (uData && Array.isArray(uData.users)) {
-            setAllUsers((prev) => {
-              const map = new Map(prev.map((u) => [u.id, u]));
-              let changed = false;
-              for (const su of uData.users) {
-                if (deletedUserIdsRef.current.has(su.id)) continue;
-                const cur = map.get(su.id);
-                const curTs = Number(cur?.updatedAt || 0);
-                const suTs = Number(su?.updatedAt || 0);
-                if (cur && curTs > 0 && suTs > 0 && suTs < curTs) continue;
-                if (!cur || JSON.stringify(cur) !== JSON.stringify(su)) {
-                  map.set(su.id, su);
-                  changed = true;
+            if (isPrivileged) {
+              setAllUsers((prev) => {
+                const map = new Map(prev.map((u) => [u.id, u]));
+                let changed = false;
+                for (const su of uData.users) {
+                  if (deletedUserIdsRef.current.has(su.id)) continue;
+                  const cur = map.get(su.id);
+                  const curTs = Number(cur?.updatedAt || 0);
+                  const suTs = Number(su?.updatedAt || 0);
+                  if (cur && curTs > 0 && suTs > 0 && suTs < curTs) continue;
+                  if (!cur || JSON.stringify(cur) !== JSON.stringify(su)) {
+                    map.set(su.id, su);
+                    changed = true;
+                  }
                 }
-              }
-              return changed ? Array.from(map.values()) : prev;
-            });
+                return changed ? Array.from(map.values()) : prev;
+              });
+            }
 
             if (userRef.current.isLoggedIn && userRef.current.id) {
               const normCurPhone = normalizePhone(userRef.current.phone || '');
@@ -2180,85 +2348,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   (userRef.current.uid && su.uid === userRef.current.uid) ||
                   (normCurPhone && su.phone && normalizePhone(su.phone) === normCurPhone)
               );
-              const curLocalTs = Number(userRef.current.updatedAt || 0);
-              const matchedTs = Number(matched?.updatedAt || 0);
-              const isMatchedStale = Boolean(matched && curLocalTs > 0 && matchedTs > 0 && matchedTs < curLocalTs);
-              if (matched && !isMatchedStale) {
-                const needsAvatarPush = Boolean(userRef.current.avatar && !matched.avatar);
-                if (needsAvatarPush) {
-                  fetch(apiUrl('/api/users/update'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: userRef.current.id, patch: { avatar: userRef.current.avatar } })
-                  }).catch(() => {});
-                  updateUserInFirebase(userRef.current.id, { avatar: userRef.current.avatar }, userRef.current).catch(() => {});
-                }
-                const resolvedAvatar = matched.avatar || userRef.current.avatar || '';
-                const resolvedClaimedFd =
-                  matched.claimedFirstDepositTiers || userRef.current.claimedFirstDepositTiers;
-                const needsFieldSync =
-                  matched.balance !== userRef.current.balance ||
-                  matched.totalDeposited !== userRef.current.totalDeposited ||
-                  matched.isBanned !== userRef.current.isBanned ||
-                  matched.banReason !== userRef.current.banReason ||
-                  matched.turnoverRequired !== userRef.current.turnoverRequired ||
-                  matched.role !== userRef.current.role ||
-                  (matched.pendingDepositBonusCode || '') !== (userRef.current.pendingDepositBonusCode || '') ||
-                  (matched.lastGiftReason || '') !== (userRef.current.lastGiftReason || '') ||
-                  resolvedAvatar !== (userRef.current.avatar || '') ||
-                  JSON.stringify(resolvedClaimedFd || {}) !==
-                    JSON.stringify(userRef.current.claimedFirstDepositTiers || {});
-
-                const baseUser: User = needsFieldSync
-                  ? {
-                      ...userRef.current,
-                      balance: Number(matched.balance) || 0,
-                      totalDeposited: Number(matched.totalDeposited) || 0,
-                      totalWithdrawn: Number(matched.totalWithdrawn) || userRef.current.totalWithdrawn || 0,
-                      vipLevel: matched.vipLevel ?? userRef.current.vipLevel,
-                      role: matched.role ?? userRef.current.role,
-                      turnoverRequired: Number(matched.turnoverRequired) || 0,
-                      isBanned: matched.isBanned,
-                      banReason: matched.banReason,
-                      pendingDepositBonusCode: matched.pendingDepositBonusCode,
-                      creditedDepositBonusCodes: matched.creditedDepositBonusCodes,
-                      lastGiftReason: matched.lastGiftReason,
-                      lastGiftCode: matched.lastGiftCode ?? userRef.current.lastGiftCode,
-                      lastGiftAmount: matched.lastGiftAmount ?? userRef.current.lastGiftAmount,
-                      lastGiftClaimTime: matched.lastGiftClaimTime ?? userRef.current.lastGiftClaimTime,
-                      avatar: resolvedAvatar,
-                      claimedFirstDepositTiers: resolvedClaimedFd,
-                      updatedAt: Math.max(curLocalTs, matchedTs)
-                    }
-                  : userRef.current;
-
-                const autoVip = applyAutoVipRewards(baseUser);
-                if (needsFieldSync || autoVip.totalCredited > 0 || autoVip.updatedUser.vipLevel !== baseUser.vipLevel) {
-                  setUser(autoVip.updatedUser);
-                  if (autoVip.newTxs.length > 0) {
-                    setTransactions((txs) => [...autoVip.newTxs, ...txs]);
-                    autoVip.newTxs.forEach((tx) => saveTransactionToFirebase(tx).catch(() => {}));
-                  }
-                  if (autoVip.newNotifs.length > 0) {
-                    setNotifications((ns) => [...autoVip.newNotifs, ...ns].slice(0, 50));
-                    autoVip.newNotifs.forEach((nf) => saveNotificationToFirebase(nf).catch(() => {}));
-                  }
-                  if (autoVip.totalCredited > 0) {
-                    syncUserEverywhere(autoVip.updatedUser);
-                  }
-                }
-              }
+              mergeRemoteMatchedUser(matched);
             }
           }
         }
-      } catch {}
+      } catch {} finally {
+        inFlight = false;
+      }
     };
 
-    syncServerDataFnRef.current = syncServerData;
-    syncServerData();
-    const interval = setInterval(syncServerData, 1500);
+    syncServerDataFnRef.current = () => syncServerData(true);
+    syncServerData(true);
+    const interval = setInterval(() => syncServerData(false), 1500);
     const onFocusOrVisible = () => {
-      if (document.visibilityState !== 'hidden') syncServerData();
+      if (document.visibilityState !== 'hidden') syncServerData(true);
     };
     window.addEventListener('focus', onFocusOrVisible);
     document.addEventListener('visibilitychange', onFocusOrVisible);
@@ -2269,210 +2372,238 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Auto-reconcile EWI-Pay pending deposits, member-status, & processing withdrawals every 3.5s
+  // Auto-reconcile EWI-Pay pending deposits, member-status, & processing withdrawals without flooding background traffic
   useEffect(() => {
     let active = true;
+    let inFlight = false;
     const pollGateways = async () => {
-      if (!active) return;
-      try {
-        await syncEwiPayTransactions();
-      } catch {}
+      if (!active || inFlight || document.visibilityState === 'hidden') return;
 
-      // Also sync member-level deposits & withdrawals (including gateway-initiated withdrawals)
+      const isPrivileged = isPrivilegedSessionHost(isAdminLoggedInRef.current);
       const curUser = userRef.current;
       const siteUserId = String(curUser?.uid || curUser?.id || '').trim();
-      if (curUser?.isLoggedIn && siteUserId) {
-        try {
-          const mRes = await fetch(
-            apiUrl(`/api/ewi-pay/member-status/${encodeURIComponent(siteUserId)}`),
-            { cache: 'no-store' }
-          );
-          const mCt = mRes.headers.get('content-type') || '';
-          const mData = mRes.ok && mCt.includes('application/json') ? await mRes.json().catch(() => null) : null;
-          if (mData && active) {
-            const mDeps = Array.isArray(mData.deposits) ? mData.deposits : [];
-            for (const md of mDeps) {
-              const mdOrder = String(md?.orderId || md?.order_id || md?.depositId || md?.id || '').trim();
-              const mdSession = String(md?.sessionId || md?.session_id || '').trim();
-              const matchedDep = depositRequestsRef.current.find(
-                (d) =>
-                  (mdOrder && (d.id === mdOrder || d.orderId === mdOrder || d.trxId === mdOrder.toUpperCase())) ||
-                  (mdSession && d.sessionId === mdSession)
-              );
-              const mdSt = String(md?.status || '').trim().toLowerCase();
-              const mdDisplay = String(md?.displayStatus || '').trim().toLowerCase();
-              if (matchedDep && (matchedDep.status === 'pending' || matchedDep.status === 'processing')) {
-                if (
-                  mdSt === 'completed' ||
-                  mdSt === 'approved' ||
-                  mdSt === 'paid' ||
-                  mdSt === 'success' ||
-                  md?.completed === true ||
-                  mdDisplay === 'completed'
-                ) {
-                  approveDepositRef.current?.(matchedDep.id);
-                } else if (mdSt === 'rejected' || mdSt === 'failed' || md?.rejected === true) {
-                  const rej = String(md?.rejectionReason || md?.reason || md?.message || '').trim();
-                  rejectDepositRef.current?.(matchedDep.id, rej || undefined);
-                }
-              }
-            }
+      const hasPendingDep = depositRequestsRef.current.some(
+        (d) => (d.status === 'pending' || d.status === 'processing') && (isPrivileged || d.userId === curUser?.id)
+      );
+      const hasPendingWd = withdrawRequestsRef.current.some(
+        (w) => (w.status === 'processing' || w.status === 'pending') && (isPrivileged || w.userId === curUser?.id)
+      );
+      const onFinancePage =
+        activeTabRef.current === 'deposit' ||
+        activeTabRef.current === 'wallet' ||
+        activeTabRef.current === 'transaction-history';
 
-            const mWds = Array.isArray(mData.withdrawals) ? mData.withdrawals : [];
-            for (const mw of mWds) {
-              const mwOrder = String(mw?.orderId || mw?.order_id || '').trim();
-              const mwId = String(mw?.withdrawalId || mw?.withdrawal_id || mw?.id || '').trim();
-              const mwStatus = String(mw?.status || '').trim().toLowerCase();
-              const mwDisplay = String(mw?.displayStatus || '').trim().toLowerCase();
-              const payoutTrxId = String(mw?.payoutTrxId || mw?.payout_trx_id || mw?.trxId || '').trim();
-              const rejReason = String(mw?.rejectionReason || mw?.reason || mw?.message || '').trim();
-              const usrMsg = String(mw?.userMessage || mw?.user_message || '').trim();
-
-              const matchedWd = withdrawRequestsRef.current.find(
-                (w) =>
-                  (mwOrder && (w.id === mwOrder || w.orderId === mwOrder)) ||
-                  (mwId && (w.ewiPayWithdrawId === mwId || w.id === mwId))
-              );
-
-              if (matchedWd) {
-                if (
-                  (mwStatus === 'completed' ||
-                    mwStatus === 'paid' ||
-                    mwStatus === 'approved' ||
-                    mwStatus === 'success' ||
-                    mw?.completed === true ||
-                    mwDisplay.includes('completed')) &&
-                  matchedWd.status !== 'completed'
-                ) {
-                  updateWithdrawStatusRef.current?.(matchedWd.id, 'completed', undefined, undefined, {
-                    payoutTrxId: payoutTrxId || undefined,
-                    ewiPayWithdrawId: mwId || matchedWd.ewiPayWithdrawId
-                  });
-                } else if (
-                  (mwStatus === 'rejected' ||
-                    mwStatus === 'failed' ||
-                    mwStatus === 'cancelled' ||
-                    mwStatus === 'reversed' ||
-                    mw?.rejected === true ||
-                    mw?.refundRequired === true) &&
-                  matchedWd.status !== 'rejected' &&
-                  matchedWd.status !== 'completed'
-                ) {
-                  updateWithdrawStatusRef.current?.(matchedWd.id, 'rejected', rejReason || undefined, undefined, {
-                    userMessage: usrMsg || 'কিছুক্ষণ পর আবার চেষ্টা করুন',
-                    rejectionReason: rejReason || undefined,
-                    ewiPayWithdrawId: mwId || matchedWd.ewiPayWithdrawId
-                  });
-                }
-              } else if (mwId && mwStatus === 'completed') {
-                // Gateway-initiated withdrawal completed externally: mirror into history once
-                const syntheticId = (mwOrder || mwId).replace(/[^a-zA-Z0-9_-]/g, '_');
-                const gwWd: WithdrawRequest = {
-                  id: syntheticId,
-                  ...(mwOrder ? { orderId: mwOrder } : {}),
-                  ewiPayWithdrawId: mwId,
-                  userId: curUser.id,
-                  userName: curUser.nickname || curUser.phone || 'User',
-                  userPhone: curUser.phone || curUser.email || '',
-                  amount: Math.max(1, Number(mw?.amount) || 0),
-                  method: String(mw?.provider || mw?.method || '').toLowerCase().includes('nagad') ? 'Nagad' : 'bKash',
-                  number: String(mw?.recipientNumber || mw?.number || curUser.boundBkash || curUser.boundNagad || ''),
-                  status: 'completed',
-                  time: String(mw?.completedAt || mw?.createdAt || new Date().toLocaleString()),
-                  ...(payoutTrxId ? { payoutTrxId } : {})
-                };
-                if (gwWd.amount > 0) {
-                  setWithdrawRequests((prev) => (prev.some((x) => x.id === syntheticId) ? prev : [gwWd, ...prev]));
-                  saveWithdrawToFirebase(gwWd).catch(() => {});
-                }
-              }
-            }
-          }
-        } catch {}
+      if (!isPrivileged && !(curUser?.isLoggedIn && (hasPendingDep || hasPendingWd || onFinancePage))) {
+        return;
       }
 
+      inFlight = true;
       try {
-        const processingWds = withdrawRequestsRef.current.filter(
-          (w) => (w.status === 'processing' || w.status === 'pending') && Boolean(w.ewiPayWithdrawId)
-        );
-        for (const w of processingWds) {
-          if (!active || !w.ewiPayWithdrawId) break;
-          const mLower = String(w.method || '').toLowerCase();
-          const mQuery = mLower.includes('nagad') ? 'nagad' : mLower.includes('bkash') ? 'bkash' : '';
+        if (isPrivileged || hasPendingDep || onFinancePage) {
           try {
-            const qs = mQuery ? `?method=${encodeURIComponent(mQuery)}` : '';
-            const stRes = await fetch(
-              apiUrl(`/api/ewi-pay/withdraw-status/${encodeURIComponent(w.ewiPayWithdrawId)}${qs}`),
+            await syncEwiPayTransactions();
+          } catch {}
+        }
+
+        // Also sync member-level deposits & withdrawals (including gateway-initiated withdrawals)
+        if (curUser?.isLoggedIn && siteUserId) {
+          try {
+            const mRes = await fetch(
+              apiUrl(`/api/ewi-pay/member-status/${encodeURIComponent(siteUserId)}`),
               { cache: 'no-store' }
             );
-            const stCt = stRes.headers.get('content-type') || '';
-            const stData = stRes.ok && stCt.includes('application/json') ? await stRes.json().catch(() => null) : null;
-            const gwObj = stData?.gateway && typeof stData.gateway === 'object' ? stData.gateway : stData;
-            const raw = String(
-              gwObj?.status ||
-                gwObj?.withdrawal?.status ||
-                gwObj?.data?.status ||
-                stData?.status ||
-                stData?.withdrawal?.status ||
-                stData?.data?.status ||
-                ''
-            )
-              .trim()
-              .toLowerCase();
-            const displayRaw = String(gwObj?.displayStatus || stData?.displayStatus || '').trim().toLowerCase();
-            const payoutTrxId = String(
-              gwObj?.payoutTrxId ||
-                gwObj?.payout_trx_id ||
-                gwObj?.trxId ||
-                gwObj?.withdrawal?.payoutTrxId ||
-                gwObj?.data?.payoutTrxId ||
-                stData?.payoutTrxId ||
-                ''
-            ).trim();
-            if (
-              raw === 'completed' ||
-              raw === 'paid' ||
-              raw === 'approved' ||
-              raw === 'success' ||
-              raw === 'settled' ||
-              gwObj?.completed === true ||
-              stData?.completed === true ||
-              displayRaw.includes('completed')
-            ) {
-              updateWithdrawStatusRef.current?.(w.id, 'completed', undefined, undefined, {
-                payoutTrxId: payoutTrxId || undefined
-              });
-            } else if (
-              raw === 'rejected' ||
-              raw === 'failed' ||
-              raw === 'cancelled' ||
-              raw === 'reversed' ||
-              gwObj?.rejected === true ||
-              gwObj?.refundRequired === true ||
-              stData?.rejected === true ||
-              stData?.refundRequired === true
-            ) {
-              const reason = String(
-                gwObj?.rejectionReason ||
-                  gwObj?.reason ||
-                  gwObj?.message ||
-                  gwObj?.withdrawal?.reason ||
-                  stData?.reason ||
-                  stData?.message ||
-                  ''
-              ).trim();
-              const usrMsg = String(gwObj?.userMessage || stData?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
-              updateWithdrawStatusRef.current?.(w.id, 'rejected', reason || undefined, undefined, {
-                userMessage: usrMsg,
-                rejectionReason: reason || undefined
-              });
+            const mCt = mRes.headers.get('content-type') || '';
+            const mData = mRes.ok && mCt.includes('application/json') ? await mRes.json().catch(() => null) : null;
+            if (mData && active) {
+              const mDeps = Array.isArray(mData.deposits) ? mData.deposits : [];
+              for (const md of mDeps) {
+                const mdOrder = String(md?.orderId || md?.order_id || md?.depositId || md?.id || '').trim();
+                const mdSession = String(md?.sessionId || md?.session_id || '').trim();
+                const matchedDep = depositRequestsRef.current.find(
+                  (d) =>
+                    (mdOrder && (d.id === mdOrder || d.orderId === mdOrder || d.trxId === mdOrder.toUpperCase())) ||
+                    (mdSession && d.sessionId === mdSession)
+                );
+                const mdSt = String(md?.status || '').trim().toLowerCase();
+                const mdDisplay = String(md?.displayStatus || '').trim().toLowerCase();
+                if (matchedDep && (matchedDep.status === 'pending' || matchedDep.status === 'processing')) {
+                  if (
+                    mdSt === 'completed' ||
+                    mdSt === 'approved' ||
+                    mdSt === 'paid' ||
+                    mdSt === 'success' ||
+                    md?.completed === true ||
+                    mdDisplay === 'completed'
+                  ) {
+                    approveDepositRef.current?.(matchedDep.id);
+                  } else if (mdSt === 'rejected' || mdSt === 'failed' || md?.rejected === true) {
+                    const rej = String(md?.rejectionReason || md?.reason || md?.message || '').trim();
+                    rejectDepositRef.current?.(matchedDep.id, rej || undefined);
+                  }
+                }
+              }
+
+              const mWds = Array.isArray(mData.withdrawals) ? mData.withdrawals : [];
+              for (const mw of mWds) {
+                const mwOrder = String(mw?.orderId || mw?.order_id || '').trim();
+                const mwId = String(mw?.withdrawalId || mw?.withdrawal_id || mw?.id || '').trim();
+                const mwStatus = String(mw?.status || '').trim().toLowerCase();
+                const mwDisplay = String(mw?.displayStatus || '').trim().toLowerCase();
+                const payoutTrxId = String(mw?.payoutTrxId || mw?.payout_trx_id || mw?.trxId || '').trim();
+                const rejReason = String(mw?.rejectionReason || mw?.reason || mw?.message || '').trim();
+                const usrMsg = String(mw?.userMessage || mw?.user_message || '').trim();
+
+                const matchedWd = withdrawRequestsRef.current.find(
+                  (w) =>
+                    (mwOrder && (w.id === mwOrder || w.orderId === mwOrder)) ||
+                    (mwId && (w.ewiPayWithdrawId === mwId || w.id === mwId))
+                );
+
+                if (matchedWd) {
+                  if (
+                    (mwStatus === 'completed' ||
+                      mwStatus === 'paid' ||
+                      mwStatus === 'approved' ||
+                      mwStatus === 'success' ||
+                      mw?.completed === true ||
+                      mwDisplay.includes('completed')) &&
+                    matchedWd.status !== 'completed'
+                  ) {
+                    updateWithdrawStatusRef.current?.(matchedWd.id, 'completed', undefined, undefined, {
+                      payoutTrxId: payoutTrxId || undefined,
+                      ewiPayWithdrawId: mwId || matchedWd.ewiPayWithdrawId
+                    });
+                  } else if (
+                    (mwStatus === 'rejected' ||
+                      mwStatus === 'failed' ||
+                      mwStatus === 'cancelled' ||
+                      mwStatus === 'reversed' ||
+                      mw?.rejected === true ||
+                      mw?.refundRequired === true) &&
+                    matchedWd.status !== 'rejected' &&
+                    matchedWd.status !== 'completed'
+                  ) {
+                    updateWithdrawStatusRef.current?.(matchedWd.id, 'rejected', rejReason || undefined, undefined, {
+                      userMessage: usrMsg || 'কিছুক্ষণ পর আবার চেষ্টা করুন',
+                      rejectionReason: rejReason || undefined,
+                      ewiPayWithdrawId: mwId || matchedWd.ewiPayWithdrawId
+                    });
+                  }
+                } else if (mwId && mwStatus === 'completed') {
+                  // Gateway-initiated withdrawal completed externally: mirror into history once
+                  const syntheticId = (mwOrder || mwId).replace(/[^a-zA-Z0-9_-]/g, '_');
+                  const gwWd: WithdrawRequest = {
+                    id: syntheticId,
+                    ...(mwOrder ? { orderId: mwOrder } : {}),
+                    ewiPayWithdrawId: mwId,
+                    userId: curUser.id,
+                    userName: curUser.nickname || curUser.phone || 'User',
+                    userPhone: curUser.phone || curUser.email || '',
+                    amount: Math.max(1, Number(mw?.amount) || 0),
+                    method: String(mw?.provider || mw?.method || '').toLowerCase().includes('nagad') ? 'Nagad' : 'bKash',
+                    number: String(mw?.recipientNumber || mw?.number || curUser.boundBkash || curUser.boundNagad || ''),
+                    status: 'completed',
+                    time: String(mw?.completedAt || mw?.createdAt || new Date().toLocaleString()),
+                    ...(payoutTrxId ? { payoutTrxId } : {})
+                  };
+                  if (gwWd.amount > 0) {
+                    setWithdrawRequests((prev) => (prev.some((x) => x.id === syntheticId) ? prev : [gwWd, ...prev]));
+                    saveWithdrawToFirebase(gwWd).catch(() => {});
+                  }
+                }
+              }
             }
           } catch {}
         }
-      } catch {}
+
+        try {
+          const processingWds = withdrawRequestsRef.current.filter(
+            (w) =>
+              (w.status === 'processing' || w.status === 'pending') &&
+              Boolean(w.ewiPayWithdrawId) &&
+              (isPrivileged || w.userId === curUser?.id)
+          );
+          for (const w of processingWds) {
+            if (!active || !w.ewiPayWithdrawId) break;
+            const mLower = String(w.method || '').toLowerCase();
+            const mQuery = mLower.includes('nagad') ? 'nagad' : mLower.includes('bkash') ? 'bkash' : '';
+            try {
+              const qs = mQuery ? `?method=${encodeURIComponent(mQuery)}` : '';
+              const stRes = await fetch(
+                apiUrl(`/api/ewi-pay/withdraw-status/${encodeURIComponent(w.ewiPayWithdrawId)}${qs}`),
+                { cache: 'no-store' }
+              );
+              const stCt = stRes.headers.get('content-type') || '';
+              const stData = stRes.ok && stCt.includes('application/json') ? await stRes.json().catch(() => null) : null;
+              const gwObj = stData?.gateway && typeof stData.gateway === 'object' ? stData.gateway : stData;
+              const raw = String(
+                gwObj?.status ||
+                  gwObj?.withdrawal?.status ||
+                  gwObj?.data?.status ||
+                  stData?.status ||
+                  stData?.withdrawal?.status ||
+                  stData?.data?.status ||
+                  ''
+              )
+                .trim()
+                .toLowerCase();
+              const displayRaw = String(gwObj?.displayStatus || stData?.displayStatus || '').trim().toLowerCase();
+              const payoutTrxId = String(
+                gwObj?.payoutTrxId ||
+                  gwObj?.payout_trx_id ||
+                  gwObj?.trxId ||
+                  gwObj?.withdrawal?.payoutTrxId ||
+                  gwObj?.data?.payoutTrxId ||
+                  stData?.payoutTrxId ||
+                  ''
+              ).trim();
+              if (
+                raw === 'completed' ||
+                raw === 'paid' ||
+                raw === 'approved' ||
+                raw === 'success' ||
+                raw === 'settled' ||
+                gwObj?.completed === true ||
+                stData?.completed === true ||
+                displayRaw.includes('completed')
+              ) {
+                updateWithdrawStatusRef.current?.(w.id, 'completed', undefined, undefined, {
+                  payoutTrxId: payoutTrxId || undefined
+                });
+              } else if (
+                raw === 'rejected' ||
+                raw === 'failed' ||
+                raw === 'cancelled' ||
+                raw === 'reversed' ||
+                gwObj?.rejected === true ||
+                gwObj?.refundRequired === true ||
+                stData?.rejected === true ||
+                stData?.refundRequired === true
+              ) {
+                const reason = String(
+                  gwObj?.rejectionReason ||
+                    gwObj?.reason ||
+                    gwObj?.message ||
+                    gwObj?.withdrawal?.reason ||
+                    stData?.reason ||
+                    stData?.message ||
+                    ''
+                ).trim();
+                const usrMsg = String(gwObj?.userMessage || stData?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
+                updateWithdrawStatusRef.current?.(w.id, 'rejected', reason || undefined, undefined, {
+                  userMessage: usrMsg,
+                  rejectionReason: reason || undefined
+                });
+              }
+            } catch {}
+          }
+        } catch {}
+      } finally {
+        inFlight = false;
+      }
     };
-    const t = setTimeout(pollGateways, 1200);
-    const iv = setInterval(pollGateways, 3500);
+    const t = setTimeout(pollGateways, 1800);
+    const iv = setInterval(pollGateways, 7000);
     return () => {
       active = false;
       clearTimeout(t);
@@ -2480,8 +2611,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Real-Time Firebase Firestore Synchronization Across All Browsers, Mobile Devices & Vercel Deployments
+  // Scoped Real-Time Firebase Firestore Synchronization (scales cleanly to 10,000+ concurrent players)
   useEffect(() => {
+    const isPrivileged = isPrivilegedSessionHost(isAdminLoggedIn);
+    const isMentor = isMentorRouteActive();
+    const isLoggedIn = Boolean(user.isLoggedIn && user.id);
+
     // Seed initial appConfig/settings in Firestore once if completely empty
     getAppSettingsFromFirebase()
       .then((existing) => {
@@ -2580,114 +2715,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
-    const unsubUsers = subscribeUsersInFirebase((fbUsers) => {
-      if (Date.now() - lastUsersMutationAtRef.current < 900) return;
-      if (!Array.isArray(fbUsers)) return;
+    const unsubs: Array<() => void> = [unsubSettings];
 
-      setAllUsers((prev) => {
-        const map = new Map(prev.map((u) => [u.id, u]));
-        let changed = false;
-        for (const fu of fbUsers) {
-          if (!fu?.id || deletedUserIdsRef.current.has(fu.id)) continue;
-          const cur = map.get(fu.id);
-          const curTs = Number(cur?.updatedAt || 0);
-          const fuTs = Number(fu?.updatedAt || 0);
-          if (cur && curTs > 0 && fuTs > 0 && fuTs < curTs) continue;
-          if (!cur || JSON.stringify(cur) !== JSON.stringify(fu)) {
-            map.set(fu.id, fu);
-            changed = true;
-          }
-        }
-        return changed ? Array.from(map.values()) : prev;
-      });
-
-      if (userRef.current.isLoggedIn && userRef.current.id) {
-        const normCurPhone = normalizePhone(userRef.current.phone || '');
-        const matched = fbUsers.find(
-          (fu) =>
-            fu.id === userRef.current.id ||
-            (userRef.current.uid && fu.uid === userRef.current.uid) ||
-            (normCurPhone && fu.phone && normalizePhone(fu.phone) === normCurPhone)
-        );
-        const curLocalTs = Number(userRef.current.updatedAt || 0);
-        const matchedTs = Number(matched?.updatedAt || 0);
-        const isMatchedStale = Boolean(matched && curLocalTs > 0 && matchedTs > 0 && matchedTs < curLocalTs);
-        if (matched && !isMatchedStale) {
-          const resolvedAvatar = matched.avatar || userRef.current.avatar || '';
-          const resolvedClaimedFd =
-            matched.claimedFirstDepositTiers || userRef.current.claimedFirstDepositTiers;
-          const needsFieldSync =
-            matched.balance !== userRef.current.balance ||
-            matched.totalDeposited !== userRef.current.totalDeposited ||
-            matched.isBanned !== userRef.current.isBanned ||
-            matched.banReason !== userRef.current.banReason ||
-            matched.turnoverRequired !== userRef.current.turnoverRequired ||
-            matched.role !== userRef.current.role ||
-            (matched.pendingDepositBonusCode || '') !== (userRef.current.pendingDepositBonusCode || '') ||
-            (matched.lastGiftReason || '') !== (userRef.current.lastGiftReason || '') ||
-            (matched.loginPassword && matched.loginPassword !== userRef.current.loginPassword) ||
-            resolvedAvatar !== (userRef.current.avatar || '') ||
-            JSON.stringify(resolvedClaimedFd || {}) !==
-              JSON.stringify(userRef.current.claimedFirstDepositTiers || {});
-
-          const baseUser: User = needsFieldSync
-            ? {
-                ...userRef.current,
-                balance: Number(matched.balance) || 0,
-                totalDeposited: Number(matched.totalDeposited) || 0,
-                totalWithdrawn: Number(matched.totalWithdrawn) || userRef.current.totalWithdrawn || 0,
-                vipLevel: matched.vipLevel ?? userRef.current.vipLevel,
-                role: matched.role ?? userRef.current.role,
-                turnoverRequired: Number(matched.turnoverRequired) || 0,
-                isBanned: matched.isBanned,
-                banReason: matched.banReason,
-                pendingDepositBonusCode: matched.pendingDepositBonusCode,
-                creditedDepositBonusCodes: matched.creditedDepositBonusCodes,
-                lastGiftReason: matched.lastGiftReason,
-                lastGiftCode: matched.lastGiftCode ?? userRef.current.lastGiftCode,
-                lastGiftAmount: matched.lastGiftAmount ?? userRef.current.lastGiftAmount,
-                lastGiftClaimTime: matched.lastGiftClaimTime ?? userRef.current.lastGiftClaimTime,
-                loginPassword: matched.loginPassword || userRef.current.loginPassword,
-                avatar: resolvedAvatar,
-                claimedFirstDepositTiers: resolvedClaimedFd,
-                updatedAt: Math.max(curLocalTs, matchedTs)
-              }
-            : userRef.current;
-
-          const autoVip = applyAutoVipRewards(baseUser);
-          if (needsFieldSync || autoVip.totalCredited > 0 || autoVip.updatedUser.vipLevel !== baseUser.vipLevel) {
-            setUser(autoVip.updatedUser);
-            if (autoVip.newTxs.length > 0) {
-              setTransactions((txs) => [...autoVip.newTxs, ...txs]);
-              autoVip.newTxs.forEach((tx) => saveTransactionToFirebase(tx).catch(() => {}));
-            }
-            if (autoVip.newNotifs.length > 0) {
-              setNotifications((ns) => [...autoVip.newNotifs, ...ns].slice(0, 50));
-              autoVip.newNotifs.forEach((nf) => saveNotificationToFirebase(nf).catch(() => {}));
-            }
-            if (autoVip.totalCredited > 0) {
-              syncUserEverywhere(autoVip.updatedUser);
-            }
-          }
-        }
-      }
-    });
-
-    const unsubDeposits = subscribeDepositsInFirebase((fbDeps) => {
+    const mergeDeposits = (fbDeps: DepositRequest[]) => {
       if (Date.now() - lastDepositsMutationAtRef.current < 2200) return;
       setDepositRequests((prev) => {
-        const deduped = dedupeDepositsList([...prev, ...fbDeps]);
+        const base = isPrivileged ? prev : prev.filter((d) => d.userId === user.id);
+        const deduped = dedupeDepositsList([...base, ...fbDeps]);
         if (deduped.length === prev.length && JSON.stringify(deduped) === JSON.stringify(prev)) return prev;
         return deduped;
       });
-    });
+    };
 
-    const unsubWithdraws = subscribeWithdrawsInFirebase((fbWds) => {
+    const mergeWithdraws = (fbWds: WithdrawRequest[]) => {
       if (Date.now() - lastWithdrawsMutationAtRef.current < 2200) return;
       const wdRank = (s?: string) => (s === 'completed' || s === 'rejected' ? 3 : s === 'processing' ? 2 : 1);
       setWithdrawRequests((prev) => {
-        const prevMap = new Map(prev.map((w) => [w.id, w]));
-        let hasChange = false;
+        const scopedPrev = isPrivileged ? prev : prev.filter((w) => w.userId === user.id);
+        const prevMap = new Map(scopedPrev.map((w) => [w.id, w]));
+        let hasChange = scopedPrev.length !== prev.length;
         for (const fw of fbWds) {
           const cur = prevMap.get(fw.id);
           if (!cur) {
@@ -2721,9 +2767,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!hasChange && prev.length === prevMap.size) return prev;
         return Array.from(prevMap.values()).sort((a, b) => (b.id > a.id ? 1 : -1));
       });
-    });
+    };
 
-    const unsubSupport = subscribeSupportMessagesInFirebase((fbMsgs) => {
+    const mergeSupport = (fbMsgs: SupportMessage[]) => {
       setSupportMessages((prev) => {
         const map = new Map(prev.map((m) => [m.id, m]));
         let changed = false;
@@ -2736,9 +2782,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!changed && prev.length === map.size) return prev;
         return Array.from(map.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       });
-    });
+    };
 
-    const unsubWingoBets = subscribeWingoBetsInFirebase((fbBets) => {
+    const mergeWingoBets = (fbBets: WinGoBet[]) => {
       setGlobalWingoBets((prev) => {
         const map = new Map(prev.map((b) => [b.id, b]));
         let changed = false;
@@ -2753,9 +2799,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .sort((a, b) => (b.id > a.id ? 1 : -1))
           .slice(0, 250);
       });
-    });
+    };
 
-    const unsubTransactions = subscribeTransactionsInFirebase((fbTxs) => {
+    const mergeTransactions = (fbTxs: Transaction[]) => {
       setTransactions((prev) => {
         const map = new Map(prev.map((t) => [t.id, t]));
         let changed = false;
@@ -2768,9 +2814,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!changed && prev.length === map.size) return prev;
         return Array.from(map.values()).sort((a, b) => (b.id > a.id ? 1 : -1)).slice(0, 350);
       });
-    });
+    };
 
-    const unsubNotifications = subscribeNotificationsInFirebase((fbNotifs) => {
+    const mergeNotifications = (fbNotifs: AppNotification[]) => {
       setNotifications((prev) => {
         const map = new Map(prev.map((n) => [n.id, n]));
         let changed = false;
@@ -2783,30 +2829,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!changed && prev.length === map.size) return prev;
         return Array.from(map.values()).sort((a, b) => (b.id > a.id ? 1 : -1)).slice(0, 120);
       });
-    });
+    };
 
-    const unsubAccessLogs = subscribeAdminAccessLogsInFirebase((fbLogs) => {
-      setAdminAccessLogs((prev) => {
-        const map = new Map<string, AdminAccessLog>(prev.map((l) => [l.id, l]));
-        let changed = false;
-        for (const fl of fbLogs) {
-          if (fl?.id && !map.has(fl.id)) {
-            map.set(fl.id, fl);
-            changed = true;
-          }
-        }
-        if (!changed && prev.length === map.size) return prev;
-        return Array.from(map.values())
-          .sort((a, b) => (Number(b.enteredAtMs) || 0) - (Number(a.enteredAtMs) || 0))
-          .slice(0, 200);
-      });
-    });
-
-    const unsubMarketPools = subscribeMarketPoolsInFirebase((fbPools) => {
-      setMarketPools((prev) => ({ ...prev, ...fbPools }));
-    });
-
-    const unsubReferrals = subscribeReferralsInFirebase((fbRefs) => {
+    const mergeReferrals = (fbRefs: ReferralMember[]) => {
       setReferrals((prev) => {
         const map = new Map(prev.map((r) => [r.id, r]));
         let changed = false;
@@ -2818,16 +2843,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return changed ? Array.from(map.values()) : prev;
       });
-    });
+    };
 
-    const unsubCrashAv = subscribeCrashStateInFirebase('aviator', (st) => {
-      setCrashPoolStates((prev) => ({ ...prev, aviator: st }));
-    });
-    const unsubCrashLj = subscribeCrashStateInFirebase('luckyjet', (st) => {
-      setCrashPoolStates((prev) => ({ ...prev, luckyjet: st }));
-    });
-
-    const unsubSportsBets = subscribeSportsBetsInFirebase((fbBets) => {
+    const mergeSportsBets = (fbBets: SportsBet[]) => {
       setSportsBets((prev) => {
         const map = new Map(prev.map((b) => [b.id, b]));
         let changed = false;
@@ -2842,30 +2860,120 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const merged = Array.from(map.values())
           .sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0))
           .slice(0, 150);
-        try {
-          localStorage.setItem('ewi777_sports_bets', JSON.stringify(merged));
-        } catch {}
+        safeLocalStorageSet('ewi777_sports_bets', JSON.stringify(merged));
         return merged;
       });
-    });
+    };
+
+    if (isPrivileged) {
+      unsubs.push(
+        subscribeUsersInFirebase((fbUsers) => {
+          if (Date.now() - lastUsersMutationAtRef.current < 900) return;
+          if (!Array.isArray(fbUsers)) return;
+
+          setAllUsers((prev) => {
+            const map = new Map(prev.map((u) => [u.id, u]));
+            let changed = false;
+            for (const fu of fbUsers) {
+              if (!fu?.id || deletedUserIdsRef.current.has(fu.id)) continue;
+              const cur = map.get(fu.id);
+              const curTs = Number(cur?.updatedAt || 0);
+              const fuTs = Number(fu?.updatedAt || 0);
+              if (cur && curTs > 0 && fuTs > 0 && fuTs < curTs) continue;
+              if (!cur || JSON.stringify(cur) !== JSON.stringify(fu)) {
+                map.set(fu.id, fu);
+                changed = true;
+              }
+            }
+            return changed ? Array.from(map.values()) : prev;
+          });
+
+          if (userRef.current.isLoggedIn && userRef.current.id) {
+            const normCurPhone = normalizePhone(userRef.current.phone || '');
+            const matched = fbUsers.find(
+              (fu) =>
+                fu.id === userRef.current.id ||
+                (userRef.current.uid && fu.uid === userRef.current.uid) ||
+                (normCurPhone && fu.phone && normalizePhone(fu.phone) === normCurPhone)
+            );
+            mergeRemoteMatchedUser(matched);
+          }
+        })
+      );
+      unsubs.push(subscribeDepositsInFirebase(mergeDeposits));
+      unsubs.push(subscribeWithdrawsInFirebase(mergeWithdraws));
+      if (isMentor) {
+        unsubs.push(subscribeSupportMessagesInFirebase(mergeSupport));
+      }
+      unsubs.push(subscribeWingoBetsInFirebase(mergeWingoBets));
+      unsubs.push(subscribeTransactionsInFirebase(mergeTransactions));
+      unsubs.push(subscribeNotificationsInFirebase(mergeNotifications));
+      unsubs.push(
+        subscribeAdminAccessLogsInFirebase((fbLogs) => {
+          setAdminAccessLogs((prev) => {
+            const map = new Map<string, AdminAccessLog>(prev.map((l) => [l.id, l]));
+            let changed = false;
+            for (const fl of fbLogs) {
+              if (fl?.id && !map.has(fl.id)) {
+                map.set(fl.id, fl);
+                changed = true;
+              }
+            }
+            if (!changed && prev.length === map.size) return prev;
+            return Array.from(map.values())
+              .sort((a, b) => (Number(b.enteredAtMs) || 0) - (Number(a.enteredAtMs) || 0))
+              .slice(0, 200);
+          });
+        })
+      );
+      unsubs.push(subscribeReferralsInFirebase(mergeReferrals));
+      unsubs.push(subscribeSportsBetsInFirebase(mergeSportsBets));
+    } else if (isLoggedIn) {
+      unsubs.push(
+        subscribeSingleUserInFirebase(user.id, (fu) => {
+          if (Date.now() - lastUsersMutationAtRef.current < 900) return;
+          if (!fu || deletedUserIdsRef.current.has(fu.id)) return;
+          mergeRemoteMatchedUser(fu);
+        })
+      );
+      unsubs.push(subscribeUserDepositsInFirebase(user.id, mergeDeposits));
+      unsubs.push(subscribeUserWithdrawsInFirebase(user.id, mergeWithdraws));
+      unsubs.push(subscribeUserSupportMessagesInFirebase(user.id, mergeSupport));
+      unsubs.push(subscribeUserWingoBetsInFirebase(user.id, mergeWingoBets));
+      unsubs.push(subscribeUserTransactionsInFirebase(user.id, mergeTransactions));
+      unsubs.push(subscribeUserNotificationsInFirebase(user.id, mergeNotifications));
+      if (user.inviteCode) {
+        unsubs.push(subscribeUserReferralsInFirebase(user.inviteCode, mergeReferrals));
+      }
+      unsubs.push(subscribeUserSportsBetsInFirebase(user.id, mergeSportsBets));
+    }
+
+    if (isPrivileged || isLoggedIn) {
+      unsubs.push(
+        subscribeMarketPoolsInFirebase((fbPools) => {
+          setMarketPools((prev) => ({ ...prev, ...fbPools }));
+        })
+      );
+      unsubs.push(
+        subscribeCrashStateInFirebase('aviator', (st) => {
+          setCrashPoolStates((prev) => ({ ...prev, aviator: st }));
+        })
+      );
+      unsubs.push(
+        subscribeCrashStateInFirebase('luckyjet', (st) => {
+          setCrashPoolStates((prev) => ({ ...prev, luckyjet: st }));
+        })
+      );
+    }
 
     return () => {
-      unsubSettings();
-      unsubUsers();
-      unsubDeposits();
-      unsubWithdraws();
-      unsubSupport();
-      unsubWingoBets();
-      unsubTransactions();
-      unsubNotifications();
-      unsubAccessLogs();
-      unsubMarketPools();
-      unsubReferrals();
-      unsubCrashAv();
-      unsubCrashLj();
-      unsubSportsBets();
+      unsubs.forEach((fn) => {
+        try {
+          fn();
+        } catch {}
+      });
     };
-  }, []);
+  }, [isAdminLoggedIn, user.isLoggedIn, user.id, user.inviteCode]);
 
   // Track latest official API issue & next period per WinGo mode
   const apiNextPeriodRef = useRef<Partial<Record<WinGoMode, string>>>({});
@@ -4835,15 +4943,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
               continue;
             }
+            const mappedUserId = String(item?.siteUserId || item?.user_id || item?.userId || '').trim();
+            const mappedPhone = String(item?.sender_number || item?.siteUserId || item?.user_id || '').trim();
+            const isPriv = isPrivilegedSessionHost(isAdminLoggedInRef.current);
+            const curUid = userRef.current?.id;
+            const curUidNum = userRef.current?.uid;
+            const curPhoneNorm = normalizePhone(userRef.current?.phone || '');
+            const belongsToCurUser = Boolean(
+              curUid &&
+                (mappedUserId === curUid ||
+                  (curUidNum && mappedUserId === curUidNum) ||
+                  (curPhoneNorm && normalizePhone(mappedPhone) === curPhoneNorm))
+            );
+            if (!isPriv && !belongsToCurUser) continue;
+
             const mapped: DepositRequest = {
               id,
               ...(itemOrderId ? { orderId: itemOrderId } : {}),
-              userId: String(item?.siteUserId || item?.user_id || item?.userId || ''),
-              userPhone: String(item?.sender_number || item?.siteUserId || item?.user_id || ''),
+              userId: mappedUserId,
+              userPhone: mappedPhone,
               method: (item?.method as any) || 'bKash',
               channel: 'EWI PAY',
               amount: Number(item?.amount) || 0,
-              senderNumber: String(item?.sender_number || item?.siteUserId || item?.user_id || ''),
+              senderNumber: mappedPhone,
               trxId: itemTrx,
               status: mappedStatus,
               createdAtMs: Date.now(),
@@ -8096,7 +8218,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userPhone: target.phone,
         fallbackUser: { ...target, lockedBalance: nextLocked, turnoverRequired: nextTurnover, updatedAt: mutationTs },
         action,
-        amount: numAmt
+        amount: numAmt,
+        lockedBalance: nextLocked,
+        locked: Boolean(opts?.locked),
+        turnoverDelta: extraTurnover
       })
     }).catch(() => {});
 
@@ -8104,7 +8229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const admTx: Transaction = {
       id: `tx_${Date.now()}_adm`,
       userId: resolvedId,
-      type: delta >= 0 ? 'deposit' : 'withdraw',
+      type: 'admin_adjust',
       title: `Admin ${action.toUpperCase()} Balance${opts?.locked ? ' (On Hold)' : ''}`,
       detail: `${reason?.trim() || 'Balance updated by Super Controller'}${extraTurnover > 0 ? ` • +৳${extraTurnover} Turnover` : ''}`,
       amount: delta,
@@ -8171,7 +8296,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const holdTx: Transaction = {
       id: `tx_${mutationTs}_hold`,
       userId: resolvedId,
-      type: 'withdraw',
+      type: 'admin_hold',
       title: 'Balance Placed On Hold by Admin',
       detail: reason?.trim() || `৳${nextLocked.toFixed(2)} placed on Hold (Play & Withdraw blocked until Admin releases)`,
       amount: 0,
@@ -8224,7 +8349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const relTx: Transaction = {
         id: `tx_${mutationTs}_rel`,
         userId: resolvedId,
-        type: 'deposit',
+        type: 'admin_release',
         title: 'Admin Released Hold Balance',
         detail: `৳${releasedAmt.toFixed(2)} released — Game Play & Withdraw unlocked`,
         amount: 0,
@@ -8481,7 +8606,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const refundTx: Transaction = {
         id: `tx_${Date.now()}_wdr`,
         userId: target.userId,
-        type: 'withdraw',
+        type: 'withdraw_refund',
         title: `Withdraw Rejected & Refunded (${target.method})`,
         detail: `${resolvedNote}${penaltyAmt > 0 ? ` • +৳${penaltyAmt} Turnover Added` : ''}`,
         amount: target.amount,
@@ -8723,9 +8848,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setLudoBets((prev) => {
         const next = [rec, ...prev].slice(0, 40);
-        try {
-          localStorage.setItem('ewi777_ludo_bets', JSON.stringify(next));
-        } catch {}
+        safeLocalStorageSet('ewi777_ludo_bets', JSON.stringify(next));
         return next;
       });
     }
@@ -8802,9 +8925,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (newlySettled.length === 0) return;
 
     setSportsBets(nextList);
-    try {
-      localStorage.setItem('ewi777_sports_bets', JSON.stringify(nextList));
-    } catch {}
+    safeLocalStorageSet('ewi777_sports_bets', JSON.stringify(nextList));
     newlySettled.forEach((sb) => saveSportsBetToFirebase(sb).catch(() => {}));
 
     if (totalCredit > 0) {
@@ -8893,9 +9014,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSportsBets((prev) => {
       const next = [bet, ...prev].slice(0, 150);
-      try {
-        localStorage.setItem('ewi777_sports_bets', JSON.stringify(next));
-      } catch {}
+      safeLocalStorageSet('ewi777_sports_bets', JSON.stringify(next));
       return next;
     });
 

@@ -508,10 +508,57 @@ const MainApp: React.FC = () => {
   );
 };
 
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('AppErrorBoundary caught error:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center text-slate-900">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center shadow-sm mb-4">
+            <Wrench className="w-8 h-8" />
+          </div>
+          <h1 className="text-lg font-black text-slate-900 mb-1.5">Connection Refreshed</h1>
+          <p className="text-xs text-slate-600 max-w-xs leading-relaxed mb-5">
+            A temporary display issue occurred. Tap below to reload cleanly.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              this.setState({ hasError: false });
+              window.location.reload();
+            }}
+            className="px-6 py-2.5 rounded-full bg-gradient-to-r from-[#0E7490] to-[#06B6D4] text-white font-black text-xs shadow-md active:scale-95"
+          >
+            Reload App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <AppProvider>
-      <MainApp />
-    </AppProvider>
+    <AppErrorBoundary>
+      <AppProvider>
+        <MainApp />
+      </AppProvider>
+    </AppErrorBoundary>
   );
 }

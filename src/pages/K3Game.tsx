@@ -466,7 +466,7 @@ export const K3Game: React.FC = () => {
         <div className="bg-white rounded-3xl p-5 text-slate-800 shadow-md border border-slate-200">
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="text-3xl font-black tracking-tight text-slate-900 tabular-nums">
-              ৳{user.balance.toFixed(2)}
+              ৳{Math.max(0, (user.balance || 0) - (user.lockedBalance || 0)).toFixed(2)}
             </span>
             <button
               onClick={() => {
@@ -478,7 +478,12 @@ export const K3Game: React.FC = () => {
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
-          <div className="text-center text-xs font-semibold text-slate-500 mb-4">Wallet balance</div>
+          <div className="text-center text-xs font-semibold text-slate-500 mb-3">Playable balance</div>
+          {(user.lockedBalance || 0) > 0 && (
+            <div className="mx-auto mb-3 w-fit px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800 tabular-nums">
+              Hold Balance: ৳{(user.lockedBalance || 0).toFixed(2)} (Blocked)
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => {

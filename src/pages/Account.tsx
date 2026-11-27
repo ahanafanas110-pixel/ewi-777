@@ -307,6 +307,13 @@ export const Account: React.FC<AccountProps> = () => {
                 <span>{hideBalance ? '••••••' : `৳${user.balance.toFixed(2)}`}</span>
                 <ChevronRight className="w-5 h-5 text-cyan-600" />
               </button>
+              {!hideBalance && (user.lockedBalance || 0) > 0 && (
+                <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-800 tabular-nums">
+                  <span>Playable: ৳{Math.max(0, user.balance - (user.lockedBalance || 0)).toFixed(2)}</span>
+                  <span>•</span>
+                  <span>Hold: ৳{(user.lockedBalance || 0).toFixed(2)}</span>
+                </div>
+              )}
             </div>
 
             <button
