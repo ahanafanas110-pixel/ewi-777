@@ -38,6 +38,7 @@ export const EwiWinGo: React.FC = () => {
     settleEwiWingoRound,
     popLotteryQueue,
     setActiveTab,
+    goBack,
     showToast
   } = useApp();
 
@@ -257,14 +258,11 @@ export const EwiWinGo: React.FC = () => {
       <div className="sticky top-0 z-30 bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] text-white px-4 py-3 flex items-center justify-between shadow-md">
         <button
           type="button"
-          onClick={() => {
-            setActiveTab('home');
-            window.location.hash = '#/';
-          }}
-          className="p-1.5 -ml-1 rounded-full bg-white/15 hover:bg-white/25 active:scale-95"
+          onClick={() => goBack('home')}
+          className="relative z-20 p-2 -ml-1.5 min-w-[40px] min-h-[40px] rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
           aria-label="Back"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
         <div className="flex flex-col items-center justify-center">
           <Ewi777Logo height={38} logoUrl={adminSettings.appLogoUrl} />

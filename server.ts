@@ -217,6 +217,7 @@ interface ServerStore {
   crashPools: Record<string, any>;
   ludoRooms: Record<string, any>;
   sportsBets: any[];
+  recentWins: any[];
   notifications: any[];
   crashRolling?: { wagered: number; paidOut: number };
   settings: any;
@@ -265,6 +266,7 @@ const DEFAULT_STORE: ServerStore = {
   crashPools: {},
   ludoRooms: {},
   sportsBets: [],
+  recentWins: [],
   notifications: [],
   crashRolling: { wagered: 0, paidOut: 0 },
   settings: {
@@ -361,6 +363,9 @@ function normalizePhoneServer(phone: string): string {
   else if (cleaned.startsWith('8800')) cleaned = '0' + cleaned.slice(4);
   else if (cleaned.startsWith('880')) cleaned = '0' + cleaned.slice(3);
   else if (/^1[3-9]\d{8}$/.test(cleaned)) cleaned = '0' + cleaned;
+  else if (cleaned.startsWith('+920')) cleaned = '+92' + cleaned.slice(4);
+  else if (cleaned.startsWith('920') && cleaned.length >= 12) cleaned = '+92' + cleaned.slice(3);
+  else if (cleaned.startsWith('92') && cleaned.length >= 12) cleaned = '+' + cleaned;
   return cleaned;
 }
 
@@ -448,6 +453,7 @@ function loadStore(): ServerStore {
         crashPools: parsed.crashPools && typeof parsed.crashPools === 'object' ? parsed.crashPools : {},
         ludoRooms: parsed.ludoRooms && typeof parsed.ludoRooms === 'object' ? parsed.ludoRooms : {},
         sportsBets: Array.isArray(parsed.sportsBets) ? parsed.sportsBets : [],
+        recentWins: Array.isArray(parsed.recentWins) ? parsed.recentWins : [],
         notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
         crashRolling:
           parsed.crashRolling && typeof parsed.crashRolling === 'object'
@@ -537,6 +543,9 @@ function trimStoreForScale(target: ServerStore) {
   }
   if (Array.isArray(target.sportsBets) && target.sportsBets.length > 1000) {
     target.sportsBets = target.sportsBets.slice(0, 1000);
+  }
+  if (Array.isArray(target.recentWins) && target.recentWins.length > 80) {
+    target.recentWins = target.recentWins.slice(0, 80);
   }
   if (Array.isArray(target.supportMessages) && target.supportMessages.length > 400) {
     target.supportMessages = target.supportMessages.slice(-400);
@@ -4422,6 +4431,8 @@ async function startServer() {
   });
 
   // Public Masked Real Leaderboards (Top 5 Real Balances + Recent Real Settled Wins)
+  const WIN_PHONE_PREFIXES = ['018', '013', '019', '015'];
+
   const maskMemberDisplay = (u: any): string => {
     const rawNick = String(u?.nickname || '').trim();
     const uidTail = String(u?.uid || u?.id || '777').replace(/[^a-zA-Z0-9]/g, '').slice(-3).toUpperCase() || '777';
@@ -4432,6 +4443,27 @@ async function startServer() {
       return `${head}***${tail}`;
     }
     return `Mem***${uidTail}`;
+  };
+
+  const maskPhoneForWinFeed = (u: any): string => {
+    const norm = normalizePhoneServer(String(u?.phone || u?.userPhone || ''));
+    let digits = norm.replace(/\D/g, '');
+    if (digits.startsWith('92') && digits.length >= 11) {
+      digits = '0' + digits.slice(2);
+    } else if (digits.startsWith('880') && digits.length >= 12) {
+      digits = '0' + digits.slice(3);
+    }
+    if (digits.length >= 6) {
+      return `${digits.slice(0, 3)}****${digits.slice(-3)}`;
+    }
+    const seedStr = String(u?.uid || u?.id || u?.userId || '777');
+    let hash = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+      hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
+    }
+    const prefix = WIN_PHONE_PREFIXES[hash % WIN_PHONE_PREFIXES.length];
+    const tail = String((hash % 900) + 100);
+    return `${prefix}****${tail}`;
   };
 
   app.get('/api/leaderboard/top-balances', (_req, res) => {
@@ -4451,17 +4483,48 @@ async function startServer() {
     res.json({ success: true, leaders: eligible });
   });
 
+  app.post('/api/leaderboard/record-win', (req, res) => {
+    const { id, userId, uid, phone, avatar, game, amount, ts } = req.body || {};
+    const payout = Number(amount || 0);
+    if (!Number.isFinite(payout) || payout <= 0 || !game) {
+      return res.status(400).json({ success: false, message: 'Invalid win entry' });
+    }
+    const userMap = new Map<string, any>();
+    for (const u of store.users || []) {
+      if (u?.id) userMap.set(u.id, u);
+      if (u?.uid) userMap.set(u.uid, u);
+    }
+    const uObj = userMap.get(userId) || userMap.get(uid);
+    const entryId = String(id || `rw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`).slice(0, 80);
+    const item = {
+      id: entryId,
+      userId: String(userId || uid || ''),
+      displayName: maskPhoneForWinFeed(uObj || { phone, uid, id: userId }),
+      avatar: String(uObj?.avatar || avatar || ''),
+      game: String(game).slice(0, 40),
+      amount: +payout.toFixed(2),
+      ts: Number(ts) && Number(ts) > 1700000000000 ? Number(ts) : Date.now()
+    };
+    if (!Array.isArray(store.recentWins)) store.recentWins = [];
+    store.recentWins = [item, ...store.recentWins.filter((w: any) => w?.id !== entryId)].slice(0, 80);
+    saveStore(store);
+    res.json({ success: true, win: item });
+  });
+
   app.get('/api/leaderboard/recent-wins', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    const wins: Array<{
-      id: string;
-      displayName: string;
-      avatar: string;
-      game: string;
-      amount: number;
-      time: string;
-      ts: number;
-    }> = [];
+    const byId = new Map<
+      string,
+      {
+        id: string;
+        displayName: string;
+        avatar: string;
+        game: string;
+        amount: number;
+        time: string;
+        ts: number;
+      }
+    >();
 
     const userMap = new Map<string, any>();
     for (const u of store.users || []) {
@@ -4469,13 +4532,30 @@ async function startServer() {
       if (u?.uid) userMap.set(u.uid, u);
     }
 
+    for (const w of store.recentWins || []) {
+      const payout = Number(w?.amount || 0);
+      if (w?.id && payout > 0) {
+        const uObj = userMap.get(w.userId);
+        byId.set(String(w.id), {
+          id: String(w.id),
+          displayName: uObj ? maskPhoneForWinFeed(uObj) : /^\d{3}\*+\d{3}$/.test(String(w.displayName || '')) ? String(w.displayName) : maskPhoneForWinFeed(w),
+          avatar: String(uObj?.avatar || w.avatar || ''),
+          game: String(w.game || 'wingo'),
+          amount: +payout.toFixed(2),
+          time: '',
+          ts: Number(w.ts || Date.now())
+        });
+      }
+    }
+
     for (const b of store.wingoBets || []) {
       const payout = Number(b?.winAmount || b?.payout || 0);
       if (b?.status === 'won' && payout > 0) {
         const uObj = userMap.get(b.userId);
-        wins.push({
-          id: `wg_${b.id}`,
-          displayName: maskMemberDisplay(uObj || { nickname: b.nickname, uid: b.userId }),
+        const id = `wg_${b.id}`;
+        byId.set(id, {
+          id,
+          displayName: maskPhoneForWinFeed(uObj || { phone: b.userPhone, uid: b.userId }),
           avatar: String(uObj?.avatar || ''),
           game: 'wingo',
           amount: +payout.toFixed(2),
@@ -4489,11 +4569,29 @@ async function startServer() {
       const payout = Number(b?.winAmount || b?.payout || 0);
       if (b?.status === 'won' && payout > 0) {
         const uObj = userMap.get(b.userId);
-        wins.push({
-          id: `lt_${b.id}`,
-          displayName: maskMemberDisplay(uObj || { nickname: b.nickname, uid: b.userId }),
+        const id = `lt_${b.id}`;
+        byId.set(id, {
+          id,
+          displayName: maskPhoneForWinFeed(uObj || { phone: b.userPhone, uid: b.userId }),
           avatar: String(uObj?.avatar || ''),
           game: String(b.game || 'ewi_wingo'),
+          amount: +payout.toFixed(2),
+          time: String(b.time || ''),
+          ts: Number(b.createdAtMs || Date.now())
+        });
+      }
+    }
+
+    for (const b of store.sportsBets || []) {
+      const payout = Number(b?.winAmount || 0);
+      if (b?.status === 'won' && payout > 0) {
+        const uObj = userMap.get(b.userId);
+        const id = `sp_${b.id}`;
+        byId.set(id, {
+          id,
+          displayName: maskPhoneForWinFeed(uObj || { phone: b.userPhone, uid: b.userId }),
+          avatar: String(uObj?.avatar || ''),
+          game: 'sports',
           amount: +payout.toFixed(2),
           time: String(b.time || ''),
           ts: Number(b.createdAtMs || Date.now())
@@ -4506,9 +4604,10 @@ async function startServer() {
         const payout = Number(b?.payoutAmount || 0);
         if (b?.status === 'cashed_out' && payout > 0) {
           const uObj = userMap.get(b.userId);
-          wins.push({
-            id: `cr_${b.id}`,
-            displayName: maskMemberDisplay(uObj || { nickname: b.nickname, uid: b.userId }),
+          const id = `cr_${b.id}`;
+          byId.set(id, {
+            id,
+            displayName: maskPhoneForWinFeed(uObj || { uid: b.userId }),
             avatar: String(uObj?.avatar || ''),
             game: String((pool as any)?.game || 'aviator'),
             amount: +payout.toFixed(2),
@@ -4519,9 +4618,9 @@ async function startServer() {
       }
     }
 
-    const sorted = wins
+    const sorted = Array.from(byId.values())
       .sort((a, b) => b.ts - a.ts)
-      .slice(0, 25);
+      .slice(0, 30);
 
     res.json({ success: true, wins: sorted });
   });

@@ -10,6 +10,10 @@ import tileEwi5DImg from '../assets/images/tile_ewi_5d_realistic_1795168516865.j
 import aviatorImg from '../assets/images/aviator_red_plane_clean_1795168517074.jpg';
 import luckyJetImg from '../assets/images/lucky_jet_pilot_clean_1795168517207.jpg';
 import minesImg from '../assets/images/mines_diamond_icon_1794905505535.jpg';
+import binaryImg from '../assets/images/binary_trading_emblem_1795251768060.jpg';
+import goldImg from '../assets/images/gold_trading_emblem_1795251766450.jpg';
+import ludoImg from '../assets/images/ludo_realistic_icon_1795251767143.jpg';
+import coinFlipImg from '../assets/images/coin_flip_gold_logo_1794905505806.jpg';
 
 interface LeaderEntry {
   rank: number;
@@ -28,6 +32,8 @@ interface RecentWinEntry {
   ts: number;
 }
 
+const WIN_PHONE_PREFIXES = ['018', '013', '019', '015'];
+
 function maskClientMember(u: { nickname?: string; uid?: string; id?: string }): string {
   const rawNick = String(u?.nickname || '').trim();
   const uidTail =
@@ -42,11 +48,40 @@ function maskClientMember(u: { nickname?: string; uid?: string; id?: string }): 
   return `Mem***${uidTail}`;
 }
 
+function maskPhoneWin(u: { phone?: string; uid?: string; id?: string; displayName?: string }): string {
+  const existing = String(u?.displayName || '').trim();
+  if (/^\d{3}\*+\d{3}$/.test(existing)) return existing;
+
+  let digits = String(u?.phone || '').replace(/\D/g, '');
+  if (digits.startsWith('8800')) digits = '0' + digits.slice(4);
+  else if (digits.startsWith('880') && digits.length >= 12) digits = '0' + digits.slice(3);
+  else if (/^1[3-9]\d{8}$/.test(digits)) digits = '0' + digits;
+  else if (digits.startsWith('920') && digits.length >= 12) digits = '0' + digits.slice(3);
+  else if (digits.startsWith('92') && digits.length >= 11) digits = '0' + digits.slice(2);
+
+  if (digits.length >= 6) {
+    return `${digits.slice(0, 3)}****${digits.slice(-3)}`;
+  }
+
+  const seed = String(u?.uid || u?.id || '777');
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  const prefix = WIN_PHONE_PREFIXES[hash % WIN_PHONE_PREFIXES.length];
+  const tail = String((hash % 900) + 100);
+  return `${prefix}****${tail}`;
+}
+
 function getGameThumb(gameKey: string): string {
   const g = String(gameKey || '').toLowerCase();
   if (g.includes('ewi') || g.includes('deshi')) return tileEwiWingoImg;
   if (g.includes('k3')) return tileEwiK3Img;
   if (g.includes('5d')) return tileEwi5DImg;
+  if (g.includes('gold') || g.includes('xau')) return goldImg;
+  if (g.includes('binary')) return binaryImg;
+  if (g.includes('ludo')) return ludoImg;
+  if (g.includes('coinflip')) return coinFlipImg;
   if (g.includes('aviator') || g.includes('plane')) return aviatorImg;
   if (g.includes('lucky')) return luckyJetImg;
   if (g.includes('mines')) return minesImg;
@@ -61,12 +96,35 @@ const AVATAR_GRADIENTS = [
   'from-amber-500 to-orange-600'
 ];
 
-const FALLBACK_TICKER_SUFFIXES = ['VPQ', 'CJX', 'MTC', 'XDU', 'YHK', 'R9B', 'K4L', 'N7P'];
+const FALLBACK_TICKER_PHONES = [
+  '018****412',
+  '013****895',
+  '019****264',
+  '015****731',
+  '018****509',
+  '013****148',
+  '019****923',
+  '015****674'
+];
 const FALLBACK_TICKER_AMOUNTS = [39.2, 19.6, 980.0, 98.0, 74.48, 196.0, 490.0, 147.0];
-const FALLBACK_TICKER_GAMES = ['wingo', 'ewi_wingo', 'k3', '5d', 'aviator', 'wingo', 'luckyjet', 'mines'];
+const FALLBACK_TICKER_GAMES = ['wingo', 'ewi_wingo', 'k3', '5d', 'binary', 'aviator', 'gold', 'mines'];
 
 export const HomeLiveBoard: React.FC = () => {
-  const { user, allUsers, bets, ewiWingoBets, k3Bets, d5Bets, language } = useApp();
+  const {
+    user,
+    allUsers,
+    bets,
+    ewiWingoBets,
+    k3Bets,
+    d5Bets,
+    binaryBets,
+    aviatorBets,
+    coinFlipBets,
+    ludoBets,
+    sportsBets,
+    transactions,
+    language
+  } = useApp();
   const [serverLeaders, setServerLeaders] = useState<LeaderEntry[]>([]);
   const [serverWins, setServerWins] = useState<RecentWinEntry[]>([]);
   const [tickIndex, setTickIndex] = useState(0);
@@ -92,14 +150,14 @@ export const HomeLiveBoard: React.FC = () => {
       }
     };
     fetchLeaderboards();
-    const poll = setInterval(fetchLeaderboards, 7000);
+    const poll = setInterval(fetchLeaderboards, 5000);
     return () => {
       active = false;
       clearInterval(poll);
     };
   }, []);
 
-  // Scroll / advance Winning Information every 1 second (1000ms)
+  // Scroll / advance Winning Information smoothly every second
   useEffect(() => {
     const timer = setInterval(() => {
       setTickIndex((prev) => prev + 1);
@@ -143,24 +201,58 @@ export const HomeLiveBoard: React.FC = () => {
       .map((entry, idx) => ({ ...entry, rank: idx + 1 }));
   }, [serverLeaders, allUsers, user]);
 
-  // Combine real settled wins with live ticker buffer so Winning Information scrolls cleanly every 1s
+  // Combine real settled wins across ALL games with masked mobile numbers (018**/013**/019**/015**)
   const feedPool = useMemo<RecentWinEntry[]>(() => {
     const map = new Map<string, RecentWinEntry>();
+    const userPhoneMap = new Map<string, { phone?: string; avatar?: string }>();
 
-    for (const w of serverWins) {
-      if (w?.id && w.amount > 0) map.set(w.id, w);
+    for (const u of allUsers || []) {
+      if (u?.id) userPhoneMap.set(u.id, { phone: u.phone, avatar: u.avatar });
+      if (u?.uid) userPhoneMap.set(u.uid, { phone: u.phone, avatar: u.avatar });
+    }
+    if (user?.isLoggedIn) {
+      if (user.id) userPhoneMap.set(user.id, { phone: user.phone, avatar: user.avatar });
+      if (user.uid) userPhoneMap.set(user.uid, { phone: user.phone, avatar: user.avatar });
     }
 
-    const pushLocalWin = (prefix: string, b: { id: string; userId?: string; nickname?: string; winAmount?: number; status: string; time?: string }, gameKey: string) => {
-      const payout = Number(b.winAmount || 0);
-      if (b.status === 'won' && payout > 0) {
+    for (const w of serverWins) {
+      if (w?.id && w.amount > 0) {
+        map.set(w.id, {
+          ...w,
+          displayName: maskPhoneWin({ displayName: w.displayName, id: w.id })
+        });
+      }
+    }
+
+    const pushLocalWin = (
+      prefix: string,
+      b: {
+        id: string;
+        userId?: string;
+        userPhone?: string;
+        winAmount?: number;
+        payout?: number;
+        status?: string;
+        won?: boolean;
+        time?: string;
+      },
+      gameKey: string
+    ) => {
+      const payout = Number(b.winAmount ?? b.payout ?? 0);
+      const isWon = b.status === 'won' || b.status === 'cashed_out' || b.won === true;
+      if (isWon && payout > 0) {
         const id = `${prefix}_${b.id}`;
         if (!map.has(id)) {
+          const uInfo = b.userId ? userPhoneMap.get(b.userId) : undefined;
           const parsedTs = b.time ? Date.parse(b.time) : NaN;
           map.set(id, {
             id,
-            displayName: maskClientMember({ nickname: b.nickname || user.nickname, uid: b.userId || user.uid }),
-            avatar: user.avatar || '',
+            displayName: maskPhoneWin({
+              phone: b.userPhone || uInfo?.phone || user.phone,
+              uid: b.userId || user.uid,
+              id: b.userId || user.id
+            }),
+            avatar: uInfo?.avatar || user.avatar || '',
             game: gameKey,
             amount: +payout.toFixed(2),
             ts: Number.isFinite(parsedTs) ? parsedTs : Date.now()
@@ -173,6 +265,46 @@ export const HomeLiveBoard: React.FC = () => {
     for (const b of ewiWingoBets || []) pushLocalWin('ewi', b, 'ewi_wingo');
     for (const b of k3Bets || []) pushLocalWin('k3', b, 'k3');
     for (const b of d5Bets || []) pushLocalWin('d5', b, '5d');
+    for (const b of binaryBets || []) {
+      const gKey = String((b as any).asset || '').toLowerCase().includes('xau') || String((b as any).asset || '').toLowerCase().includes('gold')
+        ? 'gold'
+        : 'binary';
+      pushLocalWin('bin', b as any, gKey);
+    }
+    for (const b of aviatorBets || []) pushLocalWin('av', b as any, 'aviator');
+    for (const b of coinFlipBets || []) pushLocalWin('cf', b as any, 'coinflip');
+    for (const b of ludoBets || []) pushLocalWin('ld', b as any, 'ludo');
+    for (const b of sportsBets || []) pushLocalWin('sp', b as any, 'sports');
+
+    for (const tx of transactions || []) {
+      const tType = String(tx?.type || '');
+      const amt = Number(tx?.amount || 0);
+      if (tType.endsWith('_win') && amt > 0) {
+        const id = `tx_${tx.id}`;
+        if (!map.has(id)) {
+          const uInfo = tx.userId ? userPhoneMap.get(tx.userId) : undefined;
+          const parsedTs = tx.time ? Date.parse(tx.time) : NaN;
+          const gameKey =
+            tType === 'binary_win'
+              ? String(tx.title || '').toLowerCase().includes('gold')
+                ? 'gold'
+                : 'binary'
+              : tType.replace(/_win$/, '');
+          map.set(id, {
+            id,
+            displayName: maskPhoneWin({
+              phone: uInfo?.phone || user.phone,
+              uid: user.uid,
+              id: tx.userId || user.id
+            }),
+            avatar: uInfo?.avatar || user.avatar || '',
+            game: gameKey,
+            amount: +amt.toFixed(2),
+            ts: Number.isFinite(parsedTs) ? parsedTs : Date.now()
+          });
+        }
+      }
+    }
 
     const realSorted = Array.from(map.values()).sort((a, b) => b.ts - a.ts);
     if (realSorted.length >= 6) return realSorted;
@@ -180,19 +312,36 @@ export const HomeLiveBoard: React.FC = () => {
     const padded = [...realSorted];
     let i = 0;
     while (padded.length < 8) {
-      const idx = i % FALLBACK_TICKER_SUFFIXES.length;
+      const idx = i % FALLBACK_TICKER_PHONES.length;
       padded.push({
         id: `live_feed_${i}`,
-        displayName: `Mem***${FALLBACK_TICKER_SUFFIXES[idx]}`,
+        displayName: FALLBACK_TICKER_PHONES[idx],
         avatar: '',
         game: FALLBACK_TICKER_GAMES[idx],
         amount: FALLBACK_TICKER_AMOUNTS[idx],
-        ts: Date.now() - i * 1000
+        ts: Date.now() - (i + 1) * 60000
       });
       i++;
     }
     return padded;
-  }, [serverWins, bets, ewiWingoBets, k3Bets, d5Bets, user.nickname, user.uid, user.avatar]);
+  }, [
+    serverWins,
+    bets,
+    ewiWingoBets,
+    k3Bets,
+    d5Bets,
+    binaryBets,
+    aviatorBets,
+    coinFlipBets,
+    ludoBets,
+    sportsBets,
+    transactions,
+    allUsers,
+    user.phone,
+    user.uid,
+    user.id,
+    user.avatar
+  ]);
 
   const visibleWins = useMemo(() => {
     const count = feedPool.length;
@@ -214,7 +363,7 @@ export const HomeLiveBoard: React.FC = () => {
   const restTopFive = realTopFive.slice(3, 5);
 
   const renderAvatar = (avatarUrl: string, label: string, colorIdx: number, sizeClass = 'w-10 h-10') => {
-    const initial = label.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || 'M';
+    const initial = label.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || '0';
     if (avatarUrl) {
       return (
         <img
@@ -238,17 +387,18 @@ export const HomeLiveBoard: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* 1. Winning information — scrolls every 1 second */}
+      {/* 1. Winning information — scrolls live with real & masked operator numbers */}
       <section className="space-y-2.5">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-2">
-            <span aria-hidden="true" className="w-1 h-4 rounded-full bg-rose-500 flex-shrink-0" />
+            <span aria-hidden="true" className="w-1 h-4 rounded-full bg-cyan-600 flex-shrink-0" />
             <h3 className="font-black text-slate-900 text-sm tracking-tight">
               {getTranslation(language, 'winningInformation')}
             </h3>
           </div>
-          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-            Live 1s
+          <span className="text-[10px] font-black tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>LIVE</span>
           </span>
         </div>
 
@@ -260,13 +410,13 @@ export const HomeLiveBoard: React.FC = () => {
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 {renderAvatar(row.avatar, row.displayName, tickIndex + idx, 'w-10 h-10 border border-slate-200')}
-                <span className="text-xs font-extrabold text-slate-800 truncate max-w-[90px]">
+                <span className="text-xs font-extrabold text-slate-800 truncate max-w-[110px] tabular-nums">
                   {row.displayName}
                 </span>
               </div>
 
               <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-14 h-9 rounded-xl overflow-hidden bg-rose-50 border border-slate-200/70 flex-shrink-0">
+                <div className="w-14 h-9 rounded-xl overflow-hidden bg-cyan-50 border border-slate-200/70 flex-shrink-0">
                   <img
                     src={getGameThumb(row.game)}
                     alt={row.game}
@@ -292,7 +442,7 @@ export const HomeLiveBoard: React.FC = () => {
       <section className="space-y-3">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-2">
-            <span aria-hidden="true" className="w-1 h-4 rounded-full bg-rose-500 flex-shrink-0" />
+            <span aria-hidden="true" className="w-1 h-4 rounded-full bg-cyan-600 flex-shrink-0" />
             <h3 className="font-black text-slate-900 text-sm tracking-tight">
               {getTranslation(language, 'todaysEarningsChart')}
             </h3>

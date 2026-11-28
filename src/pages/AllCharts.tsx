@@ -126,6 +126,7 @@ export const AllCharts: React.FC = () => {
     sendSupportMessage,
     claimWinGoStreakBonus,
     setActiveTab,
+    goBack,
     showToast
   } = useApp();
 
@@ -314,14 +315,11 @@ export const AllCharts: React.FC = () => {
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 flex items-center justify-between shadow-2xs">
         <button
           type="button"
-          onClick={() => {
-            setActiveTab('home');
-            window.location.hash = '#/';
-          }}
-          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-slate-100 active:scale-95"
+          onClick={() => goBack('home')}
+          className="relative z-20 p-2 -ml-1.5 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
           aria-label="Back"
         >
-          <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+          <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
 
         <div className="flex items-center gap-2">

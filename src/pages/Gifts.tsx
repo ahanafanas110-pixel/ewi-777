@@ -74,16 +74,13 @@ export const Gifts: React.FC = () => {
       <Header
         title={getTranslation(language, 'gifts')}
         showBack
-        onBack={() => {
-          setActiveTab('activity');
-          window.location.hash = '#/activity';
-        }}
+        onBack={() => setActiveTab('activity')}
       />
 
       {/* Hero Gift Header */}
       <div className="bg-gradient-to-br from-[#0B2235] via-[#0E314A] to-[#0891B2] px-4 pt-5 pb-12 text-white rounded-b-[2rem] shadow-md">
         <div className="flex items-center gap-4">
-          <div className="w-20 h-16 rounded-2xl overflow-hidden border-2 border-white/40 shadow-md flex-shrink-0">
+          <div className="w-28 h-20 rounded-2xl overflow-hidden border-2 border-white/40 shadow-md flex-shrink-0 bg-cyan-900">
             <PinkGiftIllustration className="w-full h-full" />
           </div>
           <div>

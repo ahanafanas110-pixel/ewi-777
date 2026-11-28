@@ -24,9 +24,9 @@ export const RiskDisclosureModal: React.FC<RiskDisclosureModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-rose-200 overflow-hidden flex flex-col max-h-[86vh] text-slate-900"
+        className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-cyan-200 overflow-hidden flex flex-col max-h-[86vh] text-slate-900"
       >
-        <div className="px-5 py-4 bg-gradient-to-r from-rose-600 via-red-500 to-orange-500 text-white flex items-center justify-between">
+        <div className="px-5 py-4 bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0">
               <ShieldAlert className="w-5 h-5" />
@@ -35,7 +35,7 @@ export const RiskDisclosureModal: React.FC<RiskDisclosureModalProps> = ({
               <h3 className="font-black text-sm tracking-tight">
                 {isBn ? 'প্রাইভেসি ও ঝুঁকি সতর্কতা চুক্তি' : 'Privacy Agreement & Risk Disclosure'}
               </h3>
-              <p className="text-[11px] text-rose-50 font-semibold">
+              <p className="text-[11px] text-cyan-50 font-semibold">
                 Deshi Win Official Policy Notice
               </p>
             </div>
@@ -51,16 +51,16 @@ export const RiskDisclosureModal: React.FC<RiskDisclosureModalProps> = ({
         </div>
 
         <div className="p-5 overflow-y-auto space-y-3.5 text-xs leading-relaxed text-slate-700">
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 space-y-1.5">
-            <div className="flex items-center gap-1.5 font-black text-rose-800 text-xs">
-              <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-              <span>Financial Risk & No Liability Notice (ঝুঁকি সতর্কতা)</span>
+          <div className="p-3.5 rounded-2xl bg-cyan-50/70 border border-cyan-200 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-black text-slate-900 text-xs">
+              <AlertTriangle className="w-4 h-4 text-cyan-600 flex-shrink-0" />
+              <span>Financial Risk &amp; Zero Authority Liability Notice</span>
             </div>
-            <p className="font-bold text-rose-900">
-              Trading (Binary / Gold Market) and prediction games (WinGo, Deshi K3, Deshi 5D, Casino, Slots) involve high financial risk and may result in loss of capital.
+            <p className="font-semibold text-slate-700">
+              Trading (Binary / Gold Market) and prediction games (WinGo, Deshi K3, Deshi 5D, Casino, Slots) involve real financial risk and may result in loss of capital.
             </p>
-            <p className="font-extrabold text-rose-700">
-              গেম খেলা বা ট্রেডিংয়ে কোনো আর্থিক ক্ষতি বা লস হলে Deshi Win কর্তৃপক্ষ বা ম্যানেজমেন্ট কোনোভাবেই দায়ী থাকবে না। সম্পূর্ণ নিজ দায়িত্বে ও সচেতনভাবে অংশগ্রহণ করুন।
+            <p className="font-semibold text-slate-700">
+              Deshi Win Authority and Management are not responsible for any financial loss incurred during gameplay or trading. All participation is strictly voluntary and at your own personal risk.
             </p>
           </div>
 
@@ -222,14 +222,14 @@ export const BeginnerGuideModal: React.FC<BeginnerGuideModalProps> = ({
         <section className="bg-white rounded-2xl p-4 border border-cyan-200 shadow-2xs space-y-2">
           <h3 className="font-black text-slate-900 text-sm">10. About &amp; Risk Disclosure</h3>
           <p className="text-slate-600">
-            Click below for complete details regarding our Privacy Policy and Financial Risk Disclosure Agreement (লস সংক্রান্ত নীতিমালা).
+            Click below for complete details regarding our Privacy Policy and Financial Risk Disclosure Agreement.
           </p>
           <button
             type="button"
             onClick={onOpenRiskDisclosure}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs hover:bg-rose-100 active:scale-98"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 font-black text-xs hover:bg-cyan-100 active:scale-98"
           >
-            <span>Open Privacy &amp; Risk Disclosure Agreement</span>
+            <span>Open Privacy &amp; Risk (/privacy-&amp;-risk)</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
         </section>

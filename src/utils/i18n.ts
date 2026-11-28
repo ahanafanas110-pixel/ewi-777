@@ -41,10 +41,10 @@ export const LANGUAGE_OPTIONS: LanguageOptionMeta[] = [
   {
     code: 'ur',
     flag: '🇵🇰',
-    short: 'اردو',
+    short: 'PK',
     label: 'Urdu (Pakistan)',
-    nativeName: 'اردو (پاکستان)',
-    subtitle: 'پاکستان کی قومی زبان',
+    nativeName: 'اردو (Pakistan)',
+    subtitle: 'پاکستان کی قومی زبان • Urdu',
     switchToast: 'زبان اردو (پاکستان) میں تبدیل کر دی گئی ہے'
   }
 ];
@@ -284,7 +284,8 @@ export const translations = {
     winningAmount: 'Winning amount',
     receiveLabel: 'Receive',
     beginnersGuide: "Beginner's Guide",
-    safeVaultBtn: 'SAFE'
+    safeVaultBtn: 'SAFE',
+    privacyAndRisk: 'Privacy & Risk'
   },
   bn: {
     home: 'হোম',
@@ -516,7 +517,8 @@ export const translations = {
     winningAmount: 'জয়ের পরিমাণ',
     receiveLabel: 'প্রাপ্ত',
     beginnersGuide: 'নতুনদের গাইড (Beginner Guide)',
-    safeVaultBtn: 'SAFE'
+    safeVaultBtn: 'SAFE',
+    privacyAndRisk: 'প্রাইভেসি ও ঝুঁকি নীতি'
   },
   hi: {
     home: 'होम',
@@ -748,7 +750,8 @@ export const translations = {
     winningAmount: 'जीती हुई राशि',
     receiveLabel: 'प्राप्त',
     beginnersGuide: 'शुरुआती गाइड',
-    safeVaultBtn: 'SAFE'
+    safeVaultBtn: 'SAFE',
+    privacyAndRisk: 'गोपनीयता और जोखिम'
   },
   ur: {
     home: 'ہوم',
@@ -980,7 +983,8 @@ export const translations = {
     winningAmount: 'جیتی ہوئی رقم',
     receiveLabel: 'موصول',
     beginnersGuide: 'نئے صارفین کی گائیڈ',
-    safeVaultBtn: 'SAFE'
+    safeVaultBtn: 'SAFE',
+    privacyAndRisk: 'پرائیویسی اور رسک'
   }
 };
 

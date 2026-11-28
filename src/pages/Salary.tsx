@@ -60,6 +60,7 @@ export const Salary: React.FC = () => {
     claimAgentSalary,
     sendSupportMessage,
     setActiveTab,
+    goBack,
     language,
     showToast
   } = useApp();
@@ -306,14 +307,12 @@ export const Salary: React.FC = () => {
       {/* Top Navbar */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-2xs">
         <button
-          onClick={() => {
-            setActiveTab('promotion');
-            window.location.hash = '#/promotion';
-          }}
-          className="p-2 -ml-1 rounded-full text-slate-700 hover:bg-slate-100 active:scale-95 min-w-[44px] min-h-[44px] flex items-center justify-center"
+          type="button"
+          onClick={() => goBack('promotion')}
+          className="relative z-20 p-2 -ml-1 rounded-full text-slate-700 hover:bg-slate-100 active:scale-95 min-w-[44px] min-h-[44px] flex items-center justify-center transition-all cursor-pointer"
           aria-label="Back"
         >
-          <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+          <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
         <h1 className="text-base font-black tracking-tight text-slate-900">
           {getTranslation(language, 'threeLevelSalary')}

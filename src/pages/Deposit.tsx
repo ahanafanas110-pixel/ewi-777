@@ -62,6 +62,7 @@ export const Deposit: React.FC = () => {
     submitDepositRequest,
     claimDepositBonus,
     setActiveTab,
+    goBack,
     setHistoryFilterTab,
     language,
     showToast
@@ -306,11 +307,9 @@ export const Deposit: React.FC = () => {
       <div className="bg-white/95 backdrop-blur-md px-4 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <button
           type="button"
-          onClick={() => {
-            setActiveTab('wallet');
-            window.location.hash = '#/wallet';
-          }}
-          className="p-1.5 -ml-1 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-700 hover:text-cyan-700 active:scale-95"
+          onClick={() => goBack('wallet')}
+          aria-label="Back"
+          className="relative z-20 p-2 -ml-1.5 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 hover:text-cyan-700 active:scale-95 transition-all cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>

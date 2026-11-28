@@ -16,6 +16,7 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
     user,
     login,
     setActiveTab,
+    goBack,
     language,
     showToast,
     adminSettings,
@@ -47,17 +48,22 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
         showToast('Please enter a valid mobile number starting with 1');
         return;
       }
-      const cleanDigits = phoneNumber.replace(/\D/g, '');
-      if (countryCode !== '+880' && (cleanDigits.length < 7 || cleanDigits.length > 14)) {
+      const cleanDigits = phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
+      if (countryCode === '+92' && !/^3\d{9}$/.test(cleanDigits)) {
+        showToast('Please enter a valid Pakistani mobile number starting with 3 (10 digits)');
+        return;
+      }
+      if (countryCode !== '+880' && countryCode !== '+92' && (cleanDigits.length < 7 || cleanDigits.length > 14)) {
         showToast('Please enter a valid mobile number');
         return;
       }
     }
+    const cleanedPhone = phoneNumber.trim();
     const target =
       authMode === 'phone'
-        ? phoneNumber.trim().startsWith('+') || phoneNumber.trim().startsWith('0')
-          ? phoneNumber.trim()
-          : `${countryCode}${phoneNumber.trim()}`
+        ? cleanedPhone.startsWith('+')
+          ? cleanedPhone
+          : `${countryCode}${cleanedPhone.replace(/^0+/, '')}`
         : email.trim();
     if (!target || !password) {
       showToast('Please enter phone/email and password');
@@ -98,11 +104,10 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           {user.isLoggedIn ? (
             <button
-              onClick={() => {
-                setActiveTab('home');
-                window.location.hash = '#/';
-              }}
-              className="relative z-10 p-1 -ml-1 text-white hover:opacity-80 active:scale-95"
+              type="button"
+              onClick={() => goBack('home')}
+              aria-label="Back"
+              className="relative z-20 p-2 -ml-1.5 min-w-[40px] min-h-[40px] rounded-full flex items-center justify-center text-white hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
             </button>
@@ -219,18 +224,19 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   <span>{getTranslation(language, 'phoneNumber')}</span>
                 </label>
                 <div className="flex gap-2">
-                  <div className="relative min-w-[85px]">
+                  <div className="relative min-w-[106px]">
                     <select
                       value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 appearance-none"
+                      onChange={(e) => {
+                        setCountryCode(e.target.value);
+                        setPhoneNumber('');
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-2.5 pr-6 py-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 appearance-none"
                     >
-                      <option value="+880">+880</option>
-                      <option value="+91">+91</option>
-                      <option value="+1">+1</option>
-                      <option value="+44">+44</option>
+                      <option value="+880">🇧🇩 BD +880</option>
+                      <option value="+92">🇵🇰 PK +92</option>
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400 text-xs">
+                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400 text-[10px]">
                       ▼
                     </div>
                   </div>
@@ -238,16 +244,20 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
                   <input
                     type="tel"
                     inputMode="numeric"
-                    maxLength={countryCode === '+880' ? 10 : 14}
+                    maxLength={10}
                     value={phoneNumber}
                     onChange={(e) => {
-                      const val =
-                        countryCode === '+880'
-                          ? normalizeBdDigitsInput(e.target.value)
-                          : e.target.value.replace(/\D/g, '').slice(0, 14);
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (countryCode === '+880') {
+                        val = normalizeBdDigitsInput(val);
+                      } else {
+                        if (val.startsWith('92') && val.length > 10) val = val.slice(2);
+                        if (val.startsWith('0')) val = val.slice(1);
+                        val = val.slice(0, 10);
+                      }
                       setPhoneNumber(val);
                     }}
-                    placeholder={countryCode === '+880' ? '1XXXXXXXXX' : getTranslation(language, 'pleaseEnterPhone')}
+                    placeholder={countryCode === '+880' ? '1XXXXXXXXX' : '3XXXXXXXXX'}
                     className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                     required
                   />

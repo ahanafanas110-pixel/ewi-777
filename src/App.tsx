@@ -48,6 +48,7 @@ import { SlotsLobby } from './pages/SlotsLobby';
 import { LudoGame } from './pages/LudoGame';
 import { MentorPanel } from './pages/MentorPanel';
 import { SportsBetting } from './pages/SportsBetting';
+import { PrivacyAndRisk } from './pages/PrivacyAndRisk';
 import { WelcomeLanding } from './components/WelcomeLanding';
 import { ExtraFirstDepositModal } from './components/AccountIcons';
 import { WinGoResultPopupModal } from './components/WinGoAssets';
@@ -307,6 +308,8 @@ const MainApp: React.FC = () => {
         return <ChangeLoginPassword />;
       case 'language':
         return <LanguagePage />;
+      case 'privacy-&-risk':
+        return <PrivacyAndRisk />;
       case 'mines':
         return <MinesGame />;
       case 'activity-award':
@@ -475,6 +478,7 @@ const MainApp: React.FC = () => {
 
             {activeTab !== 'customer-service' &&
               activeTab !== 'live-chat' &&
+              activeTab !== 'privacy-&-risk' &&
               activeTab !== 'login' &&
               activeTab !== 'register' &&
               activeTab !== 'registration' && (

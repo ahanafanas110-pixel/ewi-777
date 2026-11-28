@@ -42,31 +42,37 @@ export const LanguagePage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {LANGUAGE_OPTIONS.map((opt) => (
-              <button
-                key={opt.code}
-                type="button"
-                onClick={() => handleSelect(opt.code)}
-                className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                  language === opt.code
-                    ? 'border-cyan-600 bg-cyan-50/70 text-cyan-800 shadow-xs'
-                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <div className="flex items-center gap-3.5">
-                  <span className="text-2xl">{opt.flag}</span>
-                  <div className="text-left">
-                    <div className="font-black text-sm">{opt.nativeName}</div>
-                    <div className="text-[11px] opacity-75">{opt.subtitle}</div>
+            {LANGUAGE_OPTIONS.map((opt) => {
+              const isoCode =
+                opt.code === 'en' ? 'US' : opt.code === 'bn' ? 'BD' : opt.code === 'hi' ? 'IN' : 'PK';
+              return (
+                <button
+                  key={opt.code}
+                  type="button"
+                  onClick={() => handleSelect(opt.code)}
+                  className={`w-full min-h-[60px] flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                    language === opt.code
+                      ? 'border-cyan-600 bg-cyan-50/70 text-cyan-800 shadow-xs'
+                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <span className="w-8 text-center text-base font-black tracking-tight flex-shrink-0">
+                      {isoCode}
+                    </span>
+                    <div className="text-left min-w-0">
+                      <div className="font-black text-sm truncate">{opt.nativeName}</div>
+                      <div className="text-[11px] opacity-75 truncate">{opt.subtitle}</div>
+                    </div>
                   </div>
-                </div>
-                {language === opt.code && (
-                  <span className="w-6 h-6 rounded-full bg-cyan-600 text-white flex items-center justify-center">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  </span>
-                )}
-              </button>
-            ))}
+                  {language === opt.code && (
+                    <span className="w-6 h-6 rounded-full bg-cyan-600 text-white flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

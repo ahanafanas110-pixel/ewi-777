@@ -235,6 +235,7 @@ interface AppContextType {
   settleEwiWingoRound: (mode: EwiWingoMode, periodNumber: string, resolvedNumber: number) => void;
   popLotteryQueue: (game: 'ewi_wingo' | 'k3' | 'd5', mode: string) => void;
   setActiveTab: (tab: string) => void;
+  goBack: (fallbackTab?: string) => void;
   setLanguage: (lang: Language) => void;
   showToast: (msg: string) => void;
   login: (phoneOrEmail: string, pass: string, remember: boolean) => Promise<{ success: boolean; message: string }>;
@@ -916,6 +917,7 @@ export const PUBLIC_UNAUTH_TABS = new Set([
   'registration',
   'customer-service',
   'live-chat',
+  'privacy-&-risk',
   'admin',
   'mentor'
 ]);
@@ -1035,88 +1037,63 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
   try {
     const hash = window.location.hash || '';
     const pathname = window.location.pathname || '';
-    const href = window.location.href || '';
-    const full = (hash + ' ' + pathname + ' ' + href).toLowerCase();
 
     const cleanHash = hash.replace(/^#+/, '').replace(/^\/+/, '').split('?')[0].replace(/\/+$/, '').toLowerCase();
     const cleanPath = pathname.replace(/^\/+/, '').replace(/\/+$/, '').toLowerCase();
-    const target = cleanHash || cleanPath;
+    const hasHash = hash.startsWith('#');
+    const target = hasHash ? cleanHash : cleanPath;
 
-    if (
-      target === 'mentor-ewi777-panel' ||
-      cleanHash === 'mentor-ewi777-panel' ||
-      cleanPath === 'mentor-ewi777-panel' ||
-      full.includes('/mentor-ewi777-panel') ||
-      full.includes('#/mentor-ewi777-panel')
-    ) {
+    if (cleanPath === 'mentor-ewi777-panel' || cleanHash === 'mentor-ewi777-panel' || target === 'mentor-ewi777-panel') {
       return 'mentor';
     }
-    if (
-      target === 'admin-ewi777-panel-009' ||
-      cleanHash === 'admin-ewi777-panel-009' ||
-      cleanPath === 'admin-ewi777-panel-009' ||
-      full.includes('/admin-ewi777-panel-009') ||
-      full.includes('#/admin-ewi777-panel-009')
-    ) {
+    if (cleanPath === 'admin-ewi777-panel-009' || cleanHash === 'admin-ewi777-panel-009' || target === 'admin-ewi777-panel-009') {
       return 'admin';
     }
-    if (target === 'admin' || cleanHash === 'admin' || cleanPath === 'admin') {
+    if (target === 'admin' || cleanPath === 'admin') {
       return isLoggedIn ? 'home' : 'login';
     }
 
-    if (target === 'wallet' || cleanHash === 'wallet' || full.includes('/wallet') || full.includes('#/wallet')) resolved = 'wallet';
-    else if (target === 'deposit' || cleanHash === 'deposit' || full.includes('/deposit') || full.includes('#/deposit')) resolved = 'deposit';
-    else if (target === 'safe' || cleanHash === 'safe' || full.includes('/safe') || full.includes('#/safe')) resolved = 'safe';
-    else if (target === 'vip' || cleanHash === 'vip' || full.includes('/vip') || full.includes('#/vip')) resolved = 'vip';
-    else if (target === 'wingo' || cleanHash === 'wingo' || full.includes('/wingo') || full.includes('#/wingo')) resolved = 'wingo';
-    else if (target === 'plane' || cleanHash === 'plane' || full.includes('/plane') || full.includes('#/plane')) resolved = 'plane';
-    else if (target === 'aviator' || target === 'aviator-plane' || cleanHash === 'aviator' || full.includes('/aviator') || full.includes('#/aviator')) resolved = 'aviator';
-    else if (target === 'luckyjet' || target === 'lucky-jet' || cleanHash === 'luckyjet' || full.includes('/luckyjet') || full.includes('#/luckyjet')) resolved = 'luckyjet';
-    else if (target === 'coinflip' || target === 'coin-flip' || cleanHash === 'coinflip' || full.includes('/coinflip') || full.includes('#/coinflip')) resolved = 'coinflip';
-    else if (target === 'gold-market' || cleanHash === 'gold-market' || full.includes('/gold-market') || full.includes('#/gold-market')) resolved = 'gold-market';
-    else if (target === 'binary' || target === 'binary-market' || cleanHash === 'binary' || full.includes('/binary') || full.includes('#/binary')) resolved = 'binary';
-    else if (target === 'activity' || cleanHash === 'activity' || full.includes('/activity') || full.includes('#/activity')) resolved = 'activity';
-    else if (target === 'promotion' || cleanHash === 'promotion' || full.includes('/promotion') || full.includes('invite')) resolved = 'promotion';
-    else if (target === 'account' || cleanHash === 'account' || full.includes('/account')) resolved = 'account';
-    else if (target === 'login' || cleanHash === 'login' || full.includes('/login') || full.includes('#/login')) resolved = 'login';
-    else if (target === 'register' || target === 'registration' || cleanHash === 'register' || full.includes('/register') || full.includes('#/register')) resolved = 'register';
-    else if (target === 'transaction-history' || cleanHash === 'transaction-history' || full.includes('/transaction-history') || full.includes('#/transaction-history')) resolved = 'transaction-history';
-    else if (target === 'live-chat' || cleanHash === 'live-chat' || full.includes('/live-chat') || full.includes('#/live-chat')) resolved = 'live-chat';
-    else if (target === 'customer-service' || cleanHash === 'customer-service' || full.includes('/customer-service') || full.includes('#/customer-service')) resolved = 'customer-service';
-    else if (target === 'salary' || cleanHash === 'salary' || full.includes('/salary') || full.includes('#/salary')) resolved = 'salary';
-    else if (target === 'gifts' || cleanHash === 'gifts' || full.includes('/gifts') || full.includes('#/gifts')) resolved = 'gifts';
-    else if (
-      target === 'cheking' ||
-      target === 'checking' ||
-      target === 'attendence' ||
-      target === 'attendance' ||
-      cleanHash === 'cheking' ||
-      cleanHash === 'checking' ||
-      cleanHash === 'attendence' ||
-      cleanHash === 'attendance' ||
-      full.includes('/cheking') ||
-      full.includes('/checking') ||
-      full.includes('/attendence') ||
-      full.includes('/attendance')
-    ) resolved = 'attendence';
-    else if (target === 'change-nickname' || cleanHash === 'change-nickname' || full.includes('/change-nickname') || full.includes('#/change-nickname')) resolved = 'change-nickname';
-    else if (target === 'change-login-password' || cleanHash === 'change-login-password' || full.includes('/change-login-password') || full.includes('#/change-login-password')) resolved = 'change-login-password';
-    else if (target === 'language' || cleanHash === 'language' || full.includes('/language') || full.includes('#/language')) resolved = 'language';
-    else if (target === 'mines' || cleanHash === 'mines' || full.includes('/mines') || full.includes('#/mines')) resolved = 'mines';
-    else if (target === 'k3' || cleanHash === 'k3' || full.includes('/k3') || full.includes('#/k3')) resolved = 'k3';
-    else if (target === '5d' || cleanHash === '5d' || full.includes('/5d') || full.includes('#/5d')) resolved = '5d';
-    else if (target === 'deposit-history' || cleanHash === 'deposit-history' || target === 'withdraw-history' || cleanHash === 'withdraw-history') resolved = 'transaction-history';
-    else if (target === 'game-statistics' || cleanHash === 'game-statistics' || full.includes('/game-statistics') || full.includes('#/game-statistics')) resolved = 'game-statistics';
-    else if (target === 'ewi-wingo' || target === 'ewiwingo' || cleanHash === 'ewi-wingo' || full.includes('/ewi-wingo') || full.includes('#/ewi-wingo')) resolved = 'ewi-wingo';
-    else if (target === 'all-chart' || target === 'allchart' || target === 'all-charts' || cleanHash === 'all-chart' || full.includes('/all-chart') || full.includes('#/all-chart')) resolved = 'all-chart';
-    else if (target === 'activity-award' || cleanHash === 'activity-award' || full.includes('/activity-award') || full.includes('#/activity-award')) resolved = 'activity-award';
-    else if (target === 'betting-rebate' || cleanHash === 'betting-rebate' || full.includes('/betting-rebate') || full.includes('#/betting-rebate')) resolved = 'betting-rebate';
-    else if (target === 'super-jackpot' || cleanHash === 'super-jackpot' || full.includes('/super-jackpot') || full.includes('#/super-jackpot')) resolved = 'super-jackpot';
-    else if (target === 'first-gift' || cleanHash === 'first-gift' || full.includes('/first-gift') || full.includes('#/first-gift')) resolved = 'first-gift';
-    else if (target === 'casino' || cleanHash === 'casino' || full.includes('/casino') || full.includes('#/casino')) resolved = 'casino';
-    else if (target === 'slots' || cleanHash === 'slots' || full.includes('/slots') || full.includes('#/slots')) resolved = 'slots';
-    else if (target === 'ludo' || target === 'ewi-ludo' || cleanHash === 'ludo' || full.includes('/ludo') || full.includes('#/ludo')) resolved = 'ludo';
-    else if (target === 'sports' || target === 'live-sports' || cleanHash === 'sports' || full.includes('/sports') || full.includes('#/sports')) resolved = 'sports';
+    if (!target || target === 'home') resolved = 'home';
+    else if (target === 'wallet') resolved = 'wallet';
+    else if (target === 'deposit') resolved = 'deposit';
+    else if (target === 'safe') resolved = 'safe';
+    else if (target === 'vip') resolved = 'vip';
+    else if (target === 'wingo') resolved = 'wingo';
+    else if (target === 'plane') resolved = 'plane';
+    else if (target === 'aviator' || target === 'aviator-plane') resolved = 'aviator';
+    else if (target === 'luckyjet' || target === 'lucky-jet') resolved = 'luckyjet';
+    else if (target === 'coinflip' || target === 'coin-flip') resolved = 'coinflip';
+    else if (target === 'gold-market') resolved = 'gold-market';
+    else if (target === 'binary' || target === 'binary-market') resolved = 'binary';
+    else if (target === 'activity') resolved = 'activity';
+    else if (target === 'promotion' || target === 'invite') resolved = 'promotion';
+    else if (target === 'account') resolved = 'account';
+    else if (target === 'login') resolved = 'login';
+    else if (target === 'register' || target === 'registration') resolved = 'register';
+    else if (target === 'transaction-history' || target === 'deposit-history' || target === 'withdraw-history') resolved = 'transaction-history';
+    else if (target === 'privacy-&-risk' || target === 'privacy-risk' || target === 'privacy-and-risk') resolved = 'privacy-&-risk';
+    else if (target === 'live-chat') resolved = 'live-chat';
+    else if (target === 'customer-service') resolved = 'customer-service';
+    else if (target === 'salary') resolved = 'salary';
+    else if (target === 'gifts') resolved = 'gifts';
+    else if (target === 'cheking' || target === 'checking' || target === 'attendence' || target === 'attendance') resolved = 'attendence';
+    else if (target === 'change-nickname') resolved = 'change-nickname';
+    else if (target === 'change-login-password') resolved = 'change-login-password';
+    else if (target === 'language') resolved = 'language';
+    else if (target === 'mines') resolved = 'mines';
+    else if (target === 'k3') resolved = 'k3';
+    else if (target === '5d') resolved = '5d';
+    else if (target === 'game-statistics') resolved = 'game-statistics';
+    else if (target === 'ewi-wingo' || target === 'ewiwingo') resolved = 'ewi-wingo';
+    else if (target === 'all-chart' || target === 'allchart' || target === 'all-charts') resolved = 'all-chart';
+    else if (target === 'activity-award') resolved = 'activity-award';
+    else if (target === 'betting-rebate') resolved = 'betting-rebate';
+    else if (target === 'super-jackpot') resolved = 'super-jackpot';
+    else if (target === 'first-gift') resolved = 'first-gift';
+    else if (target === 'casino') resolved = 'casino';
+    else if (target === 'slots') resolved = 'slots';
+    else if (target === 'ludo' || target === 'ewi-ludo') resolved = 'ludo';
+    else if (target === 'sports' || target === 'live-sports') resolved = 'sports';
 
     try {
       const sp = new URLSearchParams(window.location.search);
@@ -1470,6 +1447,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeTab, setActiveTabRaw] = useState<string>(() => resolveCurrentRoute(user.isLoggedIn));
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
+  const tabHistoryRef = useRef<string[]>([]);
+  const activeTabRef = useRef<string>(activeTab);
+  activeTabRef.current = activeTab;
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
   const [invitationParam, setInvitationParam] = useState<string>('');
@@ -1767,9 +1747,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeLocalStorageSet('win777_referrals', JSON.stringify(referrals.slice(0, 200)));
   }, [referrals]);
 
+  const didInitWinFeedSyncRef = useRef(false);
+  const reportedWinTxIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     safeLocalStorageSet('win777_transactions', JSON.stringify(transactions.slice(0, 150)));
-  }, [transactions]);
+    if (!didInitWinFeedSyncRef.current) {
+      didInitWinFeedSyncRef.current = true;
+      for (const tx of transactions) {
+        if (tx?.id) reportedWinTxIdsRef.current.add(tx.id);
+      }
+      return;
+    }
+    if (!user.isLoggedIn) return;
+    for (const tx of transactions.slice(0, 8)) {
+      if (!tx?.id || reportedWinTxIdsRef.current.has(tx.id)) continue;
+      reportedWinTxIdsRef.current.add(tx.id);
+      const tType = String(tx.type || '');
+      const winAmt = Number(tx.amount || 0);
+      if (!tType.endsWith('_win') || winAmt <= 0) continue;
+      const gameKey =
+        tType === 'binary_win'
+          ? String(tx.title || '').toLowerCase().includes('gold')
+            ? 'gold'
+            : 'binary'
+          : tType.replace(/_win$/, '');
+      fetch(apiUrl('/api/leaderboard/record-win'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `tx_${tx.id}`,
+          userId: user.id,
+          uid: user.uid,
+          phone: user.phone,
+          avatar: user.avatar,
+          game: gameKey,
+          amount: winAmt,
+          ts: Date.now()
+        })
+      }).catch(() => {});
+    }
+  }, [transactions, user.isLoggedIn, user.id, user.uid, user.phone, user.avatar]);
 
   useEffect(() => {
     safeLocalStorageSet('win777_bets', JSON.stringify(bets.slice(0, 150)));
@@ -1941,8 +1959,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isAdminLoggedInRef = useRef<boolean>(isAdminLoggedIn);
   isAdminLoggedInRef.current = isAdminLoggedIn;
-  const activeTabRef = useRef<string>(activeTab);
-  activeTabRef.current = activeTab;
 
   const mergeRemoteMatchedUser = (matched: User | null | undefined) => {
     if (!matched || !userRef.current.isLoggedIn || !userRef.current.id) return;
@@ -3344,13 +3360,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user.isLoggedIn, activeTab]);
 
-  // Smooth Tab Switcher with strict login guard & hash sync
-  const setActiveTab = (tab: string) => {
+  // Instant, race-free Tab Switcher with strict login guard, clean pathname normalization & back stack
+  const navigateToTab = (tab: string, pushHistory = true) => {
     const targetTab =
       !userRef.current.isLoggedIn && !PUBLIC_UNAUTH_TABS.has(tab) ? 'login' : tab;
     if (targetTab !== tab) {
       showToast('Please login or register first to access Deshi Win markets!');
     }
+
+    const prevTab = activeTabRef.current;
+    if (pushHistory && prevTab && prevTab !== targetTab) {
+      const stack = tabHistoryRef.current;
+      if (stack[stack.length - 1] !== prevTab) {
+        stack.push(prevTab);
+        if (stack.length > 30) stack.shift();
+      }
+    }
+
     const targetHash =
       targetTab === 'home'
         ? '#/'
@@ -3359,16 +3385,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : targetTab === 'mentor'
         ? '#/mentor-ewi777-panel'
         : `#/${targetTab}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+
+    try {
+      const pLower = (window.location.pathname || '/').toLowerCase();
+      if (
+        pLower !== '/' &&
+        !pLower.includes('admin-ewi777-panel-009') &&
+        !pLower.includes('mentor-ewi777-panel')
+      ) {
+        window.history.replaceState(null, '', `/${targetHash}`);
+      } else if (window.location.hash !== targetHash) {
+        window.location.hash = targetHash;
+      }
+    } catch {
+      if (window.location.hash !== targetHash) {
+        window.location.hash = targetHash;
+      }
     }
-    if (targetTab === activeTab) return;
-    setIsNavigating(true);
-    setTimeout(() => {
-      setActiveTabRaw(targetTab);
-      setIsNavigating(false);
-      window.scrollTo({ top: 0, behavior: 'instant' });
-    }, 120);
+
+    setIsNavigating(false);
+    setActiveTabRaw(targetTab);
+    try {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const setActiveTab = (tab: string) => {
+    navigateToTab(tab, true);
+  };
+
+  const goBack = (fallbackTab = 'home') => {
+    const current = activeTabRef.current;
+    while (tabHistoryRef.current.length > 0) {
+      const candidate = tabHistoryRef.current.pop();
+      if (
+        candidate &&
+        candidate !== current &&
+        (userRef.current.isLoggedIn || PUBLIC_UNAUTH_TABS.has(candidate))
+      ) {
+        navigateToTab(candidate, false);
+        return;
+      }
+    }
+    const safeFallback =
+      !userRef.current.isLoggedIn && !PUBLIC_UNAUTH_TABS.has(fallbackTab)
+        ? 'login'
+        : fallbackTab;
+    navigateToTab(safeFallback, false);
   };
 
   const showToast = (msg: string) => {
@@ -9199,6 +9264,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settleEwiWingoRound,
         popLotteryQueue,
         setActiveTab,
+        goBack,
         setLanguage,
         showToast,
         login,

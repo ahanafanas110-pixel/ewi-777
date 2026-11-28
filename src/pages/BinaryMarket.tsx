@@ -407,6 +407,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
     binaryBets,
     placeBinaryTrade,
     setActiveTab,
+    goBack,
     showToast,
     adminSettings,
     unreadNotificationsCount,
@@ -1396,8 +1397,7 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
   };
 
   const handleExit = () => {
-    setActiveTab('home');
-    window.location.hash = '#/';
+    goBack('home');
   };
 
   const recentNotifications = notifications.slice(0, 5);
@@ -1424,10 +1424,10 @@ export const BinaryMarket: React.FC<BinaryMarketProps> = ({ initialMarketMode = 
             <button
               type="button"
               onClick={handleExit}
-              className={`w-8 h-8 rounded-xl border flex items-center justify-center active:scale-95 transition-transform flex-shrink-0 ${
+              className={`relative z-20 w-10 h-10 rounded-xl border flex items-center justify-center active:scale-95 transition-all cursor-pointer flex-shrink-0 ${
                 isGoldMode
-                  ? 'bg-amber-50 border-amber-300 text-amber-700'
-                  : 'bg-cyan-50 border-cyan-200 text-cyan-700'
+                  ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                  : 'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100'
               }`}
               aria-label="Exit Market"
             >

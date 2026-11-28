@@ -164,6 +164,7 @@ export const K3Game: React.FC = () => {
     settleK3Round,
     popLotteryQueue,
     setActiveTab,
+    goBack,
     showToast,
     syncServerDataNow,
     unreadNotificationsCount,
@@ -469,11 +470,10 @@ export const K3Game: React.FC = () => {
       <div className="bg-gradient-to-r from-[#0B2235] via-[#0E314A] to-[#0891B2] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           <button
-            onClick={() => {
-              setActiveTab('home');
-              window.location.hash = '#/';
-            }}
-            className="relative z-10 p-1 -ml-1 text-white hover:opacity-80 active:scale-95"
+            type="button"
+            onClick={() => goBack('home')}
+            aria-label="Back"
+            className="relative z-20 p-2 -ml-1.5 min-w-[40px] min-h-[40px] rounded-full flex items-center justify-center text-white hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>

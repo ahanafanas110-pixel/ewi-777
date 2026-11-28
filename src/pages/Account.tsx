@@ -22,7 +22,8 @@ import {
   Coins,
   UserCog,
   KeyRound,
-  BookOpen
+  BookOpen,
+  ShieldAlert
 } from 'lucide-react';
 import { getLanguageBadge, getTranslation } from '../utils/i18n';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
@@ -33,7 +34,8 @@ import {
   WithdrawHistoryGridIcon
 } from '../components/AccountIcons';
 import { getVipBadgeImage } from '../constants/vipTiers';
-import { BeginnerGuideModal, RiskDisclosureModal } from '../components/GuideAndPolicyModals';
+import { BeginnerGuideModal } from '../components/GuideAndPolicyModals';
+import { PinkSafePlateLogo } from '../components/BrandLogos';
 
 interface AccountProps {
   onOpenLanguage?: () => void;
@@ -56,7 +58,6 @@ export const Account: React.FC<AccountProps> = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [hideBalance, setHideBalance] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
-  const [showRiskModal, setShowRiskModal] = useState(false);
 
   const copyUid = () => {
     navigator.clipboard?.writeText(user.uid).catch(() => {});
@@ -184,6 +185,13 @@ export const Account: React.FC<AccountProps> = () => {
       label: getTranslation(language, 'beginnersGuide'),
       icon: BookOpen,
       onClick: () => setShowGuideModal(true)
+    },
+    {
+      id: 'privacy-risk',
+      label: getTranslation(language, 'privacyAndRisk'),
+      icon: ShieldAlert,
+      onClick: () => go('privacy-&-risk'),
+      rightText: '/privacy-&-risk'
     },
     {
       id: 'customer-service',
@@ -355,19 +363,32 @@ export const Account: React.FC<AccountProps> = () => {
               <span>{getTranslation(language, 'withdraw') || 'Withdraw'}</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => go('safe')}
-            className="w-full py-2.5 px-4 rounded-full bg-gradient-to-r from-slate-900 via-[#0B2235] to-[#0E314A] text-white font-black text-sm shadow-sm border border-cyan-400/30 flex items-center justify-center gap-2 active:scale-98 transition-transform"
-          >
-            <ShieldCheck className="w-4 h-4 text-cyan-300 stroke-[2.3]" />
-            <span>{getTranslation(language, 'safeVaultBtn') || 'SAFE'}</span>
-            <span className="text-[11px] font-extrabold text-cyan-300 tabular-nums">
-              · ৳{(user.safeBalance || 0).toFixed(2)}
-            </span>
-          </button>
         </div>
+
+        {/* Standalone Safe Card (Positioned Directly Below Holding Assets) */}
+        <button
+          type="button"
+          onClick={() => go('safe')}
+          className="w-full bg-white rounded-3xl p-4 border border-cyan-100 shadow-xs flex items-center justify-between gap-3 text-left hover:border-cyan-300 active:scale-[0.99] transition-all"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <PinkSafePlateLogo size={42} />
+            <div className="min-w-0">
+              <div className="text-sm font-black text-slate-900 leading-tight">
+                {getTranslation(language, 'safeVaultMenu') || 'Safe'}
+              </div>
+              <div className="text-[11px] text-slate-500 font-medium mt-0.5 leading-snug">
+                Daily interest rate 0.1%, earnings calculated regularly
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="px-3 py-1 rounded-full bg-gradient-to-r from-[#0891B2] to-[#0D9488] text-white font-black text-xs tabular-nums shadow-2xs">
+              {hideBalance ? '••••' : `৳${(user.safeBalance || 0).toFixed(2)}`}
+            </span>
+            <ChevronRight className="w-4 h-4 text-slate-400" />
+          </div>
+        </button>
 
         {/* 2×2 Quick History Cards */}
         <div className="grid grid-cols-2 gap-2.5">
@@ -493,13 +514,10 @@ export const Account: React.FC<AccountProps> = () => {
       <BeginnerGuideModal
         isOpen={showGuideModal}
         onClose={() => setShowGuideModal(false)}
-        onOpenRiskDisclosure={() => setShowRiskModal(true)}
-      />
-
-      <RiskDisclosureModal
-        isOpen={showRiskModal}
-        onClose={() => setShowRiskModal(false)}
-        language={language}
+        onOpenRiskDisclosure={() => {
+          setShowGuideModal(false);
+          go('privacy-&-risk');
+        }}
       />
     </div>
   );

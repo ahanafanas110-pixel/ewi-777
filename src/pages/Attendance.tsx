@@ -30,13 +30,14 @@ export const Attendance: React.FC = () => {
       {/* Top Navigation Header */}
       <div className="px-4 pt-4 pb-3 flex items-center justify-between bg-white border-b border-slate-200 sticky top-0 z-30">
         <button
+          type="button"
           onClick={() => {
             setActiveTab('activity');
-            window.location.hash = '#/activity';
           }}
-          className="w-9 h-9 rounded-xl border flex items-center justify-center active:scale-95 transition-all bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100"
+          aria-label="Back"
+          className="relative z-20 w-10 h-10 rounded-xl border flex items-center justify-center active:scale-95 transition-all bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100 cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+          <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
 
         <h1 className="font-black text-base tracking-wide uppercase text-slate-900">
@@ -53,8 +54,8 @@ export const Attendance: React.FC = () => {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Official Deshi Win Daily Check-In Vector Card */}
-        <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-xs bg-white h-32">
+        {/* Official Deshi Win Daily Check-In Illustration Card */}
+        <div className="rounded-3xl overflow-hidden border border-cyan-100 shadow-xs bg-white h-40">
           <PinkAttendanceIllustration className="w-full h-full object-cover" />
         </div>
 

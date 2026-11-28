@@ -18,12 +18,13 @@ import {
   Image as ImageIcon,
   MessageCircle,
   BookOpen,
-  PlusCircle
+  PlusCircle,
+  ShieldAlert
 } from 'lucide-react';
 import { CustomerServiceLogo } from '../components/BrandLogos';
 import { DepositPastelIcon, WithdrawPastelIcon } from '../components/AccountIcons';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
-import { BeginnerGuideModal, RiskDisclosureModal } from '../components/GuideAndPolicyModals';
+import { BeginnerGuideModal } from '../components/GuideAndPolicyModals';
 
 type SupportTopicId =
   | 'deposit_not_received'
@@ -58,6 +59,7 @@ export const CustomerService: React.FC<CustomerServiceProps> = ({ initialMode = 
     withdrawRequests,
     adminSettings,
     setActiveTab,
+    goBack,
     showToast,
     supportMessages,
     sendSupportMessage
@@ -66,7 +68,6 @@ export const CustomerService: React.FC<CustomerServiceProps> = ({ initialMode = 
   const [viewMode, setViewMode] = useState<'menu' | 'chat'>(initialMode);
   const [selectedTopic, setSelectedTopic] = useState<SupportTopicId | null>(null);
   const [showGuideModal, setShowGuideModal] = useState(false);
-  const [showRiskModal, setShowRiskModal] = useState(false);
 
   const [issueTrxId, setIssueTrxId] = useState('');
   const [issueAmount, setIssueAmount] = useState('');
@@ -293,10 +294,9 @@ export const CustomerService: React.FC<CustomerServiceProps> = ({ initialMode = 
               switchMode('menu');
               return;
             }
-            setActiveTab(user.isLoggedIn ? 'account' : 'home');
-            window.location.hash = user.isLoggedIn ? '#/account' : '#/';
+            goBack(user.isLoggedIn ? 'account' : 'home');
           }}
-          className="p-1.5 -ml-1 rounded-full text-slate-700 hover:bg-cyan-50 active:scale-95"
+          className="relative z-20 p-2 -ml-1.5 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-700 hover:bg-cyan-50 active:scale-95 transition-all cursor-pointer"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
@@ -413,7 +413,32 @@ export const CustomerService: React.FC<CustomerServiceProps> = ({ initialMode = 
                     Beginner&apos;s Guide &amp; Rules
                   </div>
                   <div className="text-[11px] text-slate-500 truncate">
-                    Registration, betting, recharge, withdraw &amp; risk notice
+                    Registration, betting, recharge, withdraw &amp; rules
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+            </button>
+
+            {/* Privacy & Risk direct route (/privacy-&-risk) */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('privacy-&-risk');
+                window.location.hash = '#/privacy-&-risk';
+              }}
+              className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-cyan-50/40 active:bg-cyan-50 transition-colors"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0891B2] to-[#0D9488] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                  <ShieldAlert className="w-4 h-4 stroke-[2.3]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-slate-900 truncate">
+                    Privacy &amp; Risk Disclosure
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Official privacy terms &amp; financial risk policy (/privacy-&amp;-risk)
                   </div>
                 </div>
               </div>
@@ -1158,13 +1183,11 @@ export const CustomerService: React.FC<CustomerServiceProps> = ({ initialMode = 
       <BeginnerGuideModal
         isOpen={showGuideModal}
         onClose={() => setShowGuideModal(false)}
-        onOpenRiskDisclosure={() => setShowRiskModal(true)}
-      />
-
-      <RiskDisclosureModal
-        isOpen={showRiskModal}
-        onClose={() => setShowRiskModal(false)}
-        language={language}
+        onOpenRiskDisclosure={() => {
+          setShowGuideModal(false);
+          setActiveTab('privacy-&-risk');
+          window.location.hash = '#/privacy-&-risk';
+        }}
       />
     </div>
   );

@@ -5,7 +5,7 @@ import { getTranslation } from '../utils/i18n';
 import { PinkSafePlateLogo } from '../components/BrandLogos';
 
 export const Safe: React.FC = () => {
-  const { user, transferSafe, setActiveTab, language, showToast } = useApp();
+  const { user, transferSafe, goBack, language, showToast } = useApp();
   const [activeTab, setActiveTabMode] = useState<'in' | 'out'>('in');
   const [amountMultiplier, setAmountMultiplier] = useState<number>(2);
   const [customAmount, setCustomAmount] = useState<string>('200');
@@ -35,11 +35,10 @@ export const Safe: React.FC = () => {
       {/* Top Bar */}
       <div className="bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <button
-          onClick={() => {
-            setActiveTab('account');
-            window.location.hash = '#/account';
-          }}
-          className="p-1 -ml-1 text-slate-700 hover:text-cyan-700 active:scale-95"
+          type="button"
+          onClick={() => goBack('account')}
+          aria-label="Back"
+          className="relative z-20 p-2 -ml-1.5 min-w-[40px] min-h-[40px] rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 hover:text-cyan-700 active:scale-95 transition-all cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>

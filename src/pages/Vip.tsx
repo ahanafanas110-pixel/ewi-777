@@ -43,7 +43,7 @@ const VipBadgeImg: React.FC<{
 };
 
 export const Vip: React.FC = () => {
-  const { user, claimVipReward, setActiveTab, language, showToast } = useApp();
+  const { user, claimVipReward, setActiveTab, goBack, language, showToast } = useApp();
   const [selectedVipLevel, setSelectedVipLevel] = useState<number>(
     Math.min(VIP_TIERS.length, Math.max(1, user.vipLevel || 1))
   );
@@ -78,11 +78,10 @@ export const Vip: React.FC = () => {
       <div className="bg-gradient-to-br from-[#0B2235] via-[#0E314A] to-[#0891B2] px-4 pt-3 pb-8 text-white rounded-b-[2rem] shadow-md">
         <div className="flex items-center justify-between mb-4">
           <button
-            onClick={() => {
-              setActiveTab('account');
-              window.location.hash = '#/account';
-            }}
-            className="p-1 -ml-1 text-white hover:opacity-80 active:scale-95"
+            type="button"
+            onClick={() => goBack('account')}
+            aria-label="Back"
+            className="relative z-20 p-2 -ml-1.5 min-w-[40px] min-h-[40px] rounded-full flex items-center justify-center text-white hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>

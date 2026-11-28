@@ -4,7 +4,6 @@ import { ArrowLeft, Smartphone, Lock, Eye, EyeOff, Gift, Check, AlertCircle } fr
 import { getLanguageBadge, getTranslation } from '../utils/i18n';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
-import { RiskDisclosureModal } from '../components/GuideAndPolicyModals';
 import {
   isValidBdLocalTenDigits,
   normalizeBdDigitsInput
@@ -15,7 +14,7 @@ interface RegisterProps {
 }
 
 export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
-  const { user, allUsers, register, setActiveTab, language, showToast, invitationParam, adminSettings } = useApp();
+  const { user, allUsers, register, setActiveTab, goBack, language, showToast, invitationParam, adminSettings } = useApp();
   const langBadge = getLanguageBadge(language);
   const registrationDisabled = adminSettings.registrationEnabled === false;
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -31,7 +30,6 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
   const [inviteError, setInviteError] = useState('');
   const [captchaOpen, setCaptchaOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showRiskModal, setShowRiskModal] = useState(false);
 
   useEffect(() => {
     const urlCode =
@@ -57,8 +55,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
       showToast('Please enter a valid mobile number starting with 1');
       return;
     }
-    const digitsOnly = phoneNumber.replace(/\D/g, '');
-    if (countryCode !== '+880' && (digitsOnly.length < 7 || digitsOnly.length > 14)) {
+    const digitsOnly = phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
+    if (countryCode === '+92' && !/^3\d{9}$/.test(digitsOnly)) {
+      showToast('Please enter a valid Pakistani mobile number starting with 3 (10 digits)');
+      return;
+    }
+    if (countryCode !== '+880' && countryCode !== '+92' && (digitsOnly.length < 7 || digitsOnly.length > 14)) {
       showToast('Please enter a valid mobile number');
       return;
     }
@@ -107,16 +109,10 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
       <div className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white pt-3 pb-8 px-4 rounded-b-[2rem] shadow-md">
         <div className="relative flex items-center justify-between min-h-[62px] mb-4">
           <button
-            onClick={() => {
-              if (user.isLoggedIn) {
-                setActiveTab('home');
-                window.location.hash = '#/';
-              } else {
-                setActiveTab('login');
-                window.location.hash = '#/login';
-              }
-            }}
-            className="relative z-10 p-1 -ml-1 text-white hover:opacity-80 active:scale-95"
+            type="button"
+            onClick={() => goBack(user.isLoggedIn ? 'home' : 'login')}
+            aria-label="Back"
+            className="relative z-20 p-2 -ml-1.5 min-w-[40px] min-h-[40px] rounded-full flex items-center justify-center text-white hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
@@ -167,33 +163,41 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 <span>{getTranslation(language, 'phoneNumber')}</span>
               </label>
               <div className="flex gap-2">
-                <div className="relative min-w-[85px]">
+                <div className="relative min-w-[106px]">
                   <select
                     value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 appearance-none"
+                    onChange={(e) => {
+                      setCountryCode(e.target.value);
+                      setPhoneNumber('');
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-2.5 pr-6 py-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 appearance-none"
                   >
-                    <option value="+880">+880</option>
-                    <option value="+91">+91</option>
-                    <option value="+1">+1</option>
-                    <option value="+44">+44</option>
+                    <option value="+880">🇧🇩 BD +880</option>
+                    <option value="+92">🇵🇰 PK +92</option>
                   </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400 text-[10px]">
+                    ▼
+                  </div>
                 </div>
 
                 <div className="relative flex-1">
                   <input
                     type="tel"
                     inputMode="numeric"
-                    maxLength={countryCode === '+880' ? 10 : 14}
+                    maxLength={10}
                     value={phoneNumber}
                     onChange={(e) => {
-                      const val =
-                        countryCode === '+880'
-                          ? normalizeBdDigitsInput(e.target.value)
-                          : e.target.value.replace(/\D/g, '').slice(0, 14);
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (countryCode === '+880') {
+                        val = normalizeBdDigitsInput(val);
+                      } else {
+                        if (val.startsWith('92') && val.length > 10) val = val.slice(2);
+                        if (val.startsWith('0')) val = val.slice(1);
+                        val = val.slice(0, 10);
+                      }
                       setPhoneNumber(val);
                     }}
-                    placeholder={countryCode === '+880' ? '1XXXXXXXXX' : getTranslation(language, 'pleaseEnterPhone')}
+                    placeholder={countryCode === '+880' ? '1XXXXXXXXX' : '3XXXXXXXXX'}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                     required
                   />
@@ -317,30 +321,36 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
 
             {/* Privacy Agreement */}
             <div className="pt-2">
-              <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                <div
-                  onClick={() => setAgreePrivacy(!agreePrivacy)}
-                  className={`w-4 h-4 rounded-full mt-0.5 flex items-center justify-center transition-colors flex-shrink-0 ${
-                    agreePrivacy ? 'bg-cyan-600 text-white' : 'border border-slate-300'
-                  }`}
+              <div className="flex items-start gap-2.5 select-none">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={agreePrivacy}
+                  onClick={() => setAgreePrivacy((prev) => !prev)}
+                  className="flex items-start gap-2.5 text-left cursor-pointer focus:outline-none"
                 >
-                  {agreePrivacy && <Check className="w-3 h-3 stroke-[3]" />}
-                </div>
-                <span className="text-xs text-slate-600 leading-tight">
-                  {getTranslation(language, 'agreePrivacy')}{' '}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowRiskModal(true);
-                    }}
-                    className="text-rose-600 font-bold hover:underline"
+                  <span
+                    className={`w-4 h-4 rounded-full mt-0.5 flex items-center justify-center transition-colors flex-shrink-0 ${
+                      agreePrivacy ? 'bg-cyan-600 text-white' : 'border border-slate-300 bg-white'
+                    }`}
                   >
-                    {getTranslation(language, 'privacyAgreement')}
-                  </button>
-                </span>
-              </label>
+                    {agreePrivacy && <Check className="w-3 h-3 stroke-[3]" />}
+                  </span>
+                  <span className="text-xs text-slate-600 leading-tight">
+                    {getTranslation(language, 'agreePrivacy')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('privacy-&-risk');
+                    window.location.hash = '#/privacy-&-risk';
+                  }}
+                  className="text-xs text-cyan-700 font-bold hover:underline leading-tight text-left"
+                >
+                  {getTranslation(language, 'privacyAgreement')}
+                </button>
+              </div>
             </div>
 
             {registrationDisabled && (
@@ -394,12 +404,6 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
         isOpen={captchaOpen}
         onSuccess={handleCaptchaVerified}
         onClose={() => setCaptchaOpen(false)}
-      />
-
-      <RiskDisclosureModal
-        isOpen={showRiskModal}
-        onClose={() => setShowRiskModal(false)}
-        language={language}
       />
     </div>
   );

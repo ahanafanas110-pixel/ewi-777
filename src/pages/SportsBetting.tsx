@@ -230,6 +230,7 @@ export const SportsBetting: React.FC = () => {
   const {
     user,
     setActiveTab,
+    goBack,
     sportsMatches,
     sportsBets,
     placeSportsBet,
@@ -332,11 +333,11 @@ export const SportsBetting: React.FC = () => {
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
-            onClick={() => setActiveTab('home')}
-            className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-transform flex-shrink-0"
+            onClick={() => goBack('home')}
+            className="relative z-20 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all cursor-pointer flex-shrink-0"
             aria-label="Back"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
           </button>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
