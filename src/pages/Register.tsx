@@ -4,6 +4,7 @@ import { ArrowLeft, Smartphone, Lock, Eye, EyeOff, Gift, Check, AlertCircle } fr
 import { getLanguageBadge, getTranslation } from '../utils/i18n';
 import { Ewi777Logo, CustomerServiceLogo } from '../components/BrandLogos';
 import { SliderCaptchaModal } from '../components/SliderCaptchaModal';
+import { RiskDisclosureModal } from '../components/GuideAndPolicyModals';
 import {
   isValidBdLocalTenDigits,
   normalizeBdDigitsInput
@@ -30,6 +31,7 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
   const [inviteError, setInviteError] = useState('');
   const [captchaOpen, setCaptchaOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRiskModal, setShowRiskModal] = useState(false);
 
   useEffect(() => {
     const urlCode =
@@ -326,9 +328,17 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
                 </div>
                 <span className="text-xs text-slate-600 leading-tight">
                   {getTranslation(language, 'agreePrivacy')}{' '}
-                  <span className="text-cyan-700 font-semibold">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowRiskModal(true);
+                    }}
+                    className="text-rose-600 font-bold hover:underline"
+                  >
                     {getTranslation(language, 'privacyAgreement')}
-                  </span>
+                  </button>
                 </span>
               </label>
             </div>
@@ -384,6 +394,12 @@ export const Register: React.FC<RegisterProps> = ({ onOpenLanguage }) => {
         isOpen={captchaOpen}
         onSuccess={handleCaptchaVerified}
         onClose={() => setCaptchaOpen(false)}
+      />
+
+      <RiskDisclosureModal
+        isOpen={showRiskModal}
+        onClose={() => setShowRiskModal(false)}
+        language={language}
       />
     </div>
   );

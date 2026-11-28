@@ -719,7 +719,7 @@ export const DEFAULT_BANNERS = [
   },
   {
     id: 'ban_ewi777_usdt_2pct',
-    title: 'Deshi Win USDT 2% Instant Bonus ($2 - $20,000)',
+    title: 'Deshi Win USDT 5% Instant Bonus ($2 - $20,000)',
     url: '/assets/brand/deshi-banner-3.jpg',
     link: '#/deposit',
     sortOrder: 3,
@@ -736,7 +736,7 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   firstDepositBonusAmount: 50,
   minWithdraw: 300,
   referCommissionPercent: 10,
-  depositInstructions: 'Minimum deposit ৳200 (bKash/Nagad via EWI PAY) or Binance Pay ($2–$20,000 +2% Auto Bonus).',
+  depositInstructions: 'Minimum deposit ৳200 (bKash/Nagad via EWI PAY) or USDT / Binance Pay ($2–$20,000 +5% Instant Bonus).',
   nextWingoOutcome: 'AUTO',
   nextWingoOutcomes: {
     '30s': 'AUTO',
@@ -775,11 +775,11 @@ const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   },
   minesPattern: 'RANDOM',
   binaryNextCandleBias: 'AUTO',
-  marqueeText: 'Notice: Welcome to Deshi Win online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay.',
-  popupTitle: '',
-  popupMessage: '',
-  popupImageUrl: '',
-  enableSystemPopup: false,
+  marqueeText: 'Notice: Welcome to Deshi Win online entertainment. Fast 24/7 deposits & payouts via EWI PAY (bKash & Nagad) and Binance Pay (+5% USDT Bonus).',
+  popupTitle: 'Daily Recharge USDT 5% Bonus',
+  popupMessage: 'Recharge via USDT (Binance Pay) today and get an instant +5% Bonus automatically on every deposit!',
+  popupImageUrl: '/assets/brand/deshi-announcement-usdt-5.jpg',
+  enableSystemPopup: true,
   usdtRateBdt: 120,
   banners: DEFAULT_BANNERS,
   bannersCustomized: false,
@@ -915,6 +915,7 @@ export const PUBLIC_UNAUTH_TABS = new Set([
   'register',
   'registration',
   'customer-service',
+  'live-chat',
   'admin',
   'mentor'
 ]);
@@ -1080,6 +1081,7 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
     else if (target === 'login' || cleanHash === 'login' || full.includes('/login') || full.includes('#/login')) resolved = 'login';
     else if (target === 'register' || target === 'registration' || cleanHash === 'register' || full.includes('/register') || full.includes('#/register')) resolved = 'register';
     else if (target === 'transaction-history' || cleanHash === 'transaction-history' || full.includes('/transaction-history') || full.includes('#/transaction-history')) resolved = 'transaction-history';
+    else if (target === 'live-chat' || cleanHash === 'live-chat' || full.includes('/live-chat') || full.includes('#/live-chat')) resolved = 'live-chat';
     else if (target === 'customer-service' || cleanHash === 'customer-service' || full.includes('/customer-service') || full.includes('#/customer-service')) resolved = 'customer-service';
     else if (target === 'salary' || cleanHash === 'salary' || full.includes('/salary') || full.includes('#/salary')) resolved = 'salary';
     else if (target === 'gifts' || cleanHash === 'gifts' || full.includes('/gifts') || full.includes('#/gifts')) resolved = 'gifts';
@@ -1421,10 +1423,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             typeof cleanParsed.firstDepositBonusAmount === 'number' && cleanParsed.firstDepositBonusAmount >= 0
               ? cleanParsed.firstDepositBonusAmount
               : 50,
-          popupTitle: '',
-          popupMessage: '',
-          popupImageUrl: '',
-          enableSystemPopup: false,
+          popupTitle:
+            typeof cleanParsed.popupTitle === 'string' && cleanParsed.popupTitle.trim()
+              ? cleanParsed.popupTitle
+              : 'Daily Recharge USDT 5% Bonus',
+          popupMessage:
+            typeof cleanParsed.popupMessage === 'string' && cleanParsed.popupMessage.trim()
+              ? cleanParsed.popupMessage
+              : 'Recharge via USDT (Binance Pay) today and get an instant +5% Bonus automatically on every deposit!',
+          popupImageUrl:
+            typeof cleanParsed.popupImageUrl === 'string' && cleanParsed.popupImageUrl.trim()
+              ? cleanParsed.popupImageUrl
+              : '/assets/brand/deshi-announcement-usdt-5.jpg',
+          enableSystemPopup:
+            typeof cleanParsed.enableSystemPopup === 'boolean' ? cleanParsed.enableSystemPopup : true,
           adminPhoneHash,
           adminPasswordHash,
           activeGiftCodes: cleanedCodes,
@@ -1936,7 +1948,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!matched || !userRef.current.isLoggedIn || !userRef.current.id) return;
     const curLocalTs = Number(userRef.current.updatedAt || 0);
     const matchedTs = Number(matched.updatedAt || 0);
-    const isMatchedStale = Boolean(curLocalTs > 0 && matchedTs > 0 && matchedTs < curLocalTs);
+    const isMatchedStale = Boolean(!matched.isBanned && curLocalTs > 0 && matchedTs > 0 && matchedTs < curLocalTs);
     if (isMatchedStale) return;
 
     const needsAvatarPush = Boolean(userRef.current.avatar && !matched.avatar);
@@ -2035,7 +2047,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? `userId=${encodeURIComponent(curUser.id)}${curUser.uid ? `&uid=${encodeURIComponent(curUser.uid)}` : ''}${curUser.phone ? `&phone=${encodeURIComponent(curUser.phone)}` : ''}`
           : '';
         const shouldFetchSupport =
-          isMentorRouteActive() || (isLoggedInUser && activeTabRef.current === 'customer-service');
+          isMentorRouteActive() ||
+          (isLoggedInUser && (activeTabRef.current === 'customer-service' || activeTabRef.current === 'live-chat'));
 
         const [setRes, depRes, wdRes, usrRes, poolRes, refRes, wBetRes, lBetRes, csRes, logRes] = await Promise.all([
           fetch(apiUrl('/api/settings'), { cache: 'no-store' }).catch(() => null),
@@ -2264,10 +2277,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   typeof cleanRemote.firstDepositBonusAmount === 'number' && cleanRemote.firstDepositBonusAmount >= 0
                     ? cleanRemote.firstDepositBonusAmount
                     : 50,
-                popupTitle: '',
-                popupMessage: '',
-                popupImageUrl: '',
-                enableSystemPopup: false,
+                popupTitle:
+                  typeof cleanRemote.popupTitle === 'string' && cleanRemote.popupTitle.trim()
+                    ? cleanRemote.popupTitle
+                    : 'Daily Recharge USDT 5% Bonus',
+                popupMessage:
+                  typeof cleanRemote.popupMessage === 'string' && cleanRemote.popupMessage.trim()
+                    ? cleanRemote.popupMessage
+                    : 'Recharge via USDT (Binance Pay) today and get an instant +5% Bonus automatically on every deposit!',
+                popupImageUrl:
+                  typeof cleanRemote.popupImageUrl === 'string' && cleanRemote.popupImageUrl.trim()
+                    ? cleanRemote.popupImageUrl
+                    : '/assets/brand/deshi-announcement-usdt-5.jpg',
+                enableSystemPopup:
+                  typeof cleanRemote.enableSystemPopup === 'boolean' ? cleanRemote.enableSystemPopup : true,
                 adminPhoneHash: rPhoneH === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : rPhoneH,
                 adminPasswordHash: rPassH === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : rPassH,
                 games: normalizedGames,
@@ -2685,10 +2708,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             typeof cleanRemote.firstDepositBonusAmount === 'number' && cleanRemote.firstDepositBonusAmount >= 0
               ? cleanRemote.firstDepositBonusAmount
               : 50,
-          popupTitle: '',
-          popupMessage: '',
-          popupImageUrl: '',
-          enableSystemPopup: false,
+          popupTitle:
+            typeof cleanRemote.popupTitle === 'string' && cleanRemote.popupTitle.trim()
+              ? cleanRemote.popupTitle
+              : 'Daily Recharge USDT 5% Bonus',
+          popupMessage:
+            typeof cleanRemote.popupMessage === 'string' && cleanRemote.popupMessage.trim()
+              ? cleanRemote.popupMessage
+              : 'Recharge via USDT (Binance Pay) today and get an instant +5% Bonus automatically on every deposit!',
+          popupImageUrl:
+            typeof cleanRemote.popupImageUrl === 'string' && cleanRemote.popupImageUrl.trim()
+              ? cleanRemote.popupImageUrl
+              : '/assets/brand/deshi-announcement-usdt-5.jpg',
+          enableSystemPopup:
+            typeof cleanRemote.enableSystemPopup === 'boolean' ? cleanRemote.enableSystemPopup : true,
           adminPhoneHash: remPhoneH === OLD_DEFAULT_ADMIN_PHONE_HASH ? DEFAULT_ADMIN_PHONE_HASH : remPhoneH,
           adminPasswordHash: remPassH === OLD_DEFAULT_ADMIN_PASS_HASH ? DEFAULT_ADMIN_PASS_HASH : remPassH,
           games: normalizedGames,
@@ -3285,20 +3318,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auto-logout immediately whenever active user becomes banned
   useEffect(() => {
     if (user.isLoggedIn && user.isBanned) {
-      const msg = 'This account has been banned. Please contact Customer Care.';
+      const reasonSuffix = user.banReason ? ` (${user.banReason})` : '';
+      const msg = `আপনার আইডিটি ব্যান (Ban) করা হয়েছে${reasonSuffix}। সাপোর্টে যোগাযোগ করুন।`;
       try {
         localStorage.setItem('ewi777_ban_notice', msg);
       } catch {}
       setBanNotice(msg);
       setFirstDepositModalOpen(false);
       setUser({ ...INITIAL_GUEST_USER, isLoggedIn: false });
-      showToast(msg);
+      showToast('This account has been banned.');
       setActiveTabRaw('login');
       if (window.location.hash !== '#/login') {
         window.location.hash = '#/login';
       }
     }
-  }, [user.isLoggedIn, user.isBanned]);
+  }, [user.isLoggedIn, user.isBanned, user.banReason]);
 
   // Reactive Strict Auth Guard
   useEffect(() => {
@@ -3798,6 +3832,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const data = await res.json().catch(() => null);
         if (!data) throw new Error('Invalid JSON');
         if (!res.ok || !data.success) {
+          if (res.status === 403 || data.banned || String(data.message || '').toLowerCase().includes('banned')) {
+            const reasonSuffix = data.banReason ? ` (${data.banReason})` : '';
+            const banMsg = `আপনার আইডিটি ব্যান (Ban) হয়ে গেছে${reasonSuffix}। দয়া করে Customer Care-এ যোগাযোগ করুন।`;
+            try {
+              localStorage.setItem('ewi777_ban_notice', banMsg);
+            } catch {}
+            setBanNotice(banMsg);
+            return {
+              success: false,
+              message: banMsg
+            };
+          }
           return {
             success: false,
             message: data.message || 'Account not found or invalid password. Please register first.'
@@ -3830,7 +3876,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (existing.isBanned) {
-      const banMsg = 'This account has been banned. Please contact Customer Care.';
+      const reasonSuffix = existing.banReason ? ` (${existing.banReason})` : '';
+      const banMsg = `আপনার আইডিটি ব্যান (Ban) হয়ে গেছে${reasonSuffix}। দয়া করে Customer Care-এ যোগাযোগ করুন।`;
       try {
         localStorage.setItem('ewi777_ban_notice', banMsg);
       } catch {}
@@ -4829,7 +4876,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: 'deposit',
         title: isUsdt ? `Binance Pay Deposit ($${usdAmount})` : `EWI PAY Deposit (${method})`,
         detail: isUsdt
-          ? `$${usdAmount} USDT • +2% Auto Bonus on completion`
+          ? `$${usdAmount} USDT • +5% Instant Bonus on completion`
           : `Order: ${orderId} • EWI PAY Checkout`,
         amount: bdtAmount,
         balanceAfter: user.balance,
@@ -5107,7 +5154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const depositAmt = req.amount;
     const isUsdtDeposit = String(req.method || '').toUpperCase() === 'USDT';
-    const usdtBonusCredit = isUsdtDeposit ? +(depositAmt * 0.02).toFixed(2) : 0;
+    const usdtBonusCredit = isUsdtDeposit ? +(depositAmt * 0.05).toFixed(2) : 0;
     const depositTurnover = depositAmt * 1;
     const totalTurnoverAdded = depositTurnover;
     const totalCredit = +(depositAmt + usdtBonusCredit).toFixed(2);
@@ -5395,11 +5442,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const extraGiftTxs: Transaction[] = [];
     if (isUsdtDeposit && usdtBonusCredit > 0) {
       const usdtBonusTx: Transaction = {
-        id: `tx_${Date.now()}_usdt2`,
+        id: `tx_${Date.now()}_usdt5`,
         userId: req.userId,
         type: 'deposit_bonus',
-        title: '+2% Binance / USDT Deposit Bonus',
-        detail: `2% Auto Bonus on ৳${depositAmt.toFixed(0)} USDT deposit`,
+        title: '+5% Binance / USDT Deposit Bonus',
+        detail: `5% Auto Bonus on ৳${depositAmt.toFixed(0)} USDT deposit`,
         amount: usdtBonusCredit,
         balanceAfter: +((preMatchedUser?.balance ?? userRef.current.balance) + totalCredit).toFixed(2),
         time: timeNow,
@@ -5408,10 +5455,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       extraGiftTxs.push(usdtBonusTx);
       saveTransactionToFirebase(usdtBonusTx).catch(() => {});
       vipNotifs.push({
-        id: `notif_${Date.now()}_usdt2`,
+        id: `notif_${Date.now()}_usdt5`,
         userId: req.userId,
-        title: '+2% USDT Bonus Credited!',
-        message: `You received +৳${usdtBonusCredit.toFixed(2)} automatic 2% bonus for your Binance / USDT deposit.`,
+        title: '+5% USDT Bonus Credited!',
+        message: `You received +৳${usdtBonusCredit.toFixed(2)} automatic 5% bonus for your Binance / USDT deposit.`,
         time: timeNow,
         read: false,
         type: 'bonus'
@@ -5481,7 +5528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     confetti({ particleCount: 70, spread: 60 });
     showToast(
       isUsdtDeposit && usdtBonusCredit > 0
-        ? `USDT Deposit ৳${depositAmt} + ৳${usdtBonusCredit.toFixed(2)} (+2% Bonus) credited!`
+        ? `USDT Deposit ৳${depositAmt} + ৳${usdtBonusCredit.toFixed(2)} (+5% Bonus) credited!`
         : giftBonusCredit > 0
         ? `Deposit ৳${depositAmt} complete! +৳${giftBonusCredit.toFixed(0)} (${giftBonusPct}% Gift Bonus) credited!`
         : vipCreditedTotal > 0

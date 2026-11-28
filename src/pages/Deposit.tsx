@@ -44,7 +44,7 @@ const USDT_CHANNELS: PaymentChannelOption[] = [
   {
     id: 'Binance Pay',
     label: 'Binance Pay (Instant ID)',
-    sublabel: 'Send USDT via Binance Pay ID (+2% Bonus)',
+    sublabel: 'Send USDT via Binance Pay ID (+5% Bonus)',
     min: 2,
     max: 400,
     limitTag: '৳200 - ৳50K Equiv.'
@@ -108,7 +108,7 @@ export const Deposit: React.FC = () => {
   const usdtRateBdt = Math.max(80, Number(adminSettings.usdtRateBdt) || 120);
   const isUsdt = category === 'usdt';
   const effectiveBdtBase = isUsdt ? +(usdAmount * usdtRateBdt).toFixed(2) : amount;
-  const usdtAutoBonusBdt = isUsdt ? +(effectiveBdtBase * 0.02).toFixed(2) : 0;
+  const usdtAutoBonusBdt = isUsdt ? +(effectiveBdtBase * 0.05).toFixed(2) : 0;
 
   const presets = [200, 500, 1000, 2000, 3000, 5000, 10000, 20000, 50000];
 
@@ -463,97 +463,99 @@ export const Deposit: React.FC = () => {
           </div>
         )}
 
-        {/* Gateway Category Switcher: E-Wallet vs Binance Pay / Configured Gateways */}
-        <div
-          className={`bg-white rounded-2xl p-1.5 border border-slate-200 shadow-2xs grid gap-1.5 ${
-            activeCustomGateways.length > 0 ? 'grid-cols-3' : 'grid-cols-2'
-          }`}
-        >
-          <button
-            type="button"
-            onClick={() => handleCategorySwitch('ewallet')}
-            className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
-              category === 'ewallet'
-                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Wallet className="w-3.5 h-3.5" />
-            <span>E-Wallet (BDT)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleCategorySwitch('usdt')}
-            className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
-              category === 'usdt'
-                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <span className="font-black">₮</span>
-            <span>Binance Pay (+2%)</span>
-          </button>
-          {activeCustomGateways.length > 0 && (
-            <button
-              type="button"
-              onClick={() => handleCategorySwitch('custom')}
-              className={`py-2.5 min-h-[44px] rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
-                category === 'custom'
-                  ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <span>Gateways ({activeCustomGateways.length})</span>
-            </button>
-          )}
-        </div>
+        {/* Unified Payment Method Cards: bKash, Nagad & USDT (+5% Bonus) side-by-side */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+              {getTranslation(language, 'rechargeMethod')}
+            </span>
+            {activeCustomGateways.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleCategorySwitch(category === 'custom' ? 'ewallet' : 'custom')}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${
+                  category === 'custom'
+                    ? 'bg-cyan-600 text-white border-cyan-600'
+                    : 'bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50'
+                }`}
+              >
+                {category === 'custom' ? 'Back to bKash / Nagad / USDT' : `Other Gateways (${activeCustomGateways.length})`}
+              </button>
+            )}
+          </div>
 
-        {/* Method Selector Cards */}
-        {category === 'ewallet' ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-2.5">
             <button
               type="button"
-              onClick={() => setSelectedEWallet('bKash')}
-              className={`p-3 rounded-2xl flex items-center justify-between border-2 transition-all active:scale-95 ${
-                selectedEWallet === 'bKash'
+              onClick={() => {
+                handleCategorySwitch('ewallet');
+                setSelectedEWallet('bKash');
+              }}
+              className={`relative p-2.5 rounded-2xl flex flex-col items-center justify-between gap-1.5 border-2 transition-all active:scale-95 min-h-[88px] ${
+                category === 'ewallet' && selectedEWallet === 'bKash'
                   ? 'bg-cyan-50/90 border-cyan-500 shadow-sm ring-2 ring-cyan-500/20'
                   : 'bg-white border-slate-200 hover:border-cyan-400/50'
               }`}
             >
-              <BkashLogo size="md" showText={true} />
-              <div
-                className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] ${
-                  selectedEWallet === 'bKash'
-                    ? 'bg-cyan-600 border-cyan-600 text-white font-black'
-                    : 'border-slate-300'
-                }`}
-              >
-                {selectedEWallet === 'bKash' && <Check className="w-3 h-3 stroke-[3]" />}
+              <div className="h-10 flex items-center justify-center">
+                <BkashLogo size="md" showText={true} />
               </div>
+              <span className="text-[11px] font-black text-slate-800">bKash</span>
+              {category === 'ewallet' && selectedEWallet === 'bKash' && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-cyan-600 text-white flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                </span>
+              )}
             </button>
 
             <button
               type="button"
-              onClick={() => setSelectedEWallet('Nagad')}
-              className={`p-3 rounded-2xl flex items-center justify-between border-2 transition-all active:scale-95 ${
-                selectedEWallet === 'Nagad'
+              onClick={() => {
+                handleCategorySwitch('ewallet');
+                setSelectedEWallet('Nagad');
+              }}
+              className={`relative p-2.5 rounded-2xl flex flex-col items-center justify-between gap-1.5 border-2 transition-all active:scale-95 min-h-[88px] ${
+                category === 'ewallet' && selectedEWallet === 'Nagad'
                   ? 'bg-cyan-50/90 border-cyan-500 shadow-sm ring-2 ring-cyan-500/20'
                   : 'bg-white border-slate-200 hover:border-cyan-400/50'
               }`}
             >
-              <NagadLogo size="md" showText={true} />
-              <div
-                className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] ${
-                  selectedEWallet === 'Nagad'
-                    ? 'bg-cyan-600 border-cyan-600 text-white font-black'
-                    : 'border-slate-300'
-                }`}
-              >
-                {selectedEWallet === 'Nagad' && <Check className="w-3 h-3 stroke-[3]" />}
+              <div className="h-10 flex items-center justify-center">
+                <NagadLogo size="md" showText={true} />
               </div>
+              <span className="text-[11px] font-black text-slate-800">Nagad</span>
+              {category === 'ewallet' && selectedEWallet === 'Nagad' && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-cyan-600 text-white flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleCategorySwitch('usdt')}
+              className={`relative p-2 rounded-2xl flex flex-col items-center justify-between gap-1 border-2 transition-all active:scale-95 min-h-[88px] ${
+                category === 'usdt'
+                  ? 'bg-emerald-50/90 border-emerald-500 shadow-sm ring-2 ring-emerald-500/20'
+                  : 'bg-white border-slate-200 hover:border-emerald-400/60'
+              }`}
+            >
+              <span className="absolute -top-2 right-1.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black shadow-xs">
+                +5% BONUS
+              </span>
+              <img
+                src="/assets/aistudio/image_fb99f6c5.png"
+                alt="USDT +5% Bonus"
+                referrerPolicy="no-referrer"
+                className="w-11 h-11 rounded-xl object-cover"
+              />
+              <span className="text-[11px] font-black text-slate-900">USDT</span>
             </button>
           </div>
-        ) : category === 'custom' ? (
+        </div>
+
+        {/* Custom or USDT Info Panel */}
+        {category === 'custom' ? (
           <div className="space-y-2.5">
             <div className="grid grid-cols-2 gap-2">
               {activeCustomGateways.map((gw) => {
@@ -624,22 +626,25 @@ export const Deposit: React.FC = () => {
               </div>
             )}
           </div>
-        ) : (
-          <div className="p-4 rounded-2xl bg-white border border-cyan-300 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0891B2] to-[#0D9488] text-white font-black flex items-center justify-center text-base">
-                  ₮
-                </div>
-                <div>
-                  <div className="font-extrabold text-sm text-slate-900">Binance Pay Manual Deposit</div>
-                  <div className="text-[10px] font-bold text-cyan-700">
-                    $1 = ৳{usdtRateBdt} • +2% Auto Deposit Bonus
+        ) : category === 'usdt' ? (
+          <div className="p-4 rounded-2xl bg-white border border-emerald-300 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <img
+                  src="/assets/aistudio/image_fb99f6c5.png"
+                  alt="USDT +5% Bonus"
+                  referrerPolicy="no-referrer"
+                  className="w-11 h-11 rounded-xl object-cover border border-emerald-200 flex-shrink-0"
+                />
+                <div className="min-w-0">
+                  <div className="font-extrabold text-sm text-slate-900 truncate">Binance Pay (USDT)</div>
+                  <div className="text-[10px] font-bold text-emerald-700">
+                    $1 = ৳{usdtRateBdt} • +5% Instant Bonus
                   </div>
                 </div>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-cyan-600 text-white text-[10px] font-black">
-                +2% BONUS
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black whitespace-nowrap">
+                +5% BONUS
               </span>
             </div>
 
@@ -675,7 +680,7 @@ export const Deposit: React.FC = () => {
               </div>
             )}
           </div>
-        )}
+        ) : null}
 
         {/* SELECT CHANNEL */}
         <div className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200 space-y-2.5">
@@ -850,7 +855,7 @@ export const Deposit: React.FC = () => {
             </div>
             {isUsdt && (
               <div className="flex justify-between text-emerald-700 font-black">
-                <span>Binance Pay Auto Bonus (+2%)</span>
+                <span>USDT Auto Bonus (+5%)</span>
                 <span className="tabular-nums">+৳{usdtAutoBonusBdt.toFixed(2)}</span>
               </div>
             )}
@@ -879,7 +884,7 @@ export const Deposit: React.FC = () => {
                 {isCreatingCheckout
                   ? 'Connecting EWI PAY...'
                   : isUsdt
-                  ? `Submit $${usdAmount.toLocaleString()} Binance Pay (+2%)`
+                  ? `Submit $${usdAmount.toLocaleString()} USDT (+5% Bonus)`
                   : category === 'custom'
                   ? `Submit ${selectedCustomGateway?.name || 'Gateway'} ৳${amount.toLocaleString()}`
                   : `PAY ৳${amount.toLocaleString()}`}

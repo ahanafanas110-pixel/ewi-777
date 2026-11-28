@@ -21,7 +21,8 @@ import {
   Globe,
   Coins,
   UserCog,
-  KeyRound
+  KeyRound,
+  BookOpen
 } from 'lucide-react';
 import { getLanguageBadge, getTranslation } from '../utils/i18n';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
@@ -32,6 +33,7 @@ import {
   WithdrawHistoryGridIcon
 } from '../components/AccountIcons';
 import { getVipBadgeImage } from '../constants/vipTiers';
+import { BeginnerGuideModal, RiskDisclosureModal } from '../components/GuideAndPolicyModals';
 
 interface AccountProps {
   onOpenLanguage?: () => void;
@@ -53,6 +55,8 @@ export const Account: React.FC<AccountProps> = () => {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [hideBalance, setHideBalance] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showRiskModal, setShowRiskModal] = useState(false);
 
   const copyUid = () => {
     navigator.clipboard?.writeText(user.uid).catch(() => {});
@@ -174,6 +178,12 @@ export const Account: React.FC<AccountProps> = () => {
       label: getTranslation(language, 'changePasswordHeader'),
       icon: KeyRound,
       onClick: () => go('change-login-password')
+    },
+    {
+      id: 'beginner-guide',
+      label: getTranslation(language, 'beginnersGuide'),
+      icon: BookOpen,
+      onClick: () => setShowGuideModal(true)
     },
     {
       id: 'customer-service',
@@ -345,6 +355,18 @@ export const Account: React.FC<AccountProps> = () => {
               <span>{getTranslation(language, 'withdraw') || 'Withdraw'}</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => go('safe')}
+            className="w-full py-2.5 px-4 rounded-full bg-gradient-to-r from-slate-900 via-[#0B2235] to-[#0E314A] text-white font-black text-sm shadow-sm border border-cyan-400/30 flex items-center justify-center gap-2 active:scale-98 transition-transform"
+          >
+            <ShieldCheck className="w-4 h-4 text-cyan-300 stroke-[2.3]" />
+            <span>{getTranslation(language, 'safeVaultBtn') || 'SAFE'}</span>
+            <span className="text-[11px] font-extrabold text-cyan-300 tabular-nums">
+              · ৳{(user.safeBalance || 0).toFixed(2)}
+            </span>
+          </button>
         </div>
 
         {/* 2×2 Quick History Cards */}
@@ -467,6 +489,18 @@ export const Account: React.FC<AccountProps> = () => {
           <span>{getTranslation(language, 'logout') || 'Log out'}</span>
         </button>
       </div>
+
+      <BeginnerGuideModal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+        onOpenRiskDisclosure={() => setShowRiskModal(true)}
+      />
+
+      <RiskDisclosureModal
+        isOpen={showRiskModal}
+        onClose={() => setShowRiskModal(false)}
+        language={language}
+      />
     </div>
   );
 };

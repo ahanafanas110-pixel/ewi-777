@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { normalizePhone, useApp } from '../context/AppContext';
 import {
   ArrowLeft,
+  ArrowRight,
   Send,
   ChevronRight,
   CheckCircle2,
@@ -14,11 +15,15 @@ import {
   Users,
   ExternalLink,
   X,
-  Image as ImageIcon
+  Image as ImageIcon,
+  MessageCircle,
+  BookOpen,
+  PlusCircle
 } from 'lucide-react';
 import { CustomerServiceLogo } from '../components/BrandLogos';
 import { DepositPastelIcon, WithdrawPastelIcon } from '../components/AccountIcons';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
+import { BeginnerGuideModal, RiskDisclosureModal } from '../components/GuideAndPolicyModals';
 
 type SupportTopicId =
   | 'deposit_not_received'
@@ -28,12 +33,27 @@ type SupportTopicId =
   | 'add_usdt'
   | 'agent_consultation'
   | 'telegram_cs'
-  | 'apply_77_bonus'
+  | 'apply_50_bonus'
   | 'join_telegram_channel';
 
-export const CustomerService: React.FC = () => {
+const PRECHAT_HELP_TOPICS = [
+  'Deposit problem (provide recharge receipt)',
+  'Withdraw problem (provide order number)',
+  'Modify bank account',
+  'Change password',
+  'Claim bonus',
+  'Technical & Game Issues',
+  'Other'
+] as const;
+
+interface CustomerServiceProps {
+  initialMode?: 'menu' | 'chat';
+}
+
+export const CustomerService: React.FC<CustomerServiceProps> = ({ initialMode = 'menu' }) => {
   const {
     user,
+    language,
     depositRequests,
     withdrawRequests,
     adminSettings,
@@ -43,36 +63,81 @@ export const CustomerService: React.FC = () => {
     sendSupportMessage
   } = useApp();
 
-  const [viewMode, setViewMode] = useState<'menu' | 'chat'>('menu');
+  const [viewMode, setViewMode] = useState<'menu' | 'chat'>(initialMode);
   const [selectedTopic, setSelectedTopic] = useState<SupportTopicId | null>(null);
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showRiskModal, setShowRiskModal] = useState(false);
 
   const [issueTrxId, setIssueTrxId] = useState('');
   const [issueAmount, setIssueAmount] = useState('');
   const [issueNote, setIssueNote] = useState('');
   const [usdtDraft, setUsdtDraft] = useState('');
 
-  const myMessages = user.isLoggedIn && user.id
-    ? supportMessages.filter((m) => m.userId === user.id)
-    : [];
+  const myMessages =
+    user.isLoggedIn && user.id
+      ? supportMessages.filter((m) => m.userId === user.id)
+      : supportMessages.filter((m) => m.userId === 'guest');
+
+  // 2-Step Pre-Chat Wizard state
+  const [wizardStep, setWizardStep] = useState<1 | 2>(1);
+  const [wizardOpen, setWizardOpen] = useState<boolean>(myMessages.length === 0);
+  const [gameIdInput, setGameIdInput] = useState<string>(user.uid || '');
+  const [selectedHelpTopic, setSelectedHelpTopic] = useState<string>(PRECHAT_HELP_TOPICS[0]);
+
   const [inputMessage, setInputMessage] = useState('');
   const [isSendingPhoto, setIsSendingPhoto] = useState(false);
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
 
+  useEffect(() => {
+    setViewMode(initialMode);
+  }, [initialMode]);
+
+  useEffect(() => {
+    if (user.uid && !gameIdInput.trim()) {
+      setGameIdInput(user.uid);
+    }
+  }, [user.uid, gameIdInput]);
+
+  useEffect(() => {
+    if (myMessages.length > 0 && wizardOpen && initialMode === 'chat') {
+      // Keep wizard closed if thread already exists unless user tapped "New Inquiry"
+    }
+  }, [myMessages.length, initialMode, wizardOpen]);
+
+  const switchMode = (mode: 'menu' | 'chat') => {
+    setViewMode(mode);
+    if (mode === 'chat') {
+      if (myMessages.length === 0) {
+        setWizardStep(1);
+        setWizardOpen(true);
+      } else {
+        setWizardOpen(false);
+      }
+      setActiveTab('live-chat');
+      window.location.hash = '#/live-chat';
+    } else {
+      setActiveTab('customer-service');
+      window.location.hash = '#/customer-service';
+    }
+  };
+
   const normPhone = normalizePhone(user.phone || '');
-  const myDeposits = user.isLoggedIn && user.id
-    ? depositRequests.filter(
-        (d) =>
-          d.userId === user.id ||
-          (normPhone && d.senderNumber && normalizePhone(d.senderNumber) === normPhone)
-      )
-    : [];
-  const myWithdraws = user.isLoggedIn && user.id
-    ? withdrawRequests.filter(
-        (w) =>
-          w.userId === user.id ||
-          (normPhone && w.userPhone && normalizePhone(w.userPhone) === normPhone)
-      )
-    : [];
+  const myDeposits =
+    user.isLoggedIn && user.id
+      ? depositRequests.filter(
+          (d) =>
+            d.userId === user.id ||
+            (normPhone && d.senderNumber && normalizePhone(d.senderNumber) === normPhone)
+        )
+      : [];
+  const myWithdraws =
+    user.isLoggedIn && user.id
+      ? withdrawRequests.filter(
+          (w) =>
+            w.userId === user.id ||
+            (normPhone && w.userPhone && normalizePhone(w.userPhone) === normPhone)
+        )
+      : [];
   const remainingTurnover = Math.max(0, (user.turnoverRequired || 0) - (user.turnoverCompleted || 0));
 
   const telegramChannelLink =
@@ -129,9 +194,9 @@ export const CustomerService: React.FC = () => {
       icon: <Send className="w-4 h-4 stroke-[2.3]" />
     },
     {
-      id: 'apply_77_bonus',
-      title: 'Apply 200% Bonus',
-      subtitle: 'Deposit 200% bonus application & gift codes',
+      id: 'apply_50_bonus',
+      title: 'Apply 50% Bonus',
+      subtitle: 'Deposit 50% bonus application & gift codes',
       icon: <Gift className="w-4 h-4 stroke-[2.3]" />
     },
     {
@@ -149,13 +214,22 @@ export const CustomerService: React.FC = () => {
 
     await sendSupportMessage({
       userId: user.id || 'guest',
-      userUid: user.uid || 'GUEST',
+      userUid: gameIdInput.trim() || user.uid || 'GUEST',
       userNickname: user.nickname || user.phone || 'Member',
       userPhone: user.phone || user.email || 'Member',
       sender: 'user',
       text,
       imageUrl: imageUrlToSend
     });
+  };
+
+  const handleStartWizardChat = async () => {
+    const cleanId = gameIdInput.trim() || user.uid || 'GUEST';
+    const summaryText = `DESHI WIN Game ID :\n${cleanId}\nI need help in :\n${selectedHelpTopic}`;
+    setWizardOpen(false);
+    setWizardStep(1);
+    await handleSendChat(summaryText);
+    showToast('Inquiry started! An agent will reply here shortly.');
   };
 
   const handleChatPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,7 +269,8 @@ export const CustomerService: React.FC = () => {
     setIssueAmount('');
     setIssueNote('');
     setSelectedTopic(null);
-    setViewMode('chat');
+    setWizardOpen(false);
+    switchMode('chat');
     handleSendChat(details);
     showToast(`${label} submitted to Live Support!`);
   };
@@ -208,11 +283,16 @@ export const CustomerService: React.FC = () => {
   const activeTopicMeta = supportItems.find((s) => s.id === selectedTopic);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-10">
       {/* Top Navbar */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-cyan-100 px-4 py-3 flex items-center justify-between shadow-2xs">
         <button
+          type="button"
           onClick={() => {
+            if (viewMode === 'chat' && initialMode !== 'chat') {
+              switchMode('menu');
+              return;
+            }
             setActiveTab(user.isLoggedIn ? 'account' : 'home');
             window.location.hash = user.isLoggedIn ? '#/account' : '#/';
           }}
@@ -238,7 +318,8 @@ export const CustomerService: React.FC = () => {
       <div className="px-4 pt-3">
         <div className="bg-white rounded-2xl p-1 border border-slate-200 shadow-2xs grid grid-cols-2 gap-1">
           <button
-            onClick={() => setViewMode('menu')}
+            type="button"
+            onClick={() => switchMode('menu')}
             className={`py-2.5 rounded-xl text-xs font-black transition-all ${
               viewMode === 'menu'
                 ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-xs'
@@ -248,7 +329,8 @@ export const CustomerService: React.FC = () => {
             Self-Service Center
           </button>
           <button
-            onClick={() => setViewMode('chat')}
+            type="button"
+            onClick={() => switchMode('chat')}
             className={`py-2.5 rounded-xl text-xs font-black transition-all ${
               viewMode === 'chat'
                 ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white shadow-xs'
@@ -286,7 +368,72 @@ export const CustomerService: React.FC = () => {
                 <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
               </button>
             ))}
+
+            {/* LIVE CHAT SUPPORT — Directly Below Join Telegram Channel */}
+            <button
+              type="button"
+              onClick={() => {
+                setWizardStep(1);
+                setWizardOpen(myMessages.length === 0);
+                switchMode('chat');
+              }}
+              className="w-full px-4 py-3.5 flex items-center justify-between text-left bg-gradient-to-r from-cyan-50/80 via-white to-teal-50/70 hover:bg-cyan-50 transition-colors"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2563EB] to-[#0891B2] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                  <MessageCircle className="w-4 h-4 stroke-[2.5]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-black text-slate-900 truncate flex items-center gap-1.5">
+                    <span>LIVE CHAT SUPPORT</span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase">
+                      24/7
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-cyan-800 font-semibold truncate">
+                    Start instant live chat inside DESHI WIN (/live-chat)
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-cyan-700 flex-shrink-0 ml-2" />
+            </button>
+
+            {/* Beginner's Guide quick access */}
+            <button
+              type="button"
+              onClick={() => setShowGuideModal(true)}
+              className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-cyan-50/40 active:bg-cyan-50 transition-colors"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                  <BookOpen className="w-4 h-4 stroke-[2.3]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-slate-900 truncate">
+                    Beginner&apos;s Guide &amp; Rules
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Registration, betting, recharge, withdraw &amp; risk notice
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+            </button>
           </div>
+
+          {/* 24/7 Support Banner Card (Pic 3) */}
+          <button
+            type="button"
+            onClick={() => switchMode('chat')}
+            className="w-full rounded-3xl overflow-hidden border border-cyan-200 shadow-xs bg-white block active:scale-99 transition-transform text-left"
+          >
+            <img
+              src="/assets/aistudio/image_6065a046.png"
+              alt="24/7 Live Chat Support"
+              referrerPolicy="no-referrer"
+              className="w-full h-32 object-cover object-top block"
+            />
+          </button>
 
           {/* Quick Account Diagnostics Card */}
           <div className="bg-white rounded-3xl p-4 border border-cyan-100 shadow-xs space-y-2">
@@ -322,104 +469,311 @@ export const CustomerService: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="p-4">
-          <div className="bg-white rounded-3xl p-4 shadow-xs border border-cyan-100 space-y-3 min-h-[430px] flex flex-col">
-            <div className="text-center text-[11px] text-slate-500 font-bold pb-2 border-b border-slate-100 flex items-center justify-between">
-              <span>Deshi Win Official Live Agent Chat</span>
-              <span className="text-[10px] text-emerald-600 font-black">Human Support</span>
-            </div>
+        <div className="p-4 space-y-3">
+          {/* Pic 3 24/7 Live Support Banner */}
+          <div className="rounded-3xl overflow-hidden border border-cyan-200 shadow-xs bg-white">
+            <img
+              src="/assets/aistudio/image_6065a046.png"
+              alt="DESHI WIN 24/7 Live Support"
+              referrerPolicy="no-referrer"
+              className="w-full h-36 object-cover object-top block"
+            />
+          </div>
 
-            <div className="flex-1 space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-              {myMessages.length === 0 ? (
-                <div className="text-center py-12 px-4 text-xs text-slate-400 space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-cyan-50 flex items-center justify-center mx-auto">
-                    <CustomerServiceLogo size={32} />
-                  </div>
-                  <p className="font-semibold text-slate-500">
-                    Send a message or photo below. An official Deshi Win agent will reply here.
-                  </p>
+          <div className="bg-white rounded-3xl p-4 shadow-xs border border-cyan-100 space-y-3 min-h-[400px] flex flex-col">
+            <div className="pb-2.5 border-b border-slate-100 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs font-black text-slate-900 truncate">
+                  DESHI WIN Live Chat Support
                 </div>
-              ) : (
-                myMessages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
-                  >
-                    {m.sender === 'admin' && (
-                      <span className="text-[10px] font-black text-cyan-700 mb-0.5 px-1">
-                        {m.repliedByRole === 'mentor'
-                          ? `Mentor • ${m.repliedByName || 'Support'}`
-                          : 'Deshi Win Agent'}
-                      </span>
-                    )}
-                    <div
-                      className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs font-semibold leading-relaxed shadow-2xs space-y-2 ${
-                        m.sender === 'user'
-                          ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white rounded-tr-xs'
-                          : 'bg-slate-50 text-slate-800 border border-slate-200 rounded-tl-xs'
-                      }`}
-                    >
-                      {m.imageUrl && (
-                        <img
-                          src={m.imageUrl}
-                          alt="Support attachment"
-                          referrerPolicy="no-referrer"
-                          onClick={() => setZoomImageUrl(m.imageUrl!)}
-                          className="max-w-[200px] max-h-[200px] rounded-xl object-cover cursor-pointer border border-white/30"
-                        />
-                      )}
-                      {m.text && <div className="break-words">{m.text}</div>}
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-0.5 px-1">
-                      {m.timestamp
-                        ? new Date(m.timestamp).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: false
-                          })
-                        : m.time}
-                    </span>
-                  </div>
-                ))
+                <div className="text-[10px] text-emerald-600 font-bold">
+                  24/7 Human Support Desk
+                </div>
+              </div>
+              {myMessages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWizardStep(1);
+                    setWizardOpen((prev) => !prev);
+                  }}
+                  className="px-2.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black flex items-center gap-1 hover:bg-blue-100 whitespace-nowrap"
+                >
+                  <PlusCircle className="w-3 h-3" />
+                  <span>{wizardOpen ? 'Back to Chat' : 'New Inquiry'}</span>
+                </button>
               )}
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendChat();
-              }}
-              className="flex items-center gap-2 pt-2 border-t border-slate-100"
-            >
-              <label
-                title="Send photo from gallery"
-                className={`w-10 h-10 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center cursor-pointer hover:bg-cyan-100 active:scale-95 flex-shrink-0 ${
-                  isSendingPhoto ? 'opacity-50 pointer-events-none' : ''
-                }`}
-              >
-                <ImageIcon className="w-4 h-4" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleChatPhotoUpload}
-                  className="hidden"
-                />
-              </label>
+            {wizardOpen ? (
+              /* DESHI WIN 2-Step Pre-Chat Wizard (Pics 5 & 6) */
+              <div className="flex-1 flex flex-col justify-between py-2">
+                {wizardStep === 1 ? (
+                  <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-5">
+                    <p className="text-sm font-semibold text-slate-800 leading-relaxed">
+                      Welcome to <span className="font-black text-slate-900">DESHI WIN</span>! Please fill in the form below before starting the chat.
+                    </p>
 
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Write a message to support agent..."
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-              />
-              <button
-                type="submit"
-                className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white flex items-center justify-center shadow-xs active:scale-95 flex-shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700">
+                        DESHI WIN Game ID : <span className="text-rose-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={gameIdInput}
+                        onChange={(e) => setGameIdInput(e.target.value)}
+                        placeholder="Enter your DESHI WIN Game UID"
+                        className="w-full bg-white border-2 border-blue-600 rounded-xl px-3.5 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3">
+                      {/* 1/2 SVG Ring */}
+                      <div className="relative w-11 h-11 flex items-center justify-center">
+                        <svg className="w-11 h-11 -rotate-90" viewBox="0 0 40 40">
+                          <circle cx="20" cy="20" r="16" stroke="#E2E8F0" strokeWidth="3" fill="none" />
+                          <circle
+                            cx="20"
+                            cy="20"
+                            r="16"
+                            stroke="#16A34A"
+                            strokeWidth="3"
+                            fill="none"
+                            strokeDasharray="100.5"
+                            strokeDashoffset="50.25"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className="absolute text-[11px] font-black text-slate-800">1/2</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!gameIdInput.trim()) {
+                            showToast('Please enter your DESHI WIN Game ID');
+                            return;
+                          }
+                          setWizardStep(2);
+                        }}
+                        aria-label="Next step"
+                        className="w-11 h-11 rounded-full bg-blue-700 hover:bg-blue-800 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform"
+                      >
+                        <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-4">
+                    <div className="text-xs font-extrabold text-slate-800">I need help in :</div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {PRECHAT_HELP_TOPICS.map((topic) => {
+                        const isSel = selectedHelpTopic === topic;
+                        return (
+                          <button
+                            key={topic}
+                            type="button"
+                            onClick={() => setSelectedHelpTopic(topic)}
+                            className={`px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border transition-all ${
+                              isSel
+                                ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-2xs'
+                                : 'bg-slate-200/80 border-transparent text-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            <span
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                isSel ? 'border-blue-700' : 'border-slate-500'
+                              }`}
+                            >
+                              {isSel && <span className="w-2 h-2 rounded-full bg-blue-700" />}
+                            </span>
+                            <span>{topic}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 gap-2">
+                      {/* 2/2 SVG Ring */}
+                      <div className="relative w-11 h-11 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-11 h-11 -rotate-90" viewBox="0 0 40 40">
+                          <circle cx="20" cy="20" r="16" stroke="#E2E8F0" strokeWidth="3" fill="none" />
+                          <circle
+                            cx="20"
+                            cy="20"
+                            r="16"
+                            stroke="#16A34A"
+                            strokeWidth="3"
+                            fill="none"
+                            strokeDasharray="100.5"
+                            strokeDashoffset="0"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className="absolute text-[11px] font-black text-slate-800">2/2</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setWizardStep(1)}
+                          aria-label="Previous step"
+                          className="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center active:scale-95 transition-transform"
+                        >
+                          <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleStartWizardChat}
+                          className="px-5 py-2.5 rounded-full bg-blue-700 hover:bg-blue-800 text-white font-black text-xs shadow-md active:scale-97 transition-all"
+                        >
+                          Start the chat
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                  {myMessages.length === 0 ? (
+                    <div className="text-center py-10 px-4 text-xs text-slate-400 space-y-2">
+                      <div className="w-12 h-12 rounded-2xl bg-cyan-50 flex items-center justify-center mx-auto">
+                        <CustomerServiceLogo size={32} />
+                      </div>
+                      <p className="font-semibold text-slate-500">
+                        Send a message or photo below. An official DESHI WIN agent will reply here.
+                      </p>
+                    </div>
+                  ) : (
+                    myMessages.map((m) => {
+                      const isStructuredInquiry =
+                        m.sender === 'user' &&
+                        typeof m.text === 'string' &&
+                        m.text.startsWith('DESHI WIN Game ID :');
+
+                      if (isStructuredInquiry) {
+                        const lines = m.text.split('\n');
+                        const gameIdVal = lines[1] || user.uid || 'GUEST';
+                        const helpTopicVal = lines[3] || lines.slice(2).join(' ') || 'General Inquiry';
+                        return (
+                          <div key={m.id} className="flex flex-col items-end">
+                            <div className="max-w-[85%] bg-white border border-slate-200 rounded-2xl rounded-tr-xs px-4 py-3 shadow-xs space-y-2 text-left">
+                              <div>
+                                <div className="text-[11px] font-semibold text-slate-400">
+                                  DESHI WIN Game ID :
+                                </div>
+                                <div className="text-sm font-extrabold text-slate-900 font-mono">
+                                  {gameIdVal}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[11px] font-semibold text-slate-400">
+                                  I need help in :
+                                </div>
+                                <div className="text-xs font-bold text-slate-900">
+                                  {helpTopicVal}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-slate-400 mt-0.5 px-1">
+                              {m.timestamp
+                                ? new Date(m.timestamp).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: false
+                                  })
+                                : m.time}
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
+                        >
+                          {m.sender === 'admin' && (
+                            <span className="text-[10px] font-black text-cyan-700 mb-0.5 px-1">
+                              {m.repliedByRole === 'mentor'
+                                ? `Mentor • ${m.repliedByName || 'Support'}`
+                                : 'DESHI WIN Agent'}
+                            </span>
+                          )}
+                          <div
+                            className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs font-semibold leading-relaxed shadow-2xs space-y-2 ${
+                              m.sender === 'user'
+                                ? 'bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white rounded-tr-xs'
+                                : 'bg-slate-50 text-slate-800 border border-slate-200 rounded-tl-xs'
+                            }`}
+                          >
+                            {m.imageUrl && (
+                              <img
+                                src={m.imageUrl}
+                                alt="Support attachment"
+                                referrerPolicy="no-referrer"
+                                onClick={() => setZoomImageUrl(m.imageUrl!)}
+                                className="max-w-[200px] max-h-[200px] rounded-xl object-cover cursor-pointer border border-white/30"
+                              />
+                            )}
+                            {m.text && <div className="break-words whitespace-pre-line">{m.text}</div>}
+                          </div>
+                          <span className="text-[10px] text-slate-400 mt-0.5 px-1">
+                            {m.timestamp
+                              ? new Date(m.timestamp).toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false
+                                })
+                              : m.time}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendChat();
+                  }}
+                  className="flex items-center gap-2 pt-2 border-t border-slate-100"
+                >
+                  <label
+                    title="Send photo from gallery"
+                    className={`w-10 h-10 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center cursor-pointer hover:bg-cyan-100 active:scale-95 flex-shrink-0 ${
+                      isSendingPhoto ? 'opacity-50 pointer-events-none' : ''
+                    }`}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleChatPhotoUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <input
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    placeholder="Write a message to support agent..."
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  />
+                  <button
+                    type="submit"
+                    className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white flex items-center justify-center shadow-xs active:scale-95 flex-shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -593,7 +947,8 @@ export const CustomerService: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setSelectedTopic(null);
-                        setViewMode('chat');
+                        setWizardOpen(false);
+                        switchMode('chat');
                         handleSendChat('Hello, I need help resetting or recovering my account password.');
                       }}
                       className="w-full py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md active:scale-98"
@@ -679,7 +1034,8 @@ export const CustomerService: React.FC = () => {
                     <button
                       onClick={() => {
                         setSelectedTopic(null);
-                        setViewMode('chat');
+                        setWizardOpen(false);
+                        switchMode('chat');
                         handleSendChat('I need Deshi Win Agent Consultation with a Teacher');
                       }}
                       className="py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs"
@@ -716,7 +1072,7 @@ export const CustomerService: React.FC = () => {
                       <button
                         onClick={() => {
                           setSelectedTopic(null);
-                          setViewMode('chat');
+                          switchMode('chat');
                         }}
                         className="py-3 rounded-full bg-slate-100 text-slate-800 font-black text-xs flex items-center justify-center gap-1"
                       >
@@ -736,13 +1092,13 @@ export const CustomerService: React.FC = () => {
                 </>
               )}
 
-              {selectedTopic === 'apply_77_bonus' && (
+              {selectedTopic === 'apply_50_bonus' && (
                 <>
                   <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-1.5 text-slate-700 leading-relaxed">
-                    <div className="font-black text-cyan-800">How to Claim 200% Deposit Bonus:</div>
+                    <div className="font-black text-cyan-800">How to Claim 50% Deposit Bonus:</div>
                     <p>1. Your account must be registered and logged in.</p>
-                    <p>2. Complete a minimum deposit of <strong>৳200</strong> or enter an active 200% Deposit Bonus Gift Code in <strong>/gifts</strong>.</p>
-                    <p>3. Submit your application below if you need support assistance activating your bonus.</p>
+                    <p>2. Complete a minimum deposit of <strong>৳200</strong> or enter an active 50% Deposit Bonus Gift Code in <strong>/gifts</strong>.</p>
+                    <p>3. Submit your application below if you need support assistance activating your 50% bonus.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -756,11 +1112,11 @@ export const CustomerService: React.FC = () => {
                       Open Gift Codes
                     </button>
                     <button
-                      onClick={() => handleSubmitUrgentTicket(`Apply 200% Bonus (UID: ${user.uid || 'N/A'})`)}
+                      onClick={() => handleSubmitUrgentTicket(`Apply 50% Bonus (UID: ${user.uid || 'N/A'})`)}
                       className="py-3 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs shadow-md flex items-center justify-center gap-1"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Apply Now</span>
+                      <span>Apply 50% Now</span>
                     </button>
                   </div>
                 </>
@@ -798,6 +1154,18 @@ export const CustomerService: React.FC = () => {
           </div>
         </div>
       )}
+
+      <BeginnerGuideModal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+        onOpenRiskDisclosure={() => setShowRiskModal(true)}
+      />
+
+      <RiskDisclosureModal
+        isOpen={showRiskModal}
+        onClose={() => setShowRiskModal(false)}
+        language={language}
+      />
     </div>
   );
 };

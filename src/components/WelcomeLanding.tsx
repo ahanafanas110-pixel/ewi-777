@@ -19,9 +19,9 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F8FAFC] via-white to-[#ECFEFF] text-slate-900 flex flex-col justify-between pb-8">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col justify-between pb-8">
       {/* Top Bar */}
-      <header className="px-4 pt-3.5 pb-2 flex items-center justify-between gap-2">
+      <header className="px-4 pt-3.5 pb-2 flex items-center justify-between gap-2 bg-white">
         <button
           type="button"
           onClick={() => goTab('customer-service', '#/customer-service')}
@@ -31,7 +31,7 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
           <span>{getTranslation(language, 'supportCare')}</span>
         </button>
 
-        <div className="px-3.5 py-1.5 rounded-2xl bg-white border border-cyan-200 shadow-sm flex items-center justify-center">
+        <div className="px-3.5 py-1.5 rounded-2xl bg-white border border-cyan-100 shadow-2xs flex items-center justify-center">
           <Ewi777Logo height={48} logoUrl={adminSettings.appLogoUrl} />
         </div>
 
@@ -46,12 +46,16 @@ export const WelcomeLanding: React.FC<WelcomeLandingProps> = ({ onOpenLanguage }
       </header>
 
       {/* Main Content */}
-      <main className="px-4 flex-1 flex flex-col items-center justify-center py-2 space-y-4 max-w-md mx-auto w-full">
-        <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[768/1030] mx-auto overflow-hidden select-none pointer-events-none">
+      <main className="px-4 flex-1 flex flex-col items-center justify-center py-2 space-y-4 max-w-md mx-auto w-full bg-white">
+        <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[768/1030] mx-auto overflow-hidden select-none pointer-events-none bg-white">
           <img
             src={welcomeLightImg}
             alt="Deshi Win Official"
-            className="w-full h-full object-cover object-top mix-blend-multiply [mask-image:radial-gradient(ellipse_92%_90%_at_50%_46%,black_64%,transparent_100%)] [-webkit-mask-image:radial-gradient(ellipse_92%_90%_at_50%_46%,black_64%,transparent_100%)] block"
+            className="w-full h-full object-cover object-top mix-blend-multiply [mask-image:radial-gradient(ellipse_78%_76%_at_50%_48%,black_44%,transparent_94%)] [-webkit-mask-image:radial-gradient(ellipse_78%_76%_at_50%_48%,black_44%,transparent_94%)] block"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-[radial-gradient(ellipse_80%_78%_at_50%_48%,transparent_46%,rgba(255,255,255,0.85)_78%,#FFFFFF_100%)]"
           />
         </div>
 

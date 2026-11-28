@@ -167,7 +167,7 @@ export async function processEwiPayWebhookPayload(payload: any): Promise<{
       const dep = depFound.data;
       const depAmt = Number(dep.amount || data?.amount || 0);
       const isUsdt = String(dep.method || dep.provider || '').toUpperCase() === 'USDT';
-      const bonusCredit = isUsdt ? +(depAmt * 0.02).toFixed(2) : 0;
+      const bonusCredit = isUsdt ? +(depAmt * 0.05).toFixed(2) : 0;
       const totalCredit = +(depAmt + bonusCredit).toFixed(2);
       const nextDep = {
         ...dep,

@@ -243,7 +243,7 @@ export const Admin: React.FC = () => {
 
   // =================== ALL USERS STATE ===================
   const [userSearch, setUserSearch] = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'USER' | 'VIP' | 'ADMIN' | 'BANNED'>('ALL');
+  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'USER' | 'VIP' | 'ADMIN' | 'BANNED' | 'MULTI_IP' | 'VPN'>('ALL');
   const [controlUser, setControlUser] = useState<User | null>(null);
   const [balanceModalUser, setBalanceModalUser] = useState<User | null>(null);
   const [balAction, setBalAction] = useState<'add' | 'deduct' | 'set'>('add');
@@ -810,15 +810,37 @@ export const Admin: React.FC = () => {
     };
   }, [allUsers, ipReport]);
 
-  const getUserIpClusterCount = (u: Partial<User>): number => {
+  const getUserIpClusterInfo = (u: Partial<User>) => {
     const ips = [u.lastIp, u.registeredIp].filter((x): x is string => Boolean(x && x !== 'Unknown'));
-    let maxCount = 0;
+    const peerMap = new Map<string, { id: string; uid: string; nickname: string; isBanned?: boolean }>();
+    let bestIp = ips[0] || '';
+    let bestLen = 0;
     ips.forEach((ipAddr) => {
-      const len = effectiveIpReport.ipBuckets.get(ipAddr)?.length || 0;
-      if (len > maxCount) maxCount = len;
+      const list = effectiveIpReport.ipBuckets.get(ipAddr) || [];
+      if (list.length > bestLen) {
+        bestLen = list.length;
+        bestIp = ipAddr;
+      }
+      list.forEach((peer: any) => {
+        const key = String(peer.uid || peer.id || '');
+        if (!key || peerMap.has(key)) return;
+        peerMap.set(key, {
+          id: String(peer.id || ''),
+          uid: String(peer.uid || ''),
+          nickname: String(peer.nickname || 'Member'),
+          isBanned: Boolean(peer.isBanned)
+        });
+      });
     });
-    return maxCount;
+    const peers = Array.from(peerMap.values());
+    return {
+      ip: bestIp,
+      count: Math.max(bestLen, peers.length),
+      peers
+    };
   };
+
+  const getUserIpClusterCount = (u: Partial<User>): number => getUserIpClusterInfo(u).count;
 
   const handleInspectSecurityUser = (summary: any) => {
     const found =
@@ -1439,6 +1461,8 @@ export const Admin: React.FC = () => {
     const role = u.role || (u.vipLevel > 0 ? 'VIP' : 'USER');
     if (userRoleFilter === 'ALL') return true;
     if (userRoleFilter === 'BANNED') return Boolean(u.isBanned);
+    if (userRoleFilter === 'MULTI_IP') return getUserIpClusterCount(u) >= 2;
+    if (userRoleFilter === 'VPN') return Boolean(u.isVpn);
     return role === userRoleFilter;
   });
 
@@ -1925,9 +1949,33 @@ export const Admin: React.FC = () => {
                     <option value="USER">USER</option>
                     <option value="VIP">VIP</option>
                     <option value="ADMIN">ADMIN</option>
+                    <option value="MULTI_IP">Multi-IP Accounts</option>
+                    <option value="VPN">VPN Users</option>
                     <option value="BANNED">BANNED</option>
                   </select>
-                  <span className="text-xs text-slate-500 font-mono">{filteredUsers.length} registered</span>
+                  <button
+                    type="button"
+                    onClick={() => setUserRoleFilter((f) => (f === 'MULTI_IP' ? 'ALL' : 'MULTI_IP'))}
+                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
+                      userRoleFilter === 'MULTI_IP'
+                        ? 'bg-cyan-600 text-white border-cyan-600'
+                        : 'bg-cyan-50 text-cyan-800 border-cyan-200 hover:bg-cyan-100'
+                    }`}
+                  >
+                    Multi-IP: {allUsers.filter((u) => getUserIpClusterCount(u) >= 2).length}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserRoleFilter((f) => (f === 'VPN' ? 'ALL' : 'VPN'))}
+                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
+                      userRoleFilter === 'VPN'
+                        ? 'bg-rose-600 text-white border-rose-600'
+                        : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                    }`}
+                  >
+                    VPN Flagged: {allUsers.filter((u) => Boolean(u.isVpn)).length}
+                  </button>
+                  <span className="text-xs text-slate-500 font-mono">{filteredUsers.length} shown</span>
                 </div>
 
                 <button
@@ -1986,16 +2034,16 @@ export const Admin: React.FC = () => {
                                         </span>
                                       )}
                                       {u.isVpn && (
-                                        <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 border border-rose-500/50 text-[9px] text-rose-700 font-black">
-                                          VPN
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-600 text-[9px] text-white font-black">
+                                          VPN DETECTED
                                         </span>
                                       )}
                                       {(() => {
-                                        const ipCount = getUserIpClusterCount(u);
-                                        if (ipCount < 2) return null;
+                                        const cluster = getUserIpClusterInfo(u);
+                                        if (cluster.count < 2) return null;
                                         return (
-                                          <span className="px-1.5 py-0.2 rounded bg-cyan-50 border border-cyan-300 text-[9px] text-cyan-700 font-black tabular-nums">
-                                            {ipCount} IDs on IP
+                                          <span className="px-1.5 py-0.5 rounded bg-cyan-50 border border-cyan-300 text-[9px] text-cyan-800 font-black tabular-nums">
+                                            {cluster.count} IDs on IP
                                           </span>
                                         );
                                       })()}
@@ -2008,6 +2056,37 @@ export const Admin: React.FC = () => {
                                         </span>
                                       )}
                                     </div>
+                                    {u.isVpn && (
+                                      <div className="text-[10px] text-rose-700 font-bold mt-0.5">
+                                        VPN: {u.vpnReason || u.ipIsp || 'Proxy/Datacenter'} {u.ipCountry ? `(${u.ipCountry})` : ''}
+                                      </div>
+                                    )}
+                                    {(() => {
+                                      const cluster = getUserIpClusterInfo(u);
+                                      if (cluster.count < 2) return null;
+                                      return (
+                                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                                          <span className="font-black text-amber-700">Same IP UIDs ({cluster.count}):</span>
+                                          {cluster.peers.map((peer) => (
+                                            <button
+                                              key={peer.uid || peer.id}
+                                              type="button"
+                                              onClick={() => handleInspectSecurityUser(peer)}
+                                              className={`px-1.5 py-0.2 rounded font-mono font-bold border transition-colors ${
+                                                peer.uid === u.uid
+                                                  ? 'bg-cyan-600 text-white border-cyan-600'
+                                                  : peer.isBanned
+                                                  ? 'bg-rose-50 text-rose-700 border-rose-200 line-through'
+                                                  : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                              }`}
+                                              title={`Inspect ${peer.nickname} (${peer.uid})`}
+                                            >
+                                              {peer.uid || peer.id}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               </td>
@@ -7302,31 +7381,56 @@ export const Admin: React.FC = () => {
                         )}
                       </div>
                       {(liveUser.ipIsp || liveUser.ipCountry || getUserIpClusterCount(liveUser) >= 2) && (
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-[10px] text-slate-500">
-                            {[liveUser.ipIsp, liveUser.ipCountry].filter(Boolean).join(' · ') || 'Network'}
-                            {getUserIpClusterCount(liveUser) >= 2 && (
-                              <span className="ml-1.5 text-cyan-700 font-bold">
-                                ({getUserIpClusterCount(liveUser)} IDs sharing this IP)
-                              </span>
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[10px] text-slate-500">
+                              {[liveUser.ipIsp, liveUser.ipCountry].filter(Boolean).join(' · ') || 'Network'}
+                              {getUserIpClusterCount(liveUser) >= 2 && (
+                                <span className="ml-1.5 text-cyan-700 font-bold">
+                                  ({getUserIpClusterCount(liveUser)} IDs sharing this IP)
+                                </span>
+                              )}
+                            </span>
+                            {(liveUser.isVpn || getUserIpClusterCount(liveUser) >= 2) && !liveUser.isBanned && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleUserBan(
+                                    liveUser.id,
+                                    liveUser.isVpn
+                                      ? `VPN / Proxy detected: ${liveUser.vpnReason || 'Proxy traffic'}`
+                                      : `Multi-account IP violation (${liveUser.lastIp || liveUser.registeredIp})`
+                                  )
+                                }
+                                className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[9px] font-black whitespace-nowrap"
+                              >
+                                Quick Ban
+                              </button>
                             )}
-                          </span>
-                          {(liveUser.isVpn || getUserIpClusterCount(liveUser) >= 2) && !liveUser.isBanned && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                toggleUserBan(
-                                  liveUser.id,
-                                  liveUser.isVpn
-                                    ? `VPN / Proxy detected: ${liveUser.vpnReason || 'Proxy traffic'}`
-                                    : `Multi-account IP violation (${liveUser.lastIp || liveUser.registeredIp})`
-                                )
-                              }
-                              className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[9px] font-black whitespace-nowrap"
-                            >
-                              Quick Ban
-                            </button>
-                          )}
+                          </div>
+                          {(() => {
+                            const cluster = getUserIpClusterInfo(liveUser);
+                            if (cluster.count < 2) return null;
+                            return (
+                              <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                                <span className="text-[10px] font-bold text-amber-800">All UIDs on IP:</span>
+                                {cluster.peers.map((peer) => (
+                                  <button
+                                    key={peer.uid || peer.id}
+                                    type="button"
+                                    onClick={() => handleInspectSecurityUser(peer)}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                      peer.uid === liveUser.uid
+                                        ? 'bg-cyan-600 text-white border-cyan-600'
+                                        : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                                    }`}
+                                  >
+                                    {peer.uid} ({peer.nickname})
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

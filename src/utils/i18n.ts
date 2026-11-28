@@ -278,7 +278,13 @@ export const translations = {
     receive: 'Receive',
     received: 'Received',
     insufficientBalance: 'Insufficient balance',
-    currencySymbol: '৳'
+    currencySymbol: '৳',
+    winningInformation: 'Winning information',
+    todaysEarningsChart: "Today's earnings chart",
+    winningAmount: 'Winning amount',
+    receiveLabel: 'Receive',
+    beginnersGuide: "Beginner's Guide",
+    safeVaultBtn: 'SAFE'
   },
   bn: {
     home: 'হোম',
@@ -504,7 +510,13 @@ export const translations = {
     receive: 'গ্রহণ করুন',
     received: 'গ্রহণ করা হয়েছে',
     insufficientBalance: 'অপর্যাপ্ত ব্যালেন্স',
-    currencySymbol: '৳'
+    currencySymbol: '৳',
+    winningInformation: 'জয়ের লাইভ তথ্য',
+    todaysEarningsChart: 'আজকের আয়ের চার্ট',
+    winningAmount: 'জয়ের পরিমাণ',
+    receiveLabel: 'প্রাপ্ত',
+    beginnersGuide: 'নতুনদের গাইড (Beginner Guide)',
+    safeVaultBtn: 'SAFE'
   },
   hi: {
     home: 'होम',
@@ -730,7 +742,13 @@ export const translations = {
     receive: 'प्राप्त करें',
     received: 'प्राप्त हुआ',
     insufficientBalance: 'अपर्याप्त बैलेंस',
-    currencySymbol: '৳'
+    currencySymbol: '৳',
+    winningInformation: 'जीतने की जानकारी',
+    todaysEarningsChart: 'आज की कमाई चार्ट',
+    winningAmount: 'जीती हुई राशि',
+    receiveLabel: 'प्राप्त',
+    beginnersGuide: 'शुरुआती गाइड',
+    safeVaultBtn: 'SAFE'
   },
   ur: {
     home: 'ہوم',
@@ -956,7 +974,13 @@ export const translations = {
     receive: 'حاصل کریں',
     received: 'موصول ہوا',
     insufficientBalance: 'ناکافی بیلنس',
-    currencySymbol: '৳'
+    currencySymbol: '৳',
+    winningInformation: 'جیتنے کی معلومات',
+    todaysEarningsChart: 'آج کی کمائی کا چارٹ',
+    winningAmount: 'جیتی ہوئی رقم',
+    receiveLabel: 'موصول',
+    beginnersGuide: 'نئے صارفین کی گائیڈ',
+    safeVaultBtn: 'SAFE'
   }
 };
 

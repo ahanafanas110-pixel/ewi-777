@@ -74,8 +74,12 @@ export const Login: React.FC<LoginProps> = ({ onOpenLanguage }) => {
     try {
       const res = await login(pendingTarget, password, rememberPassword);
       if (!res.success) {
-        if (res.message.toLowerCase().includes('banned')) {
-          setBanAlert('This account has been banned. Please contact Customer Care.');
+        const lower = res.message.toLowerCase();
+        if (lower.includes('banned') || res.message.includes('ব্যান')) {
+          setBanAlert(
+            res.message ||
+              'আপনার আইডি ব্যান করা হয়েছে! বিস্তারিত জানতে কাস্টমার কেয়ারে যোগাযোগ করুন।'
+          );
         }
         showToast(res.message);
       }

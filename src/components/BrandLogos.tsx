@@ -382,7 +382,7 @@ export const CustomerServiceLogo: React.FC<{ size?: number; className?: string }
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`inline-block flex-shrink-0 select-none drop-shadow-[0_4px_10px_rgba(8,145,178,0.32)] ${className}`}
+      className={`inline-block flex-shrink-0 select-none drop-shadow-[0_4px_10px_rgba(8,145,178,0.28)] ${className}`}
     >
       <defs>
         <linearGradient id="csCyanOuter" x1="15%" y1="10%" x2="85%" y2="90%">
@@ -395,15 +395,13 @@ export const CustomerServiceLogo: React.FC<{ size?: number; className?: string }
           <stop offset="100%" stopColor="#0891B2" />
         </linearGradient>
       </defs>
-      <circle cx="50" cy="50" r="44" fill="#FFFFFF" fillOpacity="0.98" />
-      <circle cx="50" cy="50" r="39" stroke="url(#csCyanOuter)" strokeWidth="5.5" fill="none" />
+      <circle cx="50" cy="50" r="42" stroke="url(#csCyanOuter)" strokeWidth="5" fill="none" />
       <path
         d="M50 18C32.3 18 18 31.7 18 48.7C18 57.6 22 65.6 28.4 71.1L21 81.5L36.5 76.7C40.7 78.4 45.2 79.3 50 79.3C67.7 79.3 82 65.6 82 48.7C82 31.7 67.7 18 50 18Z"
         fill="url(#csCyanOuter)"
       />
-      <path d="M44 26C48 16 58 14 63 20C57 21 54 25 54 30Z" fill="#FFFFFF" />
-      <circle cx="50" cy="49" r="22" fill="#ECFEFF" />
-      <circle cx="50" cy="49" r="19" fill="url(#csCyanInner)" />
+      <path d="M44 26C48 16 58 14 63 20C57 21 54 25 54 30Z" fill="#22D3EE" />
+      <circle cx="50" cy="49" r="21" stroke="rgba(255,255,255,0.65)" strokeWidth="2" fill="url(#csCyanInner)" />
       <rect x="39" y="42" width="6.5" height="13" rx="3.25" fill="#FFFFFF" />
       <rect x="54.5" y="42" width="6.5" height="13" rx="3.25" fill="#FFFFFF" />
       <circle cx="42.2" cy="46" r="1.4" fill="#0E7490" />

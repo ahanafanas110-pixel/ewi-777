@@ -241,7 +241,7 @@ const DEFAULT_BANNERS = [
   },
   {
     id: 'ban_ewi777_usdt_2pct',
-    title: 'Deshi Win USDT 2% Instant Bonus ($2 - $20,000)',
+    title: 'Deshi Win USDT 5% Instant Bonus ($2 - $20,000)',
     url: '/assets/brand/deshi-banner-3.jpg',
     link: '#/deposit',
     sortOrder: 3,
@@ -331,11 +331,11 @@ const DEFAULT_STORE: ServerStore = {
     minesPattern: 'RANDOM',
     binaryNextCandleBias: 'AUTO',
     updatedAt: 0,
-    marqueeText: 'Notice: Welcome to Deshi Win online entertainment. Fast 24/7 deposits & payouts via bKash, Nagad and Binance Pay.',
-    popupTitle: '',
-    popupMessage: '',
-    popupImageUrl: '',
-    enableSystemPopup: false,
+    marqueeText: 'Notice: Welcome to Deshi Win online entertainment. Fast 24/7 deposits & payouts via bKash, Nagad and Binance Pay (+5% USDT Bonus).',
+    popupTitle: 'Daily Recharge USDT 5% Bonus',
+    popupMessage: 'Recharge via USDT (Binance Pay) today and get an instant +5% Bonus automatically on every deposit!',
+    popupImageUrl: '/assets/brand/deshi-announcement-usdt-5.jpg',
+    enableSystemPopup: true,
     usdtRateBdt: 120,
     banners: DEFAULT_BANNERS,
     bannersCustomized: false,
@@ -477,10 +477,20 @@ function loadStore(): ServerStore {
             typeof cleanSaved.firstDepositBonusAmount === 'number' && cleanSaved.firstDepositBonusAmount >= 0
               ? cleanSaved.firstDepositBonusAmount
               : 50,
-          popupTitle: '',
-          popupMessage: '',
-          popupImageUrl: '',
-          enableSystemPopup: false,
+          popupTitle:
+            typeof cleanSaved.popupTitle === 'string' && cleanSaved.popupTitle.trim()
+              ? cleanSaved.popupTitle
+              : 'Daily Recharge USDT 5% Bonus',
+          popupMessage:
+            typeof cleanSaved.popupMessage === 'string' && cleanSaved.popupMessage.trim()
+              ? cleanSaved.popupMessage
+              : 'Recharge via USDT (Binance Pay) today and get an instant +5% Bonus automatically on every deposit!',
+          popupImageUrl:
+            typeof cleanSaved.popupImageUrl === 'string' && cleanSaved.popupImageUrl.trim()
+              ? cleanSaved.popupImageUrl
+              : '/assets/brand/deshi-announcement-usdt-5.jpg',
+          enableSystemPopup:
+            typeof cleanSaved.enableSystemPopup === 'boolean' ? cleanSaved.enableSystemPopup : true,
           appName:
             !cleanSaved.appName || /^(ewi\s*777|ewi777|hney\s*win|hneywin|honey\s*win|honey)$/i.test(String(cleanSaved.appName).trim())
               ? 'Deshi Win'
@@ -860,7 +870,7 @@ async function startServer() {
 
     dep.status = 'approved';
     const isUsdtDeposit = String(dep.method || '').toUpperCase() === 'USDT';
-    const usdtAutoBonus = isUsdtDeposit ? +(Number(dep.amount || 0) * 0.02).toFixed(2) : 0;
+    const usdtAutoBonus = isUsdtDeposit ? +(Number(dep.amount || 0) * 0.05).toFixed(2) : 0;
 
     // Credit user if user exists on server
     const user = store.users.find((u) => u.id === dep.userId || u.phone === dep.userPhone);
@@ -1028,6 +1038,7 @@ async function startServer() {
       return res.status(403).json({
         success: false,
         banned: true,
+        banReason: existing.banReason || 'Restricted by Administrator',
         message: 'This account has been banned. Please contact Customer Care.'
       });
     }
@@ -4160,7 +4171,7 @@ async function startServer() {
         matchedDep.status = 'approved';
         const depAmt = Number(matchedDep.amount || data?.amount || 0);
         const isUsdt = String(matchedDep.method || '').toUpperCase() === 'USDT';
-        const bonus = isUsdt ? +(depAmt * 0.02).toFixed(2) : 0;
+        const bonus = isUsdt ? +(depAmt * 0.05).toFixed(2) : 0;
         const uIdx = store.users.findIndex((u: any) => u.id === matchedDep.userId || u.uid === matchedDep.userId);
         if (uIdx >= 0 && depAmt > 0) {
           store.users[uIdx].balance = +(Number(store.users[uIdx].balance || 0) + depAmt + bonus).toFixed(2);
@@ -4408,6 +4419,111 @@ async function startServer() {
     store.lotteryResults[cleanKey] = merged;
     saveStore(store);
     res.json({ success: true, results: merged });
+  });
+
+  // Public Masked Real Leaderboards (Top 5 Real Balances + Recent Real Settled Wins)
+  const maskMemberDisplay = (u: any): string => {
+    const rawNick = String(u?.nickname || '').trim();
+    const uidTail = String(u?.uid || u?.id || '777').replace(/[^a-zA-Z0-9]/g, '').slice(-3).toUpperCase() || '777';
+    if (rawNick && !/^member$/i.test(rawNick) && rawNick.length >= 4) {
+      const clean = rawNick.replace(/\s+/g, '');
+      const head = clean.slice(0, 3);
+      const tail = clean.slice(-3);
+      return `${head}***${tail}`;
+    }
+    return `Mem***${uidTail}`;
+  };
+
+  app.get('/api/leaderboard/top-balances', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const eligible = (store.users || [])
+      .filter((u: any) => u && !u.isBanned && Number.isFinite(Number(u.balance)))
+      .slice()
+      .sort((a: any, b: any) => (Number(b.balance) || 0) - (Number(a.balance) || 0))
+      .slice(0, 5)
+      .map((u: any, idx: number) => ({
+        rank: idx + 1,
+        id: String(u.id || u.uid || idx),
+        displayName: maskMemberDisplay(u),
+        avatar: String(u.avatar || ''),
+        balance: +(Number(u.balance) || 0).toFixed(2)
+      }));
+    res.json({ success: true, leaders: eligible });
+  });
+
+  app.get('/api/leaderboard/recent-wins', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const wins: Array<{
+      id: string;
+      displayName: string;
+      avatar: string;
+      game: string;
+      amount: number;
+      time: string;
+      ts: number;
+    }> = [];
+
+    const userMap = new Map<string, any>();
+    for (const u of store.users || []) {
+      if (u?.id) userMap.set(u.id, u);
+      if (u?.uid) userMap.set(u.uid, u);
+    }
+
+    for (const b of store.wingoBets || []) {
+      const payout = Number(b?.winAmount || b?.payout || 0);
+      if (b?.status === 'won' && payout > 0) {
+        const uObj = userMap.get(b.userId);
+        wins.push({
+          id: `wg_${b.id}`,
+          displayName: maskMemberDisplay(uObj || { nickname: b.nickname, uid: b.userId }),
+          avatar: String(uObj?.avatar || ''),
+          game: 'wingo',
+          amount: +payout.toFixed(2),
+          time: String(b.time || ''),
+          ts: Number(b.createdAtMs || Date.now())
+        });
+      }
+    }
+
+    for (const b of store.lotteryBets || []) {
+      const payout = Number(b?.winAmount || b?.payout || 0);
+      if (b?.status === 'won' && payout > 0) {
+        const uObj = userMap.get(b.userId);
+        wins.push({
+          id: `lt_${b.id}`,
+          displayName: maskMemberDisplay(uObj || { nickname: b.nickname, uid: b.userId }),
+          avatar: String(uObj?.avatar || ''),
+          game: String(b.game || 'ewi_wingo'),
+          amount: +payout.toFixed(2),
+          time: String(b.time || ''),
+          ts: Number(b.createdAtMs || Date.now())
+        });
+      }
+    }
+
+    for (const pool of Object.values(store.crashPools || {})) {
+      for (const b of (pool as any)?.bets || []) {
+        const payout = Number(b?.payoutAmount || 0);
+        if (b?.status === 'cashed_out' && payout > 0) {
+          const uObj = userMap.get(b.userId);
+          wins.push({
+            id: `cr_${b.id}`,
+            displayName: maskMemberDisplay(uObj || { nickname: b.nickname, uid: b.userId }),
+            avatar: String(uObj?.avatar || ''),
+            game: String((pool as any)?.game || 'aviator'),
+            amount: +payout.toFixed(2),
+            time: '',
+            ts: Number((pool as any)?.updatedAt || Date.now())
+          });
+        }
+      }
+    }
+
+    const sorted = wins
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 25);
+
+    res.json({ success: true, wins: sorted });
   });
 
   // Top-level Express error safeguard so malformed payloads never crash the process

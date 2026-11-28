@@ -6,6 +6,7 @@ import { LanguageModal } from './components/LanguageModal';
 import { PageSkeleton } from './components/PageSkeleton';
 import { NotificationModal } from './components/NotificationModal';
 import { AddToDesktopModal } from './components/AddToDesktop';
+import { AnnouncementModal } from './components/AnnouncementModal';
 import { Ewi777Logo } from './components/BrandLogos';
 import { Home } from './pages/Home';
 import { Activity } from './pages/Activity';
@@ -260,7 +261,9 @@ const MainApp: React.FC = () => {
       case 'transaction-history':
         return <TransactionHistory />;
       case 'customer-service':
-        return <CustomerService />;
+        return <CustomerService initialMode="menu" />;
+      case 'live-chat':
+        return <CustomerService initialMode="chat" />;
       case 'admin':
         return isAuthorizedAdminRoute() ? (
           <Admin />
@@ -357,8 +360,7 @@ const MainApp: React.FC = () => {
       'activity',
       'promotion',
       'wallet',
-      'account',
-      'customer-service'
+      'account'
     ].includes(activeTab);
 
   const isSiteOff = adminSettings.siteEnabled === false && !isAuthorizedAdminRoute();
@@ -472,6 +474,7 @@ const MainApp: React.FC = () => {
             {showBottomNav && !isNavigating && <BottomNav />}
 
             {activeTab !== 'customer-service' &&
+              activeTab !== 'live-chat' &&
               activeTab !== 'login' &&
               activeTab !== 'register' &&
               activeTab !== 'registration' && (
@@ -493,6 +496,7 @@ const MainApp: React.FC = () => {
 
         <Toast />
         <NotificationModal />
+        <AnnouncementModal />
         <AddToDesktopModal />
         <ExtraFirstDepositModal />
         <WinGoResultPopupModal popup={wingoResultPopup} onClose={clearWingoResultPopup} />

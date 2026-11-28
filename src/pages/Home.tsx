@@ -6,7 +6,8 @@ import {
   Gamepad2,
   X,
   Plus,
-  Headphones
+  Headphones,
+  Megaphone
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import {
@@ -20,6 +21,7 @@ import {
   TileSlotsIcon,
   TileLudoIcon
 } from '../components/DashboardArtwork';
+import { HomeLiveBoard } from '../components/HomeLiveBoard';
 import { GameItem } from '../types';
 import { getLanguageBadge, getTranslation } from '../utils/i18n';
 
@@ -115,7 +117,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     },
     {
       id: 'hero_usdt_binance_bonus',
-      title: 'Deshi Win Recharge USDT Get 2% Bonus',
+      title: 'Deshi Win Recharge USDT Get 5% Bonus',
       url: '/assets/brand/deshi-banner-3.jpg',
       targetTab: 'deposit'
     }
@@ -214,15 +216,11 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
     showToast(`${g.title} is ready`);
   };
 
-  const HOME_TILES = [
+  const LOTTERY_TILES = [
     { id: 'wingo', label: getTranslation(language, 'winGo'), icon: <TileWingoIcon size={54} />, onClick: () => goTab('wingo') },
     { id: 'ewi-wingo', label: getTranslation(language, 'deshiWinGo'), icon: <TileEwiWingoIcon size={54} />, onClick: () => goTab('ewi-wingo') },
     { id: 'k3', label: getTranslation(language, 'deshiK3'), icon: <TileEwiK3Icon size={54} />, onClick: () => goTab('k3') },
-    { id: '5d', label: getTranslation(language, 'deshi5D'), icon: <TileEwi5DIcon size={54} />, onClick: () => goTab('5d') },
-    { id: 'binary', label: getTranslation(language, 'binaryPro'), icon: <TileBinaryIcon size={54} />, onClick: handleBinaryClick },
-    { id: 'gold', label: getTranslation(language, 'goldMarket'), icon: <TileGoldIcon size={54} />, onClick: handleGoldMarketClick },
-    { id: 'casino', label: getTranslation(language, 'casino'), icon: <TileCasinoIcon size={54} />, onClick: () => goTab('casino') },
-    { id: 'slots', label: getTranslation(language, 'slots'), icon: <TileSlotsIcon size={54} />, onClick: () => goTab('slots') }
+    { id: '5d', label: getTranslation(language, 'deshi5D'), icon: <TileEwi5DIcon size={54} />, onClick: () => goTab('5d') }
   ];
 
   return (
@@ -358,6 +356,15 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </div>
           <button
             type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('deshi-open-announcement'))}
+            className="flex-shrink-0 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-bold text-[11px] active:scale-95 whitespace-nowrap flex items-center gap-1"
+            title="View USDT +5% Announcement"
+          >
+            <Megaphone className="w-3 h-3" />
+            <span>Notice</span>
+          </button>
+          <button
+            type="button"
             onClick={() => goTab('activity')}
             className="flex-shrink-0 px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 hover:bg-cyan-100 font-bold text-[11px] active:scale-95 whitespace-nowrap"
           >
@@ -365,9 +372,9 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </button>
         </div>
 
-        {/* 4×2 Premium Square Game Tile Grid */}
+        {/* Row 1: Top Lottery Games (4 Columns) */}
         <div className="grid grid-cols-4 gap-2.5">
-          {HOME_TILES.map((tile) => (
+          {LOTTERY_TILES.map((tile) => (
             <button
               key={tile.id}
               type="button"
@@ -386,6 +393,85 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
               </span>
             </button>
           ))}
+        </div>
+
+        {/* Row 2 & 3: Pic-2 Style Wide Cream Cards (Binary/Gold Trading + Casino/Slots) */}
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={handleBinaryClick}
+              className="bg-gradient-to-r from-white via-[#FFFCF5] to-[#FEF5E1] rounded-2xl px-3 py-2.5 border border-amber-200/80 shadow-[0_6px_16px_rgba(15,23,42,0.05)] flex items-center justify-between gap-2 text-left hover:border-amber-300 active:scale-98 transition-all min-h-[82px]"
+            >
+              <div className="min-w-0">
+                <div className="font-black text-sm text-slate-900 leading-tight truncate">
+                  {getTranslation(language, 'binaryPro')}
+                </div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 truncate">
+                  Higher · Lower
+                </div>
+              </div>
+              <div className="w-13 h-13 rounded-xl overflow-hidden flex-shrink-0 shadow-2xs border border-amber-200/60">
+                <TileBinaryIcon size={52} />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGoldMarketClick}
+              className="bg-gradient-to-r from-white via-[#FFFCF5] to-[#FEF5E1] rounded-2xl px-3 py-2.5 border border-amber-200/80 shadow-[0_6px_16px_rgba(15,23,42,0.05)] flex items-center justify-between gap-2 text-left hover:border-amber-300 active:scale-98 transition-all min-h-[82px]"
+            >
+              <div className="min-w-0">
+                <div className="font-black text-sm text-amber-600 leading-tight truncate">
+                  {getTranslation(language, 'goldMarket')}
+                </div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 truncate">
+                  XAU/USD Live
+                </div>
+              </div>
+              <div className="w-13 h-13 rounded-xl overflow-hidden flex-shrink-0 shadow-2xs border border-amber-200/60">
+                <TileGoldIcon size={52} />
+              </div>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => goTab('casino')}
+              className="bg-gradient-to-r from-white via-[#FFFCF5] to-[#FEF5E1] rounded-2xl px-3 py-2.5 border border-amber-200/80 shadow-[0_6px_16px_rgba(15,23,42,0.05)] flex items-center justify-between gap-2 text-left hover:border-amber-300 active:scale-98 transition-all min-h-[82px]"
+            >
+              <div className="min-w-0">
+                <div className="font-black text-sm text-slate-900 leading-tight truncate">
+                  {getTranslation(language, 'casino')}
+                </div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 truncate">
+                  PLANE · Ludo · Tables
+                </div>
+              </div>
+              <div className="w-13 h-13 rounded-xl overflow-hidden flex-shrink-0 shadow-2xs border border-amber-200/60">
+                <TileCasinoIcon size={52} />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => goTab('slots')}
+              className="bg-gradient-to-r from-white via-[#FFFCF5] to-[#FEF5E1] rounded-2xl px-3 py-2.5 border border-amber-200/80 shadow-[0_6px_16px_rgba(15,23,42,0.05)] flex items-center justify-between gap-2 text-left hover:border-amber-300 active:scale-98 transition-all min-h-[82px]"
+            >
+              <div className="min-w-0">
+                <div className="font-black text-sm text-rose-600 leading-tight truncate">
+                  {getTranslation(language, 'slots')}
+                </div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 truncate">
+                  Aviator · Lucky Jet · Mines
+                </div>
+              </div>
+              <div className="w-13 h-13 rounded-xl overflow-hidden flex-shrink-0 shadow-2xs border border-amber-200/60">
+                <TileSlotsIcon size={52} />
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Featured Deshi Ludo Card — Crisp White with Smooth Animations */}
@@ -468,6 +554,8 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
             </div>
           </div>
         )}
+
+        <HomeLiveBoard />
 
         <AddToDesktop />
       </div>
