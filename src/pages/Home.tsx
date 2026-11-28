@@ -8,7 +8,7 @@ import {
   Plus,
   Headphones,
   Megaphone,
-  ChevronRight
+  ChevronDown
 } from 'lucide-react';
 import { Ewi777Logo } from '../components/BrandLogos';
 import {
@@ -74,7 +74,7 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
 
   const [bannerIdx, setBannerIdx] = useState<number>(0);
   const [activeCustomGame, setActiveCustomGame] = useState<GameItem | null>(null);
-  const [showWingoTradingModal, setShowWingoTradingModal] = useState<boolean>(false);
+  const [wingoExpanded, setWingoExpanded] = useState<boolean>(false);
 
   interface BannerItem {
     id: string;
@@ -399,33 +399,67 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
           </button>
         </div>
 
-        {/* Row 1: Unified WINGO TRADING Hub Button */}
-        <button
-          type="button"
-          onClick={() => setShowWingoTradingModal(true)}
-          className="w-full bg-gradient-to-r from-white via-[#F0FDFF] to-[#E6FAFC] rounded-3xl p-3.5 border border-cyan-200/90 shadow-[0_8px_22px_rgba(8,145,178,0.10)] hover:border-cyan-400 active:scale-[0.99] transition-all flex items-center justify-between gap-3 text-left"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-white border border-cyan-100 shadow-2xs flex-shrink-0 w-14 h-14 overflow-hidden">
-              <div className="rounded-md overflow-hidden w-full h-full"><TileWingoIcon size={24} /></div>
-              <div className="rounded-md overflow-hidden w-full h-full"><TileEwiWingoIcon size={24} /></div>
-              <div className="rounded-md overflow-hidden w-full h-full"><TileEwiK3Icon size={24} /></div>
-              <div className="rounded-md overflow-hidden w-full h-full"><TileEwi5DIcon size={24} /></div>
-            </div>
-            <div className="min-w-0">
-              <div className="font-black text-base tracking-tight text-slate-900 leading-tight">
-                WINGO TRADING
+        {/* Row 1: Unified WINGO TRADING Hub (Expands Inline Below) */}
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            aria-expanded={wingoExpanded}
+            onClick={() => setWingoExpanded((prev) => !prev)}
+            className={`w-full bg-gradient-to-r from-white via-[#F0FDFF] to-[#E6FAFC] rounded-3xl p-3.5 border transition-all flex items-center justify-between gap-3 text-left active:scale-[0.99] ${
+              wingoExpanded
+                ? 'border-cyan-400 shadow-[0_10px_26px_rgba(8,145,178,0.16)]'
+                : 'border-cyan-200/90 shadow-[0_8px_22px_rgba(8,145,178,0.10)] hover:border-cyan-400'
+            }`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-white border border-cyan-100 shadow-2xs flex-shrink-0 w-14 h-14 overflow-hidden">
+                <div className="rounded-md overflow-hidden w-full h-full"><TileWingoIcon size={24} /></div>
+                <div className="rounded-md overflow-hidden w-full h-full"><TileEwiWingoIcon size={24} /></div>
+                <div className="rounded-md overflow-hidden w-full h-full"><TileEwiK3Icon size={24} /></div>
+                <div className="rounded-md overflow-hidden w-full h-full"><TileEwi5DIcon size={24} /></div>
               </div>
-              <div className="text-[11px] font-semibold text-slate-500 mt-0.5 truncate">
-                WinGo · Deshi WinGo · Deshi K3 · Deshi 5D
+              <div className="min-w-0">
+                <div className="font-black text-base tracking-tight text-slate-900 leading-tight">
+                  WINGO TRADING
+                </div>
+                <div className="text-[11px] font-semibold text-slate-500 mt-0.5 truncate">
+                  WinGo · Deshi WinGo · Deshi K3 · Deshi 5D
+                </div>
               </div>
             </div>
-          </div>
-          <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-xs flex-shrink-0 flex items-center gap-1">
-            <span>{getTranslation(language, 'playNow') || 'Play'}</span>
-            <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
-          </span>
-        </button>
+            <span className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] text-white font-black text-xs whitespace-nowrap shadow-xs flex-shrink-0 flex items-center gap-1">
+              <span>{getTranslation(language, 'playNow') || 'Play'}</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 stroke-[2.5] transition-transform duration-200 ${
+                  wingoExpanded ? 'rotate-180' : ''
+                }`}
+              />
+            </span>
+          </button>
+
+          {wingoExpanded && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-0.5">
+              {LOTTERY_TILES.map((tile) => (
+                <button
+                  key={tile.id}
+                  type="button"
+                  onClick={tile.onClick}
+                  className="bg-white rounded-2xl p-3 border border-cyan-200/80 shadow-xs hover:border-cyan-400 active:scale-97 transition-all flex items-center sm:flex-col sm:text-center gap-2.5 text-left"
+                >
+                  <div className="w-13 h-13 rounded-2xl overflow-hidden border border-slate-100 shadow-2xs flex-shrink-0">
+                    {tile.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-black text-xs text-slate-900 truncate">{tile.label}</div>
+                    <div className="text-[10px] font-semibold text-slate-500 mt-0.5 truncate">
+                      {tile.subtitle}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Row 2 & 3: Pic-2 Style Wide Cream Cards (Binary/Gold Trading + Casino/Slots) */}
         <div className="space-y-2.5">
@@ -619,58 +653,6 @@ export const Home: React.FC<HomeProps> = ({ onOpenLanguage }) => {
                   dangerouslySetInnerHTML={{ __html: activeCustomGame.htmlCode || '' }}
                 />
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* WINGO TRADING Selector Modal */}
-      {showWingoTradingModal && (
-        <div
-          onClick={() => setShowWingoTradingModal(false)}
-          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-3"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-white rounded-3xl overflow-hidden border border-cyan-100 shadow-2xl"
-          >
-            <div className="bg-gradient-to-r from-[#0891B2] via-[#06B6D4] to-[#0D9488] px-5 py-4 text-white flex items-center justify-between">
-              <div>
-                <h3 className="font-black text-base tracking-tight">WINGO TRADING</h3>
-                <p className="text-[11px] text-cyan-50 font-semibold">
-                  Select a prediction room to start trading
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowWingoTradingModal(false)}
-                aria-label="Close"
-                className="p-1.5 rounded-full bg-white/15 hover:bg-white/25 text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 grid grid-cols-2 gap-3 bg-[#F8FAFC]">
-              {LOTTERY_TILES.map((tile) => (
-                <button
-                  key={tile.id}
-                  type="button"
-                  onClick={() => {
-                    setShowWingoTradingModal(false);
-                    tile.onClick();
-                  }}
-                  className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs hover:border-cyan-400 active:scale-97 transition-all flex flex-col items-center gap-2 text-center"
-                >
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-100 shadow-2xs">
-                    {tile.icon}
-                  </div>
-                  <div>
-                    <div className="font-black text-xs text-slate-900">{tile.label}</div>
-                    <div className="text-[10px] font-semibold text-slate-500 mt-0.5">{tile.subtitle}</div>
-                  </div>
-                </button>
-              ))}
             </div>
           </div>
         </div>
