@@ -159,7 +159,10 @@ export const Wallet: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setShowWithdrawModal(true)}
+              onClick={() => {
+                setActiveTab('withdraw');
+                window.location.hash = '#/withdraw';
+              }}
               className="py-3 min-h-[44px] rounded-full bg-white/20 text-white font-black text-xs shadow-sm hover:bg-white/30 active:scale-98 transition-all flex items-center justify-center gap-1.5 backdrop-blur-xs"
             >
               <WithdrawPastelIcon size={18} />
@@ -230,15 +233,19 @@ export const Wallet: React.FC = () => {
                   <div className="flex items-center gap-2.5">
                     {w.type === 'bKash' ? (
                       <BkashLogo size="sm" showText={true} />
-                    ) : (
+                    ) : w.type === 'Nagad' ? (
                       <NagadLogo size="sm" showText={true} />
+                    ) : (
+                      <span className="px-2 py-1 rounded-lg bg-cyan-600 text-white font-black text-[10px] uppercase">
+                        {w.type}
+                      </span>
                     )}
                     <div>
                       <div className="font-mono text-xs font-black text-slate-900 tracking-wide">
                         {w.number}
                       </div>
                       <div className="text-[9px] text-slate-400 mt-0.5">
-                        {w.addedAt}
+                        {w.accountName ? `${w.accountName} · ` : ''}{w.addedAt}
                       </div>
                     </div>
                   </div>

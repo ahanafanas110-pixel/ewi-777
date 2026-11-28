@@ -138,7 +138,8 @@ function stripUndefinedDeep<T>(value: T): T {
 // ================= BOUND WALLETS =================
 export interface BoundWalletRecord {
   number: string;
-  type: 'bKash' | 'Nagad';
+  type: 'bKash' | 'Nagad' | 'Upay' | 'SureCash';
+  accountName?: string;
   userId: string;
   userPhone?: string;
   createdAt: string;
@@ -164,6 +165,7 @@ export async function saveBoundWalletInFirebase(record: BoundWalletRecord): Prom
     await setDoc(doc(db, 'boundWallets', record.number), {
       number: record.number,
       type: record.type,
+      ...(record.accountName ? { accountName: record.accountName } : {}),
       userId: record.userId,
       ...(record.userPhone ? { userPhone: record.userPhone } : {}),
       createdAt: record.createdAt

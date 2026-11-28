@@ -12,6 +12,7 @@ import { Home } from './pages/Home';
 import { Activity } from './pages/Activity';
 import { Promotion } from './pages/Promotion';
 import { Wallet } from './pages/Wallet';
+import { Withdraw } from './pages/Withdraw';
 import { Account } from './pages/Account';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -244,6 +245,8 @@ const MainApp: React.FC = () => {
         return <Promotion />;
       case 'wallet':
         return <Wallet />;
+      case 'withdraw':
+        return <Withdraw />;
       case 'account':
         return <Account onOpenLanguage={() => setShowLanguageModal(true)} />;
       case 'login':

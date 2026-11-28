@@ -150,14 +150,17 @@ export const Account: React.FC<AccountProps> = () => {
       label: getTranslation(language, 'vipRewardsMenu'),
       icon: Crown,
       onClick: () => go('vip'),
-      rightNode:
-        user.vipLevel >= 1 ? (
-          <img
-            src={getVipBadgeImage(user.vipLevel)}
-            alt={`VIP${user.vipLevel}`}
-            className="w-5 h-6 object-contain"
-          />
-        ) : null,
+      rightNode: (
+        <img
+          src={user.vipLevel >= 1 ? getVipBadgeImage(user.vipLevel) : '/assets/aistudio/image_b85a3980.png'}
+          alt={`VIP${user.vipLevel}`}
+          className={
+            user.vipLevel >= 1
+              ? 'w-5 h-6 object-contain'
+              : 'w-5 h-5 object-cover [clip-path:polygon(50%_2%,94%_22%,86%_73%,50%_98%,14%_73%,6%_22%)]'
+          }
+        />
+      ),
       rightText: `VIP${user.vipLevel}`
     },
     {
@@ -245,15 +248,15 @@ export const Account: React.FC<AccountProps> = () => {
                   onClick={() => go('vip')}
                   className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-black text-[11px] flex items-center gap-1 shadow-xs active:scale-95"
                 >
-                  {user.vipLevel >= 1 ? (
-                    <img
-                      src={getVipBadgeImage(user.vipLevel)}
-                      alt={`VIP${user.vipLevel}`}
-                      className="w-4 h-4 object-contain"
-                    />
-                  ) : (
-                    <Crown className="w-3 h-3" />
-                  )}
+                  <img
+                    src={user.vipLevel >= 1 ? getVipBadgeImage(user.vipLevel) : '/assets/aistudio/image_b85a3980.png'}
+                    alt={`VIP${user.vipLevel}`}
+                    className={
+                      user.vipLevel >= 1
+                        ? 'w-4 h-4 object-contain'
+                        : 'w-4 h-4 object-cover [clip-path:polygon(50%_2%,94%_22%,86%_73%,50%_98%,14%_73%,6%_22%)]'
+                    }
+                  />
                   <span>VIP{user.vipLevel}</span>
                 </button>
 
@@ -356,7 +359,7 @@ export const Account: React.FC<AccountProps> = () => {
 
             <button
               type="button"
-              onClick={() => go('wallet')}
+              onClick={() => go('withdraw')}
               className="py-2.5 rounded-full bg-gradient-to-r from-teal-500 via-cyan-500 to-sky-500 text-white font-black text-sm shadow-sm flex items-center justify-center gap-2 active:scale-97 transition-transform whitespace-nowrap"
             >
               <CreditCard className="w-4 h-4 stroke-[2.3]" />

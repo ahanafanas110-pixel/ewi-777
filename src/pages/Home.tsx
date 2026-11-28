@@ -54,6 +54,7 @@ const ALLOWED_TABS = [
   'gifts',
   'attendence',
   'wallet',
+  'withdraw',
   'deposit',
   'vip',
   'safe',

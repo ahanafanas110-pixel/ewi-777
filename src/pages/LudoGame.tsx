@@ -1563,7 +1563,11 @@ export const LudoGame: React.FC = () => {
     }
     const playableBal = Math.max(0, +(Number(user.balance || 0) - Math.max(0, Number(user.lockedBalance || 0))).toFixed(2));
     if (playableBal < stake) {
-      showToast('Insufficient wallet balance to create this room!');
+      showToast(
+        Number(user.lockedBalance || 0) > 0
+          ? 'Holding balance cannot be used to play games until Admin releases it!'
+          : 'Insufficient wallet balance to create this room!'
+      );
       return;
     }
 
@@ -1788,7 +1792,11 @@ export const LudoGame: React.FC = () => {
             return;
           }
           if (playableBal < Number(fbRoom.stake || 0)) {
-            showToast(`Need ৳${fbRoom.stake} balance to join Room ${fbRoom.code}!`);
+            showToast(
+              Number(user.lockedBalance || 0) > 0
+                ? 'Holding balance cannot be used to play games until Admin releases it!'
+                : `Need ৳${fbRoom.stake} balance to join Room ${fbRoom.code}!`
+            );
             return;
           }
           const colors: LudoPlayer['color'][] =
@@ -1826,7 +1834,11 @@ export const LudoGame: React.FC = () => {
           joinedRoom.hostUserId === user.id ||
           (prePlayers.length === joinedRoom.players.length && prePlayers.some((p) => p.userId === user.id));
         if (!alreadySeated && playableBal < Number(joinedRoom.stake || 0)) {
-          showToast(`Need ৳${joinedRoom.stake} balance to join Room ${joinedRoom.code}!`);
+          showToast(
+            Number(user.lockedBalance || 0) > 0
+              ? 'Holding balance cannot be used to play games until Admin releases it!'
+              : `Need ৳${joinedRoom.stake} balance to join Room ${joinedRoom.code}!`
+          );
           return;
         }
         await saveLudoRoomToFirebase(joinedRoom).catch(() => {});

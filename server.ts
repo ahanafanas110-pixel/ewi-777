@@ -1390,15 +1390,22 @@ async function startServer() {
       amount,
       method,
       number,
+      usdAmount,
+      accountName,
+      network,
       createdAtMs
     } = req.body;
     const numAmt = Number(amount) || 0;
-    const minWd = Math.max(300, Number(store.settings.minWithdraw || 300));
+    const methodStr = String(method || 'bKash').trim();
+    const isUsdtWd = methodStr.toUpperCase() === 'USDT';
+    const usdtRate = Math.max(80, Number(store.settings?.usdtRateBdt || 120));
+    const minWd = isUsdtWd ? +(10 * usdtRate).toFixed(2) : Math.max(300, Number(store.settings.minWithdraw || 300));
+    const maxWd = isUsdtWd ? +(50000 * usdtRate).toFixed(2) : 50000;
     if (!numAmt || !number) {
       return res.status(400).json({ success: false, message: 'Missing withdraw fields' });
     }
-    if (numAmt < minWd || numAmt > 50000) {
-      return res.status(400).json({ success: false, message: `Withdrawal amount must be between ৳${minWd} and ৳50,000` });
+    if (numAmt < minWd || numAmt > maxWd) {
+      return res.status(400).json({ success: false, message: `Withdrawal amount must be between ৳${minWd} and ৳${maxWd}` });
     }
     const uIdx = store.users.findIndex((u) => u.id === userId || u.uid === userId);
     if (uIdx >= 0) {
@@ -1426,8 +1433,11 @@ async function startServer() {
       userName: userName || userPhone || 'User',
       userPhone: userPhone || '',
       amount: numAmt,
-      method: method || 'bKash',
+      ...(usdAmount !== undefined ? { usdAmount: Number(usdAmount) } : {}),
+      method: methodStr || 'bKash',
       number: String(number).trim(),
+      ...(accountName ? { accountName: String(accountName).trim() } : {}),
+      ...(network ? { network: String(network).trim() } : {}),
       status: initStatus,
       createdAtMs: nowMs,
       time: new Date(nowMs).toLocaleString()
@@ -2449,13 +2459,17 @@ async function startServer() {
       const uFb = await getFirestoreDoc('users', targetKey).catch(() => null);
       const u = uFb || uLocal;
       if (!u) return res.status(404).json({ success: false, message: 'User not found' });
+      const curLocked = Math.max(0, Number(u.lockedBalance || 0));
+      const reqAmt = Number(req.body?.amount);
+      const releaseAmt = reqAmt > 0 ? Math.min(curLocked, +reqAmt.toFixed(2)) : curLocked;
+      const nextLocked = Math.max(0, +(curLocked - releaseAmt).toFixed(2));
       if (uLocal) {
-        uLocal.lockedBalance = 0;
+        uLocal.lockedBalance = nextLocked;
         uLocal.updatedAt = nowMs;
       }
-      await patchFirestoreDoc('users', String(u.id || targetKey), { ...u, lockedBalance: 0, updatedAt: nowMs }).catch(() => false);
-      await pushLog('holding_released', `Released holding balance for UID ${u.uid || u.id}`, { targetUid: String(u.uid || u.id) });
-      return res.json({ success: true });
+      await patchFirestoreDoc('users', String(u.id || targetKey), { ...u, lockedBalance: nextLocked, updatedAt: nowMs }).catch(() => false);
+      await pushLog('holding_released', `Released ৳${releaseAmt.toFixed(2)} holding balance for UID ${u.uid || u.id} (remaining: ৳${nextLocked.toFixed(2)})`, { targetUid: String(u.uid || u.id), amount: releaseAmt });
+      return res.json({ success: true, lockedBalance: nextLocked, releasedAmount: releaseAmt });
     }
 
     if (op === 'adjust_turnover') {

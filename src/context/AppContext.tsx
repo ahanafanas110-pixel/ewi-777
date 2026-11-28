@@ -273,7 +273,13 @@ interface AppContextType {
   updateNickname: (name: string) => void;
   changeLoginPassword: (currentPassword: string, newPassword: string) => { success: boolean; message: string };
   updateUserAvatar: (avatarDataUrl: string) => void;
-  bindWallet: (type: 'bKash' | 'Nagad', number: string, loginPassword: string) => Promise<{ success: boolean; message: string }>;
+  bindWallet: (
+    type: 'bKash' | 'Nagad' | 'Upay' | 'SureCash',
+    number: string,
+    loginPassword?: string,
+    accountName?: string
+  ) => Promise<{ success: boolean; message: string }>;
+  bindUsdtAddress: (address: string, network?: string) => Promise<{ success: boolean; message: string }>;
   submitDepositRequest: (amount: number, method: 'bKash' | 'Nagad' | 'USDT', channel: string, senderNumber: string, trxId: string) => { success: boolean; message: string };
   initiateEwiPayDeposit: (
     amount: number,
@@ -286,7 +292,12 @@ interface AppContextType {
   approveDeposit: (requestId: string) => void;
   rejectDeposit: (requestId: string, note?: string) => void;
   claimDepositBonus: () => { success: boolean; message: string };
-  withdraw: (amount: number, method: 'bKash' | 'Nagad', loginPass: string) => { success: boolean; message: string };
+  withdraw: (
+    amount: number,
+    method: 'bKash' | 'Nagad' | 'Upay' | 'SureCash' | 'USDT',
+    loginPass?: string,
+    opts?: { accountNumber?: string; accountName?: string; usdAmount?: number; network?: string }
+  ) => { success: boolean; message: string };
   transferSafe: (amount: number, direction: 'in' | 'out') => { success: boolean; message: string };
   claimGiftCode: (code: string) => Promise<{ success: boolean; message: string; pendingDeposit?: boolean }>;
   claimAttendanceReward: (day: number) => { success: boolean; message: string };
@@ -319,7 +330,7 @@ interface AppContextType {
   toggleUserBan: (userId: string, reason?: string) => void;
   adminModifyUserBalance: (userId: string, action: 'add' | 'deduct' | 'set', amount: number, reason?: string, opts?: { locked?: boolean; turnover?: number }) => { success: boolean; message: string };
   holdUserBalance: (userId: string, amount?: number, reason?: string) => { success: boolean; message: string };
-  releaseLockedBalance: (userId: string) => void;
+  releaseLockedBalance: (userId: string, amount?: number) => { success: boolean; message: string };
   adminUpdateUserRole: (userId: string, role: 'USER' | 'VIP' | 'ADMIN') => void;
   adminDeleteUser: (userId: string) => void;
   adminSendUserNotice: (userId: string, message: string) => void;
@@ -1055,6 +1066,7 @@ export const resolveCurrentRoute = (isLoggedIn = true): string => {
 
     if (!target || target === 'home') resolved = 'home';
     else if (target === 'wallet') resolved = 'wallet';
+    else if (target === 'withdraw') resolved = 'withdraw';
     else if (target === 'deposit') resolved = 'deposit';
     else if (target === 'safe') resolved = 'safe';
     else if (target === 'vip') resolved = 'vip';
@@ -4630,30 +4642,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Profile photo saved permanently!');
   };
 
-  // Bind mobile wallet with login password verification + Firebase Firestore global uniqueness
-  const bindWallet = async (type: 'bKash' | 'Nagad', number: string, loginPassword: string) => {
+  // Bind mobile E-Wallet (bKash / Nagad / Upay / SureCash) with global uniqueness across Firebase & server
+  const bindWallet = async (
+    type: 'bKash' | 'Nagad' | 'Upay' | 'SureCash',
+    number: string,
+    loginPassword?: string,
+    accountName?: string
+  ) => {
     if (!user.isLoggedIn) {
       return { success: false, message: 'Please log in first before linking a wallet account.' };
     }
 
-    const cleanNum = normalizePhone(number);
-    if (!isValidBdFullPhone(cleanNum)) {
-      return { success: false, message: BD_PHONE_RULE_MSG };
+    const rawDigits = String(number || '').replace(/\D/g, '');
+    const normalizedBd = normalizePhone(number);
+    const cleanNum = isValidBdFullPhone(normalizedBd) ? normalizedBd : rawDigits;
+    if (!cleanNum || cleanNum.length < 10 || cleanNum.length > 16) {
+      return { success: false, message: 'Please enter a valid 10–16 digit E-Wallet account number.' };
     }
 
-    if (!loginPassword || !loginPassword.trim()) {
-      return { success: false, message: 'Please enter your account login password to bind this wallet.' };
+    if (loginPassword !== undefined) {
+      if (!loginPassword.trim()) {
+        return { success: false, message: 'Please enter your account login password to bind this wallet.' };
+      }
+      if (user.loginPassword && user.loginPassword !== loginPassword.trim()) {
+        return { success: false, message: 'Incorrect login password! Please enter the password you used during registration/login.' };
+      }
     }
 
-    if (user.loginPassword && user.loginPassword !== loginPassword.trim()) {
-      return { success: false, message: 'Incorrect login password! Please enter the password you used during registration/login.' };
-    }
+    const cleanAccName = accountName ? accountName.trim() : undefined;
 
     // Check if already bound to current user's own wallet list
     const alreadyOwn =
       normalizePhone(user.boundBkash || '') === cleanNum ||
       normalizePhone(user.boundNagad || '') === cleanNum ||
-      Boolean(user.boundWallets?.some((w) => normalizePhone(w.number) === cleanNum));
+      Boolean(user.boundWallets?.some((w) => (normalizePhone(w.number) || w.number) === cleanNum && w.type === type));
     if (alreadyOwn) {
       return { success: false, message: `Number ${cleanNum} is already linked to your account.` };
     }
@@ -4665,7 +4687,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (fbRecord.userId !== user.id) {
           return {
             success: false,
-            message: 'This number is already logged in on another account! Each bKash/Nagad number can only be linked once.'
+            message: 'This number is already registered on another account! Each E-Wallet number can only be linked once.'
           };
         }
         return {
@@ -4673,9 +4695,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           message: `Number ${cleanNum} is already registered on this platform!`
         };
       }
-    } catch {
-      // Fall back to server & local checks if offline
-    }
+    } catch {}
 
     // 2. Check Server API uniqueness
     try {
@@ -4690,7 +4710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (checkData?.bound) {
           return {
             success: false,
-            message: 'This number is already logged in on another account! Each bKash/Nagad number can only be linked once.'
+            message: 'This number is already registered on another account! Each E-Wallet number can only be linked once.'
           };
         }
       }
@@ -4703,13 +4723,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         u.id !== user.id &&
         (normalizePhone(u.boundBkash || '') === cleanNum ||
           normalizePhone(u.boundNagad || '') === cleanNum ||
-          u.boundWallets?.some((w) => normalizePhone(w.number) === cleanNum))
+          u.boundWallets?.some((w) => (normalizePhone(w.number) || w.number) === cleanNum))
     );
 
     if (alreadyInGlobal || alreadyInOtherUsers) {
       return {
         success: false,
-        message: 'This number is already logged in on another account! Each bKash/Nagad number can only be linked once.'
+        message: 'This number is already registered on another account! Each E-Wallet number can only be linked once.'
       };
     }
 
@@ -4734,6 +4754,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await saveBoundWalletInFirebase({
         number: cleanNum,
         type,
+        ...(cleanAccName ? { accountName: cleanAccName } : {}),
         userId: user.id,
         userPhone: user.phone || user.email || '',
         createdAt: new Date().toISOString()
@@ -4744,6 +4765,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `w_${Date.now()}`,
       type,
       number: cleanNum,
+      ...(cleanAccName ? { accountName: cleanAccName } : {}),
       addedAt: new Date().toLocaleString()
     };
 
@@ -4760,7 +4782,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) => prev.map((u) => (u.id === syncedUser.id ? syncedUser : u)));
 
     setGlobalBoundNumbers((prev) => (prev.includes(cleanNum) ? prev : [...prev, cleanNum]));
-    showToast(`${type} number ${cleanNum} bound successfully!`);
+    showToast(`${type} number ${cleanNum} saved successfully!`);
+    return { success: true, message: 'Success' };
+  };
+
+  const bindUsdtAddress = async (address: string, network: string = 'TRC20') => {
+    if (!user.isLoggedIn) {
+      return { success: false, message: 'Please log in first.' };
+    }
+    const cleanAddr = String(address || '').trim();
+    if (!cleanAddr || cleanAddr.length < 16 || /\s/.test(cleanAddr)) {
+      return { success: false, message: 'Please enter a valid USDT wallet address (min 16 characters, no spaces).' };
+    }
+    const cleanNet = String(network || 'TRC20').trim().toUpperCase();
+    const updatedUser: User = {
+      ...user,
+      boundUsdt: cleanAddr,
+      usdtNetwork: cleanNet,
+      updatedAt: Date.now()
+    };
+    const syncedUser = syncUserEverywhere(updatedUser);
+    setUser(syncedUser);
+    setAllUsers((prev) => prev.map((u) => (u.id === syncedUser.id ? syncedUser : u)));
+    showToast(`USDT (${cleanNet}) address bound successfully!`);
     return { success: true, message: 'Success' };
   };
 
@@ -5784,8 +5828,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Claimed' };
   };
 
-  // Withdraw Funds (Min ৳300 - Max ৳50,000; saves Processing & auto-dispatches to EWI-Pay immediately)
-  const withdraw = (amount: number, method: 'bKash' | 'Nagad', loginPass: string) => {
+  // Withdraw Funds (E-Wallet & USDT; enforces Hold balance block & turnover; auto-dispatches bKash/Nagad to EWI-Pay)
+  const withdraw = (
+    amount: number,
+    method: 'bKash' | 'Nagad' | 'Upay' | 'SureCash' | 'USDT',
+    loginPass?: string,
+    opts?: { accountNumber?: string; accountName?: string; usdAmount?: number; network?: string }
+  ) => {
     if (adminSettings.withdrawEnabled === false) {
       showToast('Withdraw system is currently disabled by Administrator!');
       return { success: false, message: 'Withdraw system is currently disabled' };
@@ -5794,9 +5843,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Your account is banned by Administrator! Withdrawals disabled.');
       return { success: false, message: 'Account is banned by Administrator' };
     }
-    const minWd = Math.max(300, Number(adminSettings.minWithdraw) || 300);
-    if (amount < minWd) return { success: false, message: `Minimum withdrawal is ৳${minWd}` };
-    if (amount > 50000) return { success: false, message: 'Maximum withdrawal is ৳50,000' };
+    const isUsdt = method === 'USDT';
+    const usdtRate = Math.max(80, Number(adminSettings.usdtRateBdt || 120));
+    const minWd = isUsdt ? +(10 * usdtRate).toFixed(2) : Math.max(300, Number(adminSettings.minWithdraw) || 300);
+    const maxWd = isUsdt ? +(50000 * usdtRate).toFixed(2) : 50000;
+    if (amount < minWd) {
+      return {
+        success: false,
+        message: isUsdt
+          ? `Minimum USDT withdrawal is 10 USDT (৳${minWd.toLocaleString()})`
+          : `Minimum withdrawal is ৳${minWd}`
+      };
+    }
+    if (amount > maxWd) {
+      return {
+        success: false,
+        message: isUsdt ? `Maximum USDT withdrawal is 50,000 USDT` : 'Maximum withdrawal is ৳50,000'
+      };
+    }
     if (user.balance < amount) return { success: false, message: 'Insufficient wallet balance' };
     const lockedAmt = Math.max(0, Number(user.lockedBalance || 0));
     const withdrawableAmt = Math.max(0, +(user.balance - lockedAmt).toFixed(2));
@@ -5807,16 +5871,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    const targetBound = method === 'bKash' ? user.boundBkash : user.boundNagad;
+    const fallbackBound =
+      method === 'USDT'
+        ? user.boundUsdt
+        : opts?.accountNumber ||
+          user.boundWallets?.find((w) => w.type === method)?.number ||
+          (method === 'bKash' ? user.boundBkash : method === 'Nagad' ? user.boundNagad : undefined);
+    const targetBound = String(opts?.accountNumber || fallbackBound || '').trim();
     if (!targetBound) {
       return {
         success: false,
-        message: `Please bind your ${method} account first before withdrawing.`
+        message:
+          method === 'USDT'
+            ? 'Please add your USDT address first before withdrawing.'
+            : `Please add your ${method} E-Wallet account first before withdrawing.`
       };
     }
 
-    // Verify login password
-    if (user.loginPassword && user.loginPassword !== loginPass.trim()) {
+    // Verify login password when supplied
+    if (loginPass !== undefined && user.loginPassword && user.loginPassword !== loginPass.trim()) {
       return { success: false, message: 'Incorrect login password! Please enter your real password.' };
     }
 
@@ -5825,7 +5898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (remainingTurnover > 0) {
       return {
         success: false,
-        message: `Turnover requirement not completed! Remaining turnover needed: ৳${remainingTurnover.toFixed(2)}.`
+        message: `Insufficient turnover! Need to bet ৳${remainingTurnover.toFixed(2)} more to withdraw.`
       };
     }
 
@@ -5835,17 +5908,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
 
     const nowMs = Date.now();
-    const wdOrderId = `wd_${nowMs}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const wdOrderId = `WD${nowMs}${Math.floor(1000 + Math.random() * 9000)}`;
+    const canGatewayDispatch = method === 'bKash' || method === 'Nagad';
+    const computedUsd = isUsdt ? Number((opts?.usdAmount ?? amount / usdtRate).toFixed(2)) : undefined;
     const newWd: WithdrawRequest = {
       id: wdOrderId,
       orderId: wdOrderId,
       userId: user.id,
-      userName: user.nickname || user.phone || 'User',
+      userName: opts?.accountName || user.nickname || user.phone || 'User',
       userPhone: user.phone || user.email || '',
       amount,
+      ...(computedUsd !== undefined ? { usdAmount: computedUsd } : {}),
       method,
       number: targetBound,
-      status: 'processing',
+      ...(opts?.accountName ? { accountName: opts.accountName } : {}),
+      ...(isUsdt ? { network: opts?.network || user.usdtNetwork || 'TRC20' } : {}),
+      status: canGatewayDispatch ? 'processing' : 'pending',
       createdAtMs: nowMs,
       time: new Date(nowMs).toLocaleString()
     };
@@ -5859,87 +5937,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify(newWd)
     }).catch(() => {});
 
-    // Immediately auto-dispatch withdrawal request to EWI-Pay Gateway
-    const siteUserId = user.uid || user.id;
-    const providerSlug = method.toLowerCase();
-    const callbackUrl = `${window.location.origin}/api/ewi-pay/webhook`;
-    fetch(apiUrl('/api/ewi-pay/withdraw'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        siteUserId,
-        user_id: siteUserId,
-        userId: user.id,
-        orderId: wdOrderId,
-        recipientNumber: targetBound,
-        accountNumber: targetBound,
-        number: targetBound,
-        provider: providerSlug,
-        method,
-        amount,
-        callbackUrl,
-        autoDispatch: true
+    if (canGatewayDispatch) {
+      // Immediately auto-dispatch bKash/Nagad withdrawal request to EWI-Pay Gateway
+      const siteUserId = user.uid || user.id;
+      const providerSlug = method.toLowerCase();
+      const callbackUrl = `${window.location.origin}/api/ewi-pay/webhook`;
+      fetch(apiUrl('/api/ewi-pay/withdraw'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteUserId,
+          user_id: siteUserId,
+          userId: user.id,
+          orderId: wdOrderId,
+          recipientNumber: targetBound,
+          accountNumber: targetBound,
+          number: targetBound,
+          provider: providerSlug,
+          method,
+          amount,
+          callbackUrl,
+          autoDispatch: true
+        })
       })
-    })
-      .then((r) =>
-        (r.headers.get('content-type') || '').includes('application/json') ? r.json().catch(() => null) : null
-      )
-      .then((gwData) => {
-        const gwId = String(
-          gwData?.withdrawalId ||
-            gwData?.gateway?.withdrawalId ||
-            gwData?.gateway?.withdrawal_id ||
-            gwData?.gateway?.id ||
-            gwData?.gateway?.withdrawal?.id ||
-            gwData?.gateway?.data?.withdrawalId ||
-            ''
-        ).trim();
-        const gwStatus = String(
-          gwData?.gateway?.status || gwData?.gateway?.withdrawal?.status || gwData?.status || ''
+        .then((r) =>
+          (r.headers.get('content-type') || '').includes('application/json') ? r.json().catch(() => null) : null
         )
-          .trim()
-          .toLowerCase();
-        if (gwId) {
-          setWithdrawRequests((prev) =>
-            prev.map((w) => (w.id === wdOrderId ? { ...w, ewiPayWithdrawId: gwId } : w))
-          );
-          updateWithdrawInFirebase(
-            wdOrderId,
-            { ewiPayWithdrawId: gwId },
-            { ...newWd, ewiPayWithdrawId: gwId }
-          ).catch(() => {});
-          fetch(apiUrl('/api/withdraws/update'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: wdOrderId, status: 'processing', ewiPayWithdrawId: gwId })
-          }).catch(() => {});
-        }
-        if (gwStatus === 'completed' || gwData?.gateway?.completed === true) {
-          const payoutTrxId = String(gwData?.gateway?.payoutTrxId || gwData?.payoutTrxId || '').trim();
-          updateWithdrawStatusRef.current?.(wdOrderId, 'completed', undefined, undefined, {
-            payoutTrxId: payoutTrxId || undefined,
-            ewiPayWithdrawId: gwId || undefined
-          });
-        } else if (gwStatus === 'rejected' || gwData?.gateway?.rejected === true || gwData?.gateway?.refundRequired === true) {
-          const reason = String(
-            gwData?.gateway?.rejectionReason || gwData?.gateway?.reason || gwData?.gateway?.message || ''
+        .then((gwData) => {
+          const gwId = String(
+            gwData?.withdrawalId ||
+              gwData?.gateway?.withdrawalId ||
+              gwData?.gateway?.withdrawal_id ||
+              gwData?.gateway?.id ||
+              gwData?.gateway?.withdrawal?.id ||
+              gwData?.gateway?.data?.withdrawalId ||
+              ''
           ).trim();
-          const usrMsg = String(gwData?.gateway?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
-          updateWithdrawStatusRef.current?.(wdOrderId, 'rejected', reason || undefined, undefined, {
-            userMessage: usrMsg,
-            rejectionReason: reason || undefined,
-            ewiPayWithdrawId: gwId || undefined
-          });
-        }
-      })
-      .catch(() => {});
+          const gwStatus = String(
+            gwData?.gateway?.status || gwData?.gateway?.withdrawal?.status || gwData?.status || ''
+          )
+            .trim()
+            .toLowerCase();
+          if (gwId) {
+            setWithdrawRequests((prev) =>
+              prev.map((w) => (w.id === wdOrderId ? { ...w, ewiPayWithdrawId: gwId } : w))
+            );
+            updateWithdrawInFirebase(
+              wdOrderId,
+              { ewiPayWithdrawId: gwId },
+              { ...newWd, ewiPayWithdrawId: gwId }
+            ).catch(() => {});
+            fetch(apiUrl('/api/withdraws/update'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: wdOrderId, status: 'processing', ewiPayWithdrawId: gwId })
+            }).catch(() => {});
+          }
+          if (gwStatus === 'completed' || gwData?.gateway?.completed === true) {
+            const payoutTrxId = String(gwData?.gateway?.payoutTrxId || gwData?.payoutTrxId || '').trim();
+            updateWithdrawStatusRef.current?.(wdOrderId, 'completed', undefined, undefined, {
+              payoutTrxId: payoutTrxId || undefined,
+              ewiPayWithdrawId: gwId || undefined
+            });
+          } else if (gwStatus === 'rejected' || gwData?.gateway?.rejected === true || gwData?.gateway?.refundRequired === true) {
+            const reason = String(
+              gwData?.gateway?.rejectionReason || gwData?.gateway?.reason || gwData?.gateway?.message || ''
+            ).trim();
+            const usrMsg = String(gwData?.gateway?.userMessage || 'কিছুক্ষণ পর আবার চেষ্টা করুন').trim();
+            updateWithdrawStatusRef.current?.(wdOrderId, 'rejected', reason || undefined, undefined, {
+              userMessage: usrMsg,
+              rejectionReason: reason || undefined,
+              ewiPayWithdrawId: gwId || undefined
+            });
+          }
+        })
+        .catch(() => {});
+    }
 
     const newTx: Transaction = {
       id: `tx_${Date.now()}`,
       userId: user.id,
       type: 'withdraw',
-      title: `Withdraw to ${method} (${targetBound})`,
-      detail: `Order ${wdOrderId} • Processing via EWI PAY`,
+      title: isUsdt
+        ? `Withdraw ${computedUsd} USDT (${targetBound.slice(0, 6)}...${targetBound.slice(-4)})`
+        : `Withdraw to ${method} (${targetBound})`,
+      detail: `Order ${wdOrderId} • ${canGatewayDispatch ? 'Processing via EWI PAY' : 'Pending Approval'}`,
       amount: -amount,
       balanceAfter: newBal,
       time: new Date().toLocaleString(),
@@ -5950,7 +6032,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTransactions((prev) => [newTx, ...prev]);
     saveTransactionToFirebase(newTx).catch(() => {});
-    showToast(`Withdrawal of ৳${amount} sent to EWI PAY! Status: Processing`);
+    showToast(
+      isUsdt
+        ? `USDT withdrawal (${computedUsd} USDT / ৳${amount}) submitted!`
+        : `Withdrawal of ৳${amount} submitted! Status: ${canGatewayDispatch ? 'Processing' : 'Pending'}`
+    );
     return { success: true, message: 'Success' };
   };
 
@@ -8411,28 +8497,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Balance placed on hold' };
   };
 
-  const releaseLockedBalance = (userId: string) => {
+  const releaseLockedBalance = (userId: string, amount?: number) => {
     const mutationTs = Date.now();
-    lastUsersMutationAtRef.current = mutationTs + 2000;
     const target =
       allUsers.find((u) => matchesTargetUser(u, userId)) ||
       (matchesTargetUser(user, userId) ? user : undefined);
     const resolvedId = target?.id || userId;
-    const releasedAmt = Math.max(0, Number(target?.lockedBalance || 0));
+    const curLocked = Math.max(0, Number(target?.lockedBalance || 0));
+    if (curLocked <= 0) {
+      showToast('No Hold balance remaining to release.');
+      return { success: false, message: 'No Hold balance remaining' };
+    }
+    let releasedAmt = curLocked;
+    if (amount !== undefined) {
+      const reqAmt = +(Number(amount) || 0).toFixed(2);
+      if (reqAmt <= 0) {
+        showToast('Enter a valid release amount greater than ৳0');
+        return { success: false, message: 'Invalid release amount' };
+      }
+      releasedAmt = Math.min(curLocked, reqAmt);
+    }
+    const nextLocked = Math.max(0, +(curLocked - releasedAmt).toFixed(2));
+    lastUsersMutationAtRef.current = mutationTs + 2000;
     setAllUsers((prev) =>
       prev.map((u) =>
         matchesTargetUser(u, resolvedId, target?.phone)
-          ? { ...u, lockedBalance: 0, updatedAt: mutationTs }
+          ? { ...u, lockedBalance: nextLocked, updatedAt: mutationTs }
           : u
       )
     );
     if (matchesTargetUser(user, resolvedId, target?.phone)) {
-      setUser((u) => ({ ...u, lockedBalance: 0, updatedAt: mutationTs }));
+      setUser((u) => ({ ...u, lockedBalance: nextLocked, updatedAt: mutationTs }));
     }
     updateUserInFirebase(
       resolvedId,
-      { lockedBalance: 0, updatedAt: mutationTs },
-      target ? { ...target, lockedBalance: 0, updatedAt: mutationTs } : undefined
+      { lockedBalance: nextLocked, updatedAt: mutationTs },
+      target ? { ...target, lockedBalance: nextLocked, updatedAt: mutationTs } : undefined
     ).catch(() => {});
     fetch(apiUrl('/api/users/update'), {
       method: 'POST',
@@ -8440,27 +8540,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({
         userId: resolvedId,
         userPhone: target?.phone,
-        fallbackUser: target,
-        patch: { lockedBalance: 0, updatedAt: mutationTs }
+        fallbackUser: target ? { ...target, lockedBalance: nextLocked, updatedAt: mutationTs } : undefined,
+        patch: { lockedBalance: nextLocked, updatedAt: mutationTs }
       })
     }).catch(() => {});
 
-    if (releasedAmt > 0) {
-      const relTx: Transaction = {
-        id: `tx_${mutationTs}_rel`,
-        userId: resolvedId,
-        type: 'admin_release',
-        title: 'Admin Released Hold Balance',
-        detail: `৳${releasedAmt.toFixed(2)} released — Game Play & Withdraw unlocked`,
-        amount: 0,
-        balanceAfter: Number(target?.balance || 0),
-        time: new Date().toLocaleString(),
-        status: 'success'
-      };
-      setTransactions((prev) => [relTx, ...prev]);
-      saveTransactionToFirebase(relTx).catch(() => {});
-    }
-    showToast('Hold balance released! User can now play games & withdraw.');
+    const relTx: Transaction = {
+      id: `tx_${mutationTs}_rel`,
+      userId: resolvedId,
+      type: 'admin_release',
+      title: 'Admin Released Hold Balance',
+      detail:
+        nextLocked > 0
+          ? `৳${releasedAmt.toFixed(2)} released by Admin (Remaining Hold: ৳${nextLocked.toFixed(2)}) — Play & Withdraw unlocked for released balance`
+          : `৳${releasedAmt.toFixed(2)} released — Game Play & Withdraw unlocked`,
+      amount: 0,
+      balanceAfter: Number(target?.balance || 0),
+      time: new Date().toLocaleString(),
+      status: 'success'
+    };
+    setTransactions((prev) => [relTx, ...prev]);
+    saveTransactionToFirebase(relTx).catch(() => {});
+    showToast(
+      nextLocked > 0
+        ? `Released ৳${releasedAmt.toFixed(2)}! Remaining Hold: ৳${nextLocked.toFixed(2)}`
+        : `Full Hold ৳${releasedAmt.toFixed(2)} released! User can now play games & withdraw.`
+    );
+    return { success: true, message: 'Hold released' };
   };
 
   const adminUpdateUserRole = (userId: string, role: 'USER' | 'VIP' | 'ADMIN') => {
@@ -9293,6 +9399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         changeLoginPassword,
         updateUserAvatar,
         bindWallet,
+        bindUsdtAddress,
         submitDepositRequest,
         initiateEwiPayDeposit,
         syncEwiPayTransactions,

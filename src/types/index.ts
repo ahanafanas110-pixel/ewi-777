@@ -23,7 +23,15 @@ export interface User {
   loginPassword?: string;
   boundBkash?: string;
   boundNagad?: string;
-  boundWallets?: Array<{ id: string; type: 'bKash' | 'Nagad'; number: string; addedAt: string }>;
+  boundWallets?: Array<{
+    id: string;
+    type: 'bKash' | 'Nagad' | 'Upay' | 'SureCash';
+    number: string;
+    accountName?: string;
+    addedAt: string;
+  }>;
+  boundUsdt?: string;
+  usdtNetwork?: string;
   turnoverRequired: number;
   turnoverCompleted: number;
   hasClaimedDepositBonus?: boolean;
@@ -459,8 +467,11 @@ export interface WithdrawRequest {
   userName: string;
   userPhone: string;
   amount: number;
-  method: 'bKash' | 'Nagad' | 'Rocket' | 'USDT';
+  usdAmount?: number;
+  method: 'bKash' | 'Nagad' | 'Rocket' | 'Upay' | 'SureCash' | 'USDT';
   number: string;
+  accountName?: string;
+  network?: string;
   status: 'pending' | 'processing' | 'completed' | 'rejected';
   time: string;
   createdAtMs?: number;

@@ -257,6 +257,8 @@ export const Admin: React.FC = () => {
   const [personalNoticeText, setPersonalNoticeText] = useState('');
   const [turnoverDraft, setTurnoverDraft] = useState('');
   const [holdDraft, setHoldDraft] = useState('');
+  const [releaseDraft, setReleaseDraft] = useState('');
+  const [releaseModalUser, setReleaseModalUser] = useState<User | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
 
   // =================== GAMES MANAGEMENT STATE ===================
@@ -2145,9 +2147,12 @@ export const Admin: React.FC = () => {
                                   {Number(u.lockedBalance || 0) > 0 ? (
                                     <button
                                       type="button"
-                                      onClick={() => releaseLockedBalance(u.id)}
+                                      onClick={() => {
+                                        setReleaseModalUser(u);
+                                        setReleaseDraft('');
+                                      }}
                                       className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black inline-flex items-center gap-1 active:scale-95"
-                                      title="Release Hold Balance (Allow Play & Withdraw)"
+                                      title="Release Partial or Full Hold Balance"
                                     >
                                       <Unlock className="w-3 h-3" />
                                       <span>Release</span>
@@ -2168,6 +2173,7 @@ export const Admin: React.FC = () => {
                                       setControlUser(u);
                                       setTurnoverDraft(String(u.turnoverRequired || 0));
                                       setHoldDraft('');
+                                      setReleaseDraft('');
                                     }}
                                     className="p-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white active:scale-95"
                                     title="User Control"
@@ -7454,18 +7460,55 @@ export const Admin: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              releaseLockedBalance(liveUser.id);
-                              setControlUser((prev) =>
-                                prev && prev.id === liveUser.id ? { ...prev, lockedBalance: 0 } : prev
-                              );
+                              const res = releaseLockedBalance(liveUser.id);
+                              if (res.success) {
+                                setControlUser((prev) =>
+                                  prev && prev.id === liveUser.id ? { ...prev, lockedBalance: 0 } : prev
+                                );
+                                setReleaseDraft('');
+                              }
                             }}
                             className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] whitespace-nowrap active:scale-95 flex items-center gap-1"
                           >
                             <Unlock className="w-3 h-3" />
-                            <span>Release Hold</span>
+                            <span>Release All</span>
                           </button>
                         )}
                       </div>
+
+                      {Number(liveUser.lockedBalance || 0) > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={releaseDraft}
+                            onChange={(e) => setReleaseDraft(e.target.value)}
+                            placeholder={`Release custom ৳ (max ৳${Number(liveUser.lockedBalance || 0).toFixed(2)})`}
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-[11px] font-mono text-slate-900"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const parsedRel = releaseDraft.trim() ? Number(releaseDraft) : undefined;
+                              const res = releaseLockedBalance(liveUser.id, parsedRel);
+                              if (res.success) {
+                                const curL = Math.max(0, Number(liveUser.lockedBalance || 0));
+                                const relAmt = parsedRel && parsedRel > 0 ? Math.min(curL, parsedRel) : curL;
+                                const nextL = Math.max(0, +(curL - relAmt).toFixed(2));
+                                setControlUser((prev) =>
+                                  prev && prev.id === liveUser.id ? { ...prev, lockedBalance: nextL } : prev
+                                );
+                                setReleaseDraft('');
+                              }
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] whitespace-nowrap active:scale-95 flex items-center gap-1"
+                          >
+                            <Unlock className="w-3 h-3" />
+                            <span>Release Amount</span>
+                          </button>
+                        </div>
+                      )}
 
                       {Math.max(0, Number(liveUser.balance || 0) - Number(liveUser.lockedBalance || 0)) > 0 && (
                         <div className="flex items-center gap-1.5">
@@ -7810,8 +7853,11 @@ export const Admin: React.FC = () => {
             <div className="space-y-2 text-xs">
               {(cardsModalUser.boundWallets || []).length > 0 ? (
                 cardsModalUser.boundWallets!.map((w) => (
-                  <div key={w.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
-                    <span className={`font-black ${w.type === 'bKash' ? 'text-[#E2136E]' : 'text-cyan-700'}`}>{w.type}</span>
+                  <div key={w.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                    <div>
+                      <span className={`font-black ${w.type === 'bKash' ? 'text-[#E2136E]' : 'text-cyan-700'}`}>{w.type}</span>
+                      {w.accountName && <div className="text-[10px] text-slate-500">{w.accountName}</div>}
+                    </div>
                     <span className="font-mono text-slate-900">{w.number}</span>
                   </div>
                 ))
@@ -7819,6 +7865,12 @@ export const Admin: React.FC = () => {
                 <div className="text-slate-500 text-center py-4">
                   bKash: {cardsModalUser.boundBkash || 'Not bound'} • Nagad:{' '}
                   {cardsModalUser.boundNagad || 'Not bound'}
+                </div>
+              )}
+              {cardsModalUser.boundUsdt && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2">
+                  <span className="font-black text-emerald-700">USDT ({cardsModalUser.usdtNetwork || 'TRC20'})</span>
+                  <span className="font-mono text-[11px] text-slate-900 truncate max-w-[180px]">{cardsModalUser.boundUsdt}</span>
                 </div>
               )}
             </div>
@@ -7897,6 +7949,113 @@ export const Admin: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 6B. RELEASE HOLD BALANCE MODAL (PARTIAL OR FULL) */}
+      {releaseModalUser && (() => {
+        const liveRelUser = allUsers.find((u) => u.id === releaseModalUser.id) || releaseModalUser;
+        const curLocked = Math.max(0, Number(liveRelUser.lockedBalance || 0));
+        const curBal = Math.max(0, Number(liveRelUser.balance || 0));
+        const curPlayable = Math.max(0, +(curBal - curLocked).toFixed(2));
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80">
+            <div className="bg-white border border-emerald-200 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-emerald-700 flex items-center gap-1.5">
+                  <Unlock className="w-4 h-4" />
+                  <span>RELEASE HOLD BALANCE</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setReleaseModalUser(null)}
+                  className="p-1.5 rounded-full bg-slate-100 text-slate-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-600">
+                User: <strong className="text-slate-900">{liveRelUser.nickname}</strong> (UID {liveRelUser.uid})
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center text-[11px] tabular-nums">
+                <div>
+                  <div className="text-slate-500 text-[10px]">Total</div>
+                  <div className="font-black text-slate-900">৳{curBal.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-amber-700 text-[10px]">On Hold</div>
+                  <div className="font-black text-amber-700">৳{curLocked.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-emerald-700 text-[10px]">Playable</div>
+                  <div className="font-black text-emerald-700">৳{curPlayable.toFixed(2)}</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Release Custom Amount (৳)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={releaseDraft}
+                  onChange={(e) => setReleaseDraft(e.target.value)}
+                  placeholder={`Enter amount up to ৳${curLocked.toFixed(2)}`}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <div className="grid grid-cols-4 gap-1.5 text-[10px] font-black">
+                  {[0.25, 0.5, 0.75, 1].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setReleaseDraft((curLocked * pct).toFixed(2))}
+                      className="py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100"
+                    >
+                      {pct === 1 ? '100%' : `${pct * 100}%`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const amt = Number(releaseDraft);
+                    if (!amt || amt <= 0) {
+                      showToast('Enter a valid amount to release');
+                      return;
+                    }
+                    const res = releaseLockedBalance(liveRelUser.id, amt);
+                    if (res.success) {
+                      setReleaseModalUser(null);
+                      setReleaseDraft('');
+                    }
+                  }}
+                  className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs"
+                >
+                  Release Amount
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = releaseLockedBalance(liveRelUser.id);
+                    if (res.success) {
+                      setReleaseModalUser(null);
+                      setReleaseDraft('');
+                    }
+                  }}
+                  className="py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xs"
+                >
+                  Release Full Hold
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 7. HTML SOURCE MODAL */}
       {htmlModalGame && (

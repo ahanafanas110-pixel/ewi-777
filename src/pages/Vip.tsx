@@ -103,9 +103,13 @@ export const Vip: React.FC = () => {
           </div>
           <div className="text-center pl-2 flex items-center justify-center gap-2">
             <VipBadgeImg
-              src={getVipBadgeImage(Math.max(1, user.vipLevel || 1))}
+              src={user.vipLevel >= 1 ? getVipBadgeImage(user.vipLevel) : '/assets/aistudio/image_b85a3980.png'}
               alt={`VIP ${user.vipLevel}`}
-              className="w-9 h-10 object-contain drop-shadow-sm flex-shrink-0"
+              className={
+                user.vipLevel >= 1
+                  ? 'w-9 h-10 object-contain drop-shadow-sm flex-shrink-0'
+                  : 'w-9 h-9 object-cover drop-shadow-sm flex-shrink-0 [clip-path:polygon(50%_2%,94%_22%,86%_73%,50%_98%,14%_73%,6%_22%)]'
+              }
             />
             <div className="text-left">
               <div className="text-base font-black text-slate-900 leading-tight">
